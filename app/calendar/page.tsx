@@ -19,19 +19,18 @@ interface CalendarEvent {
   isPremium?: boolean
 }
 
-// 현재 표시 중인 월 (Phase 1: 하드코딩, Phase 2 에서 navigation 연결)
-const CURRENT_MONTH = "2026-05"
-
 const tabs = ["All", "K-pop", "K-drama", "Concert", "Fan Meet"] as const
 const lockedTabs = ["Concert", "Fan Meet"]
 
 // Event Detail Modal Component
-function EventDetailModal({ 
-  event, 
-  onClose 
-}: { 
+function EventDetailModal({
+  event,
+  onClose,
+  viewDate,
+}: {
   event: CalendarEvent | null
-  onClose: () => void 
+  onClose: () => void
+  viewDate: Date
 }) {
   const [reminders, setReminders] = useState({
     d7: false,
@@ -89,7 +88,9 @@ function EventDetailModal({
         <div className="flex items-center gap-4 text-muted-foreground mb-3">
           <span className="flex items-center gap-2">
             <span>📅</span>
-            <span>May {event.date}, 2026</span>
+            <span>
+              {viewDate.toLocaleString("en-US", { month: "long" })} {event.date}, {viewDate.getFullYear()}
+            </span>
           </span>
           <span className="flex items-center gap-2">
             <span>🕗</span>
@@ -286,17 +287,40 @@ function UpgradeModal({
 
 export default function HallyuCalendarPage() {
   const [activeTab, setActiveTab] = useState<string>("All")
-  const [currentMonth] = useState("May 2026")
+  const [viewDate, setViewDate] = useState<Date>(() => {
+    const d = new Date()
+    return new Date(d.getFullYear(), d.getMonth(), 1)
+  })
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [lockedFeature, setLockedFeature] = useState<string | null>(null)
   const [events, setEvents] = useState<CalendarEvent[]>([])
-  const today = 7
 
-  // Supabase 에서 현재 월 이벤트 로드 — RLS 가 is_premium 게이팅 자동 처리
+  // 표시 월 파생값 (viewDate 변경 시 자동 갱신)
+  const viewYear = viewDate.getFullYear()
+  const viewMonth = viewDate.getMonth() // 0-11
+  const monthQuery = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`
+  const currentMonth = viewDate.toLocaleString("en-US", { month: "long", year: "numeric" })
+  const monthShort = viewDate.toLocaleString("en-US", { month: "short" }).toUpperCase()
+  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay() // 0=Sun
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+
+  // 오늘 표시: 표시 중인 월이 실제 현재 월일 때만 highlight
+  const realToday = new Date()
+  const isCurrentRealMonth =
+    realToday.getFullYear() === viewYear && realToday.getMonth() === viewMonth
+  const today = isCurrentRealMonth ? realToday.getDate() : -1
+
+  const goPrev = () =>
+    setViewDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))
+  const goNext = () =>
+    setViewDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))
+
+  // Supabase 에서 표시 월 이벤트 로드 — month 변경 시 재호출
+  // RLS 가 is_premium 게이팅 자동 처리. AbortController 로 빠른 연속 클릭 시 stale 응답 방지.
   useEffect(() => {
-    let cancelled = false
-    fetch(`/api/calendar/events?month=${CURRENT_MONTH}`)
+    const ctrl = new AbortController()
+    fetch(`/api/calendar/events?month=${monthQuery}`, { signal: ctrl.signal })
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.text().catch(() => "")
@@ -305,20 +329,19 @@ export default function HallyuCalendarPage() {
         return res.json() as Promise<{ events: CalendarEvent[] }>
       })
       .then((data) => {
-        if (!cancelled) setEvents(data.events ?? [])
+        setEvents(data.events ?? [])
       })
       .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return
         // 외부 API 실패 시 fallback 처리 (CLAUDE.md §10-4)
         console.error(
           "[calendar] events fetch 실패:",
           err instanceof Error ? err.message : err
         )
-        if (!cancelled) setEvents([])
+        setEvents([])
       })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    return () => ctrl.abort()
+  }, [monthQuery])
 
   const handleTabClick = (tab: string) => {
     if (lockedTabs.includes(tab)) {
@@ -338,7 +361,7 @@ export default function HallyuCalendarPage() {
   }
 
   const upcomingEvents = [...filteredEvents]
-    .filter(e => e.date >= today)
+    .filter((e) => (isCurrentRealMonth ? e.date >= today : true))
     .sort((a, b) => a.date - b.date)
     .slice(0, 5)
 
@@ -355,7 +378,7 @@ export default function HallyuCalendarPage() {
       <Header />
       
       {/* Event Detail Modal */}
-      <EventDetailModal event={selectedEvent} onClose={closeModal} />
+      <EventDetailModal event={selectedEvent} onClose={closeModal} viewDate={viewDate} />
       
       {/* Upgrade Modal */}
       <UpgradeModal 
@@ -428,13 +451,21 @@ export default function HallyuCalendarPage() {
 
             {/* Month Navigation */}
             <div className="flex items-center gap-4">
-              <button className="p-2 text-muted-foreground hover:text-foreground transition-colors">
+              <button
+                onClick={goPrev}
+                aria-label="Previous month"
+                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+              >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <span className="text-foreground font-medium min-w-[120px] text-center">
                 {currentMonth}
               </span>
-              <button className="p-2 text-muted-foreground hover:text-foreground transition-colors">
+              <button
+                onClick={goNext}
+                aria-label="Next month"
+                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+              >
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
@@ -474,16 +505,16 @@ export default function HallyuCalendarPage() {
 
             {/* Calendar Days */}
             <div className="grid grid-cols-7 gap-1 min-w-[600px]">
-              {/* Empty cells for May 2026 (starts on Friday) */}
-              {[...Array(5)].map((_, i) => (
+              {/* Empty cells: 표시 월 1일 의 요일만큼 offset */}
+              {[...Array(firstDayOfWeek)].map((_, i) => (
                 <div
                   key={`empty-${i}`}
                   className="min-h-[100px] md:min-h-[120px] bg-[#141416] rounded-lg"
                 />
               ))}
 
-              {/* Calendar days 1-31 */}
-              {[...Array(31)].map((_, i) => {
+              {/* Calendar days 1..daysInMonth (28-31) */}
+              {[...Array(daysInMonth)].map((_, i) => {
                 const day = i + 1
                 const dayEvents = getEventsForDay(day)
                 const isToday = day === today
@@ -550,7 +581,7 @@ export default function HallyuCalendarPage() {
                       className="w-14 h-14 rounded-xl flex flex-col items-center justify-center text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
                     >
-                      <span className="text-xs font-medium">MAY</span>
+                      <span className="text-xs font-medium">{monthShort}</span>
                       <span className="text-xl font-bold">{event.date}</span>
                     </div>
 

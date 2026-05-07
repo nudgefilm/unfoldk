@@ -19,18 +19,20 @@
     - `lib/cron/auth.ts` — CRON_SECRET 검증
     - `app/api/cron/ingest-{tmdb,youtube,lastfm}/route.ts` 3종
     - `vercel.json` — daily cron schedule (UTC 04/05/06시)
-- **진행 중**: 없음 (Phase 2 완료, 사용자 검증 대기)
-- **다음 (사용자 작업)**:
-  1. `.env.local` 에 `CRON_SECRET` 값 입력 (32+ 자 랜덤 문자열)
-  2. 로컬에서 `pnpm dev` 후 cron 라우트 수동 호출:
-     - `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/ingest-tmdb`
-     - `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/ingest-youtube`
-     - `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/ingest-lastfm`
-  3. `/calendar` 새로고침 → 인제스트된 이벤트가 보이는지 확인 (May 2026 외 월에 적재될 수 있음 — 월 navigation 미구현)
-  4. Vercel 배포 시 환경변수에 `CRON_SECRET` 동일하게 등록 → Vercel Cron 자동 호출
+    - 디버그 강화: cron auth 진단·funnel 카운트·source_id dedup·PostgrestError 풀필드 응답
+    - **검증 완료**: TMDB 40건 스캔 / YouTube 9건 적재 성공 (사용자 확인)
+  - **HallyuCalendar M+0 Phase 2.5 완료** — 캘린더 월 navigation 동적화
+    - `viewDate: Date` 상태 + `goPrev` / `goNext` 핸들러
+    - `monthQuery` 변경 시 events API 자동 재호출 (AbortController 로 stale 방지)
+    - 빈 칸 offset / 일수 / today highlight / Modal 월·년 / Upcoming 배지 전부 동적
+    - UI 스타일 무변경 (CLAUDE.md §10-9)
+- **진행 중**: 없음
+- **다음 (사용자 검증)**:
+  - `pnpm dev` → `/calendar` < > 클릭 → 월 변경 시 이벤트 새로 fetch 확인
+  - TMDB 적재된 미래 드라마들이 해당 월에 표시되는지 확인
 - **다음 세션 후보**:
-  - **Phase 2.5**: 월 navigation 활성화 (`/calendar` < > 버튼), MusicBrainz 연계 신보 감지
   - **Phase 3**: Supabase Auth (Google/Apple OAuth + 이메일), 리마인더 영속화, Resend D-Day 알림
+  - **Phase 2.6** (선택): URL 쿼리로 month 동기화(`?month=2026-06`), MusicBrainz 연계 신보 감지
 - **블로커**:
   - Google Calendar OAuth 앱 심사 신청 (출시 6주 전, 별도 트랙)
   - Stripe 키 미입력 (Phase 3 결제 단계에서 필요)

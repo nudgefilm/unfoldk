@@ -21,6 +21,29 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-08 HallyuCalendar M+0 Phase 2.5 — 캘린더 월 navigation 동적화
+
+- 결정 내용:
+  - `viewDate: Date` 단일 상태로 표시 월 관리 (월 1일 자정 로컬 기준)
+    - `goPrev` / `goNext` 가 `setViewDate` 로 새 Date 생성 → React 가 re-render + useEffect 재호출
+  - 파생값을 매 render 계산 (메모이제이션 미적용 — 비용 미미):
+    - `monthQuery`(API 호출용 `YYYY-MM`)
+    - `currentMonth` / `monthShort`(UI 라벨, en-US locale)
+    - `firstDayOfWeek` / `daysInMonth`(달력 그리드 offset·반복 횟수)
+    - `today`(실제 현재 월일 때만 양수, 아니면 `-1` 로 highlight 비활성)
+  - useEffect dep `[monthQuery]` — 월 string 동등성으로 리페치 트리거
+  - `AbortController` 도입 — 빠른 연속 클릭 시 stale 응답 덮어쓰기 방지
+  - Modal·Upcoming 배지에 viewDate 전파 → 하드코딩 "May"/"2026"/"MAY" 제거
+  - Upcoming 필터: 표시 월이 실제 현재 월일 때만 `e.date >= today` cutoff, 아니면 전체 노출
+- 이유:
+  - Date 한 개로 관리하면 month 산술(prev/next)이 `new Date(y, m-1, 1)` / `new Date(y, m+1, 1)` 로 자동 wrap (Dec→Jan, year 증감 포함)
+  - useState(() => initial) 형태로 SSR mismatch 회피 — 첫 렌더에서만 new Date() 호출
+  - useEffect dep 을 viewDate(객체) 가 아니라 monthQuery(문자열) 로 둔 이유: viewDate 는 매 렌더 새 객체일 수 있어 무한 루프 위험. 문자열은 값 동등성.
+- 대안으로 고려했던 것:
+  - `{year, month}` 객체 상태: 산술 시 wrap 직접 처리 필요해 더 번거로움
+  - `useMemo` 로 파생값 캐싱: 월 1회 변경되는 값들이라 비용·코드 복잡도 대비 이득 미미
+  - URL 쿼리(`?month=YYYY-MM`)로 상태 동기화 + 공유 가능 링크: Phase 3 후보 (현재는 SPA 내 로컬 상태로 충분)
+
 ## 2026-05-08 HallyuCalendar M+0 Phase 2 — TMDB / YouTube / Last.fm 자동 인제스트
 
 - 결정 내용:
