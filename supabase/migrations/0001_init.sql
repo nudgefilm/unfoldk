@@ -150,16 +150,26 @@ create policy "subs_select_own"
   using (auth.uid() = user_id);
 
 -- 10-3. hallyu_calendar_events:
---   - 무료 이벤트(is_premium=false): 모두에게 read 허용 (비로그인 포함)
---   - 유료 이벤트(is_premium=true): plan 활성 사용자만 read
+--   - 무료 이벤트(is_premium=false): anon + authenticated 모두 read
+--   - 유료 이벤트(is_premium=true): plan 활성 authenticated 만 read
 --   - write 는 service_role 전용 (인제스트 잡)
+--   ⚠️ 정책을 둘로 분리한 이유: 단일 OR 정책은 anon 경로에서도 users 테이블을
+--      평가해 "permission denied for table users" 발생함.
 drop policy if exists "events_select_free_for_all" on public.hallyu_calendar_events;
-create policy "events_select_free_for_all"
+drop policy if exists "events_select_free" on public.hallyu_calendar_events;
+drop policy if exists "events_select_premium_paid" on public.hallyu_calendar_events;
+
+create policy "events_select_free"
   on public.hallyu_calendar_events for select
   to anon, authenticated
+  using (is_premium = false);
+
+create policy "events_select_premium_paid"
+  on public.hallyu_calendar_events for select
+  to authenticated
   using (
-    is_premium = false
-    or exists (
+    is_premium = true
+    and exists (
       select 1 from public.users u
       where u.id = auth.uid()
         and u.plan_type in ('monthly', 'annual')
