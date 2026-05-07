@@ -17,7 +17,7 @@ const RESULTS_PER_ARTIST = 3
 export async function GET(request: Request) {
   const auth = verifyCronAuth(request)
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.reason }, { status: 401 })
+    return NextResponse.json({ error: auth.reason, debug: auth.debug }, { status: 401 })
   }
 
   try {
