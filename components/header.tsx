@@ -1,0 +1,233 @@
+"use client"
+
+import type React from "react"
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Menu, ChevronDown, Calendar, Music, Film, Languages, UtensilsCrossed } from "lucide-react"
+import Link from "next/link"
+
+const services = [
+  { icon: Calendar, name: "HallyuCalendar", description: "Never miss a comeback or premiere", href: "/calendar" },
+  { icon: Music, name: "KpopStats", description: "Global charts & streaming stats", href: "/kpop" },
+  { icon: Film, name: "KdramaMatch", description: "AI-powered drama recommendations", href: "/drama" },
+  { icon: Languages, name: "HangeulGo", description: "Learn Korean from K-dramas", href: "/korean" },
+  { icon: UtensilsCrossed, name: "KfoodKit", description: "Cook your favorite K-drama dishes", href: "/food" },
+]
+
+export function Header() {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [closeTimeout, setCloseTimeout] = useState<NodeJS.Timeout | null>(null)
+
+  const handleMouseEnter = () => {
+    if (closeTimeout) {
+      clearTimeout(closeTimeout)
+      setCloseTimeout(null)
+    }
+    setIsDropdownOpen(true)
+  }
+
+  const handleMouseLeave = () => {
+    const timeout = setTimeout(() => {
+      setIsDropdownOpen(false)
+    }, 200)
+    setCloseTimeout(timeout)
+  }
+
+  const handleScrollToPricing = (e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
+    e.preventDefault()
+    const targetElement = document.getElementById("pricing-section")
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: "smooth" })
+    }
+    setIsDropdownOpen(false)
+  }
+
+  const handleScrollToAbout = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault()
+    const targetElement = document.getElementById("faq-section")
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: "smooth" })
+    }
+  }
+
+  return (
+    <header className="w-full py-4 px-6">
+      <div className="max-w-7xl mx-auto flex items-center justify-between">
+        {/* Left: Brand */}
+        <Link href="/" className="flex items-center">
+          <span className="text-foreground text-xl font-semibold">UnfoldK</span>
+        </Link>
+
+        {/* Right: Services Dropdown + About + CTA */}
+        <div className="hidden md:flex items-center gap-4">
+          {/* Services Dropdown */}
+          <div 
+            className="relative"
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          >
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="flex items-center gap-1.5 text-[#888888] hover:text-foreground px-4 py-2 rounded-full font-medium transition-colors"
+            >
+              Services
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {/* Dropdown Menu */}
+            {isDropdownOpen && (
+              <div className="absolute top-full right-0 pt-2 w-[480px] z-50">
+                <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 shadow-xl">
+                {/* Two-column grid for first 4 items */}
+                <div className="grid grid-cols-2 gap-3">
+                  {services.slice(0, 4).map((service) => (
+                    <Link
+                      key={service.name}
+                      href={service.href}
+                      className="flex items-start gap-3 p-3 rounded-lg hover:bg-[#252525] transition-colors"
+                    >
+                      <service.icon className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                      <div>
+                        <div className="text-foreground font-medium text-sm">{service.name}</div>
+                        <div className="text-muted-foreground text-xs mt-0.5">{service.description}</div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+                
+                {/* Full-width KfoodKit */}
+                <Link
+                  href={services[4].href}
+                  className="flex items-start gap-3 p-3 rounded-lg hover:bg-[#252525] transition-colors mt-2"
+                >
+                  <UtensilsCrossed className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="text-foreground font-medium text-sm">{services[4].name}</div>
+                    <div className="text-muted-foreground text-xs mt-0.5">{services[4].description}</div>
+                  </div>
+                </Link>
+
+                {/* Divider */}
+                <div className="border-t border-[#2a2a2a] my-3" />
+
+                {/* Footer link to Pricing */}
+                <Link
+                  href="/#pricing"
+                  className="w-full text-left text-primary font-medium text-sm hover:underline px-3 py-2 block"
+                >
+                  View Hallyu Pass
+                </Link>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Link
+            href="/about"
+            className="text-[#888888] hover:text-foreground px-4 py-2 rounded-full font-medium transition-colors"
+          >
+            About
+          </Link>
+          <Link
+            href="/mypage"
+            className="text-[#888888] hover:text-foreground px-4 py-2 rounded-full font-medium transition-colors"
+          >
+            My Page
+          </Link>
+          <Link
+            href="/login"
+            className="text-[#888888] hover:text-foreground px-4 py-2 rounded-full font-medium transition-colors"
+          >
+            Log in
+          </Link>
+          <Link href="/signup">
+            <Button 
+              className="px-6 py-2 rounded-full font-medium shadow-sm"
+              style={{ backgroundColor: "#FF4B6E", color: "white" }}
+            >
+              Try for Free
+            </Button>
+          </Link>
+        </div>
+
+        {/* Mobile Hamburger Menu */}
+        <Sheet>
+          <SheetTrigger asChild className="md:hidden">
+            <Button variant="ghost" size="icon" className="text-foreground">
+              <Menu className="h-7 w-7" />
+              <span className="sr-only">Toggle navigation menu</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="bg-[#1a1a1a] border-t border-[#2a2a2a] text-foreground">
+            <SheetHeader>
+              <SheetTitle className="text-left text-xl font-semibold text-foreground">Menu</SheetTitle>
+            </SheetHeader>
+            <nav className="flex flex-col gap-2 mt-6">
+              {/* Services Section */}
+              <div className="text-muted-foreground text-xs font-medium uppercase tracking-wider mb-2 px-2">Services</div>
+              {services.map((service) => (
+                <Link
+                  key={service.name}
+                  href={service.href}
+                  className="flex items-center gap-3 px-2 py-3 rounded-lg hover:bg-[#252525] transition-colors"
+                >
+                  <service.icon className="w-5 h-5 text-primary flex-shrink-0" />
+                  <div>
+                    <div className="text-foreground font-medium text-sm">{service.name}</div>
+                    <div className="text-muted-foreground text-xs">{service.description}</div>
+                  </div>
+                </Link>
+              ))}
+
+              {/* Divider */}
+              <div className="border-t border-[#2a2a2a] my-3" />
+
+              {/* About Link */}
+              <Link
+                href="/about"
+                className="text-foreground hover:text-primary px-2 py-3 font-medium"
+              >
+                About
+              </Link>
+
+              {/* My Page Link */}
+              <Link
+                href="/mypage"
+                className="text-foreground hover:text-primary px-2 py-3 font-medium"
+              >
+                My Page
+              </Link>
+
+              {/* Log in Link */}
+              <Link
+                href="/login"
+                className="text-foreground hover:text-primary px-2 py-3 font-medium"
+              >
+                Log in
+              </Link>
+
+              {/* Hallyu Pass Link */}
+              <Link
+                href="/#pricing"
+                className="text-left text-primary font-medium px-2 py-3"
+              >
+                View Hallyu Pass
+              </Link>
+
+              {/* CTA Button */}
+              <Link href="/signup" className="w-full mt-4">
+                <Button 
+                  className="w-full px-6 py-3 rounded-full font-medium shadow-sm"
+                  style={{ backgroundColor: "#FF4B6E", color: "white" }}
+                >
+                  Try for Free
+                </Button>
+              </Link>
+            </nav>
+          </SheetContent>
+        </Sheet>
+      </div>
+    </header>
+  )
+}
