@@ -1,4 +1,5 @@
 import React from "react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Header } from "./header"
 import Link from "next/link"
@@ -435,6 +436,18 @@ export function HeroSection() {
       {/* Header positioned at top of hero container */}
       <div className="absolute top-0 left-0 right-0 z-20">
         <Header />
+      </div>
+
+      {/* Ghost globe mark — top-left, below logo */}
+      <div className="absolute top-12 left-2 md:top-14 md:left-4 z-10 pointer-events-none">
+        <Image
+          src="/unfoldk_ghost_globe_white.png"
+          alt=""
+          width={160}
+          height={160}
+          priority
+          className="w-24 h-24 md:w-32 md:h-32 lg:w-40 lg:h-40 opacity-90"
+        />
       </div>
 
       <div className="relative z-10 space-y-5 md:space-y-6 lg:space-y-8 mb-8 md:mb-10 lg:mb-12 max-w-md md:max-w-[500px] lg:max-w-[700px] mt-20 md:mt-[110px] lg:mt-[125px] px-4">
