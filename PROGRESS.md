@@ -9,32 +9,33 @@
 - **완료 (이번 세션)**:
   - 히어로 섹션 ghost globe 마크 추가 + float 애니메이션 (motion-reduce 대응)
   - 파비콘 교체 + 브라우저 탭 타이틀 'UnfoldK' 단순화
-  - `Work/` 폴더 `.gitignore` 추가 (로컬 작업용 자산)
+  - `Work/` 폴더 `.gitignore` 추가
   - 이용약관 언어 토글을 Privacy 와 동일 위치·스타일로 통일
-  - **HallyuCalendar M+0 Phase 1 인프라 완료**:
-    - 백엔드 SDK 설치 (`@supabase/supabase-js`, `@supabase/ssr`, `resend`, `googleapis`)
-    - `lib/supabase/{server,browser,admin}.ts` 클라이언트 3분기
-    - `supabase/migrations/0001_init.sql` — 4개 테이블 + RLS + auth 트리거
-    - `supabase/seed.sql` — mock 5개 이벤트 DB 시드
-    - `app/api/calendar/events/route.ts` — `GET ?month=YYYY-MM` (zod 검증)
-    - `app/calendar/page.tsx` — mock 제거, API fetch 연동 (UI 무변경)
-- **진행 중**: 없음 (Phase 1 완료, Phase 2 대기)
-- **다음 세션 (Phase 2 — 외부 API 인제스트)**:
-  - Supabase 대시보드에서 마이그레이션·시드 SQL 실행 (사용자 작업)
-  - `/calendar` 페이지에서 시드 데이터 로드 확인
-  - TMDB 인제스트: `lib/api/tmdb.ts` + cron 방식으로 K-드라마 일정 → `hallyu_calendar_events` 적재
-  - YouTube 인제스트: 컴백 영상 감지 → 이벤트 생성
-  - Last.fm 인제스트: 신보 발매 감지
-  - 월 navigation (이전/다음) 동작 연결 — 현재 `CURRENT_MONTH` 하드코딩 상태
-- **다다음 세션 (Phase 3 — Auth + 리마인더)**:
-  - Supabase Auth: Google/Apple OAuth + 이메일 로그인
-  - 리마인더 토글(d7/d1/dayOf) → `user_calendar_subscriptions` 영속화
-  - Resend 이벤트 D-Day 알림 발송 (Vercel Cron)
+  - **HallyuCalendar M+0 Phase 1 완료** — 인프라 / DB 스키마 / RLS / API / UI 연동
+    - 0001 + 0002 GRANT + 0003 events RLS 정책 분리 모두 적용
+    - /calendar 비프리미엄 3개 정상 노출 확인
+  - **HallyuCalendar M+0 Phase 2 완료** — 외부 API 자동 인제스트
+    - `lib/api/{tmdb,youtube,lastfm}.ts` 래퍼
+    - `lib/cron/auth.ts` — CRON_SECRET 검증
+    - `app/api/cron/ingest-{tmdb,youtube,lastfm}/route.ts` 3종
+    - `vercel.json` — daily cron schedule (UTC 04/05/06시)
+- **진행 중**: 없음 (Phase 2 완료, 사용자 검증 대기)
+- **다음 (사용자 작업)**:
+  1. `.env.local` 에 `CRON_SECRET` 값 입력 (32+ 자 랜덤 문자열)
+  2. 로컬에서 `pnpm dev` 후 cron 라우트 수동 호출:
+     - `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/ingest-tmdb`
+     - `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/ingest-youtube`
+     - `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/ingest-lastfm`
+  3. `/calendar` 새로고침 → 인제스트된 이벤트가 보이는지 확인 (May 2026 외 월에 적재될 수 있음 — 월 navigation 미구현)
+  4. Vercel 배포 시 환경변수에 `CRON_SECRET` 동일하게 등록 → Vercel Cron 자동 호출
+- **다음 세션 후보**:
+  - **Phase 2.5**: 월 navigation 활성화 (`/calendar` < > 버튼), MusicBrainz 연계 신보 감지
+  - **Phase 3**: Supabase Auth (Google/Apple OAuth + 이메일), 리마인더 영속화, Resend D-Day 알림
 - **블로커**:
-  - 사용자 작업 필요: Supabase Dashboard 에서 `0001_init.sql` + `seed.sql` 실행 — 안 하면 API 가 빈 배열 반환
   - Google Calendar OAuth 앱 심사 신청 (출시 6주 전, 별도 트랙)
   - Stripe 키 미입력 (Phase 3 결제 단계에서 필요)
-  - `next.config.mjs` 의 `typescript.ignoreBuildErrors: true` 아직 활성 — strict 전환은 Phase 2 끝에 검토
+  - Vercel Cron Hobby plan 은 2개 한도 — Pro 또는 라우트 통합 필요
+  - `next.config.mjs` 의 `typescript.ignoreBuildErrors: true` 아직 활성 — strict 전환은 Phase 3 끝에 검토
 
 ---
 

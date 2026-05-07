@@ -21,6 +21,33 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-08 HallyuCalendar M+0 Phase 2 — TMDB / YouTube / Last.fm 자동 인제스트
+
+- 결정 내용:
+  - 외부 API 래퍼 3종 (`lib/api/{tmdb,youtube,lastfm}.ts`)
+    - TMDB: v4 Bearer 토큰, `discover/tv?with_origin_country=KR` 인기순 fetch
+    - YouTube: `googleapis` SDK, `search.list` (eventType=upcoming) + `videos.list` (liveStreamingDetails)
+    - Last.fm: `tag.gettopartists?tag=k-pop`
+  - Cron 스타일 라우트 3종 (`app/api/cron/ingest-{tmdb,youtube,lastfm}/route.ts`)
+    - 인증: `Authorization: Bearer ${CRON_SECRET}` (Vercel Cron 자동 헤더 호환)
+    - 적재: `createSupabaseAdminClient` (service_role) 로 RLS 우회 upsert
+    - 멱등성: `(source_api, source_id)` unique 제약으로 onConflict 갱신
+  - 역할 분리:
+    - **TMDB → 'drama'**: 미래 first_air_date 만 필터, KST 21시로 가정
+    - **YouTube → 'comeback'**: Last.fm 시드 아티스트 15명 × 검색 3건 (≈1,500 quota units/run)
+    - **Last.fm → 시드 전용**: release date 가 없어 직접 이벤트 생성 안 함
+  - `vercel.json` cron 스케줄: TMDB 04:00 / YouTube 05:00 / Last.fm 06:00 UTC
+  - `.env.local` 에 `CRON_SECRET` 항목 추가 (사용자가 직접 채움)
+- 이유:
+  - Last.fm 자체 API 에 album release date 가 없음 — 트렌딩 시그널은 있지만 미래 이벤트 생성에 부적합. MusicBrainz 2-hop 조회는 Phase 2.5 로 분리.
+  - YouTube `eventType=upcoming` 은 Premiere(예약 영상)·Live 모두 포함 — 컴백 M/V 가 보통 Premiere 로 예약되므로 신뢰도 높음.
+  - 쿼터 보호: 아티스트당 search.list(100u) + videos.list(1u) = 101u, 15명 = 1,515u 로 일일 10,000u 한도의 15% 만 사용. 다른 서비스 확장 여유 확보.
+  - service_role 클라이언트 분리 (`lib/supabase/admin.ts`) 로 인제스트 잡이 RLS 정책 작성 부담 없이 동작.
+- 대안으로 고려했던 것:
+  - Vercel Cron 단일 `ingest-all` 라우트로 통합 (Hobby plan 2개 cron 한도 회피) → Pro 가정으로 분리 유지 (디버깅/재실행 편의)
+  - Last.fm + MusicBrainz 2-hop 으로 정확한 신보 감지 → 복잡도 증가, Phase 2.5 로 미룸
+  - YouTube 아티스트 리스트 하드코딩 → Last.fm 동적 시드가 트렌드 반영에 유리
+
 ## 2026-05-08 HallyuCalendar M+0 Phase 1 — 인프라 + DB 스키마 + 캘린더 API 연결
 
 - 결정 내용:
