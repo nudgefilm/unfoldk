@@ -40,6 +40,7 @@ export async function GET(request: Request) {
       thumbnailUrl: string | null
       description: string
     }> = []
+    const perArtistErrors: Array<{ artist: string; error: string }> = []
 
     for (const artist of artists) {
       try {
@@ -59,10 +60,9 @@ export async function GET(request: Request) {
         }
       } catch (err) {
         // 한 아티스트 실패가 전체를 깨뜨리지 않도록 (CLAUDE.md §10-4)
-        console.warn(
-          `[ingest-youtube] ${artist.name} 검색 실패:`,
-          err instanceof Error ? err.message : err
-        )
+        const msg = err instanceof Error ? err.message : String(err)
+        console.warn(`[ingest-youtube] ${artist.name} 검색 실패:`, msg)
+        perArtistErrors.push({ artist: artist.name, error: msg })
       }
     }
 
@@ -71,6 +71,7 @@ export async function GET(request: Request) {
         source: "youtube",
         artistsScanned: artists.length,
         upserted: 0,
+        perArtistErrors,
       })
     }
 
@@ -105,12 +106,18 @@ export async function GET(request: Request) {
       artistsScanned: artists.length,
       eventsFound: allEvents.length,
       upserted: data?.length ?? 0,
+      perArtistErrors,
     })
   } catch (err) {
+    // 외부 try/catch — Last.fm 시드 fetch 실패 또는 예기치 못한 throw
+    const msg = err instanceof Error ? err.message : String(err)
+    const stack = err instanceof Error ? err.stack : undefined
+    console.error("[ingest-youtube] 최상위 에러:", msg, stack)
     return NextResponse.json(
       {
         source: "youtube",
-        error: err instanceof Error ? err.message : "unknown",
+        error: msg,
+        stack,
       },
       { status: 500 }
     )
