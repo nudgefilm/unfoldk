@@ -446,7 +446,7 @@ export function HeroSection() {
           width={160}
           height={160}
           priority
-          className="w-24 h-24 md:w-32 md:h-32 lg:w-40 lg:h-40 opacity-90"
+          className="w-24 h-24 md:w-32 md:h-32 lg:w-40 lg:h-40 opacity-90 animate-spin-slow motion-reduce:animate-none"
         />
       </div>
 
