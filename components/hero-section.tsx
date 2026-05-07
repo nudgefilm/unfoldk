@@ -7,7 +7,7 @@ export function HeroSection() {
   return (
     <section
       className="flex flex-col items-center text-center relative mx-auto rounded-2xl overflow-hidden my-6 py-0 px-4
-         w-full h-[420px] md:w-[1220px] md:h-[520px] lg:h-[580px] md:px-0"
+         w-full h-[462px] md:w-[1220px] md:h-[572px] lg:h-[638px] md:px-0"
     >
       {/* SVG Background */}
       <div className="absolute inset-0 z-0">
@@ -437,7 +437,7 @@ export function HeroSection() {
         <Header />
       </div>
 
-      <div className="relative z-10 space-y-4 md:space-y-5 lg:space-y-6 mb-6 md:mb-7 lg:mb-8 max-w-md md:max-w-[500px] lg:max-w-[700px] mt-16 md:mt-[90px] lg:mt-[100px] px-4">
+      <div className="relative z-10 space-y-5 md:space-y-6 lg:space-y-8 mb-8 md:mb-10 lg:mb-12 max-w-md md:max-w-[500px] lg:max-w-[700px] mt-20 md:mt-[110px] lg:mt-[125px] px-4">
         {/* Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[rgba(255,75,110,0.12)] border border-[rgba(255,75,110,0.25)]">
           <span className="text-primary text-sm font-medium">✦ Your Pass to Korean Culture</span>
@@ -451,7 +451,7 @@ export function HeroSection() {
         </p>
       </div>
 
-      <div className="relative z-10 flex flex-col sm:flex-row items-center gap-3 mb-8">
+      <div className="relative z-10 flex flex-col sm:flex-row items-center gap-3 mb-10 md:mb-12 lg:mb-14">
         <Link href="/signup">
           <Button className="bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-press px-8 py-3 rounded-full font-medium text-base shadow-lg">
             Start for free
