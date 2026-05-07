@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, Plus, Calendar, X, Lock } from "lucide-react"
 import Link from "next/link"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 type EventType = "K-pop" | "K-drama" | "Concert" | "Fan Meet"
 
@@ -32,11 +34,79 @@ function EventDetailModal({
   onClose: () => void
   viewDate: Date
 }) {
+  const router = useRouter()
   const [reminders, setReminders] = useState({
     d7: false,
     d1: true,
-    dayOf: true
+    dayOf: true,
   })
+  const [authChecked, setAuthChecked] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 모달 열릴 때 (event 변경) — 로그인 여부 확인 + 서버에서 리마인더 설정 로드
+  useEffect(() => {
+    if (!event) return
+    let cancelled = false
+
+    const load = async () => {
+      setAuthChecked(false)
+      const supabase = createSupabaseBrowserClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (cancelled) return
+
+      setIsLoggedIn(!!user)
+      setAuthChecked(true)
+
+      if (!user) return // 비로그인: 디폴트 토글 그대로
+
+      try {
+        const res = await fetch(`/api/calendar/reminders?event_id=${event.id}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (!cancelled) {
+            setReminders({
+              d7: !!data.remind_d7,
+              d1: !!data.remind_d1,
+              dayOf: !!data.remind_dayof,
+            })
+          }
+        }
+      } catch (err) {
+        console.error("[reminders] load 실패:", err)
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [event])
+
+  // 토글 변경 시 300ms debounce 후 서버 저장
+  const scheduleSave = (next: typeof reminders) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(async () => {
+      if (!event) return
+      try {
+        await fetch("/api/calendar/reminders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event_id: event.id,
+            remind_d7: next.d7,
+            remind_d1: next.d1,
+            remind_dayof: next.dayOf,
+          }),
+        })
+      } catch (err) {
+        console.error("[reminders] save 실패:", err)
+      }
+    }, 300)
+  }
 
   if (!event) return null
 
@@ -47,7 +117,14 @@ function EventDetailModal({
   }
 
   const toggleReminder = (key: keyof typeof reminders) => {
-    setReminders(prev => ({ ...prev, [key]: !prev[key] }))
+    // 비로그인 사용자가 토글 시 → 로그인 페이지로 (원래 경로 보존)
+    if (authChecked && !isLoggedIn) {
+      router.push(`/login?redirect=/calendar`)
+      return
+    }
+    const next = { ...reminders, [key]: !reminders[key] }
+    setReminders(next)
+    scheduleSave(next)
   }
 
   return (

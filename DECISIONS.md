@@ -21,6 +21,33 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-08 HallyuCalendar M+0 Phase 3.5 — 리마인더 영속화 + Resend D-Day 알림
+
+- 결정 내용:
+  - **DB**: `0004_reminder_sent_flags.sql` — `user_calendar_subscriptions` 에 `sent_d7/sent_d1/sent_dayof` boolean 컬럼 추가 (default false). 별도 `user_reminders`/`reminder_sends` 테이블 생성 안 함 — 토글이 이미 한 행에 있으니 같은 행에 sent 플래그 두는 게 단순.
+  - **API**: `app/api/calendar/reminders/route.ts`
+    - `GET ?event_id=` — 로그인 사용자의 해당 이벤트 리마인더 설정 (없으면 모두 false 디폴트)
+    - `POST { event_id, remind_d7, remind_d1, remind_dayof }` — upsert. `notification_enabled` = OR. sent 플래그는 안 건드림.
+    - 인증은 `createSupabaseServerClient` 의 `auth.getUser()` 로, RLS 가 본인 데이터 보장.
+  - **Cron**: `app/api/cron/send-reminders/route.ts`
+    - UTC day window `[D, D+1)` 으로 D-7 / D-1 / D-0 이벤트 조회 → 알림 켠 비발송 구독자 → Resend 발송 → `sent_*=true` 업데이트
+    - 발송 실패와 플래그 update 실패를 분리 로깅 (후자는 다음 cron 에서 중복 발송 가능성)
+    - `Promise.all` 로 3 kind 병렬, 내부 이벤트 루프는 직렬 (Resend rate 보호)
+  - **인제스트 리팩토링**: `lib/ingest/{tmdb,youtube,lastfm}.ts` 로 로직 추출. 기존 라우트 3개는 thin wrapper 로 유지하고, 신규 `app/api/cron/ingest-all/route.ts` 가 동일 함수를 차례로 호출.
+  - **vercel.json**: cron 슬롯 2개로 압축 (Hobby plan 한도)
+    - `/api/cron/ingest-all` 04:00 UTC
+    - `/api/cron/send-reminders` 09:00 UTC (= KST 18:00)
+  - **EventDetailModal**: 로그인 시 `GET /api/calendar/reminders` 로 초기화, 토글 변경 시 300ms debounce 후 POST. 비로그인 사용자가 토글 클릭하면 `/login?redirect=/calendar` 로 이동.
+- 이유:
+  - sent 플래그를 같은 행에 두면 cron 쿼리가 join 없이 `eq(remind_X, true).eq(sent_X, false)` 한 줄로 끝나 단순. 감사 로그가 필요하면 Phase 3.6 에 별도 `reminder_sends` 도입 가능.
+  - UTC 윈도우 기준 — cron 이 09:00 UTC (= KST 18:00) 에 돌아 그 시점의 "오늘 UTC 날짜"로 D-N 계산. 사용자가 KST 라 약간의 경계 케이스가 있지만 MVP 로 허용.
+  - Resend `from` 형식 `"HallyuCalendar <noreply@unfoldk.com>"` — display name 포함해 인박스에서 브랜드 인식.
+  - 인제스트 로직 추출은 ingest-all 재활용 + 단위 테스트 가능성 + 라우트 파일은 인증 어댑터 역할만 분리.
+- 대안으로 고려했던 것:
+  - `reminder_sends` 별도 로그 테이블: 멱등 dedup 와 감사에 우월하지만 MVP 에는 과해 보류.
+  - cron 을 KST 자정 기준으로 맞추기 위해 `Asia/Seoul` 변환: UTC 윈도우 한 줄로 처리하는 단순함을 우선.
+  - ingest-all 단일 라우트로 통합하고 기존 3개 라우트 삭제: 사용자 지시(개별 라우트 유지)에 따라 미실행. 디버깅·수동 트리거 편의도 같이 유지됨.
+
 ## 2026-05-08 HallyuCalendar M+0 Phase 3 — Auth (Google + 이메일, Apple 제거)
 
 - 결정 내용:

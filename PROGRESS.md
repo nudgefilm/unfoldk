@@ -29,28 +29,34 @@
     - "Upcoming this month" 제목 동적화 (비현재 월은 "Events in {month}")
   - **CLAUDE.md §15 규칙 우선순위 추가** — 사용자 명시 요청이 모든 원칙보다 우선, UI 변화 사전 안내 의무
   - **HallyuCalendar M+0 Phase 3 (Auth) 완료** — Google + 이메일 (Apple 제거)
-    - `middleware.ts` — Supabase 세션 자동 갱신 + `/mypage` 가드
-    - `app/api/auth/callback/route.ts` — OAuth code → session 교환
-    - login: Google OAuth + 이메일 signInWithPassword + 에러 표시
-    - signup: Google OAuth + 이메일 signUp + 약관/비밀번호 검증
-    - Apple 흔적 제거: login/signup Apple 버튼 + privacy 영·한 4줄
+    - 사용자 검증 완료: Google 로그인 → /mypage 이동 정상
+  - **HallyuCalendar M+0 Phase 3.5 완료** — 리마인더 영속화 + Resend D-Day 알림
+    - `0004_reminder_sent_flags.sql` — sent_d7/d1/dayof boolean 컬럼 추가
+    - `app/api/calendar/reminders/route.ts` — GET/POST (로그인 가드 + RLS)
+    - `app/api/cron/send-reminders/route.ts` — UTC day window 로 D-7/D-1/D-0 발송, sent 플래그 갱신
+    - `lib/ingest/{tmdb,youtube,lastfm}.ts` — 라우트에서 로직 추출 (재사용용)
+    - `app/api/cron/ingest-all/route.ts` — 3개 인제스트 통합 (Vercel Hobby cron 한도 대응)
+    - `vercel.json` — cron 2개로 압축: ingest-all 04:00 UTC + send-reminders 09:00 UTC (KST 18:00)
+    - `EventDetailModal` — 로그인 시 GET 초기화 + 토글 변경 시 300ms debounce POST + 비로그인 토글은 /login?redirect=/calendar
 - **진행 중**: 없음
 - **다음 (사용자 작업)**:
-  1. **Supabase Dashboard → Authentication → Providers**:
-     - Email provider 활성화 (이미 기본 활성)
-     - Google provider 활성화 + GCP OAuth client ID/Secret 등록
-     - Site URL: `http://localhost:3000` (로컬), `https://unfoldk.com` (프로덕션 추가)
-     - Redirect URL allowlist: `http://localhost:3000/api/auth/callback`, `https://unfoldk.com/api/auth/callback`
-  2. **GCP Console → OAuth 2.0 Client**:
-     - Authorized redirect URIs 에 Supabase 콜백 URL 추가:
-       `https://voxtqmpzaohruqsiwqij.supabase.co/auth/v1/callback`
-  3. 로컬에서 `pnpm dev` 후:
-     - `/login` Google 버튼 클릭 → Google 로그인 → `/mypage` 이동 확인
-     - `/signup` 이메일 가입 → verify-email 페이지로 이동 확인
-     - `/mypage` 직접 접근 (로그아웃 상태) → `/login` 으로 리디렉트 확인
+  1. **Supabase**: `0004_reminder_sent_flags.sql` 실행
+  2. **Resend**:
+     - https://resend.com/domains 에서 `unfoldk.com` 도메인 verify (DNS SPF/DKIM 레코드 추가)
+     - 발송 발신자 `noreply@unfoldk.com` 사용 가능 상태 확인
+     - 도메인 verify 전엔 본인 이메일로 테스트 가능 (resend 디폴트 sandbox)
+  3. **로컬 테스트**:
+     - 로그인 후 `/calendar` 이벤트 클릭 → 모달의 D-7/D-1/Day of 토글 → Supabase Table Editor 에서 `user_calendar_subscriptions` 행 확인
+     - 발송 테스트 (PowerShell):
+       ```
+       Invoke-RestMethod -Uri "http://localhost:3000/api/cron/send-reminders" `
+         -Headers @{ Authorization = "Bearer 8F4BA657F21F2651B53488BFB128D91A" }
+       ```
+       → JSON 응답에 `summary.sent`, `breakdown.{d7,d1,dayof}` 표시
+     - 시드 이벤트 날짜가 2026-05-15 / 21 / 28 등이라 오늘(2026-05-08)이 D-7 매칭되면 발송 발생
 - **다음 세션 후보**:
-  - **Phase 3.5**: 리마인더 영속화(d7/d1/dayOf → user_calendar_subscriptions), Resend D-Day 알림 cron
   - **Phase 4**: Stripe 결제 — Hallyu Pass 구독 + webhook 으로 plan_type 갱신
+  - **Phase 4 어드민**: 어드민 페이지 (수동 인제스트 트리거, 이벤트 편집)
   - **Phase 2.6** (선택): URL 쿼리 month 동기화, MusicBrainz 신보 감지
 - **블로커**:
   - Google Calendar OAuth 앱 심사 신청 (출시 6주 전, 별도 트랙)
