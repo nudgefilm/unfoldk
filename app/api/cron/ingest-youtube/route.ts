@@ -20,12 +20,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: auth.reason, debug: auth.debug }, { status: 401 })
   }
 
+  // YouTube API 키 상태 진단 — 마스킹된 prefix·길이만 노출
+  const ytKey = process.env.YOUTUBE_API_KEY ?? ""
+  const apiKeyStatus = {
+    set: ytKey.length > 0,
+    length: ytKey.length,
+    prefix: ytKey ? ytKey.slice(0, 4) + "…" : "",
+  }
+  console.log("[ingest-youtube] YOUTUBE_API_KEY:", apiKeyStatus)
+
   try {
     // Last.fm 에서 트렌딩 K-pop 아티스트 시드 가져오기
     const artists = await getTopKpopArtists(ARTIST_LIMIT)
+    console.log(`[ingest-youtube] Last.fm 시드 아티스트 ${artists.length}명`)
     if (artists.length === 0) {
       return NextResponse.json({
         source: "youtube",
+        apiKeyStatus,
         upserted: 0,
         note: "Last.fm 아티스트 시드 비어있음",
       })
@@ -41,14 +52,31 @@ export async function GET(request: Request) {
       description: string
     }> = []
     const perArtistErrors: Array<{ artist: string; error: string }> = []
+    // funnel: 어느 단계에서 0이 됐는지 추적
+    const perArtistDiag: Array<{
+      artist: string
+      rawSearchCount: number
+      videoIdCount: number
+      detailsCount: number
+      withScheduledTime: number
+      sampleTitle?: string
+    }> = []
 
     for (const artist of artists) {
       try {
-        const events = await searchUpcomingComebacks(
+        const result = await searchUpcomingComebacks(
           `${artist.name} comeback`,
           RESULTS_PER_ARTIST
         )
-        for (const e of events) {
+        perArtistDiag.push({
+          artist: artist.name,
+          rawSearchCount: result.rawSearchCount,
+          videoIdCount: result.videoIdCount,
+          detailsCount: result.detailsCount,
+          withScheduledTime: result.withScheduledTime,
+          sampleTitle: result.sampleTitle,
+        })
+        for (const e of result.events) {
           allEvents.push({
             artistName: artist.name,
             videoId: e.videoId,
@@ -66,12 +94,33 @@ export async function GET(request: Request) {
       }
     }
 
+    // funnel 합계 — 어디서 0 으로 떨어졌는지 한눈에
+    const funnel = perArtistDiag.reduce(
+      (acc, d) => ({
+        rawSearchCount: acc.rawSearchCount + d.rawSearchCount,
+        videoIdCount: acc.videoIdCount + d.videoIdCount,
+        detailsCount: acc.detailsCount + d.detailsCount,
+        withScheduledTime: acc.withScheduledTime + d.withScheduledTime,
+      }),
+      { rawSearchCount: 0, videoIdCount: 0, detailsCount: 0, withScheduledTime: 0 }
+    )
+    console.log("[ingest-youtube] funnel 합계:", funnel)
+
     if (allEvents.length === 0) {
       return NextResponse.json({
         source: "youtube",
+        apiKeyStatus,
         artistsScanned: artists.length,
         upserted: 0,
+        funnel,
+        perArtistDiag,
         perArtistErrors,
+        hint:
+          funnel.rawSearchCount === 0
+            ? "search.list 가 0 hit — API 키 미작동/제약 또는 쿼터 초과 의심"
+            : funnel.withScheduledTime === 0
+            ? "검색은 되지만 어떤 영상도 scheduledStartTime 없음 — 컴백 M/V 가 YouTube Premiere 로 예약되지 않음 (eventType=upcoming 한계)"
+            : undefined,
       })
     }
 
@@ -103,9 +152,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       source: "youtube",
+      apiKeyStatus,
       artistsScanned: artists.length,
       eventsFound: allEvents.length,
       upserted: data?.length ?? 0,
+      funnel,
+      perArtistDiag,
       perArtistErrors,
     })
   } catch (err) {
