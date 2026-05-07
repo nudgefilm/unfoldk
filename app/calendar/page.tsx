@@ -562,7 +562,9 @@ export default function HallyuCalendarPage() {
         {/* Upcoming Events List */}
         <section className="mb-16">
           <h2 className="text-2xl font-semibold text-foreground mb-6">
-            Upcoming this month
+            {isCurrentRealMonth
+              ? "Upcoming this month"
+              : `Events in ${viewDate.toLocaleString("en-US", { month: "long" })}`}
           </h2>
           <div className="space-y-4 relative">
             {upcomingEvents.map((event, index) => {
