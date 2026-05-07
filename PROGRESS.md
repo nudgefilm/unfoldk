@@ -26,13 +26,32 @@
     - `monthQuery` 변경 시 events API 자동 재호출 (AbortController 로 stale 방지)
     - 빈 칸 offset / 일수 / today highlight / Modal 월·년 / Upcoming 배지 전부 동적
     - UI 스타일 무변경 (CLAUDE.md §10-9)
+    - "Upcoming this month" 제목 동적화 (비현재 월은 "Events in {month}")
+  - **CLAUDE.md §15 규칙 우선순위 추가** — 사용자 명시 요청이 모든 원칙보다 우선, UI 변화 사전 안내 의무
+  - **HallyuCalendar M+0 Phase 3 (Auth) 완료** — Google + 이메일 (Apple 제거)
+    - `middleware.ts` — Supabase 세션 자동 갱신 + `/mypage` 가드
+    - `app/api/auth/callback/route.ts` — OAuth code → session 교환
+    - login: Google OAuth + 이메일 signInWithPassword + 에러 표시
+    - signup: Google OAuth + 이메일 signUp + 약관/비밀번호 검증
+    - Apple 흔적 제거: login/signup Apple 버튼 + privacy 영·한 4줄
 - **진행 중**: 없음
-- **다음 (사용자 검증)**:
-  - `pnpm dev` → `/calendar` < > 클릭 → 월 변경 시 이벤트 새로 fetch 확인
-  - TMDB 적재된 미래 드라마들이 해당 월에 표시되는지 확인
+- **다음 (사용자 작업)**:
+  1. **Supabase Dashboard → Authentication → Providers**:
+     - Email provider 활성화 (이미 기본 활성)
+     - Google provider 활성화 + GCP OAuth client ID/Secret 등록
+     - Site URL: `http://localhost:3000` (로컬), `https://unfoldk.com` (프로덕션 추가)
+     - Redirect URL allowlist: `http://localhost:3000/api/auth/callback`, `https://unfoldk.com/api/auth/callback`
+  2. **GCP Console → OAuth 2.0 Client**:
+     - Authorized redirect URIs 에 Supabase 콜백 URL 추가:
+       `https://voxtqmpzaohruqsiwqij.supabase.co/auth/v1/callback`
+  3. 로컬에서 `pnpm dev` 후:
+     - `/login` Google 버튼 클릭 → Google 로그인 → `/mypage` 이동 확인
+     - `/signup` 이메일 가입 → verify-email 페이지로 이동 확인
+     - `/mypage` 직접 접근 (로그아웃 상태) → `/login` 으로 리디렉트 확인
 - **다음 세션 후보**:
-  - **Phase 3**: Supabase Auth (Google/Apple OAuth + 이메일), 리마인더 영속화, Resend D-Day 알림
-  - **Phase 2.6** (선택): URL 쿼리로 month 동기화(`?month=2026-06`), MusicBrainz 연계 신보 감지
+  - **Phase 3.5**: 리마인더 영속화(d7/d1/dayOf → user_calendar_subscriptions), Resend D-Day 알림 cron
+  - **Phase 4**: Stripe 결제 — Hallyu Pass 구독 + webhook 으로 plan_type 갱신
+  - **Phase 2.6** (선택): URL 쿼리 month 동기화, MusicBrainz 신보 감지
 - **블로커**:
   - Google Calendar OAuth 앱 심사 신청 (출시 6주 전, 별도 트랙)
   - Stripe 키 미입력 (Phase 3 결제 단계에서 필요)

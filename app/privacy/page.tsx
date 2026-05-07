@@ -17,7 +17,7 @@ const content = {
         title: "2. Information We Collect",
         content: null,
         list: [
-          "Account info: email, name, profile photo (via Google/Apple OAuth)",
+          "Account info: email, name, profile photo (via Google OAuth)",
           "Usage data: services used, artists tracked, dramas watched, learning progress, recipes saved",
           "Payment info: processed securely by Stripe — we do not store card details",
           "Device & log data: IP address, browser type, access times (for security)"
@@ -38,7 +38,7 @@ const content = {
         title: "4. Third-Party Services",
         content: null,
         list: [
-          "Google OAuth / Apple OAuth (authentication)",
+          "Google OAuth (authentication)",
           "Stripe (payment processing — stripe.com/privacy)",
           "YouTube Data API v3, TMDB API, Last.fm API (content data)",
           "Resend (transactional email) · Supabase (database hosting)"
@@ -107,7 +107,7 @@ const content = {
         title: "2. 수집하는 개인정보",
         content: null,
         list: [
-          "계정 정보: 이메일 주소, 이름, 프로필 사진 (Google/Apple OAuth 연동)",
+          "계정 정보: 이메일 주소, 이름, 프로필 사진 (Google OAuth 연동)",
           "서비스 이용 정보: 이용한 서비스, 추적 중인 아티스트, 시청 드라마, 학습 진도, 저장한 레시피",
           "결제 정보: Stripe를 통해 안전하게 처리, 카드 정보는 저장하지 않습니다",
           "기기 및 로그 정보: IP 주소, 브라우저 종류, 접속 시간 (보안 목적)"
@@ -128,7 +128,7 @@ const content = {
         title: "4. 개인정보 제3자 제공",
         content: null,
         list: [
-          "Google OAuth / Apple OAuth (인증)",
+          "Google OAuth (인증)",
           "Stripe (결제 처리 — stripe.com/privacy)",
           "YouTube Data API v3, TMDB API, Last.fm API (콘텐츠 데이터)",
           "Resend (이메일 발송) · Supabase (데이터베이스 호스팅)"

@@ -21,6 +21,36 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-08 HallyuCalendar M+0 Phase 3 — Auth (Google + 이메일, Apple 제거)
+
+- 결정 내용:
+  - **Apple OAuth 제거** (관리자 결정): 웹 전용 MVP 단계라 Apple Sign In 의무 없음, Apple Developer 연 $99·private email relay 복잡도 절약
+    - login/signup 페이지의 "Continue with Apple" 버튼·SVG·Link 블록 전체 삭제
+    - privacy/page.tsx 영·한 4곳에서 "Google/Apple OAuth" → "Google OAuth"
+  - **middleware.ts** (프로젝트 루트): Supabase 세션 자동 갱신 + `/mypage` 가드
+    - matcher 에서 `_next/static`·이미지 제외
+    - 미로그인 + `/mypage/*` → `/login?redirect=...` 리디렉트
+  - **app/api/auth/callback/route.ts**: OAuth code → session 교환
+    - 성공 시 `/mypage` (또는 `?next=`)
+    - 실패 시 `/login?error=auth` 또는 `?error=missing_code`
+  - **login 페이지**: Google `signInWithOAuth` + 이메일 `signInWithPassword`
+    - `redirectTo: ${origin}/api/auth/callback`
+    - 성공 시 `router.push('/mypage')` + `router.refresh()` (RSC 캐시 무효화)
+  - **signup 페이지**: Google + `signUp({ email, password, options.data: { plan, billing } })`
+    - validation: 약관 미동의 → "Please agree...", 비밀번호 불일치 → "Passwords do not match"
+    - 기존 `<Link href="/verify-email"><Button></Link>` 구조 → `<div><Button onClick></div>` (form scope 변화 최소화)
+    - plan/billing 정보는 raw_user_meta_data 로 전달 (Stripe webhook 이 후일 public.users 갱신)
+  - 기존 `lib/supabase/{browser,server}.ts` 그대로 사용 (사용자 plan 의 `client.ts` 명칭과 무관 — Phase 1 에 이미 생성됨)
+- 이유:
+  - middleware 에서 `getUser()` 호출이 세션 갱신을 트리거 — Supabase SSR 공식 패턴
+  - `router.refresh()` 없으면 새 세션 쿠키를 RSC 가 인지 못 해 `/mypage` 가 여전히 미인증으로 보일 수 있음
+  - signUp 시 plan/billing 을 `data` 에 넣으면 `auth.users.raw_user_meta_data` 에 저장 — public.users 트리거가 name/avatar 만 읽지만, 후일 Stripe 결제 webhook 에서 plan_type 업데이트 시 활용 가능
+  - Link → button 변경은 §15 에 따라 v0 영역 수정으로 분류 — 사용자 명시 요청이라 진행
+- 대안으로 고려했던 것:
+  - Apple OAuth 유지 (Phase 3 에서 함께 구현): MVP 비용·복잡도 증가, App Store 미배포 단계라 우선순위 낮음
+  - middleware 가드 제거하고 클라이언트에서만 redirect: SSR 보호 누락, 보안 약함
+  - signUp 직후 자동 로그인 후 `/mypage` 이동: 이메일 인증 강제 흐름이 깨짐 — `/verify-email` 안내 페이지로 보내는 기존 흐름 유지
+
 ## 2026-05-08 HallyuCalendar M+0 Phase 2.5 — 캘린더 월 navigation 동적화
 
 - 결정 내용:
