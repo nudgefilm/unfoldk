@@ -12,14 +12,22 @@ export default function TermsPage() {
       <Header />
       
       <main className="max-w-[800px] mx-auto px-5 py-16 md:py-24">
+        {/* Title */}
+        <h1 className="text-4xl md:text-5xl font-bold text-white text-center mb-3">
+          {language === "en" ? "Terms of Use" : "이용약관"}
+        </h1>
+        <p className="text-muted-foreground text-center mb-8">
+          {language === "en" ? "Last updated: May 7, 2026" : "최종 수정일: 2026년 5월 7일"}
+        </p>
+
         {/* Language Toggle */}
-        <div className="flex justify-center mb-8">
-          <div className="inline-flex bg-[#1a1a1a] rounded-full p-1">
+        <div className="flex justify-center mb-12">
+          <div className="inline-flex bg-[#1a1a1a] rounded-full p-1 border border-border/30">
             <button
               onClick={() => setLanguage("en")}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                language === "en" 
-                  ? "text-white" 
+              className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                language === "en"
+                  ? "text-white"
                   : "text-muted-foreground hover:text-foreground"
               }`}
               style={language === "en" ? { backgroundColor: "#FF4B6E" } : {}}
@@ -28,9 +36,9 @@ export default function TermsPage() {
             </button>
             <button
               onClick={() => setLanguage("ko")}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                language === "ko" 
-                  ? "text-white" 
+              className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                language === "ko"
+                  ? "text-white"
                   : "text-muted-foreground hover:text-foreground"
               }`}
               style={language === "ko" ? { backgroundColor: "#FF4B6E" } : {}}
@@ -39,14 +47,6 @@ export default function TermsPage() {
             </button>
           </div>
         </div>
-
-        {/* Title */}
-        <h1 className="text-4xl md:text-5xl font-bold text-white text-center mb-4">
-          {language === "en" ? "Terms of Use" : "이용약관"}
-        </h1>
-        <p className="text-muted-foreground text-center mb-12">
-          {language === "en" ? "Last updated: May 7, 2026" : "최종 수정일: 2026년 5월 7일"}
-        </p>
 
         {/* Content */}
         <div className="space-y-6">
