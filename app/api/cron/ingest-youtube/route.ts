@@ -124,7 +124,7 @@ export async function GET(request: Request) {
       })
     }
 
-    const rows = allEvents.map((e) => ({
+    const rawRows = allEvents.map((e) => ({
       type: "comeback" as const,
       title: e.title,
       artist_or_drama: e.artistName,
@@ -137,6 +137,21 @@ export async function GET(request: Request) {
       is_premium: false,
     }))
 
+    // 같은 videoId 가 여러 아티스트 검색에서 중복 등장하면 (콜라보 등)
+    // 단일 upsert 안에서 conflict target 이 두 번 나타나 Postgres 가
+    // "ON CONFLICT DO UPDATE command cannot affect row a second time" 로 실패.
+    // → source_id 기준 first-wins dedup
+    const seen = new Set<string>()
+    const rows = rawRows.filter((r) => {
+      if (seen.has(r.source_id)) return false
+      seen.add(r.source_id)
+      return true
+    })
+    const dedupedCount = rawRows.length - rows.length
+    if (dedupedCount > 0) {
+      console.log(`[ingest-youtube] dedup: ${rawRows.length} → ${rows.length} (-${dedupedCount})`)
+    }
+
     const supabase = createSupabaseAdminClient()
     const { data, error } = await supabase
       .from("hallyu_calendar_events")
@@ -144,8 +159,19 @@ export async function GET(request: Request) {
       .select("id")
 
     if (error) {
+      // PostgrestError 모든 필드 노출 (message/details/hint/code)
+      console.error("[ingest-youtube] upsert 실패:", error)
       return NextResponse.json(
-        { source: "youtube", error: error.message },
+        {
+          source: "youtube",
+          error: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          rowCount: rows.length,
+          dedupedCount,
+          sampleRow: rows[0],
+        },
         { status: 500 }
       )
     }
@@ -155,6 +181,7 @@ export async function GET(request: Request) {
       apiKeyStatus,
       artistsScanned: artists.length,
       eventsFound: allEvents.length,
+      dedupedCount,
       upserted: data?.length ?? 0,
       funnel,
       perArtistDiag,
