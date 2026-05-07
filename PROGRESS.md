@@ -68,6 +68,16 @@
 
 ## 이전 세션 기록
 
+### 2026-05-08 (세션 2) — 마일스톤 태그 `v0.3.5`
+- HallyuCalendar M+0 Phase 1~3.5 전 단계 완료
+  - Phase 1: Supabase 인프라 + DB 스키마(0001~0003) + `/api/calendar/events` + `/calendar` 페이지 연동
+  - Phase 2: TMDB/YouTube/Last.fm 자동 인제스트 + cron 라우트 + 진단 강화 (funnel 카운트, source_id dedup)
+  - Phase 2.5: 캘린더 월 navigation 동적화 (viewDate 상태 + AbortController)
+  - Phase 3: Auth (Google OAuth + 이메일, Apple 제거) + middleware 가드
+  - Phase 3.5: 리마인더 영속화(0004) + Resend D-Day 알림 + ingest-all 통합
+- 부가 작업: 히어로 ghost globe + float 애니메이션, 파비콘 교체, 이용약관 토글 통일, CLAUDE.md §15 (규칙 우선순위) 추가
+- 릴리즈 브랜치: `release/v0.3.5`
+
 ### 2026-05-07 (세션 1)
 - v0 UI 17개 페이지 로컬 세팅
 - ESLint 설정 정리
