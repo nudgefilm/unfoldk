@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
@@ -10,21 +10,17 @@ import Link from "next/link"
 type EventType = "K-pop" | "K-drama" | "Concert" | "Fan Meet"
 
 interface CalendarEvent {
-  id: number
+  id: string
   title: string
   date: number
   type: EventType
   time?: string
   artist?: string
+  isPremium?: boolean
 }
 
-const events: CalendarEvent[] = [
-  { id: 1, title: "BTS Concert", date: 10, type: "K-pop", time: "7:00 PM KST", artist: "BTS" },
-  { id: 2, title: "BLACKPINK Comeback", date: 15, type: "K-pop", time: "12:00 PM KST", artist: "BLACKPINK" },
-  { id: 3, title: "NewJeans Fan Meet", date: 21, type: "Fan Meet", time: "3:00 PM KST", artist: "NewJeans" },
-  { id: 4, title: "Queen of Tears Finale", date: 23, type: "K-drama", time: "9:00 PM KST", artist: "tvN Drama" },
-  { id: 5, title: "aespa Album Drop", date: 28, type: "K-pop", time: "6:00 PM KST", artist: "aespa" },
-]
+// 현재 표시 중인 월 (Phase 1: 하드코딩, Phase 2 에서 navigation 연결)
+const CURRENT_MONTH = "2026-05"
 
 const tabs = ["All", "K-pop", "K-drama", "Concert", "Fan Meet"] as const
 const lockedTabs = ["Concert", "Fan Meet"]
@@ -294,7 +290,26 @@ export default function HallyuCalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [lockedFeature, setLockedFeature] = useState<string | null>(null)
+  const [events, setEvents] = useState<CalendarEvent[]>([])
   const today = 7
+
+  // Supabase 에서 현재 월 이벤트 로드 — RLS 가 is_premium 게이팅 자동 처리
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/calendar/events?month=${CURRENT_MONTH}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data: { events: CalendarEvent[] }) => {
+        if (!cancelled) setEvents(data.events ?? [])
+      })
+      .catch((err) => {
+        // 외부 API 실패 시 fallback 처리 (CLAUDE.md §10-4)
+        console.error("[calendar] events fetch 실패:", err)
+        if (!cancelled) setEvents([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleTabClick = (tab: string) => {
     if (lockedTabs.includes(tab)) {
@@ -305,8 +320,8 @@ export default function HallyuCalendarPage() {
     }
   }
 
-  const filteredEvents = activeTab === "All" 
-    ? events 
+  const filteredEvents = activeTab === "All"
+    ? events
     : events.filter(e => e.type === activeTab)
 
   const getEventsForDay = (day: number) => {
