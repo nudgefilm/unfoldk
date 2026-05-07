@@ -54,10 +54,13 @@
        ```
        → JSON 응답에 `summary.sent`, `breakdown.{d7,d1,dayof}` 표시
      - 시드 이벤트 날짜가 2026-05-15 / 21 / 28 등이라 오늘(2026-05-08)이 D-7 매칭되면 발송 발생
-- **다음 세션 후보**:
-  - **Phase 4**: Stripe 결제 — Hallyu Pass 구독 + webhook 으로 plan_type 갱신
-  - **Phase 4 어드민**: 어드민 페이지 (수동 인제스트 트리거, 이벤트 편집)
-  - **Phase 2.6** (선택): URL 쿼리 month 동기화, MusicBrainz 신보 감지
+- **다음 세션 (확정)**:
+  1. **Google 프로필 바인딩** — OAuth 로그인 시 `raw_user_meta_data` 의 name/avatar_url 을 `public.users` 에 반영. `handle_new_user` 트리거 외에 OAuth 재로그인 시 갱신 로직 + `/mypage` 헤더에 표시.
+  2. **Phase 4 어드민 페이지** — 수동 인제스트 트리거 (TMDB/YouTube/all 버튼), 이벤트 목록·편집, 발송 로그 뷰. 어드민 권한은 `users.role='admin'` 또는 환경변수 화이트리스트 (둘 중 채택은 다음 세션에서).
+  3. **Resend 도메인 verify** — `unfoldk.com` DNS 에 SPF/DKIM TXT 레코드 등록 (사용자 작업), verify 후 `noreply@unfoldk.com` 으로 운영 발송 가능.
+- **이후 후보**:
+  - **Phase 4 결제**: Stripe Hallyu Pass 구독 + webhook plan_type 갱신
+  - **Phase 2.6**: URL 쿼리 month 동기화, MusicBrainz 신보 감지
 - **블로커**:
   - Google Calendar OAuth 앱 심사 신청 (출시 6주 전, 별도 트랙)
   - Stripe 키 미입력 (Phase 3 결제 단계에서 필요)
