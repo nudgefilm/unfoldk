@@ -297,13 +297,22 @@ export default function HallyuCalendarPage() {
   useEffect(() => {
     let cancelled = false
     fetch(`/api/calendar/events?month=${CURRENT_MONTH}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((data: { events: CalendarEvent[] }) => {
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.text().catch(() => "")
+          throw new Error(`HTTP ${res.status} ${res.statusText} — ${body}`)
+        }
+        return res.json() as Promise<{ events: CalendarEvent[] }>
+      })
+      .then((data) => {
         if (!cancelled) setEvents(data.events ?? [])
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         // 외부 API 실패 시 fallback 처리 (CLAUDE.md §10-4)
-        console.error("[calendar] events fetch 실패:", err)
+        console.error(
+          "[calendar] events fetch 실패:",
+          err instanceof Error ? err.message : err
+        )
         if (!cancelled) setEvents([])
       })
     return () => {

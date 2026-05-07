@@ -121,9 +121,18 @@ alter table public.hallyu_calendar_events enable row level security;
 alter table public.user_calendar_subscriptions enable row level security;
 
 
--- 9. RLS 정책 --------------------------------------------------
+-- 9. 테이블 GRANT (anon/authenticated 권한 부여) ----------------
+-- Supabase 자동 grant 가 항상 적용되지는 않으므로 명시적으로 부여
+grant usage on schema public to anon, authenticated;
+grant select on public.hallyu_calendar_events to anon, authenticated;
+grant select, update on public.users to authenticated;
+grant select on public.subscriptions to authenticated;
+grant select, insert, update, delete on public.user_calendar_subscriptions to authenticated;
 
--- 9-1. users: 본인만 조회·수정
+
+-- 10. RLS 정책 -------------------------------------------------
+
+-- 10-1. users: 본인만 조회·수정
 drop policy if exists "users_select_own" on public.users;
 create policy "users_select_own"
   on public.users for select
@@ -134,13 +143,13 @@ create policy "users_update_own"
   on public.users for update
   using (auth.uid() = id);
 
--- 9-2. subscriptions: 본인 구독 조회만 허용 (insert/update 는 service_role 또는 Stripe webhook 만)
+-- 10-2. subscriptions: 본인 구독 조회만 허용 (insert/update 는 service_role 또는 Stripe webhook 만)
 drop policy if exists "subs_select_own" on public.subscriptions;
 create policy "subs_select_own"
   on public.subscriptions for select
   using (auth.uid() = user_id);
 
--- 9-3. hallyu_calendar_events:
+-- 10-3. hallyu_calendar_events:
 --   - 무료 이벤트(is_premium=false): 모두에게 read 허용 (비로그인 포함)
 --   - 유료 이벤트(is_premium=true): plan 활성 사용자만 read
 --   - write 는 service_role 전용 (인제스트 잡)
@@ -158,7 +167,7 @@ create policy "events_select_free_for_all"
     )
   );
 
--- 9-4. user_calendar_subscriptions: 본인 데이터 전권
+-- 10-4. user_calendar_subscriptions: 본인 데이터 전권
 drop policy if exists "user_calsubs_all_own" on public.user_calendar_subscriptions;
 create policy "user_calsubs_all_own"
   on public.user_calendar_subscriptions for all
