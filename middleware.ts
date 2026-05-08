@@ -1,5 +1,6 @@
 // Supabase 세션 자동 갱신 + 보호 라우트 가드
-// /mypage/* 진입 시 미로그인이면 /login 으로 리디렉트
+// /mypage/* 미로그인 → /login
+// /admin/* 미로그인 → /login, 비관리자 → /
 
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
@@ -33,12 +34,32 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // 보호 라우트: /mypage 미로그인 → /login 리디렉트 (원래 경로는 redirect 쿼리로)
-  if (!user && request.nextUrl.pathname.startsWith("/mypage")) {
+  const path = request.nextUrl.pathname
+  const isMypage = path.startsWith("/mypage")
+  const isAdmin = path.startsWith("/admin")
+
+  // /mypage·/admin 미로그인 → /login 리디렉트 (원래 경로 redirect 쿼리로)
+  if (!user && (isMypage || isAdmin)) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
-    url.searchParams.set("redirect", request.nextUrl.pathname)
+    url.searchParams.set("redirect", path)
     return NextResponse.redirect(url)
+  }
+
+  // /admin 로그인했으나 is_admin 아님 → 홈으로
+  if (user && isAdmin) {
+    const { data: profile } = await supabase
+      .from("users")
+      .select("is_admin")
+      .eq("id", user.id)
+      .single()
+
+    if (!profile?.is_admin) {
+      const url = request.nextUrl.clone()
+      url.pathname = "/"
+      url.search = ""
+      return NextResponse.redirect(url)
+    }
   }
 
   return response

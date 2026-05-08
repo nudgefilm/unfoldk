@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { Resend } from "resend"
 import { verifyCronAuth } from "@/lib/cron/auth"
+import { recordCronLog } from "@/lib/cron/log"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 export const maxDuration = 60
@@ -196,13 +197,22 @@ export async function GET(request: Request) {
     processKind("dayof", 0, resend, branded, appUrl),
   ])
 
-  return NextResponse.json({
+  const summary = {
+    sent: d7.sent + d1.sent + dayof.sent,
+    failed: d7.failed + d1.failed + dayof.failed,
+  }
+  const payload = {
     source: "send-reminders",
     elapsedMs: Date.now() - t0,
-    summary: {
-      sent: d7.sent + d1.sent + dayof.sent,
-      failed: d7.failed + d1.failed + dayof.failed,
-    },
+    summary,
     breakdown: { d7, d1, dayof },
-  })
+  }
+
+  await recordCronLog(
+    "send-reminders",
+    summary.failed > 0 && summary.sent === 0 ? "failed" : "success",
+    payload
+  )
+
+  return NextResponse.json(payload)
 }

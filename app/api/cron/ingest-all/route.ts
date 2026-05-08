@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { verifyCronAuth } from "@/lib/cron/auth"
+import { recordCronLog } from "@/lib/cron/log"
 import { runTmdbIngest } from "@/lib/ingest/tmdb"
 import { runYoutubeIngest } from "@/lib/ingest/youtube"
 import { runLastfmIngest } from "@/lib/ingest/lastfm"
@@ -48,8 +49,16 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({
+  const payload = {
     elapsedMs: Date.now() - t0,
     ...results,
-  })
+  }
+
+  // 어떤 단계 하나라도 error 키를 가지면 failed — 그렇지 않으면 success
+  const anyFailed = Object.values(results).some(
+    (r) => typeof r === "object" && r !== null && "error" in r
+  )
+  await recordCronLog("ingest-all", anyFailed ? "failed" : "success", payload)
+
+  return NextResponse.json(payload)
 }
