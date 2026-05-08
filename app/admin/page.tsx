@@ -11,6 +11,8 @@ interface DashboardStats {
   freeCount: number
   mrrUsd: number
   newSignupsThisMonth: number
+  couponsIssued: number
+  couponsRedeemed: number
 }
 
 async function loadStats(): Promise<DashboardStats> {
@@ -20,12 +22,22 @@ async function loadStats(): Promise<DashboardStats> {
   const now = new Date()
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
 
-  const [{ count: totalUsers }, { count: monthlyCount }, { count: annualCount }, { count: freeCount }, { count: newSignupsThisMonth }] = await Promise.all([
+  const [
+    { count: totalUsers },
+    { count: monthlyCount },
+    { count: annualCount },
+    { count: freeCount },
+    { count: newSignupsThisMonth },
+    { count: couponsIssued },
+    { count: couponsRedeemed },
+  ] = await Promise.all([
     supabase.from("users").select("id", { count: "exact", head: true }),
     supabase.from("users").select("id", { count: "exact", head: true }).eq("plan_type", "monthly"),
     supabase.from("users").select("id", { count: "exact", head: true }).eq("plan_type", "annual"),
     supabase.from("users").select("id", { count: "exact", head: true }).eq("plan_type", "free"),
     supabase.from("users").select("id", { count: "exact", head: true }).gte("created_at", startOfMonth),
+    supabase.from("coupons").select("id", { count: "exact", head: true }),
+    supabase.from("coupons").select("id", { count: "exact", head: true }).not("used_by", "is", null),
   ])
 
   // 월 환산 매출: monthly $15 + annual $10 (연 $120 / 12)
@@ -41,6 +53,8 @@ async function loadStats(): Promise<DashboardStats> {
     freeCount: freeCount ?? 0,
     mrrUsd,
     newSignupsThisMonth: newSignupsThisMonth ?? 0,
+    couponsIssued: couponsIssued ?? 0,
+    couponsRedeemed: couponsRedeemed ?? 0,
   }
 }
 
@@ -79,6 +93,16 @@ export default async function AdminDashboardPage() {
         <StatCard label="유료 유저" value={stats.paidUsers.toLocaleString()} />
         <StatCard label="이번 달 MRR" value={`$${stats.mrrUsd.toLocaleString()}`} />
         <StatCard label="신규 가입 (이번 달)" value={stats.newSignupsThisMonth.toLocaleString()} />
+        <StatCard label="발급된 쿠폰" value={stats.couponsIssued.toLocaleString()} />
+        <StatCard
+          label="사용된 쿠폰"
+          value={stats.couponsRedeemed.toLocaleString()}
+          suffix={
+            stats.couponsIssued > 0
+              ? `(${Math.round((stats.couponsRedeemed / stats.couponsIssued) * 100)}%)`
+              : undefined
+          }
+        />
       </div>
 
       <section>

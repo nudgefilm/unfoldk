@@ -2,15 +2,23 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireAdmin } from "@/lib/admin/auth"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
+import { generateUniqueCouponCode } from "@/lib/coupons/generate-code"
+import { sendCouponEmail } from "@/lib/email/send-coupon-email"
 
 export const dynamic = "force-dynamic"
 
 // 팬 행사 신청 승인·거절 처리
-// 승인 시 hallyu_calendar_events에 자동 삽입 (type='fanmeet')
+// 승인 시:
+//   1. fan_event_requests.status = 'approved'
+//   2. hallyu_calendar_events 자동 삽입 (type='fanmeet')
+//   3. coupons 자동 발급 (monthly, 30일 만료) + 이메일 발송
+//      ⚠️ 캘린더/쿠폰/이메일 단계 중 일부 실패해도 승인 자체는 유지 — warning 으로 노출
 const PatchSchema = z.object({
   action: z.enum(["approve", "reject"]),
   admin_note: z.string().max(1000).optional(),
 })
+
+const COUPON_VALID_DAYS = 30
 
 export async function PATCH(
   request: Request,
@@ -60,28 +68,77 @@ export async function PATCH(
     return NextResponse.json({ error: updateErr.message }, { status: 500 })
   }
 
-  // 3. 승인 시 hallyu_calendar_events에 자동 삽입
-  if (parsed.data.action === "approve") {
-    const { error: insertErr } = await supabase.from("hallyu_calendar_events").insert({
-      type: "fanmeet",
-      title: req.title,
-      artist_or_drama: req.title,                          // 팬 행사는 별도 아티스트 필드 없으므로 제목 재사용
-      event_date: new Date(req.event_date).toISOString(),
-      description: req.description,
-      source_api: "fan_event_request",
-      source_id: `fer-${req.id}`,                          // unique 제약 회피
-      is_premium: false,
-    })
-
-    if (insertErr) {
-      // 캘린더 삽입은 실패해도 승인 자체는 유지 — 어드민이 수동 재시도 가능
-      console.error("[admin/fan-events] 캘린더 삽입 실패:", insertErr.message)
-      return NextResponse.json({
-        ok: true,
-        warning: "승인은 되었으나 캘린더 자동 등록 실패: " + insertErr.message,
-      })
-    }
+  // 거절 처리는 여기서 종료
+  if (parsed.data.action !== "approve") {
+    return NextResponse.json({ ok: true, status: newStatus })
   }
 
-  return NextResponse.json({ ok: true, status: newStatus })
+  // 이하 승인 후속 처리 — 어느 단계가 실패해도 승인은 유지하고 warning 누적
+  const warnings: string[] = []
+
+  // 3. 캘린더 자동 등록
+  const { error: insertErr } = await supabase.from("hallyu_calendar_events").insert({
+    type: "fanmeet",
+    title: req.title,
+    artist_or_drama: req.title,                          // 팬 행사는 별도 아티스트 필드 없으므로 제목 재사용
+    event_date: new Date(req.event_date).toISOString(),
+    description: req.description,
+    source_api: "fan_event_request",
+    source_id: `fer-${req.id}`,                          // unique 제약 회피
+    is_premium: false,
+  })
+  if (insertErr) {
+    console.error("[admin/fan-events] 캘린더 삽입 실패:", insertErr.message)
+    warnings.push("캘린더 자동 등록 실패: " + insertErr.message)
+  }
+
+  // 4. 쿠폰 발급 + 이메일 발송
+  try {
+    const code = await generateUniqueCouponCode()
+    const expiresAt = new Date(Date.now() + COUPON_VALID_DAYS * 24 * 60 * 60 * 1000)
+
+    const { error: couponErr } = await supabase.from("coupons").insert({
+      code,
+      type: "monthly",
+      created_by: auth.userId,
+      expires_at: expiresAt.toISOString(),
+      fan_event_request_id: req.id,
+    })
+
+    if (couponErr) {
+      console.error("[admin/fan-events] 쿠폰 발급 실패:", couponErr.message)
+      warnings.push("쿠폰 발급 실패: " + couponErr.message)
+    } else {
+      // 신청자 이메일 조회 (fan_event_requests 에는 user_id 만 있음)
+      const { data: user } = await supabase
+        .from("users")
+        .select("email")
+        .eq("id", req.user_id)
+        .single()
+
+      if (!user?.email) {
+        warnings.push("신청자 이메일을 찾을 수 없어 발송 skip")
+      } else {
+        const sendResult = await sendCouponEmail({
+          to: user.email,
+          eventTitle: req.title,
+          couponCode: code,
+          expiresAt,
+        })
+        if (!sendResult.ok) {
+          warnings.push("쿠폰 이메일 발송 실패: " + (sendResult.error ?? "unknown"))
+        }
+      }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error("[admin/fan-events] 쿠폰 발급 예외:", msg)
+    warnings.push("쿠폰 발급 예외: " + msg)
+  }
+
+  return NextResponse.json({
+    ok: true,
+    status: newStatus,
+    ...(warnings.length > 0 ? { warning: warnings.join(" / ") } : {}),
+  })
 }
