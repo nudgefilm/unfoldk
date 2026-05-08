@@ -27,7 +27,22 @@ create table if not exists public.kpop_artists (
 );
 
 create index if not exists idx_kpop_artists_active on public.kpop_artists(is_active) where is_active = true;
-create unique index if not exists uniq_kpop_artists_name on public.kpop_artists(lower(name));
+
+-- name 컬럼 unique 제약 — 멱등 (이전 실패한 부분실행 환경에서도 안전)
+-- ⚠️ 이전 시도에서 만든 함수 unique index 가 있으면 정리
+drop index if exists public.uniq_kpop_artists_name;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'kpop_artists_name_key'
+      and conrelid = 'public.kpop_artists'::regclass
+  ) then
+    alter table public.kpop_artists
+      add constraint kpop_artists_name_key unique (name);
+  end if;
+end $$;
 
 
 -- 2. kpop_stats_daily 테이블 ------------------------------------
@@ -124,4 +139,4 @@ insert into public.kpop_artists (name, name_ko, debut_year, lastfm_name, is_acti
   ('ATEEZ',        '에이티즈',    2018, 'ATEEZ',       true),
   ('ENHYPEN',      '엔하이픈',    2020, 'ENHYPEN',     true),
   ('Kep1er',       '케플러',      2022, 'Kep1er',      true)
-on conflict on constraint uniq_kpop_artists_name do nothing;
+on conflict (name) do nothing;
