@@ -1,18 +1,19 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr"
-import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
+import { createServerClient } from "@supabase/ssr"
+import { NextResponse, type NextRequest } from "next/server"
 
 // OAuth 콜백 — Google 로그인 성공 시 Supabase 가 ?code=... 로 redirect
 // code → session 교환 후 ?next 경로 (또는 /mypage) 로 이동
 //
-// ⚠️ 처리 순서가 중요:
-//    이전 구현은 NextResponse.redirect 를 먼저 만든 뒤 exchangeCodeForSession 을
-//    호출해, 일부 케이스에서 발급된 Set-Cookie 가 redirect 응답에 반영되지 않았음.
-//    아래 순서로 교체:
-//      1) supabase 가 발급할 쿠키를 버퍼에 적재하며 교환 먼저 수행
-//      2) 성공 확인 후 NextResponse.redirect 응답 생성
-//      3) 버퍼된 쿠키를 response.cookies.set 으로 직접 기록
-export async function GET(request: Request) {
+// Supabase 공식 Next.js SSR 패턴 (request/response 양방향 쿠키 연결):
+//   - getAll() : request 쿠키를 읽음
+//   - setAll() : (1) request 쿠키에 즉시 반영 → 같은 핸들러 안에서 후속 supabase
+//                    호출이 새 토큰을 볼 수 있게 함
+//                (2) supabaseResponse 를 redirect 로 새로 만들고 쿠키를 옵션과 함께
+//                    응답에 적재 → exchangeCodeForSession 이 발급한 Set-Cookie 가
+//                    응답에서 누락되지 않음
+//   - 마지막에 supabaseResponse 를 그대로 반환
+// 참고: https://supabase.com/docs/guides/auth/server-side/nextjs
+export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
   const nextRaw = searchParams.get("next") ?? "/mypage"
@@ -23,10 +24,8 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`)
   }
 
-  const cookieStore = await cookies()
-
-  // 응답이 아직 없으므로 supabase 가 setAll 로 넘기는 쿠키는 일단 버퍼에 적재
-  const pendingCookies: { name: string; value: string; options: CookieOptions }[] = []
+  // 성공 시 사용할 redirect 응답 — setAll 호출마다 새로 생성하며 쿠키를 적재
+  let supabaseResponse = NextResponse.redirect(`${origin}${next}`)
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,29 +33,28 @@ export async function GET(request: Request) {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll()
+          return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach((c) => pendingCookies.push(c))
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          )
+          supabaseResponse = NextResponse.redirect(`${origin}${next}`)
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
         },
       },
     }
   )
 
-  // 1. code → session 교환을 먼저 — 이 과정에서 pendingCookies 가 채워짐
+  // code → session 교환 — setAll 콜백이 호출되며 supabaseResponse 에 쿠키가 적재됨
   const { error } = await supabase.auth.exchangeCodeForSession(code)
   if (error) {
     console.error("[auth/callback] exchange 실패:", error.message)
     return NextResponse.redirect(`${origin}/login?error=auth`)
   }
 
-  // 2. 성공 확인 후 redirect 응답 생성
-  const response = NextResponse.redirect(`${origin}${next}`)
-
-  // 3. 버퍼된 쿠키를 응답에 직접 기록 — Set-Cookie 헤더 누락 방지
-  pendingCookies.forEach(({ name, value, options }) => {
-    response.cookies.set(name, value, options)
-  })
-
-  return response
+  // ⚠️ 공식 가이드: supabaseResponse 객체를 그대로 반환해야 쿠키 동기화가 보장됨
+  return supabaseResponse
 }

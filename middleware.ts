@@ -2,9 +2,17 @@
 // /mypage/* 미로그인 → /login
 // /admin/* 미로그인 → /login, 비관리자 → /
 //
-// ⚠️ Supabase SSR 가이드 핵심: redirect 응답에도 token refresh로 새로 발급된 쿠키를
-//    반드시 복사해야 함. 그러지 않으면 다음 요청에서 회전된 refresh_token이 무효화되어
-//    세션이 끊김.
+// Supabase 공식 Next.js SSR 패턴 (updateSession) 적용:
+//   - getAll() : request 쿠키를 읽음
+//   - setAll() : (1) request 쿠키에 즉시 반영 → 같은 미들웨어 안에서 후속 supabase
+//                    호출이 새 토큰을 볼 수 있게 함
+//                (2) supabaseResponse 를 NextResponse.next({ request }) 로 새로 만들고
+//                    쿠키를 옵션과 함께 응답에 적재 → token refresh 시 발급된 쿠키가
+//                    브라우저에 정확히 전달됨
+//   - getUser() 호출이 만료된 access_token 을 refresh_token 으로 교체 (이때 setAll 트리거)
+//   - 보호 라우트에서 redirect 시 supabaseResponse 의 쿠키를 redirect 응답으로 명시 복사
+//     (그러지 않으면 회전된 refresh_token 이 무효화되어 다음 요청에서 세션 끊김)
+// 참고: https://supabase.com/docs/guides/auth/server-side/nextjs
 
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
@@ -40,7 +48,8 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // 세션 갱신 (만료된 access_token 을 refresh_token 으로 교체)
+  // ⚠️ 공식 가이드 경고: createServerClient 와 getUser() 사이에 어떤 로직도 넣지 말 것.
+  //    그 사이의 작은 실수가 유저가 임의로 로그아웃되는 디버깅 어려운 버그로 이어짐.
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -75,6 +84,9 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // ⚠️ 공식 가이드: supabaseResponse 객체를 그대로 반환해야 쿠키 동기화가 보장됨.
+  //    새 응답을 만들어야 한다면 NextResponse.next({ request }) 로 만들고
+  //    supabaseResponse.cookies.getAll() 을 명시 복사할 것 (위 redirectWithCookies 참조).
   return supabaseResponse
 }
 
