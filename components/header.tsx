@@ -22,6 +22,8 @@ export function Header() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [closeTimeout, setCloseTimeout] = useState<NodeJS.Timeout | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false)
+  // getUser() 완료 전까진 인증 버튼 영역 숨김 — 비로그인 UI 가 잠깐 깜빡이는 현상 방지
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false)
   const [userInitial, setUserInitial] = useState<string>("")
   const [userAvatar, setUserAvatar] = useState<string | null>(null)
   // 프로필 hover 드롭다운 — Services 드롭다운과 동일 패턴
@@ -46,10 +48,14 @@ export function Header() {
       setUserAvatar(meta.avatar_url ?? null)
     }
 
-    supabase.auth.getUser().then(({ data: { user } }) => applyUser(user))
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      applyUser(user)
+      setIsAuthReady(true)
+    })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       applyUser(session?.user ?? null)
+      setIsAuthReady(true)
     })
 
     return () => {
@@ -200,7 +206,8 @@ export function Header() {
             My Page
           </Link>
           {/* 로그인 상태에 따라 분기 — 비로그인: Log in + Try for Free / 로그인: 아바타 hover 드롭다운 */}
-          {isLoggedIn ? (
+          {/* isAuthReady=false 동안엔 어느 쪽도 렌더링하지 않아 초기 깜빡임 방지 */}
+          {isAuthReady && (isLoggedIn ? (
             <div
               className="relative"
               onMouseEnter={handleProfileMouseEnter}
@@ -271,7 +278,7 @@ export function Header() {
                 </Button>
               </Link>
             </>
-          )}
+          ))}
         </div>
 
         {/* Mobile Hamburger Menu */}
