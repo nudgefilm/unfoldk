@@ -1,16 +1,20 @@
 "use client"
 
+// 결제 완료 화면 — Lemon Squeezy 가 결제 완료 후 redirect 시키는 receipt URL
+// ⚠️ 이 페이지 진입 시점엔 webhook(order_created) 이 도달하기 전일 수 있음.
+//    실제 plan_type 활성화는 webhook 처리 시점이라 여기선 일반적인 환영 메시지만.
+
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
 export default function PaymentSuccessPage() {
   return (
-    <div 
+    <div
       className="min-h-screen flex flex-col items-center justify-center p-4"
       style={{ backgroundColor: "#0d0d0f" }}
     >
       {/* Glow Effect */}
-      <div 
+      <div
         className="absolute inset-0 flex items-center justify-center pointer-events-none"
         style={{
           background: "radial-gradient(circle at center, rgba(255, 75, 110, 0.05) 0%, transparent 50%)"
@@ -18,13 +22,13 @@ export default function PaymentSuccessPage() {
       />
 
       {/* Main Card */}
-      <div 
+      <div
         className="relative w-full max-w-md bg-[#141418] rounded-2xl p-8 shadow-xl"
         style={{ borderRadius: "16px" }}
       >
         {/* Success Icon */}
         <div className="flex justify-center mb-6">
-          <div 
+          <div
             className="w-16 h-16 rounded-full flex items-center justify-center text-3xl"
             style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
           >
@@ -34,36 +38,15 @@ export default function PaymentSuccessPage() {
 
         {/* Title */}
         <h1 className="text-2xl font-bold text-white text-center mb-2">
-          Welcome to Hallyu Pass!
+          Welcome to Hallyu Pass! 🎉
         </h1>
-        <p className="text-muted-foreground text-center mb-6">
-          Your subscription is now active.
+        <p className="text-muted-foreground text-center mb-8">
+          Your subscription is now active. Enjoy full access to all 5 services.
         </p>
 
-        {/* Summary Box */}
-        <div className="bg-[#0d0d0f] rounded-xl p-5 mb-6 space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-muted-foreground text-sm">Plan</span>
-            <span className="text-foreground font-medium">Hallyu Pass</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-muted-foreground text-sm">Billing</span>
-            <span className="text-foreground font-medium">$15.00/month</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-muted-foreground text-sm">Next billing</span>
-            <span className="text-foreground font-medium">June 7, 2026</span>
-          </div>
-          <div className="border-t border-border/30 my-2" />
-          <div className="flex justify-between items-center">
-            <span className="text-muted-foreground text-sm">Payment</span>
-            <span className="text-foreground font-medium">Visa •••• 4242</span>
-          </div>
-        </div>
-
-        {/* Action Button */}
+        {/* Primary CTA */}
         <Link href="/mypage" className="block">
-          <Button 
+          <Button
             className="w-full py-3 rounded-xl font-medium text-white"
             style={{ backgroundColor: "#FF4B6E" }}
           >
@@ -71,13 +54,13 @@ export default function PaymentSuccessPage() {
           </Button>
         </Link>
 
-        {/* View Receipt Link */}
+        {/* View Receipt Link — 결제 영수증은 LMS 측 이메일로 전달됨 */}
         <div className="text-center mt-4">
-          <Link 
-            href="/mypage/subscription" 
+          <Link
+            href="/mypage/subscription"
             className="text-muted-foreground text-sm hover:underline"
           >
-            View receipt
+            View subscription details
           </Link>
         </div>
       </div>

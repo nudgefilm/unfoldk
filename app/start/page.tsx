@@ -61,16 +61,19 @@ function StartPageInner() {
       return
     }
 
-    // selectedPlan + isAnnual → DB plan_type 매핑
-    const planType: "free" | "monthly" | "annual" =
+    // 사용자가 선택한 플랜 (UI 매핑)
+    const planChoice: "free" | "monthly" | "annual" =
       selectedPlan === "free" ? "free" : isAnnual ? "annual" : "monthly"
 
+    // ⚠️ 약관 동의·가입 완료 처리는 plan_type='free' 로 락인 (결제 완료 전엔 무료 상태).
+    //    유료 플랜 선택 시 LMS webhook(order_created) 이 결제 완료 후 plan_type 을
+    //    monthly/annual 로 업그레이드. 결제 도중 이탈해도 유저는 free 로 사용 가능.
     setIsLoading(true)
     const res = await fetch("/api/auth/complete-signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        plan_type: planType,
+        plan_type: "free",
         agreed_to_terms: true,
       }),
     })
@@ -82,9 +85,16 @@ function StartPageInner() {
       return
     }
 
-    // RSC 캐시 무효화 — 헤더 등이 새 plan_type 즉시 반영
-    router.push("/mypage")
-    router.refresh()
+    if (planChoice === "free") {
+      // 무료 플랜 — 곧장 마이페이지
+      router.push("/mypage")
+      router.refresh()
+      return
+    }
+
+    // 유료 플랜 — Lemon Squeezy 호스팅 체크아웃으로 redirect
+    // (서버 라우트가 user.email + user.id 를 URL 에 임베드 후 LMS 로 302)
+    window.location.href = `/api/lemonsqueezy/checkout?plan=${planChoice}`
   }
 
   // 인증 검사 전엔 빈 화면 (깜빡임 방지)
