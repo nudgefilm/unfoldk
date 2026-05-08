@@ -1,8 +1,7 @@
 import React from "react"
-import { Button } from "@/components/ui/button"
 import { Header } from "./header"
 import { GhostGlobe } from "./ghost-globe-dynamic"
-import Link from "next/link"
+import { HeroCTAButtons } from "./hero-cta-buttons"
 
 export function HeroSection() {
   return (
@@ -457,18 +456,8 @@ export function HeroSection() {
         </p>
       </div>
 
-      <div className="relative z-10 flex flex-col sm:flex-row items-center gap-3 mb-10 md:mb-12 lg:mb-14">
-        <Link href="/signup">
-          <Button className="bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-press px-8 py-3 rounded-full font-medium text-base shadow-lg">
-            Start for free
-          </Button>
-        </Link>
-        <Link href="/#features">
-          <Button variant="outline" className="px-8 py-3 rounded-full font-medium text-base border-border/50 hover:bg-secondary/50">
-            See how it works
-          </Button>
-        </Link>
-      </div>
+      {/* CTA 버튼은 StartModal 트리거를 포함하므로 클라이언트 컴포넌트로 분리 */}
+      <HeroCTAButtons />
     </section>
   )
 }

@@ -1,5 +1,10 @@
+"use client"
+
+// CTA 섹션 — Start 모달 단일화로 클라이언트 컴포넌트 전환
+// (StartModal 이 useState 를 쓰므로 클라이언트 경계 필요)
+
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
+import { StartModal } from "@/components/start-modal"
 
 export function CTASection() {
   return (
@@ -110,14 +115,16 @@ export function CTASection() {
             Never miss a comeback, drop, or drama. Join thousands of Hallyu fans on UnfoldK.
           </p>
         </div>
-        <Link href="/signup">
-          <Button
-            className="px-[30px] py-2 bg-secondary text-secondary-foreground text-base font-medium leading-6 rounded-[99px] shadow-[0px_0px_0px_4px_rgba(255,255,255,0.13)] hover:bg-secondary/90 transition-all duration-200"
-            size="lg"
-          >
-            Start for free — no credit card needed
-          </Button>
-        </Link>
+        <StartModal
+          trigger={
+            <Button
+              className="px-[30px] py-2 bg-secondary text-secondary-foreground text-base font-medium leading-6 rounded-[99px] shadow-[0px_0px_0px_4px_rgba(255,255,255,0.13)] hover:bg-secondary/90 transition-all duration-200"
+              size="lg"
+            >
+              Start for free — no credit card needed
+            </Button>
+          }
+        />
       </div>
     </section>
   )

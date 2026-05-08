@@ -8,6 +8,7 @@ import { Menu, ChevronDown, Calendar, Music, Film, Languages, UtensilsCrossed, U
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { StartModal } from "@/components/start-modal"
 
 const services = [
   { icon: Calendar, name: "HallyuCalendar", description: "Never miss a comeback or premiere", href: "/calendar" },
@@ -262,22 +263,17 @@ export function Header() {
               )}
             </div>
           ) : (
-            <>
-              <Link
-                href="/login"
-                className="text-[#888888] hover:text-foreground px-4 py-2 rounded-full font-medium transition-colors"
-              >
-                Log in
-              </Link>
-              <Link href="/signup">
+            // 비로그인: 단일 Start 버튼 — 클릭 시 StartModal 열려 Google OAuth 진입
+            <StartModal
+              trigger={
                 <Button
                   className="px-6 py-2 rounded-full font-medium shadow-sm"
                   style={{ backgroundColor: "#FF4B6E", color: "white" }}
                 >
-                  Try for Free
+                  Start
                 </Button>
-              </Link>
-            </>
+              }
+            />
           ))}
         </div>
 
@@ -330,16 +326,6 @@ export function Header() {
                 My Page
               </Link>
 
-              {/* Log in Link — 비로그인 상태에서만 노출 */}
-              {!isLoggedIn && (
-                <Link
-                  href="/login"
-                  className="text-foreground hover:text-primary px-2 py-3 font-medium"
-                >
-                  Log in
-                </Link>
-              )}
-
               {/* Hallyu Pass Link */}
               <Link
                 href="/#pricing"
@@ -348,16 +334,20 @@ export function Header() {
                 View Hallyu Pass
               </Link>
 
-              {/* CTA Button — 비로그인 상태에서만 노출 */}
+              {/* Start 버튼 — 비로그인 상태에서만 노출, StartModal 단일 진입 */}
               {!isLoggedIn && (
-                <Link href="/signup" className="w-full mt-4">
-                  <Button
-                    className="w-full px-6 py-3 rounded-full font-medium shadow-sm"
-                    style={{ backgroundColor: "#FF4B6E", color: "white" }}
-                  >
-                    Try for Free
-                  </Button>
-                </Link>
+                <div className="w-full mt-4">
+                  <StartModal
+                    trigger={
+                      <Button
+                        className="w-full px-6 py-3 rounded-full font-medium shadow-sm"
+                        style={{ backgroundColor: "#FF4B6E", color: "white" }}
+                      >
+                        Start
+                      </Button>
+                    }
+                  />
+                </div>
               )}
             </nav>
           </SheetContent>
