@@ -16,7 +16,8 @@ import {
   CreditCard,
   Settings,
   ChevronRight,
-  Flame
+  Flame,
+  PartyPopper
 } from "lucide-react"
 
 const sidebarLinks = [
@@ -26,6 +27,7 @@ const sidebarLinks = [
   { icon: Film, label: "My Dramas", href: "/mypage/dramas", active: false },
   { icon: Languages, label: "Learning Progress", href: "/mypage/learning", active: false },
   { icon: UtensilsCrossed, label: "Saved Recipes", href: "/mypage/recipes", active: false },
+  { icon: PartyPopper, label: "My Fan Events", href: "/mypage/fan-events", active: false },
   { icon: CreditCard, label: "Subscription", href: "/mypage/subscription", active: false },
   { icon: Settings, label: "Settings", href: "/mypage/settings", active: false },
 ]
