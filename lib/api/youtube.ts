@@ -1,6 +1,9 @@
 // YouTube Data API v3 래퍼 (googleapis SDK)
 // ⚠️ tubewatch.kr 와 별도 GCP 프로젝트 사용 필수 (CLAUDE.md §8, §13)
-// 쿼터: 10,000 units/day. search.list = 100 units, videos.list = 1 unit
+// 쿼터: 10,000 units/day.
+//   - search.list  : 100 units
+//   - videos.list  :   1 unit
+//   - channels.list:   1 unit (아티스트당 1회 호출 → 25명 = 25 units, 매우 저렴)
 
 import { google, youtube_v3 } from "googleapis"
 
@@ -8,6 +11,59 @@ function getYoutubeClient(): youtube_v3.Youtube {
   const apiKey = process.env.YOUTUBE_API_KEY
   if (!apiKey) throw new Error("YOUTUBE_API_KEY 미설정")
   return google.youtube({ version: "v3", auth: apiKey })
+}
+
+// ============================================
+// 채널 통계 — KpopStats 인제스트용
+// ============================================
+
+export interface YoutubeChannelStats {
+  channelId: string
+  title: string | null
+  subscribers: number | null         // hiddenSubscriberCount=true 면 null
+  totalViews: number | null
+  videoCount: number | null
+}
+
+// 다중 채널 통계 일괄 조회 — channel ID 50개까지 한 번에 (1 unit/call)
+export async function getChannelStats(
+  channelIds: string[]
+): Promise<YoutubeChannelStats[]> {
+  if (channelIds.length === 0) return []
+
+  const youtube = getYoutubeClient()
+
+  // YouTube API 가 한 번에 50개까지 받음 — 그 이상이면 chunk 나눠 호출
+  const chunks: string[][] = []
+  for (let i = 0; i < channelIds.length; i += 50) {
+    chunks.push(channelIds.slice(i, i + 50))
+  }
+
+  const results: YoutubeChannelStats[] = []
+  for (const chunk of chunks) {
+    const res = await youtube.channels.list({
+      part: ["snippet", "statistics"],
+      id: chunk,
+      maxResults: 50,
+    })
+    const items = res.data.items ?? []
+    for (const ch of items) {
+      if (!ch.id) continue
+      const stats = ch.statistics
+      results.push({
+        channelId: ch.id,
+        title: ch.snippet?.title ?? null,
+        subscribers:
+          stats?.hiddenSubscriberCount || !stats?.subscriberCount
+            ? null
+            : Number(stats.subscriberCount),
+        totalViews: stats?.viewCount ? Number(stats.viewCount) : null,
+        videoCount: stats?.videoCount ? Number(stats.videoCount) : null,
+      })
+    }
+  }
+
+  return results
 }
 
 export interface YoutubeUpcomingEvent {

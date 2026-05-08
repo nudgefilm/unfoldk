@@ -1,27 +1,186 @@
 "use client"
 
-import { useState } from "react"
+// /kpop — KpopStats 공개 페이지
+// v0 디자인 유지 + /api/kpop/* 데이터 바인딩
+// 비회원 Top 5, 로그인 Top 10, 유료(monthly/annual) Top 20+
+// Artist Comparison 섹션은 v0 그대로 (Pro 잠금)
+
+import { useEffect, useMemo, useState } from "react"
 import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Search, TrendingUp, TrendingDown, Minus, Lock } from "lucide-react"
 import Link from "next/link"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
-const chartData = [
-  { rank: 1, artist: "BTS", youtube: "2.4B", lastfm: "8.2M", change: "up", changeValue: "+2" },
-  { rank: 2, artist: "BLACKPINK", youtube: "1.9B", lastfm: "6.1M", change: "same", changeValue: "0" },
-  { rank: 3, artist: "aespa", youtube: "980M", lastfm: "3.4M", change: "up", changeValue: "+1" },
-  { rank: 4, artist: "NewJeans", youtube: "870M", lastfm: "2.9M", change: "down", changeValue: "-1" },
-  { rank: 5, artist: "SEVENTEEN", youtube: "760M", lastfm: "2.5M", change: "up", changeValue: "+3" },
-]
+// ============================================
+// 숫자 포맷터 — 2_400_000_000 → "2.4B"
+// ============================================
+function formatBigNumber(n: number | null | undefined): string {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—"
+  const abs = Math.abs(n)
+  if (abs >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, "") + "B"
+  if (abs >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M"
+  if (abs >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K"
+  return n.toLocaleString()
+}
+
+interface ChartItem {
+  rank: number
+  artist_id: string
+  name: string
+  name_ko: string | null
+  thumbnail_url: string | null
+  youtube_total_views: number | null
+  youtube_weekly_views: number | null
+  lastfm_listeners: number | null
+  rank_change: number | null
+}
+
+interface ArtistDetail {
+  id: string
+  name: string
+  name_ko: string | null
+  debut_year: number | null
+  thumbnail_url: string | null
+  has_youtube: boolean
+  has_lastfm: boolean
+}
+
+interface DailyStats {
+  date: string
+  youtube_subscribers: number | null
+  youtube_total_views: number | null
+  youtube_weekly_views: number | null
+  lastfm_listeners: number | null
+  lastfm_playcount: number | null
+}
+
+type PlanType = "free" | "monthly" | "annual"
 
 export default function KpopStatsPage() {
   const [searchQuery, setSearchQuery] = useState("")
+  const [chart, setChart] = useState<ChartItem[]>([])
+  const [chartLoading, setChartLoading] = useState(true)
+  const [spotlightId, setSpotlightId] = useState<string | null>(null)
+  const [spotlight, setSpotlight] = useState<{
+    artist: ArtistDetail
+    latest: DailyStats | null
+    history: DailyStats[]
+  } | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [planType, setPlanType] = useState<PlanType>("free")
+
+  // 인증 + plan_type 로드 — 노출 개수 분기용
+  useEffect(() => {
+    let cancelled = false
+    const supabase = createSupabaseBrowserClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (cancelled) return
+      if (!user) {
+        setAuthChecked(true)
+        return
+      }
+      setIsLoggedIn(true)
+      const { data: profile } = await supabase
+        .from("users")
+        .select("plan_type")
+        .eq("id", user.id)
+        .single()
+      if (cancelled) return
+      const pt = (profile as { plan_type?: string } | null)?.plan_type
+      setPlanType(pt === "monthly" || pt === "annual" ? pt : "free")
+      setAuthChecked(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // 차트 로드
+  useEffect(() => {
+    setChartLoading(true)
+    fetch("/api/kpop/charts?limit=20")
+      .then((r) => (r.ok ? r.json() : { chart: [] }))
+      .then((data: { chart?: ChartItem[] }) => {
+        const list = data.chart ?? []
+        setChart(list)
+        // 기본 spotlight = 1위 아티스트
+        if (list.length > 0 && spotlightId === null) {
+          setSpotlightId(list[0].artist_id)
+        }
+      })
+      .catch((err) => {
+        console.error("[kpop] chart fetch 실패:", err)
+        setChart([])
+      })
+      .finally(() => setChartLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // spotlight 상세 로드
+  useEffect(() => {
+    if (!spotlightId) return
+    fetch(`/api/kpop/artists/${spotlightId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setSpotlight(data ?? null))
+      .catch((err) => {
+        console.error("[kpop] spotlight fetch 실패:", err)
+        setSpotlight(null)
+      })
+  }, [spotlightId])
+
+  // 노출 개수 분기
+  const visibleLimit = !authChecked
+    ? 5
+    : planType === "monthly" || planType === "annual"
+    ? 20
+    : isLoggedIn
+    ? 10
+    : 5
+
+  const filteredChart = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    const list = q
+      ? chart.filter(
+          (c) =>
+            c.name.toLowerCase().includes(q) ||
+            (c.name_ko ?? "").toLowerCase().includes(q)
+        )
+      : chart
+    return list.slice(0, visibleLimit)
+  }, [chart, searchQuery, visibleLimit])
+
+  // 트렌드 그래프용 좌표 — youtube_weekly_views 시계열
+  const trendPath = useMemo(() => {
+    if (!spotlight) return null
+    const points = spotlight.history
+      .map((h, i) => ({ i, value: h.youtube_weekly_views }))
+      .filter((p): p is { i: number; value: number } => p.value !== null)
+    if (points.length < 2) return null
+    const max = Math.max(...points.map((p) => p.value))
+    const min = Math.min(...points.map((p) => p.value))
+    const range = Math.max(1, max - min)
+    const width = 400
+    const height = 80
+    const stepX = points.length > 1 ? width / (points.length - 1) : 0
+    const coords = points.map((p, idx) => {
+      const x = idx * stepX
+      const y = height - ((p.value - min) / range) * height
+      return { x, y, value: p.value }
+    })
+    const linePath = coords
+      .map((c, i) => (i === 0 ? `M${c.x},${c.y}` : `L${c.x},${c.y}`))
+      .join(" ")
+    const areaPath = `${linePath} L${width},${height} L0,${height} Z`
+    return { coords, linePath, areaPath, width, height }
+  }, [spotlight])
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }}>
       <Header />
-      
+
       <main className="max-w-[1200px] mx-auto px-6 py-12">
         {/* Page Header */}
         <section className="text-center mb-12">
@@ -31,7 +190,7 @@ export default function KpopStatsPage() {
           <p className="text-muted-foreground text-lg mb-8">
             Real-time global charts & streaming data
           </p>
-          
+
           {/* Search Bar */}
           <div className="max-w-md mx-auto relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -45,12 +204,12 @@ export default function KpopStatsPage() {
           </div>
         </section>
 
-        {/* Global Chart - Top 5 */}
+        {/* Global Chart */}
         <section className="mb-12">
           <h2 className="text-2xl font-semibold text-white mb-6">
-            Global Chart — Top 5 this week
+            Global Chart — Top {visibleLimit} this week
           </h2>
-          
+
           <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden">
             {/* Table Header */}
             <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-border/30 text-sm text-muted-foreground font-medium">
@@ -60,171 +219,197 @@ export default function KpopStatsPage() {
               <div className="col-span-2 text-right">Last.fm Listeners</div>
               <div className="col-span-2 text-right">Change</div>
             </div>
-            
-            {/* Table Rows */}
-            {chartData.map((item) => (
-              <div 
-                key={item.rank}
-                className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-border/20 last:border-b-0 hover:bg-[#252525] transition-colors"
-              >
-                {/* Rank Badge */}
-                <div className="col-span-1 flex items-center">
-                  <span 
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
-                      item.rank === 1 
-                        ? "bg-primary/20 text-primary" 
-                        : "bg-[#252525] text-foreground"
-                    }`}
-                  >
-                    #{item.rank}
-                  </span>
-                </div>
-                
-                {/* Artist Name */}
-                <div className="col-span-4 flex items-center">
-                  <span className="text-foreground font-medium">{item.artist}</span>
-                </div>
-                
-                {/* YouTube Views */}
-                <div className="col-span-3 flex items-center justify-end">
-                  <span className="text-foreground">{item.youtube}</span>
-                </div>
-                
-                {/* Last.fm Listeners */}
-                <div className="col-span-2 flex items-center justify-end">
-                  <span className="text-foreground">{item.lastfm}</span>
-                </div>
-                
-                {/* Change */}
-                <div className="col-span-2 flex items-center justify-end gap-1">
-                  {item.change === "up" && (
-                    <>
-                      <TrendingUp className="w-4 h-4 text-green-500" />
-                      <span className="text-green-500 font-medium">{item.changeValue}</span>
-                    </>
-                  )}
-                  {item.change === "down" && (
-                    <>
-                      <TrendingDown className="w-4 h-4 text-red-500" />
-                      <span className="text-red-500 font-medium">{item.changeValue}</span>
-                    </>
-                  )}
-                  {item.change === "same" && (
-                    <>
-                      <Minus className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">{item.changeValue}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          {/* View Full Chart Link */}
-          <div className="mt-4 text-center">
-            <Link 
-              href="/kpop/chart" 
-              className="text-sm font-medium hover:underline"
-              style={{ color: "#FF4B6E" }}
-            >
-              View full chart
-            </Link>
-          </div>
-        </section>
 
-        {/* Artist Spotlight - BTS */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-semibold text-white mb-6">
-            Artist Spotlight
-          </h2>
-          
-          <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6 md:p-8">
-            {/* Artist Header */}
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <h3 className="text-2xl font-bold text-white mb-2">BTS</h3>
-                <div className="flex gap-2">
-                  <span className="px-3 py-1 rounded-full bg-[#252525] text-muted-foreground text-xs">K-pop</span>
-                  <span className="px-3 py-1 rounded-full bg-[#252525] text-muted-foreground text-xs">Boy Group</span>
-                  <span className="px-3 py-1 rounded-full bg-[#252525] text-muted-foreground text-xs">HYBE</span>
-                </div>
+            {/* Table Rows */}
+            {chartLoading ? (
+              <div className="px-6 py-10 text-center text-muted-foreground text-sm">
+                Loading...
               </div>
-              <Link href="/login">
-                <Button
-                  className="px-6 py-2 rounded-full font-medium text-white"
-                  style={{ backgroundColor: "#FF4B6E" }}
+            ) : filteredChart.length === 0 ? (
+              <div className="px-6 py-10 text-center text-muted-foreground text-sm">
+                {searchQuery ? "No artists match your search." : "No data yet — stats are collected daily."}
+              </div>
+            ) : (
+              filteredChart.map((item) => (
+                <button
+                  key={item.artist_id}
+                  type="button"
+                  onClick={() => setSpotlightId(item.artist_id)}
+                  className="w-full grid grid-cols-12 gap-4 px-6 py-4 border-b border-border/20 last:border-b-0 hover:bg-[#252525] transition-colors text-left"
                 >
-                  Track this artist
-                </Button>
+                  {/* Rank Badge */}
+                  <div className="col-span-1 flex items-center">
+                    <span
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                        item.rank === 1
+                          ? "bg-primary/20 text-primary"
+                          : "bg-[#252525] text-foreground"
+                      }`}
+                    >
+                      #{item.rank}
+                    </span>
+                  </div>
+
+                  {/* Artist Name */}
+                  <div className="col-span-4 flex items-center">
+                    <span className="text-foreground font-medium">{item.name}</span>
+                    {item.name_ko && (
+                      <span className="text-muted-foreground text-xs ml-2">{item.name_ko}</span>
+                    )}
+                  </div>
+
+                  {/* YouTube Views */}
+                  <div className="col-span-3 flex items-center justify-end">
+                    <span className="text-foreground">{formatBigNumber(item.youtube_total_views)}</span>
+                  </div>
+
+                  {/* Last.fm Listeners */}
+                  <div className="col-span-2 flex items-center justify-end">
+                    <span className="text-foreground">{formatBigNumber(item.lastfm_listeners)}</span>
+                  </div>
+
+                  {/* Change */}
+                  <div className="col-span-2 flex items-center justify-end gap-1">
+                    {item.rank_change === null ? (
+                      <>
+                        <Minus className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">—</span>
+                      </>
+                    ) : item.rank_change > 0 ? (
+                      <>
+                        <TrendingUp className="w-4 h-4 text-green-500" />
+                        <span className="text-green-500 font-medium">+{item.rank_change}</span>
+                      </>
+                    ) : item.rank_change < 0 ? (
+                      <>
+                        <TrendingDown className="w-4 h-4 text-red-500" />
+                        <span className="text-red-500 font-medium">{item.rank_change}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Minus className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">0</span>
+                      </>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+
+          {/* 비회원·Free 유저용 업그레이드 안내 */}
+          {authChecked && planType === "free" && chart.length > visibleLimit && (
+            <div className="mt-4 text-center">
+              <Link
+                href={isLoggedIn ? "/mypage/subscription" : "/"}
+                className="text-sm font-medium hover:underline"
+                style={{ color: "#FF4B6E" }}
+              >
+                {isLoggedIn ? "Upgrade to see full chart →" : "Sign in to see Top 10 →"}
               </Link>
             </div>
-            
-            {/* Stats Boxes */}
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="bg-[#141416] rounded-xl p-4 text-center">
-                <p className="text-muted-foreground text-sm mb-1">YouTube Subscribers</p>
-                <p className="text-2xl font-bold text-white">75M</p>
-              </div>
-              <div className="bg-[#141416] rounded-xl p-4 text-center">
-                <p className="text-muted-foreground text-sm mb-1">Weekly Views</p>
-                <p className="text-2xl font-bold text-white">45M</p>
-              </div>
-              <div className="bg-[#141416] rounded-xl p-4 text-center">
-                <p className="text-muted-foreground text-sm mb-1">Last.fm Listeners</p>
-                <p className="text-2xl font-bold text-white">8.2M</p>
-              </div>
-            </div>
-            
-            {/* Line Graph Placeholder */}
-            <div className="bg-[#141416] rounded-xl p-6 h-48 relative overflow-hidden">
-              <p className="text-muted-foreground text-sm mb-4">Weekly Trend</p>
-              {/* SVG Line Graph */}
-              <svg className="w-full h-32" viewBox="0 0 400 100" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#FF4B6E" stopOpacity="0.3" />
-                    <stop offset="100%" stopColor="#FF4B6E" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                {/* Area under the line */}
-                <path
-                  d="M0,80 Q50,70 100,60 T200,40 T300,50 T400,30 L400,100 L0,100 Z"
-                  fill="url(#lineGradient)"
-                />
-                {/* The line itself */}
-                <path
-                  d="M0,80 Q50,70 100,60 T200,40 T300,50 T400,30"
-                  fill="none"
-                  stroke="#FF4B6E"
-                  strokeWidth="2"
-                />
-                {/* Data points */}
-                <circle cx="0" cy="80" r="4" fill="#FF4B6E" />
-                <circle cx="100" cy="60" r="4" fill="#FF4B6E" />
-                <circle cx="200" cy="40" r="4" fill="#FF4B6E" />
-                <circle cx="300" cy="50" r="4" fill="#FF4B6E" />
-                <circle cx="400" cy="30" r="4" fill="#FF4B6E" />
-              </svg>
-              {/* X-axis labels */}
-              <div className="absolute bottom-2 left-0 right-0 flex justify-between px-2 text-xs text-muted-foreground">
-                <span>Mon</span>
-                <span>Tue</span>
-                <span>Wed</span>
-                <span>Thu</span>
-                <span>Fri</span>
-                <span>Sat</span>
-                <span>Sun</span>
-              </div>
-            </div>
-          </div>
+          )}
         </section>
 
-        {/* Artist Comparison - Pro Feature (Blurred) */}
+        {/* Artist Spotlight */}
+        {spotlight && (
+          <section className="mb-12">
+            <h2 className="text-2xl font-semibold text-white mb-6">
+              Artist Spotlight
+            </h2>
+
+            <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6 md:p-8">
+              {/* Artist Header */}
+              <div className="flex items-start justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl font-bold text-white mb-2">
+                    {spotlight.artist.name}
+                    {spotlight.artist.name_ko && (
+                      <span className="text-muted-foreground text-base font-normal ml-2">
+                        {spotlight.artist.name_ko}
+                      </span>
+                    )}
+                  </h3>
+                  <div className="flex gap-2 flex-wrap">
+                    <span className="px-3 py-1 rounded-full bg-[#252525] text-muted-foreground text-xs">K-pop</span>
+                    {spotlight.artist.debut_year && (
+                      <span className="px-3 py-1 rounded-full bg-[#252525] text-muted-foreground text-xs">
+                        Debut {spotlight.artist.debut_year}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {!isLoggedIn && (
+                  <Link href="/">
+                    <Button
+                      className="px-6 py-2 rounded-full font-medium text-white"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      Track this artist
+                    </Button>
+                  </Link>
+                )}
+              </div>
+
+              {/* Stats Boxes */}
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="bg-[#141416] rounded-xl p-4 text-center">
+                  <p className="text-muted-foreground text-sm mb-1">YouTube Subscribers</p>
+                  <p className="text-2xl font-bold text-white">
+                    {formatBigNumber(spotlight.latest?.youtube_subscribers)}
+                  </p>
+                </div>
+                <div className="bg-[#141416] rounded-xl p-4 text-center">
+                  <p className="text-muted-foreground text-sm mb-1">Weekly Views</p>
+                  <p className="text-2xl font-bold text-white">
+                    {formatBigNumber(spotlight.latest?.youtube_weekly_views)}
+                  </p>
+                </div>
+                <div className="bg-[#141416] rounded-xl p-4 text-center">
+                  <p className="text-muted-foreground text-sm mb-1">Last.fm Listeners</p>
+                  <p className="text-2xl font-bold text-white">
+                    {formatBigNumber(spotlight.latest?.lastfm_listeners)}
+                  </p>
+                </div>
+              </div>
+
+              {/* 30일 트렌드 그래프 — 데이터 없으면 안내 메시지 */}
+              <div className="bg-[#141416] rounded-xl p-6 h-48 relative overflow-hidden">
+                <p className="text-muted-foreground text-sm mb-4">30-Day Trend (weekly views)</p>
+                {trendPath ? (
+                  <svg
+                    className="w-full h-32"
+                    viewBox={`0 0 ${trendPath.width} ${trendPath.height}`}
+                    preserveAspectRatio="none"
+                  >
+                    <defs>
+                      <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#FF4B6E" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="#FF4B6E" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path d={trendPath.areaPath} fill="url(#lineGradient)" />
+                    <path d={trendPath.linePath} fill="none" stroke="#FF4B6E" strokeWidth="2" />
+                    {trendPath.coords.map((c, i) => (
+                      <circle key={i} cx={c.x} cy={c.y} r={3} fill="#FF4B6E" />
+                    ))}
+                  </svg>
+                ) : (
+                  <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+                    Not enough data yet — check back soon.
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Artist Comparison — Pro Feature (v0 그대로 유지) */}
         <section className="mb-16">
           <h2 className="text-2xl font-semibold text-white mb-6">
             Artist Comparison <span className="text-muted-foreground text-base font-normal">(Pro)</span>
           </h2>
-          
+
           <div className="relative">
             {/* Blurred Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 blur-[4px] pointer-events-none">
@@ -248,7 +433,7 @@ export default function KpopStatsPage() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Card 2 */}
               <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6">
                 <div className="flex items-center gap-4 mb-4">
@@ -270,33 +455,35 @@ export default function KpopStatsPage() {
                 </div>
               </div>
             </div>
-            
+
             {/* Overlay */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
-                <div 
-                  className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-                  style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
-                >
-                  <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
-                </div>
-                <p className="text-foreground font-medium mb-4">
-                  Unlock comparisons with Hallyu Pass
-                </p>
-                <Link href="/signup">
-                  <Button
-                    className="px-6 py-2 rounded-full font-medium text-white"
-                    style={{ backgroundColor: "#FF4B6E" }}
+            {planType !== "monthly" && planType !== "annual" && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
                   >
-                    Upgrade — $15/month
-                  </Button>
-                </Link>
+                    <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+                  </div>
+                  <p className="text-foreground font-medium mb-4">
+                    Unlock comparisons with Hallyu Pass
+                  </p>
+                  <Link href={isLoggedIn ? "/mypage/subscription" : "/"}>
+                    <Button
+                      className="px-6 py-2 rounded-full font-medium text-white"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      Upgrade — $15/month
+                    </Button>
+                  </Link>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </section>
       </main>
-      
+
       <FooterSection />
     </div>
   )

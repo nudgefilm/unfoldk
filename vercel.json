@@ -6,6 +6,10 @@
       "schedule": "0 4 * * *"
     },
     {
+      "path": "/api/cron/ingest-kpop-stats",
+      "schedule": "0 7 * * *"
+    },
+    {
       "path": "/api/cron/send-reminders",
       "schedule": "0 9 * * *"
     }

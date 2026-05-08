@@ -46,3 +46,55 @@ export async function getTopKpopArtists(limit = 20): Promise<LastfmArtist[]> {
   const data: LastfmTopArtistsResponse = await res.json()
   return data.topartists?.artist ?? []
 }
+
+// ============================================
+// 아티스트 단건 통계 — KpopStats 인제스트용
+// ============================================
+
+export interface LastfmArtistInfo {
+  name: string
+  mbid?: string
+  listeners: number | null
+  playcount: number | null
+}
+
+interface LastfmArtistGetInfoResponse {
+  artist?: {
+    name?: string
+    mbid?: string
+    stats?: {
+      listeners?: string
+      playcount?: string
+    }
+  }
+}
+
+// 단일 아티스트 정보 (listeners + playcount). 캐시는 호출 측 책임.
+export async function getArtistInfo(
+  artistName: string
+): Promise<LastfmArtistInfo | null> {
+  const params = new URLSearchParams({
+    method: "artist.getinfo",
+    artist: artistName,
+    api_key: lastfmApiKey(),
+    format: "json",
+    autocorrect: "1",
+  })
+
+  const res = await fetch(`${LASTFM_BASE}?${params}`)
+  if (!res.ok) {
+    console.warn(`[lastfm] artist.getinfo "${artistName}" ${res.status}`)
+    return null
+  }
+
+  const data: LastfmArtistGetInfoResponse = await res.json()
+  const a = data.artist
+  if (!a?.name) return null
+
+  return {
+    name: a.name,
+    mbid: a.mbid,
+    listeners: a.stats?.listeners ? Number(a.stats.listeners) : null,
+    playcount: a.stats?.playcount ? Number(a.stats.playcount) : null,
+  }
+}
