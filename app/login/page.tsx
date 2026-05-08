@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
-// /login?redirect=... 쿼리에서 안전한 내부 경로만 허용 (open redirect 방지)
+// /login?next=... 쿼리에서 안전한 내부 경로만 허용 (open redirect 방지)
 function safeRedirect(value: string | null): string {
   if (!value) return "/mypage"
   if (!value.startsWith("/") || value.startsWith("//")) return "/mypage"
@@ -27,7 +27,7 @@ export default function LoginPage() {
 function LoginPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectAfter = safeRedirect(searchParams.get("redirect"))
+  const redirectAfter = safeRedirect(searchParams.get("next"))
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")

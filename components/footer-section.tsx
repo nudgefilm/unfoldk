@@ -89,7 +89,7 @@ export function FooterSection() {
       <div className="w-full border-t border-border mt-8 pt-6 px-4 md:px-8">
         <p className="text-muted-foreground text-sm text-center md:text-left">
           {/* © 문자만 어드민 진입점 — 일반 유저에게는 호버 외 표시 없음 */}
-          <Link href="/admin" className="hover:opacity-60 transition-opacity">©</Link>
+          <Link href="/admin" prefetch={false} className="hover:opacity-60 transition-opacity">©</Link>
           {" "}2026 UNFOLD LAB · unfoldk.com
         </p>
       </div>

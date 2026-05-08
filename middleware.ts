@@ -62,7 +62,7 @@ export async function middleware(request: NextRequest) {
   if (!user && (isMypage || isAdmin)) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
-    url.searchParams.set("redirect", path)
+    url.searchParams.set("next", path)
     return redirectWithCookies(url, supabaseResponse)
   }
 

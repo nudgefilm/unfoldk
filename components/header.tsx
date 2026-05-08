@@ -194,6 +194,7 @@ export function Header() {
           </Link>
           <Link
             href="/mypage"
+            prefetch={false}
             className="text-[#888888] hover:text-foreground px-4 py-2 rounded-full font-medium transition-colors"
           >
             My Page
@@ -205,9 +206,9 @@ export function Header() {
               onMouseEnter={handleProfileMouseEnter}
               onMouseLeave={handleProfileMouseLeave}
             >
-              <button
-                type="button"
-                onClick={() => router.push("/mypage")}
+              <Link
+                href="/mypage"
+                prefetch={false}
                 aria-label="My Page"
                 className="px-4 py-2 rounded-full font-medium transition-colors flex items-center justify-center"
               >
@@ -226,7 +227,7 @@ export function Header() {
                     {userInitial || "U"}
                   </div>
                 )}
-              </button>
+              </Link>
 
               {/* hover 드롭다운 — Services 메뉴와 동일 시각 패턴 */}
               {isProfileOpen && (
@@ -316,6 +317,7 @@ export function Header() {
               {/* My Page Link */}
               <Link
                 href="/mypage"
+                prefetch={false}
                 className="text-foreground hover:text-primary px-2 py-3 font-medium"
               >
                 My Page

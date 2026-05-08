@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
@@ -51,7 +50,6 @@ function planLabel(planType: string | null | undefined): string {
 }
 
 export default function MyPage() {
-  const router = useRouter()
   const [activeLink, setActiveLink] = useState("Dashboard")
   const [userName, setUserName] = useState<string>("")
   const [userInitial, setUserInitial] = useState<string>("")
@@ -60,17 +58,14 @@ export default function MyPage() {
 
   useEffect(() => {
     // Supabase 세션 로드 후 Google 프로필 + plan_type 동기화
+    // ⚠️ 미로그인 가드는 middleware 가 서버 측에서 처리 — 여기서는 재검증 안 함
+    //    (token refresh in-flight 시 false-positive 로 /login 으로 튕기는 문제 회피)
     let cancelled = false
     const supabase = createSupabaseBrowserClient()
 
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      // "use client" 컴포넌트라 middleware 보호 미적용 — 직접 리디렉트
-      if (!user) {
-        router.push("/login?redirect=/mypage")
-        return
-      }
-      if (cancelled) return
+      if (!user || cancelled) return
 
       // 표시 이름: Google full_name → 없으면 이메일 앞부분
       const meta = (user.user_metadata ?? {}) as { full_name?: string; avatar_url?: string }
