@@ -58,8 +58,19 @@ export async function middleware(request: NextRequest) {
   const isMypage = path.startsWith("/mypage")
   const isAdmin = path.startsWith("/admin")
 
+  // 진단 로그 — 보호 라우트 진입 시 세션 인식 여부 추적 (Vercel Function Logs)
+  if (isMypage || isAdmin) {
+    console.log("[middleware]", {
+      path,
+      hasUser: !!user,
+      userId: user?.id ?? null,
+      cookieCount: request.cookies.getAll().length,
+    })
+  }
+
   // /mypage·/admin 미로그인 → /login 리디렉트
   if (!user && (isMypage || isAdmin)) {
+    console.log("[middleware/unauth] redirect to /login", { path })
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     url.searchParams.set("next", path)
@@ -72,11 +83,21 @@ export async function middleware(request: NextRequest) {
   //    재귀(또는 빈 결과)에 빠지고, 관리자도 profile=null 로 읽혀
   //    / 로 튕기던 문제를 방지 — 0006 에서 만든 public.is_admin(uid) 함수 호출.
   if (user && isAdmin) {
-    const { data: isAdminUser } = await supabase.rpc("is_admin", {
+    const { data: isAdminUser, error: rpcError } = await supabase.rpc("is_admin", {
       uid: user.id,
     })
 
+    // 진단 로그 — RPC 결과 (data, error) 그대로 노출. error 가 있으면 0006 미적용 등 의심
+    console.log("[middleware/admin]", {
+      userId: user.id,
+      isAdminUser,
+      rpcError: rpcError
+        ? { code: rpcError.code, message: rpcError.message, details: rpcError.details }
+        : null,
+    })
+
     if (!isAdminUser) {
+      console.log("[middleware/admin] redirect to / (toast=unauthorized)", { userId: user.id })
       const url = request.nextUrl.clone()
       url.pathname = "/"
       url.search = ""
