@@ -18,6 +18,7 @@ interface CalendarEvent {
   type: EventType
   time?: string
   artist?: string
+  description?: string                   // Claude 가 생성한 한 줄 설명 (영어)
   isPremium?: boolean
 }
 
@@ -176,9 +177,9 @@ function EventDetailModal({
         </div>
 
         {/* Artist/Drama Info Row */}
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-4">
           {/* Placeholder Avatar */}
-          <div 
+          <div
             className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-medium"
             style={{ backgroundColor: "#FF4B6E" }}
           >
@@ -186,6 +187,13 @@ function EventDetailModal({
           </div>
           <span className="text-foreground font-medium">{event.artist || "Unknown"}</span>
         </div>
+
+        {/* Description — Claude 가 생성한 한 줄 설명 (있을 때만 노출) */}
+        {event.description && (
+          <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+            {event.description}
+          </p>
+        )}
 
         {/* Divider */}
         <div className="border-t border-border/30 mb-6" />

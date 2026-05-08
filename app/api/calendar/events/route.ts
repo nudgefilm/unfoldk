@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   // RLS 가 is_premium 게이팅을 자동 처리
   const { data, error } = await supabase
     .from("hallyu_calendar_events")
-    .select("id, type, title, artist_or_drama, event_date, event_time_label, is_premium")
+    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium")
     .gte("event_date", startOfMonth.toISOString())
     .lt("event_date", startOfNextMonth.toISOString())
     .order("event_date", { ascending: true })
@@ -61,6 +61,7 @@ export async function GET(request: Request) {
       type: TYPE_TO_DISPLAY[row.type as keyof typeof TYPE_TO_DISPLAY],
       time: row.event_time_label ?? undefined,
       artist: row.artist_or_drama,
+      description: row.description ?? undefined,
       isPremium: row.is_premium,
     }
   })

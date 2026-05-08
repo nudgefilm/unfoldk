@@ -3,6 +3,7 @@
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { fetchPopularKoreanDramas, tmdbPosterUrl } from "@/lib/api/tmdb"
+import { generateEventDescription } from "@/lib/claude/generate-event-description"
 
 export interface TmdbIngestResult {
   source: "tmdb"
@@ -27,7 +28,7 @@ export async function runTmdbIngest(): Promise<TmdbIngestResult> {
   const todayUtc = new Date()
   todayUtc.setUTCHours(0, 0, 0, 0)
 
-  const rows = dramas
+  const baseRows = dramas
     .filter(
       (d) =>
         d.first_air_date &&
@@ -41,12 +42,25 @@ export async function runTmdbIngest(): Promise<TmdbIngestResult> {
       // first_air_date 는 날짜만 — KST 21시 (드라마 정규 시간) 으로 가정
       event_date: new Date(`${d.first_air_date}T21:00:00+09:00`).toISOString(),
       event_time_label: "9:00 PM KST",
-      description: d.overview?.slice(0, 500) || null,
+      // 1차 fallback — Claude 실패 시 TMDB overview 를 description 으로 사용
+      _tmdb_overview: d.overview?.slice(0, 500) || null,
       source_api: "tmdb",
       source_id: String(d.id),
       thumbnail_url: tmdbPosterUrl(d.poster_path),
       is_premium: false,
     }))
+
+  // Claude Haiku 로 한 줄 설명 병렬 생성 — 실패 시 TMDB overview fallback
+  const rows = await Promise.all(
+    baseRows.map(async ({ _tmdb_overview, ...row }) => {
+      const aiDescription = await generateEventDescription(
+        row.title,
+        row.artist_or_drama,
+        row.type
+      )
+      return { ...row, description: aiDescription ?? _tmdb_overview }
+    })
+  )
 
   if (rows.length === 0) {
     return {

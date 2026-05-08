@@ -20,6 +20,7 @@ export interface AdminEventRow {
   artist_or_drama: string
   event_date: string
   event_time_label: string | null
+  description: string | null
   source_api: string | null
   is_premium: boolean
 }
@@ -31,6 +32,7 @@ interface FormState {
   type: EventType
   event_date: string                     // YYYY-MM-DDTHH:mm 형식 (datetime-local)
   event_time_label: string
+  description: string                    // 한 줄 설명 (영어, ~100자 권고)
   is_premium: boolean
 }
 
@@ -40,6 +42,7 @@ const EMPTY_FORM: FormState = {
   type: "comeback",
   event_date: "",
   event_time_label: "",
+  description: "",
   is_premium: false,
 }
 
@@ -64,6 +67,7 @@ export function EventsManager({ events }: { events: AdminEventRow[] }) {
       // datetime-local input에 맞게 'YYYY-MM-DDTHH:mm' 까지만 잘라냄
       event_date: ev.event_date ? ev.event_date.slice(0, 16) : "",
       event_time_label: ev.event_time_label ?? "",
+      description: ev.description ?? "",
       is_premium: ev.is_premium,
     })
     setOpen(true)
@@ -77,6 +81,7 @@ export function EventsManager({ events }: { events: AdminEventRow[] }) {
       type: form.type,
       event_date: form.event_date ? new Date(form.event_date).toISOString() : "",
       event_time_label: form.event_time_label || null,
+      description: form.description || null,
       is_premium: form.is_premium,
     }
 
@@ -236,6 +241,19 @@ export function EventsManager({ events }: { events: AdminEventRow[] }) {
                 value={form.event_time_label}
                 onChange={(e) => setForm((f) => ({ ...f, event_time_label: e.target.value }))}
                 className="bg-[#0d0d0f] border-[#2a2a2a]"
+              />
+            </div>
+            <div>
+              <label className="text-muted-foreground text-xs mb-1 block">
+                한 줄 설명 (영어, ~100자 권장)
+                <span className="text-muted-foreground/70 ml-1">— 비워두면 인제스트 시 Claude 가 자동 생성</span>
+              </label>
+              <Textarea
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                className="bg-[#0d0d0f] border-[#2a2a2a] min-h-[60px] resize-y"
+                placeholder="aespa is back! The iconic K-pop quartet drops their highly anticipated new album."
+                maxLength={2000}
               />
             </div>
           </div>

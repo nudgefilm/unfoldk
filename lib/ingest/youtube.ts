@@ -4,6 +4,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { searchUpcomingComebacks } from "@/lib/api/youtube"
 import { getTopKpopArtists } from "@/lib/api/lastfm"
+import { generateEventDescription } from "@/lib/claude/generate-event-description"
 
 const ARTIST_LIMIT = 15
 const RESULTS_PER_ARTIST = 3
@@ -138,7 +139,8 @@ export async function runYoutubeIngest(): Promise<YoutubeIngestResult> {
     artist_or_drama: e.artistName,
     event_date: e.scheduledStartTime,
     event_time_label: null,
-    description: e.description.slice(0, 500) || null,
+    // 1차 fallback — Claude 실패 시 YouTube 영상 설명을 description 으로 사용
+    _yt_description: e.description.slice(0, 500) || null,
     source_api: "youtube",
     source_id: e.videoId,
     thumbnail_url: e.thumbnailUrl,
@@ -146,13 +148,26 @@ export async function runYoutubeIngest(): Promise<YoutubeIngestResult> {
   }))
 
   // 같은 videoId 가 여러 아티스트 검색에서 등장할 때 first-wins dedup
+  // (Claude 호출 비용 절감을 위해 dedup 후에 호출)
   const seen = new Set<string>()
-  const rows = rawRows.filter((r) => {
+  const dedupedRows = rawRows.filter((r) => {
     if (seen.has(r.source_id)) return false
     seen.add(r.source_id)
     return true
   })
-  const dedupedCount = rawRows.length - rows.length
+  const dedupedCount = rawRows.length - dedupedRows.length
+
+  // Claude Haiku 로 한 줄 설명 병렬 생성 — 실패 시 YouTube 설명 fallback
+  const rows = await Promise.all(
+    dedupedRows.map(async ({ _yt_description, ...row }) => {
+      const aiDescription = await generateEventDescription(
+        row.title,
+        row.artist_or_drama,
+        row.type
+      )
+      return { ...row, description: aiDescription ?? _yt_description }
+    })
+  )
 
   const supabase = createSupabaseAdminClient()
   const { data, error } = await supabase
