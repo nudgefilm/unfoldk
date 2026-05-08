@@ -319,11 +319,21 @@ export default function SubscriptionPage() {
                       </span>
                     )}
                     <h3 className="text-foreground font-semibold text-lg mb-2">Monthly</h3>
-                    <div className="mb-4">
+                    <div className="mb-1">
                       <span className="text-3xl font-bold text-foreground">$15</span>
                       <span className="text-muted-foreground">/month</span>
                     </div>
-                    <p className="text-muted-foreground text-sm">Billed monthly. Cancel anytime.</p>
+                    <p className="text-muted-foreground text-sm mb-4">Billed monthly. Cancel anytime.</p>
+                    {planType !== "monthly" && (
+                      <a href="/api/lemonsqueezy/checkout?plan=monthly">
+                        <Button
+                          className="w-full rounded-full font-medium text-white"
+                          style={{ backgroundColor: "#FF4B6E" }}
+                        >
+                          Switch to Monthly
+                        </Button>
+                      </a>
+                    )}
                   </div>
 
                   {/* Annual Plan */}
