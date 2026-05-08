@@ -4,7 +4,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, ChevronDown, Calendar, Music, Film, Languages, UtensilsCrossed } from "lucide-react"
+import { Menu, ChevronDown, Calendar, Music, Film, Languages, UtensilsCrossed, User, LogOut } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -24,6 +24,9 @@ export function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false)
   const [userInitial, setUserInitial] = useState<string>("")
   const [userAvatar, setUserAvatar] = useState<string | null>(null)
+  // 프로필 hover 드롭다운 — Services 드롭다운과 동일 패턴
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [profileCloseTimeout, setProfileCloseTimeout] = useState<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     // 로그인 상태 + Google 프로필을 헤더에 반영. onAuthStateChange로 실시간 갱신.
@@ -84,6 +87,31 @@ export function Header() {
     if (targetElement) {
       targetElement.scrollIntoView({ behavior: "smooth" })
     }
+  }
+
+  // 프로필 드롭다운 hover 핸들러 — 200ms 지연 close로 마우스 이동 여유 확보
+  const handleProfileMouseEnter = () => {
+    if (profileCloseTimeout) {
+      clearTimeout(profileCloseTimeout)
+      setProfileCloseTimeout(null)
+    }
+    setIsProfileOpen(true)
+  }
+
+  const handleProfileMouseLeave = () => {
+    const timeout = setTimeout(() => {
+      setIsProfileOpen(false)
+    }, 200)
+    setProfileCloseTimeout(timeout)
+  }
+
+  // 로그아웃 — Supabase 세션 종료 후 메인으로 복귀, RSC 캐시 무효화로 헤더 즉시 갱신
+  const handleLogout = async () => {
+    setIsProfileOpen(false)
+    const supabase = createSupabaseBrowserClient()
+    await supabase.auth.signOut()
+    router.push("/")
+    router.refresh()
   }
 
   return (
@@ -170,30 +198,60 @@ export function Header() {
           >
             My Page
           </Link>
-          {/* 로그인 상태에 따라 분기 — 비로그인: Log in + Try for Free / 로그인: 아바타 버튼 */}
+          {/* 로그인 상태에 따라 분기 — 비로그인: Log in + Try for Free / 로그인: 아바타 hover 드롭다운 */}
           {isLoggedIn ? (
-            <button
-              type="button"
-              onClick={() => router.push("/mypage")}
-              aria-label="My Page"
-              className="px-4 py-2 rounded-full font-medium transition-colors flex items-center justify-center"
+            <div
+              className="relative"
+              onMouseEnter={handleProfileMouseEnter}
+              onMouseLeave={handleProfileMouseLeave}
             >
-              {userAvatar ? (
-                <img
-                  src={userAvatar}
-                  alt="Profile"
-                  referrerPolicy="no-referrer"
-                  className="w-9 h-9 rounded-full object-cover"
-                />
-              ) : (
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm"
-                  style={{ backgroundColor: "#FF4B6E" }}
-                >
-                  {userInitial || "U"}
+              <button
+                type="button"
+                onClick={() => router.push("/mypage")}
+                aria-label="My Page"
+                className="px-4 py-2 rounded-full font-medium transition-colors flex items-center justify-center"
+              >
+                {userAvatar ? (
+                  <img
+                    src={userAvatar}
+                    alt="Profile"
+                    referrerPolicy="no-referrer"
+                    className="w-9 h-9 rounded-full object-cover"
+                  />
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm"
+                    style={{ backgroundColor: "#FF4B6E" }}
+                  >
+                    {userInitial || "U"}
+                  </div>
+                )}
+              </button>
+
+              {/* hover 드롭다운 — Services 메뉴와 동일 시각 패턴 */}
+              {isProfileOpen && (
+                <div className="absolute top-full right-0 pt-2 w-[200px] z-50">
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-2 shadow-xl">
+                    <Link
+                      href="/mypage"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#252525] transition-colors text-foreground text-sm"
+                    >
+                      <User className="w-4 h-4 text-muted-foreground" />
+                      My Page
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#252525] transition-colors text-foreground text-sm"
+                    >
+                      <LogOut className="w-4 h-4 text-muted-foreground" />
+                      Log out
+                    </button>
+                  </div>
                 </div>
               )}
-            </button>
+            </div>
           ) : (
             <>
               <Link

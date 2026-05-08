@@ -1,15 +1,33 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
+// /login?redirect=... 쿼리에서 안전한 내부 경로만 허용 (open redirect 방지)
+function safeRedirect(value: string | null): string {
+  if (!value) return "/mypage"
+  if (!value.startsWith("/") || value.startsWith("//")) return "/mypage"
+  return value
+}
+
+// useSearchParams()는 Suspense boundary 안에서만 사용 가능 — Next.js 빌드 요구사항
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
+  )
+}
+
+function LoginPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectAfter = safeRedirect(searchParams.get("redirect"))
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -17,14 +35,16 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState("")
 
   // Google OAuth — Supabase 가 provider 페이지로 redirect, 콜백은 /api/auth/callback
+  // ?next= 로 원래 가려던 경로를 callback 라우트까지 전달
   const handleGoogleLogin = async () => {
     setIsLoading(true)
     setErrorMsg("")
     const supabase = createSupabaseBrowserClient()
+    const callbackUrl = `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(redirectAfter)}`
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback`,
+        redirectTo: callbackUrl,
       },
     })
     if (error) {
@@ -46,7 +66,7 @@ export default function LoginPage() {
       setIsLoading(false)
       return
     }
-    router.push("/mypage")
+    router.push(redirectAfter)
     router.refresh() // 미들웨어가 새 세션 쿠키 인식하도록 RSC 캐시 무효화
   }
 
