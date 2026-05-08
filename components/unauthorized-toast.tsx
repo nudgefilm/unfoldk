@@ -38,7 +38,7 @@ function UnauthorizedToastInner() {
       params.delete("toast")
       const query = params.toString()
       router.replace(query ? `/?${query}` : "/")
-    }, 2000)
+    }, 3000)
 
     return () => clearTimeout(timer)
   }, [showToast, searchParams, router])
