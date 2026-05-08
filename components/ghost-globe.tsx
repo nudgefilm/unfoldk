@@ -111,14 +111,17 @@ function WireframeGlobe() {
   const groupRef = useRef<THREE.Group>(null)
   const koreaMaterialRef = useRef<THREE.MeshBasicMaterial>(null)
   const cityMaterialRefs = useRef<(THREE.MeshBasicMaterial | null)[]>([])
+  const cityPulseLastUpdate = useRef(0)
   const [landGeometry, setLandGeometry] = useState<THREE.BufferGeometry | null>(null)
   const [koreaGeometry, setKoreaGeometry] = useState<THREE.BufferGeometry | null>(null)
 
   // 지구 자전축 23.5° 기울기, 지구본 반지름
   const EARTH_TILT = 23.5 * (Math.PI / 180)
   const GLOBE_RADIUS = 1.5
+  // 도시 마커 펄스 갱신 주기 — 매 프레임(60fps × 80개) 대신 0.5초 단위 step 갱신
+  const CITY_PULSE_INTERVAL = 0.5
 
-  // 매 프레임: 자전 + 한국 펄스 + 도시 마커 깜빡임
+  // 매 프레임: 자전 + 한국 펄스 / 0.5초마다: 도시 마커 깜빡임
   useFrame((state, delta) => {
     if (groupRef.current) {
       groupRef.current.rotation.y += delta * 0.3
@@ -127,13 +130,16 @@ function WireframeGlobe() {
       const pulse = Math.sin(state.clock.elapsedTime * Math.PI) * 0.3 + 0.7
       koreaMaterialRef.current.opacity = pulse
     }
-    cityMaterialRefs.current.forEach((mat, i) => {
-      if (mat) {
-        const offset = i * 0.5
-        const cityPulse = Math.sin((state.clock.elapsedTime + offset) * 1.5) * 0.35 + 0.55
-        mat.opacity = cityPulse
-      }
-    })
+    if (state.clock.elapsedTime - cityPulseLastUpdate.current >= CITY_PULSE_INTERVAL) {
+      cityPulseLastUpdate.current = state.clock.elapsedTime
+      cityMaterialRefs.current.forEach((mat, i) => {
+        if (mat) {
+          const offset = i * 0.5
+          const cityPulse = Math.sin((state.clock.elapsedTime + offset) * 1.5) * 0.35 + 0.55
+          mat.opacity = cityPulse
+        }
+      })
+    }
   })
 
   // CDN에서 world-atlas 데이터 로드 → 대륙 윤곽선 + 한국 채우기 지오메트리 구성
@@ -353,13 +359,29 @@ export function GhostGlobe({ className = "", size = "default" }: { className?: s
     ? "w-[320px] h-[320px] md:w-[420px] md:h-[420px] lg:w-[500px] lg:h-[500px]"
     : "w-[160px] h-[160px] md:w-[200px] md:h-[200px]"
 
+  // 화면 밖일 땐 렌더 루프 정지 — 스크롤 후 GPU 백그라운드 점유 방지
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isVisible, setIsVisible] = useState(true)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { rootMargin: "100px" }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   return (
-    <div className={`relative ${className}`}>
+    <div ref={containerRef} className={`relative ${className}`}>
       <div className={sizeClasses}>
         <Canvas
           camera={{ position: [0, 0, 4.5], fov: 45 }}
           style={{ background: "transparent" }}
           gl={{ alpha: true, antialias: true }}
+          frameloop={isVisible ? "always" : "never"}
         >
           <WireframeGlobe />
         </Canvas>
