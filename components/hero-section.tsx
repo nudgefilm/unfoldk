@@ -1,7 +1,7 @@
 import React from "react"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Header } from "./header"
+import { GhostGlobe } from "./ghost-globe-dynamic"
 import Link from "next/link"
 
 export function HeroSection() {
@@ -438,16 +438,9 @@ export function HeroSection() {
         <Header />
       </div>
 
-      {/* Ghost globe mark — top-left, below logo */}
-      <div className="absolute top-12 left-2 md:top-14 md:left-4 z-10 pointer-events-none">
-        <Image
-          src="/unfoldk_ghost_globe_white.png"
-          alt=""
-          width={160}
-          height={160}
-          priority
-          className="w-24 h-24 md:w-32 md:h-32 lg:w-40 lg:h-40 opacity-90 animate-float motion-reduce:animate-none"
-        />
+      {/* Ghost globe — 3D 와이어프레임 지구본 (한국 하이라이트 + 세계 수도 마커) */}
+      <div className="absolute top-[50px] -left-[100px] md:top-[50px] md:-left-[80px] lg:top-[40px] lg:left-[20px] z-10 opacity-80">
+        <GhostGlobe size="hero" />
       </div>
 
       <div className="relative z-10 space-y-5 md:space-y-6 lg:space-y-8 mb-8 md:mb-10 lg:mb-12 max-w-md md:max-w-[500px] lg:max-w-[700px] mt-20 md:mt-[110px] lg:mt-[125px] px-4">
