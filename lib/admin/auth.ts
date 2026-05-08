@@ -17,14 +17,14 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
     return { ok: false, reason: "unauthenticated" }
   }
 
-  // RLS 우회 없이 본인 행만 조회 — users_select_own 정책으로 통과
-  const { data, error } = await supabase
-    .from("users")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single()
+  // ⚠️ users 테이블 직접 select 대신 SECURITY DEFINER RPC 사용
+  //    0005 admin 정책의 users self-reference 로 RLS 평가가 재귀에 빠져
+  //    관리자도 null 로 읽히는 문제를 회피 — 0006 의 public.is_admin(uid) 함수 호출.
+  const { data: isAdminUser, error } = await supabase.rpc("is_admin", {
+    uid: user.id,
+  })
 
-  if (error || !data?.is_admin) {
+  if (error || !isAdminUser) {
     return { ok: false, reason: "forbidden" }
   }
 

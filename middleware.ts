@@ -58,14 +58,16 @@ export async function middleware(request: NextRequest) {
   }
 
   // /admin 로그인했으나 is_admin 아님 → 홈으로
+  // ⚠️ users 테이블 직접 select 대신 SECURITY DEFINER RPC 사용
+  //    0005 의 admin 정책이 users 를 self-reference 해 RLS 평가가
+  //    재귀(또는 빈 결과)에 빠지고, 관리자도 profile=null 로 읽혀
+  //    / 로 튕기던 문제를 방지 — 0006 에서 만든 public.is_admin(uid) 함수 호출.
   if (user && isAdmin) {
-    const { data: profile } = await supabase
-      .from("users")
-      .select("is_admin")
-      .eq("id", user.id)
-      .single()
+    const { data: isAdminUser } = await supabase.rpc("is_admin", {
+      uid: user.id,
+    })
 
-    if (!profile?.is_admin) {
+    if (!isAdminUser) {
       const url = request.nextUrl.clone()
       url.pathname = "/"
       url.search = ""

@@ -234,6 +234,7 @@ export function Header() {
                   <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-2 shadow-xl">
                     <Link
                       href="/mypage"
+                      prefetch={false}
                       onClick={() => setIsProfileOpen(false)}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#252525] transition-colors text-foreground text-sm"
                     >

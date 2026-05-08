@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
@@ -50,6 +51,7 @@ function planLabel(planType: string | null | undefined): string {
 }
 
 export default function MyPage() {
+  const router = useRouter()
   const [activeLink, setActiveLink] = useState("Dashboard")
   const [userName, setUserName] = useState<string>("")
   const [userInitial, setUserInitial] = useState<string>("")
@@ -63,7 +65,12 @@ export default function MyPage() {
 
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user || cancelled) return
+      // "use client" 컴포넌트라 middleware 보호 미적용 — 직접 리디렉트
+      if (!user) {
+        router.push("/login?redirect=/mypage")
+        return
+      }
+      if (cancelled) return
 
       // 표시 이름: Google full_name → 없으면 이메일 앞부분
       const meta = (user.user_metadata ?? {}) as { full_name?: string; avatar_url?: string }
