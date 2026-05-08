@@ -8,10 +8,13 @@ import { FAQSection } from "@/components/faq-section"
 import { CTASection } from "@/components/cta-section"
 import { FooterSection } from "@/components/footer-section"
 import { AnimatedSection } from "@/components/animated-section"
+import { UnauthorizedToast } from "@/components/unauthorized-toast"
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background relative overflow-hidden pb-0">
+      {/* 비관리자 /admin 접근 거부 시 middleware 가 ?toast=unauthorized 로 redirect — 감지해 토스트 노출 */}
+      <UnauthorizedToast />
       <FloatingCalendarWidget />
       <div className="relative z-10">
         <main className="max-w-[1320px] mx-auto relative">

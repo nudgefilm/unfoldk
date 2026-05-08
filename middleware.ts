@@ -80,6 +80,8 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = "/"
       url.search = ""
+      // 랜딩 페이지에서 토스트 노출 (UnauthorizedToast 가 감지해 1초 후 자동 사라지며 파라미터 제거)
+      url.searchParams.set("toast", "unauthorized")
       return redirectWithCookies(url, supabaseResponse)
     }
   }
