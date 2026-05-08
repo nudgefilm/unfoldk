@@ -32,7 +32,7 @@ function UnauthorizedToastInner() {
   if (!visible) return null
 
   return (
-    <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-[#1a1a1a] border border-border/30 rounded-xl px-5 py-3 shadow-lg">
+    <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-[#1a1a1a] border border-border/30 rounded-xl px-6 py-3 shadow-lg">
       <p className="text-sm font-medium" style={{ color: "#FF4B6E" }}>
         This area is for administrators only.
       </p>
