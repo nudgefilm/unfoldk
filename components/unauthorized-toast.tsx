@@ -38,7 +38,7 @@ function UnauthorizedToastInner() {
       params.delete("toast")
       const query = params.toString()
       router.replace(query ? `/?${query}` : "/")
-    }, 1000)
+    }, 2000)
 
     return () => clearTimeout(timer)
   }, [showToast, searchParams, router])
@@ -46,7 +46,7 @@ function UnauthorizedToastInner() {
   if (!showToast) return null
 
   return (
-    <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-[#1a1a1a] border border-border/30 rounded-xl px-6 py-3 shadow-lg">
+    <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] bg-[#1a1a1a] border border-border/30 rounded-xl px-6 py-3 shadow-lg">
       <p className="text-sm font-medium" style={{ color: "#FF4B6E" }}>
         This area is for administrators only.
       </p>
