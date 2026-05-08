@@ -157,9 +157,35 @@ export async function runYoutubeIngest(): Promise<YoutubeIngestResult> {
   })
   const dedupedCount = rawRows.length - dedupedRows.length
 
-  // Claude Haiku 로 한 줄 설명 병렬 생성 — 실패 시 YouTube 설명 fallback
+  const supabase = createSupabaseAdminClient()
+
+  // 기존 description 사전 조회 — 이미 채워진 이벤트는 Claude 호출 skip
+  // (cron 매 실행마다 같은 이벤트에 대해 Claude 재호출되는 비용 누수 차단)
+  const sourceIds = dedupedRows.map((r) => r.source_id)
+  const { data: existingRows } = await supabase
+    .from("hallyu_calendar_events")
+    .select("source_id, description")
+    .eq("source_api", "youtube")
+    .in("source_id", sourceIds)
+
+  const existingDescMap = new Map<string, string | null>()
+  for (const row of (existingRows ?? []) as Array<{
+    source_id: string
+    description: string | null
+  }>) {
+    existingDescMap.set(row.source_id, row.description)
+  }
+
+  // Claude Haiku 로 한 줄 설명 병렬 생성
+  // - 기존 description 이 비어있지 않으면 호출 skip + 기존 값 유지
+  // - 신규 이벤트 또는 description 비어있는 경우만 호출
+  // - Claude 실패 시 YouTube 영상 설명 fallback
   const rows = await Promise.all(
     dedupedRows.map(async ({ _yt_description, ...row }) => {
+      const existingDesc = existingDescMap.get(row.source_id)
+      if (existingDesc && existingDesc.trim().length > 0) {
+        return { ...row, description: existingDesc }
+      }
       const aiDescription = await generateEventDescription(
         row.title,
         row.artist_or_drama,
@@ -168,8 +194,6 @@ export async function runYoutubeIngest(): Promise<YoutubeIngestResult> {
       return { ...row, description: aiDescription ?? _yt_description }
     })
   )
-
-  const supabase = createSupabaseAdminClient()
   const { data, error } = await supabase
     .from("hallyu_calendar_events")
     .upsert(rows, { onConflict: "source_api,source_id", ignoreDuplicates: false })
