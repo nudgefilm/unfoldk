@@ -1,18 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { 
-  Home, 
-  Calendar, 
-  Music, 
-  Film, 
-  Languages, 
-  UtensilsCrossed, 
-  CreditCard, 
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import {
+  Home,
+  Calendar,
+  Music,
+  Film,
+  Languages,
+  UtensilsCrossed,
+  CreditCard,
   Settings,
   ChevronRight,
   Flame
@@ -42,8 +43,55 @@ const upcomingEvents = [
   { id: 3, title: "NewJeans Fan Meet", date: 21, month: "MAY", type: "Fan Meet" },
 ]
 
+// DB plan_type 값 → 사이드바 배지 표시명 매핑
+function planLabel(planType: string | null | undefined): string {
+  if (planType === "monthly" || planType === "annual") return "Hallyu Pass"
+  return "Free"
+}
+
 export default function MyPage() {
   const [activeLink, setActiveLink] = useState("Dashboard")
+  const [userName, setUserName] = useState<string>("")
+  const [userInitial, setUserInitial] = useState<string>("")
+  const [userAvatar, setUserAvatar] = useState<string | null>(null)
+  const [userPlan, setUserPlan] = useState<string>("Free")
+
+  useEffect(() => {
+    // Supabase 세션 로드 후 Google 프로필 + plan_type 동기화
+    let cancelled = false
+    const supabase = createSupabaseBrowserClient()
+
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || cancelled) return
+
+      // 표시 이름: Google full_name → 없으면 이메일 앞부분
+      const meta = (user.user_metadata ?? {}) as { full_name?: string; avatar_url?: string }
+      const fallbackName = user.email?.split("@")[0] ?? "User"
+      const name = meta.full_name?.trim() || fallbackName
+      const initial = name.charAt(0).toUpperCase() || "U"
+
+      setUserName(name)
+      setUserInitial(initial)
+      setUserAvatar(meta.avatar_url ?? null)
+
+      // public.users 의 plan_type 조회 (실패 시 Free 유지)
+      const { data: profile } = await supabase
+        .from("users")
+        .select("plan_type")
+        .eq("id", user.id)
+        .single()
+
+      if (!cancelled) {
+        setUserPlan(planLabel(profile?.plan_type))
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0d0d0f" }}>
@@ -55,20 +103,29 @@ export default function MyPage() {
           {/* User Profile */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-3">
-              {/* Avatar */}
-              <div 
-                className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
-                style={{ backgroundColor: "#FF4B6E" }}
-              >
-                M
-              </div>
+              {/* Avatar — Google 프로필 사진이 있으면 <img>, 없으면 이니셜 */}
+              {userAvatar ? (
+                <img
+                  src={userAvatar}
+                  alt={userName}
+                  referrerPolicy="no-referrer"
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+              ) : (
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
+                  style={{ backgroundColor: "#FF4B6E" }}
+                >
+                  {userInitial || "U"}
+                </div>
+              )}
               <div>
-                <p className="text-foreground font-medium">Mia T.</p>
-                <span 
+                <p className="text-foreground font-medium">{userName || "—"}</p>
+                <span
                   className="text-xs font-medium px-2 py-0.5 rounded-full"
                   style={{ backgroundColor: "rgba(255, 75, 110, 0.15)", color: "#FF4B6E" }}
                 >
-                  Hallyu Pass
+                  {userPlan}
                 </span>
               </div>
             </div>

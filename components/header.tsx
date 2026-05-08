@@ -1,11 +1,13 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Menu, ChevronDown, Calendar, Music, Film, Languages, UtensilsCrossed } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 const services = [
   { icon: Calendar, name: "HallyuCalendar", description: "Never miss a comeback or premiere", href: "/calendar" },
@@ -16,8 +18,41 @@ const services = [
 ]
 
 export function Header() {
+  const router = useRouter()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [closeTimeout, setCloseTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false)
+  const [userInitial, setUserInitial] = useState<string>("")
+  const [userAvatar, setUserAvatar] = useState<string | null>(null)
+
+  useEffect(() => {
+    // 로그인 상태 + Google 프로필을 헤더에 반영. onAuthStateChange로 실시간 갱신.
+    const supabase = createSupabaseBrowserClient()
+
+    const applyUser = (user: { email?: string | null; user_metadata?: Record<string, unknown> } | null) => {
+      if (!user) {
+        setIsLoggedIn(false)
+        setUserInitial("")
+        setUserAvatar(null)
+        return
+      }
+      const meta = (user.user_metadata ?? {}) as { full_name?: string; avatar_url?: string }
+      const baseName = meta.full_name?.trim() || user.email?.split("@")[0] || "U"
+      setIsLoggedIn(true)
+      setUserInitial(baseName.charAt(0).toUpperCase() || "U")
+      setUserAvatar(meta.avatar_url ?? null)
+    }
+
+    supabase.auth.getUser().then(({ data: { user } }) => applyUser(user))
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      applyUser(session?.user ?? null)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
 
   const handleMouseEnter = () => {
     if (closeTimeout) {
@@ -135,20 +170,48 @@ export function Header() {
           >
             My Page
           </Link>
-          <Link
-            href="/login"
-            className="text-[#888888] hover:text-foreground px-4 py-2 rounded-full font-medium transition-colors"
-          >
-            Log in
-          </Link>
-          <Link href="/signup">
-            <Button 
-              className="px-6 py-2 rounded-full font-medium shadow-sm"
-              style={{ backgroundColor: "#FF4B6E", color: "white" }}
+          {/* 로그인 상태에 따라 분기 — 비로그인: Log in + Try for Free / 로그인: 아바타 버튼 */}
+          {isLoggedIn ? (
+            <button
+              type="button"
+              onClick={() => router.push("/mypage")}
+              aria-label="My Page"
+              className="px-4 py-2 rounded-full font-medium transition-colors flex items-center justify-center"
             >
-              Try for Free
-            </Button>
-          </Link>
+              {userAvatar ? (
+                <img
+                  src={userAvatar}
+                  alt="Profile"
+                  referrerPolicy="no-referrer"
+                  className="w-9 h-9 rounded-full object-cover"
+                />
+              ) : (
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm"
+                  style={{ backgroundColor: "#FF4B6E" }}
+                >
+                  {userInitial || "U"}
+                </div>
+              )}
+            </button>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="text-[#888888] hover:text-foreground px-4 py-2 rounded-full font-medium transition-colors"
+              >
+                Log in
+              </Link>
+              <Link href="/signup">
+                <Button
+                  className="px-6 py-2 rounded-full font-medium shadow-sm"
+                  style={{ backgroundColor: "#FF4B6E", color: "white" }}
+                >
+                  Try for Free
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile Hamburger Menu */}
@@ -199,13 +262,15 @@ export function Header() {
                 My Page
               </Link>
 
-              {/* Log in Link */}
-              <Link
-                href="/login"
-                className="text-foreground hover:text-primary px-2 py-3 font-medium"
-              >
-                Log in
-              </Link>
+              {/* Log in Link — 비로그인 상태에서만 노출 */}
+              {!isLoggedIn && (
+                <Link
+                  href="/login"
+                  className="text-foreground hover:text-primary px-2 py-3 font-medium"
+                >
+                  Log in
+                </Link>
+              )}
 
               {/* Hallyu Pass Link */}
               <Link
@@ -215,15 +280,17 @@ export function Header() {
                 View Hallyu Pass
               </Link>
 
-              {/* CTA Button */}
-              <Link href="/signup" className="w-full mt-4">
-                <Button 
-                  className="w-full px-6 py-3 rounded-full font-medium shadow-sm"
-                  style={{ backgroundColor: "#FF4B6E", color: "white" }}
-                >
-                  Try for Free
-                </Button>
-              </Link>
+              {/* CTA Button — 비로그인 상태에서만 노출 */}
+              {!isLoggedIn && (
+                <Link href="/signup" className="w-full mt-4">
+                  <Button
+                    className="w-full px-6 py-3 rounded-full font-medium shadow-sm"
+                    style={{ backgroundColor: "#FF4B6E", color: "white" }}
+                  >
+                    Try for Free
+                  </Button>
+                </Link>
+              )}
             </nav>
           </SheetContent>
         </Sheet>
