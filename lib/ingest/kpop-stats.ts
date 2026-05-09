@@ -2,26 +2,32 @@
 // cron(/api/cron/ingest-kpop-stats) + 어드민 수동 갱신 양쪽에서 import 해 재사용
 //
 // 흐름:
-//   1. kpop_artists 활성 아티스트 조회 (선택: 단일 아티스트만 갱신)
-//   2. YouTube 채널 통계 일괄 조회 (channels.list, 50명/call, 1 unit/call)
-//   3. Last.fm artist.getinfo 병렬 조회 (rate limit ~ 5 req/s, 25명 정도면 안전)
-//   4. 어제(8일전) total_views 와 비교해 weekly_views 계산
-//   5. kpop_stats_daily upsert (artist_id, date 유니크)
+//   1.  kpop_artists 활성 아티스트 조회 (선택: 단일 아티스트만 갱신)
+//   1.5. youtube_channel_id NULL 인 아티스트는 search.list 로 자동 매핑
+//        (이름 검색 1위 채널, 매칭 없으면 NULL 유지 — 오매핑 방지)
+//   2.  YouTube 채널 통계 일괄 조회 (channels.list, 50명/call, 1 unit/call)
+//   3.  Last.fm artist.getinfo 병렬 조회 (rate limit ~ 5 req/s, 25명 정도면 안전)
+//   4.  어제(8일전) total_views 와 비교해 weekly_views 계산
+//   5.  kpop_stats_daily upsert (artist_id, date 유니크)
 //
 // 비용:
-//   - YouTube: 25명 → channels.list 1회 = 1 unit/일 (10,000 daily quota 의 0.01%)
+//   - YouTube channels.list: 25명 → 1회 = 1 unit/일 (10,000 daily quota 의 0.01%)
+//   - YouTube search.list   : channel_id NULL 인 아티스트 1명당 100 units (1회만)
+//                             첫 cron 25명 NULL = 2,500 units. 매핑 후엔 0.
 //   - Last.fm: 25명 → 25 calls (병렬 5개 chunk)
 //
 // 멱등성:
 //   - 같은 날짜로 재실행하면 동일 row 가 update 됨 (artist_id, date unique)
+//   - channel_id 자동 매핑은 NULL 인 행만 시도 (이미 채워졌으면 skip)
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
-import { getChannelStats } from "@/lib/api/youtube"
+import { getChannelStats, searchChannelByName } from "@/lib/api/youtube"
 import { getArtistInfo } from "@/lib/api/lastfm"
 
 export interface KpopStatsIngestResult {
   source: "kpop-stats"
   artistsScanned: number
+  channelsAutoMapped: number       // 이번 실행에서 search.list 로 새로 매핑된 채널 수
   youtubeFetched: number
   lastfmFetched: number
   upserted: number
@@ -59,6 +65,7 @@ export async function runKpopStatsIngest(
     return {
       source: "kpop-stats",
       artistsScanned: 0,
+      channelsAutoMapped: 0,
       youtubeFetched: 0,
       lastfmFetched: 0,
       upserted: 0,
@@ -71,6 +78,7 @@ export async function runKpopStatsIngest(
     return {
       source: "kpop-stats",
       artistsScanned: 0,
+      channelsAutoMapped: 0,
       youtubeFetched: 0,
       lastfmFetched: 0,
       upserted: 0,
@@ -79,7 +87,49 @@ export async function runKpopStatsIngest(
     }
   }
 
-  // 2. YouTube 채널 통계 — channel_id 있는 아티스트만
+  // 1.5. youtube_channel_id NULL 인 아티스트는 이름으로 검색해 자동 매핑
+  //      - 이름 검색 1위 채널을 channel_id 로 박음 (search.list 100 units/call)
+  //      - 검색 결과 0건이면 NULL 유지 (오매핑 방지)
+  //      - 한 번 매핑되면 다음 cron 부터는 skip → 비용 0
+  let channelsAutoMapped = 0
+  const unmappedArtists = artists.filter((a) => !a.youtube_channel_id)
+  if (unmappedArtists.length > 0) {
+    console.log(
+      `[ingest-kpop-stats] channel_id 자동 매핑 시도: ${unmappedArtists.length}명 ` +
+        `(예상 쿼터 ${unmappedArtists.length * 100} units)`
+    )
+    // 5개씩 병렬 — YouTube API rate 보호 (Last.fm 청크 패턴 동일)
+    for (let i = 0; i < unmappedArtists.length; i += 5) {
+      const chunk = unmappedArtists.slice(i, i + 5)
+      const results = await Promise.all(
+        chunk.map(async (a) => {
+          const channelId = await searchChannelByName(a.name)
+          return { artist: a, channelId }
+        })
+      )
+      // 매핑 성공한 것만 DB update + 메모리 객체도 갱신해 후속 단계가 사용 가능
+      for (const r of results) {
+        if (!r.channelId) continue
+        const { error: updErr } = await supabase
+          .from("kpop_artists")
+          .update({ youtube_channel_id: r.channelId })
+          .eq("id", r.artist.id)
+        if (updErr) {
+          errors.push(
+            `channel_id 매핑 update 실패 (${r.artist.name}): ${updErr.message}`
+          )
+        } else {
+          r.artist.youtube_channel_id = r.channelId          // 후속 단계 즉시 활용
+          channelsAutoMapped++
+        }
+      }
+    }
+    console.log(
+      `[ingest-kpop-stats] 자동 매핑 완료: ${channelsAutoMapped}/${unmappedArtists.length}명`
+    )
+  }
+
+  // 2. YouTube 채널 통계 — channel_id 있는 아티스트만 (1.5 단계에서 갱신된 ID 포함)
   const ytChannelIds = artists
     .map((a) => a.youtube_channel_id)
     .filter((id): id is string => !!id && id.length > 0)
@@ -201,6 +251,7 @@ export async function runKpopStatsIngest(
   return {
     source: "kpop-stats",
     artistsScanned: artists.length,
+    channelsAutoMapped,
     youtubeFetched,
     lastfmFetched,
     upserted: upsertData?.length ?? 0,

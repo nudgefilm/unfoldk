@@ -4,6 +4,41 @@
 
 ---
 
+## 현재 상태 (2026-05-09 / KpopStats — youtube_channel_id 자동 매핑)
+
+- **완료**:
+  - **`/kpop` YouTube Views 모두 "—" 진단** — Supabase 직접 조회 결과:
+    - `kpop_artists` 25명 시드 / 모두 active / **`youtube_channel_id` 0건** (시드 시 lastfm_name 만 채우는 정책 — commit `cde3955`)
+    - `kpop_stats_daily` 1건 中 `youtube_*` 모두 NULL, `lastfm_*` 만 채워짐 (정확한 결과)
+    - 어드민이 25명 채널 ID 수동 입력 안 해서 발생
+  - **`lib/api/youtube.ts`** — `searchChannelByName(query)` 신규
+    - `search.list type=channel, maxResults=1` → 1위 채널 매핑
+    - 매칭 0건이면 `null` 반환 (오매핑 방지)
+    - 비용: 100 units/call
+  - **`lib/ingest/kpop-stats.ts`** — 단계 1.5 신규
+    - 활성 아티스트 中 `youtube_channel_id` NULL 인 행만 search 시도
+    - 5명씩 병렬 (rate 보호, Last.fm 청크 패턴 동일)
+    - 매칭된 것만 `kpop_artists.update` + 메모리 객체 갱신 → 같은 cron 의 channels.list 호출에 즉시 활용
+    - `KpopStatsIngestResult` 에 `channelsAutoMapped` 필드 추가
+  - **멱등성 보장** — 이미 `youtube_channel_id` 있는 행은 search 호출 skip
+  - **기존 cron (`ingest-kpop-stats`, 매일 07:00 UTC) 에 자동 포함** — 별도 트리거 불필요
+- **다음 (사용자 작업)**:
+  1. **수동 트리거로 첫 매핑 시도**:
+     ```powershell
+     Invoke-RestMethod -Uri "http://localhost:3000/api/cron/ingest-kpop-stats" `
+       -Headers @{ Authorization = "Bearer $env:CRON_SECRET" }
+     ```
+     → 응답 `channelsAutoMapped` 값으로 매핑 성공 수 확인
+  2. 또는 다음 자연 cron (07:00 UTC) 까지 대기
+  3. `/kpop` 새로고침 → YouTube Views 채워지는지 확인. 매핑 잘못된 채널은 어드민에서 수동 교정 가능
+- **비용**:
+  - 첫 회: 25명 NULL × 100 units = **2,500 units** (10,000/일 한도의 25%)
+  - 두 번째 cron 부터: 모두 매핑돼 search 호출 0 — `channels.list` 1 unit 만
+  - 다른 cron(`ingest-all` 의 YouTube 부분 1,515 units) 합산해도 첫 회 ~4,000 units 로 안전
+- **블로커**: 없음
+
+---
+
 ## 현재 상태 (2026-05-09 / Pro 잠금 해제 — 4개 서비스 페이지에 hasProAccess 적용)
 
 - **완료**:

@@ -1,9 +1,12 @@
 // YouTube Data API v3 래퍼 (googleapis SDK)
 // ⚠️ tubewatch.kr 와 별도 GCP 프로젝트 사용 필수 (CLAUDE.md §8, §13)
 // 쿼터: 10,000 units/day.
-//   - search.list  : 100 units
+//   - search.list  : 100 units (channel/video 검색)
 //   - videos.list  :   1 unit
-//   - channels.list:   1 unit (아티스트당 1회 호출 → 25명 = 25 units, 매우 저렴)
+//   - channels.list:   1 unit (50개/call, KpopStats 인제스트 — 25명 = 1 unit, 매우 저렴)
+//
+// channel_id 자동 매핑(searchChannelByName) 은 첫 cron 1회만 100 unit/명 사용
+// — 매핑 후 채널 ID 가 DB 에 박혀서 다음 cron 부터는 channels.list 만 호출.
 
 import { google, youtube_v3 } from "googleapis"
 
@@ -64,6 +67,39 @@ export async function getChannelStats(
   }
 
   return results
+}
+
+// ============================================
+// 채널 ID 자동 매핑 — KpopStats 시드의 youtube_channel_id NULL 자동 채움용
+// ============================================
+
+// 아티스트 이름으로 1위 채널 검색 → channelId 반환 (없으면 null)
+//   - search.list type=channel: 100 units / call
+//   - 검색 결과 0건이면 null (오매핑 방지)
+//   - 호출 측에서 멱등 보장 (이미 channel_id 있으면 호출 skip)
+export async function searchChannelByName(query: string): Promise<string | null> {
+  const youtube = getYoutubeClient()
+  try {
+    const res = await youtube.search.list({
+      part: ["snippet"],
+      q: query,
+      type: ["channel"],
+      maxResults: 1,
+    })
+    const item = res.data.items?.[0]
+    // search.list type=channel 응답에서 channelId 는 id.channelId 또는 snippet.channelId
+    const channelId = item?.id?.channelId ?? item?.snippet?.channelId ?? null
+    if (channelId) {
+      console.log(`[youtube] searchChannelByName q="${query}" → ${channelId}`)
+    } else {
+      console.log(`[youtube] searchChannelByName q="${query}" → 매칭 없음`)
+    }
+    return channelId
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`[youtube] searchChannelByName 실패 q="${query}":`, msg)
+    return null
+  }
 }
 
 export interface YoutubeUpcomingEvent {

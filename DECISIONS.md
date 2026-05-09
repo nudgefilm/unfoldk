@@ -21,6 +21,32 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 KpopStats — youtube_channel_id 자동 매핑 (`searchChannelByName`)
+
+- 결정 내용:
+  - **시드의 `youtube_channel_id` 채우기를 어드민 수동 입력 → cron 자동 매핑으로 전환**
+  - `lib/api/youtube.ts::searchChannelByName(query)` 추가:
+    - `search.list { type: ["channel"], q: query, maxResults: 1 }` 호출
+    - 1위 채널의 `id.channelId` (또는 `snippet.channelId`) 반환
+    - 매칭 0건이면 `null` 반환 — **오매핑 방지** (NULL 유지)
+    - 100 units/call 비용 (10,000/일 한도)
+  - `lib/ingest/kpop-stats.ts` 단계 1.5 신규:
+    - 활성 아티스트 中 `youtube_channel_id` NULL 만 검색 — **멱등성 (이미 있으면 skip)**
+    - 5명씩 병렬 청크 (Last.fm 청크 패턴과 동일 — rate 보호)
+    - 매칭 성공 시 `kpop_artists.update` + **메모리 객체도 즉시 갱신** → 같은 cron 의 후속 `channels.list` 호출에 활용
+    - `KpopStatsIngestResult` 에 `channelsAutoMapped` 필드 추가 (운영 가시성)
+  - **기존 cron (`/api/cron/ingest-kpop-stats` 매일 07:00 UTC) 에 자동 포함** — 별도 라우트·트리거 안 만듦
+- 이유:
+  - **사용자 부담 제거**: 25명 채널 ID 수동 매핑은 사용자 시간 소모 + 입력 오류 가능성. cron 자동화로 운영 마찰 0.
+  - **첫 회 1회만 비용**: 매핑 후 channel ID 가 DB 에 박혀서 다음 cron 부터 search 호출 0. 25명 모두 NULL 일 때 첫 회 2,500 units (한도 25%) 만 소모.
+  - **`null` 반환 정책 (오매핑 방지)**: 검색 결과가 없거나 모호한 케이스에서 임의의 채널을 강제 매핑하면 잘못된 통계가 누적 → 아티스트별 stats 신뢰도 훼손. NULL 유지하면 어드민이 수동 보정 가능.
+  - **메모리 객체 즉시 갱신**: 같은 cron 안에서 매핑 → channels.list → stats upsert 가 한 번에 끝남. 다음 cron 까지 기다릴 필요 없음.
+- 대안으로 고려했던 것:
+  - **별도 cron 라우트(`/api/cron/map-kpop-channels`)**: vercel cron 슬롯 1개 추가 사용 + 동일 작업이 두 단계로 나뉨. 같은 `ingest-kpop-stats` 안에 통합이 단순.
+  - **검색 결과 N개 후보 중 어드민이 선택하는 UI**: 정확도 우위지만 어드민 워크플로 추가. 1위 자동 매핑 + null fallback 으로 충분 — 잘못된 매핑은 어드민에서 수동 교정.
+  - **Last.fm `artist.getInfo` 의 `mbid` (MusicBrainz ID) → YouTube 매핑**: 정확도 더 높지만 multi-hop 호출 + rate limit. MVP 에 부담.
+  - **시드 단계에 채널 ID 미리 박기 (마이그레이션)**: 25명 채널 ID 사람이 한 번에 검수. 시드 25명 → 50명 → 100명 확장 시 매번 사람 손 — 자동화가 확장성 우위.
+
 ## 2026-05-09 4개 서비스 페이지에 Pro 잠금 해제 적용 — 공통 패턴 박제
 
 - 결정 내용:
