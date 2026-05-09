@@ -59,9 +59,9 @@ export function AdminSidebar() {
       <div className="mt-auto pt-6">
         <Link
           href="/"
-          className="text-xs text-muted-foreground hover:text-foreground px-3 py-2 block"
+          className="text-foreground text-lg font-semibold px-3 py-2 block hover:opacity-80 transition-opacity"
         >
-          ← 메인 사이트로
+          ← UnfoldK <span style={{ color: "#FF4B6E" }}>HOME</span>
         </Link>
       </div>
     </aside>
