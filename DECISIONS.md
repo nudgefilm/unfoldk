@@ -21,6 +21,33 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 KdramaMatch (M+2) — 데이터·API·UI 연동
+
+- 결정 내용:
+  - **DB**: `0014_kdrama_match.sql` — `dramas`, `user_watchlist` 두 테이블. RLS: dramas read 는 anon+authenticated (is_active 한정), watchlist 는 본인 행만. 0013 service_role GRANT 패턴 동일 적용.
+  - **인제스트 소스**: TMDB `discover/tv?with_origin_country=KR` 1~3페이지 + `tv/top_rated` 1~2페이지(KR 후처리 필터) → tmdb_id dedup 후 `tv/{id}` 상세 조회로 episode_count·status·genre 보강. 동시 호출 6개 제한.
+  - **`platform` 필드**: TMDB `watch/providers` 가 region 별 + 호출 추가라 무거움. 일단 NULL 로 두고 추후 별도 인제스트 (M+2 release 시점에 결정).
+  - **`genre` 필드**: TMDB `genres[0].name` 을 `normalizeGenre()` 로 UI 5개 옵션(Romance/Thriller/Comedy/Fantasy/Historical) 으로 매핑. 매칭 안 되면 원본 보존.
+  - **`rating`**: TMDB `vote_average` (0~10) 를 5점 척도로 환산해 저장 (소수점 1자리).
+  - **Cron 슬롯**: 별도 라우트 `/api/cron/ingest-tmdb-dramas` 매일 UTC 05:30 추가. 현재 vercel.json 에 cron 4개 — Hobby 플랜은 2개 한도라 Pro 가입 가정. (한도 도달 시 ingest-all 통합 검토)
+  - **공개 API 노출 한도**:
+    - `/api/dramas` GET — anon 6 / free 12 / paid 100 (offset 페이지네이션)
+    - `/api/dramas/recommend` POST — anon 6 / free 12 / paid 30 (Claude 토큰 비용 보수적)
+    - `/api/dramas/watchlist` 전체 메서드 — 로그인 필수, RLS 가 본인 행 보장
+  - **추천 로직**: Claude Haiku 4.5 — 1차 DB 필터(60건 후보) → Claude 가 ranking + reason JSON 반환 → 검증·매핑. Claude 실패/파싱 실패 시 fallback (genre 일치 + rating 정렬). cache_control: ephemeral 부착(현재 프롬프트는 임계 미만이지만 향후 확장 대비).
+  - **UI 연동**: `app/drama/page.tsx` Mock 제거. className/style/DOM 무변경 원칙 — DramaCard 의 Plus 버튼만 `<Link href="/login">` → `<button onClick>` 로 교체(로그인 검사 후 watchlist POST 또는 /login redirect). 포스터 이미지는 `<img>` 추가하되 placeholder `<span>` 은 그대로 유지.
+  - **next.config.mjs**: `image.tmdb.org` remotePatterns 추가. `images.unoptimized: true` 라 `<Image>` 대신 `<img>` 사용.
+- 이유:
+  - watch/providers 미연동: region 별 응답이라 K-드라마 1편당 호출 N회 필요. 현재 Hobby 쿼터 부담 + UnfoldK 영어권/동남아 타깃이라 region 결정 자체가 정책 이슈. 출시 전 별도 결정.
+  - rating 환산: UI 가 5점 척도 ⭐로 표현. TMDB 0~10 스케일 그대로 저장하면 표현 시 매번 환산 필요해 저장 시점에 통일.
+  - Claude fallback: 추천은 핵심 기능이라 외부 의존성 실패 시에도 동작해야 함. genre 매칭 + rating 정렬은 단순하지만 0건 노출은 막음.
+  - watchlist API 가 join 으로 drama 정보 동시 반환: UI 가 별도 호출 없이 카드 그릴 수 있도록 — 라운드트립 절감.
+- 대안으로 고려했던 것:
+  - **MyDramaList API 동시 연동**: CLAUDE.md §8 에 명시된 M+2 소스지만 키 신청에 수일 소요. TMDB 단독으로 MVP 기능 충분 → MDL 은 출시 직전 보강.
+  - **Claude 없이 DB-only 추천**: 비용 0원이지만 mood(감정 키워드) 매칭이 약함. Claude 호출은 추천 1회당 ≈$0.001 — 일 1,000건 가정 시 월 $30 미만으로 허용 가능.
+  - **Cron 통합 (ingest-all 에 합치기)**: Hobby 한도 회피책이지만 인제스트 스텝 수가 늘어 `maxDuration: 300` 한도 위협. 별도 라우트 + Pro 가정이 안전.
+  - **`platform` 채우기**: TMDB watch/providers 1회 호출로 평균 region 1개 platform 만 사용 — 정확도 낮고 region 결정도 미정. 추후 작업으로 분리.
+
 ## 2026-05-09 신규 테이블 추가 시 service_role GRANT 의무화 (인시던트 회고)
 
 - 결정 내용:

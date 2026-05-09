@@ -11,6 +11,12 @@ const nextConfig = {
         protocol: "https",
         hostname: "lh3.googleusercontent.com",
       },
+      // TMDB 포스터·썸네일 — KdramaMatch / HallyuCalendar 카드에 사용
+      // 출처 표기 의무: "This product uses the TMDB API but is not endorsed or certified by TMDB."
+      {
+        protocol: "https",
+        hostname: "image.tmdb.org",
+      },
     ],
   },
 }

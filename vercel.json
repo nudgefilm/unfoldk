@@ -10,6 +10,10 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/cron/ingest-tmdb-dramas",
+      "schedule": "30 5 * * *"
+    },
+    {
       "path": "/api/cron/send-reminders",
       "schedule": "0 9 * * *"
     }
