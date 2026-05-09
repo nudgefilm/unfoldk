@@ -19,6 +19,19 @@ export async function GET(request: NextRequest) {
   const next =
     nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : null
 
+  // 임시 진단 로그 — production OAuth 흐름의 실제 도착 URL / next 원본 추적용.
+  // 결과 확인 후 제거 예정. (Vercel Function Logs 에서 조회)
+  console.log("[CALLBACK ENTRY]", {
+    requestUrl: request.url,
+    origin,
+    nextRaw,
+    nextValidated: next,
+    hasCode: !!code,
+    host: request.headers.get("host"),
+    forwardedHost: request.headers.get("x-forwarded-host"),
+    referer: request.headers.get("referer"),
+  })
+
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`)
   }
@@ -90,11 +103,20 @@ export async function GET(request: NextRequest) {
     if (next) {
       startUrl.searchParams.set("next", next)
     }
+    console.log("[CALLBACK REDIRECT]", {
+      branch: "new_user",
+      destination: startUrl.toString(),
+    })
     return redirectWithCookies(startUrl, supabaseResponse)
   }
 
   // 기존 유저 — 원래 가려던 경로 (next 없으면 /mypage)
-  return redirectWithCookies(`${origin}${next ?? "/mypage"}`, supabaseResponse)
+  const destination = `${origin}${next ?? "/mypage"}`
+  console.log("[CALLBACK REDIRECT]", {
+    branch: "existing_user",
+    destination,
+  })
+  return redirectWithCookies(destination, supabaseResponse)
 }
 
 // redirect 응답에 supabaseResponse 의 쿠키(options 포함) 명시 복사
