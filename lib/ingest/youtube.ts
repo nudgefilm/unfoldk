@@ -68,7 +68,6 @@ export async function runYoutubeIngest(): Promise<YoutubeIngestResult> {
     title: string
     scheduledStartTime: string
     thumbnailUrl: string | null
-    description: string
   }> = []
   const perArtistErrors: YoutubeIngestResult["perArtistErrors"] = []
   const perArtistDiag: NonNullable<YoutubeIngestResult["perArtistDiag"]> = []
@@ -94,7 +93,8 @@ export async function runYoutubeIngest(): Promise<YoutubeIngestResult> {
           title: e.title,
           scheduledStartTime: e.scheduledStartTime,
           thumbnailUrl: e.thumbnailUrl,
-          description: e.description,
+          // description 은 Claude 자동 생성으로만 채움 — YouTube 영상 description 은
+          // 마케팅·미신뢰 정보 (앨범명·가격·장소 추측) 포함 가능성 높아 저장 금지
         })
       }
     } catch (err) {
@@ -139,8 +139,6 @@ export async function runYoutubeIngest(): Promise<YoutubeIngestResult> {
     artist_or_drama: e.artistName,
     event_date: e.scheduledStartTime,
     event_time_label: null,
-    // 1차 fallback — Claude 실패 시 YouTube 영상 설명을 description 으로 사용
-    _yt_description: e.description.slice(0, 500) || null,
     source_api: "youtube",
     source_id: e.videoId,
     thumbnail_url: e.thumbnailUrl,
@@ -179,9 +177,10 @@ export async function runYoutubeIngest(): Promise<YoutubeIngestResult> {
   // Claude Haiku 로 한 줄 설명 병렬 생성
   // - 기존 description 이 비어있지 않으면 호출 skip + 기존 값 유지
   // - 신규 이벤트 또는 description 비어있는 경우만 호출
-  // - Claude 실패 시 YouTube 영상 설명 fallback
+  // - Claude 실패 시 description=null (YouTube 영상 설명 fallback 안 함 —
+  //   마케팅·추측 정보 포함 위험)
   const rows = await Promise.all(
-    dedupedRows.map(async ({ _yt_description, ...row }) => {
+    dedupedRows.map(async (row) => {
       const existingDesc = existingDescMap.get(row.source_id)
       if (existingDesc && existingDesc.trim().length > 0) {
         return { ...row, description: existingDesc }
@@ -191,7 +190,7 @@ export async function runYoutubeIngest(): Promise<YoutubeIngestResult> {
         row.artist_or_drama,
         row.type
       )
-      return { ...row, description: aiDescription ?? _yt_description }
+      return { ...row, description: aiDescription ?? null }
     })
   )
   const { data, error } = await supabase

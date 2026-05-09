@@ -21,6 +21,23 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 YouTube ingest — 영상 description 저장 금지, Claude 자동 생성으로만
+
+- 결정 내용:
+  - `lib/ingest/youtube.ts` 가 YouTube `snippet.description` 을 DB 에 저장하지 않음
+  - `description` 컬럼은 **`generateEventDescription` (Claude Haiku) 결과로만** 채움
+  - Claude 실패 시 `null` 저장 (이전: YouTube 영상 description 으로 fallback) → 어드민 수정 또는 다음 cron 재시도 시 보강
+  - 기존 source_api='youtube' 10건 일괄 삭제 (오매핑·옛날·M/V 아닌 영상 mix)
+- 이유:
+  - **YouTube 영상 description 의 신뢰도 낮음**: 채널 운영자가 마케팅 카피로 자유롭게 작성. 앨범명·발매일·장소·가격·티켓 링크 등 검증 안 된 구체 정보 흔히 포함. 우리 캘린더에 그대로 노출하면 사실 미검증 정보가 사용자에게 전달.
+  - **`generateEventDescription` 의 인제스트(rich) 모드는 source title 이 검증된 외부 API 영상 메타데이터** 를 입력으로 한다는 가정. 영상 description 자체가 검증 안 됐는데 이걸 fallback 으로 쓰면 신뢰도 일관성 깨짐.
+  - **fallback null 의 운영 영향**: 캘린더 모달에서 description 이 없으면 표시 자체 안 함 (`{event.description && (...)}`) — 사용자가 잘못된 정보 보는 것보다 정보 없는 게 안전.
+  - **기존 데이터 일괄 삭제**: 이전 ingest 결과 10건은 query 정교화 전 또는 미래 검증 도입 전에 통과한 옛날·오매핑 영상이라 운영 가치 부정. cron 다음 실행에서 정상 데이터로 자연 재축적.
+- 대안으로 고려했던 것:
+  - **YouTube description 의 첫 문장만 잘라 저장**: 첫 문장도 마케팅 카피일 가능성 높음. 일관 신뢰도 확보 못 함.
+  - **YouTube description 을 별도 컬럼(`raw_yt_description`)에 보관**: 데이터 보존은 되지만 사용처 없음 + 노출 위험 잔존. 그냥 fetch 안 하는 게 깔끔.
+  - **삭제 대신 description 만 NULL 처리**: 이벤트 자체가 옛날·오매핑이라 description 만 비워도 사용자에게 잘못된 이벤트 노출. 일괄 삭제가 정직.
+
 ## 2026-05-09 React #418 hydration fix — `toLocaleDateString` 에 `timeZone` 명시 의무화
 
 - 결정 내용:

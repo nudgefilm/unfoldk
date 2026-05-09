@@ -4,6 +4,24 @@
 
 ---
 
+## 현재 상태 (2026-05-09 / YouTube description fallback 제거 + 오매핑 데이터 정리)
+
+- **완료**:
+  - **`lib/ingest/youtube.ts` 수정** — DB 에 YouTube 영상 description 저장하지 않음
+    - `allEvents` 타입에서 `description` 필드 제거
+    - `rawRows` 의 `_yt_description` 필드 제거
+    - upsert 시 `description: aiDescription ?? null` (Claude 실패 시 `null`)
+    - 이유: YouTube 영상 description 은 마케팅·앨범명·가격·장소 등 추측 정보 포함 위험. Claude 자동 생성(`generateEventDescription`)으로만 채움.
+  - **Supabase `hallyu_calendar_events` 정리**:
+    - `source_api='youtube'` 10건 일괄 삭제 (DELETE service_role)
+    - 삭제 대상: BTS·BLACKPINK·ATEEZ·ENHYPEN 옛날 vlive, HUNTR/X 'Hunter x Hunter' 오매핑, "k-pop meme" / "Show Music Core" 등 컴백 M/V 아닌 영상 모두
+    - 삭제 후 검증: source_api='youtube' 0건, 전체 manual 5건만 남음
+- **다음 (사용자 작업)**:
+  1. 다음 cron 또는 수동 `ingest-all` 트리거 → 새 ingest 결과가 description 비어있는지 (Claude 실패 시) 또는 안전한 1줄 카피인지 확인
+- **블로커**: 없음
+
+---
+
 ## 현재 상태 (2026-05-09 / React #418 hydration 에러 fix — 어드민 toLocaleDateString TZ)
 
 - **완료**:
