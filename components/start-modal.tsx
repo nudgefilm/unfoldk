@@ -14,12 +14,28 @@ import { Button } from "@/components/ui/button"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 interface StartModalProps {
-  // 트리거 엘리먼트(버튼 등) — asChild 로 감싸 모달 open 토글에 연결
-  trigger: ReactNode
+  // 트리거 엘리먼트(버튼 등) — asChild 로 감싸 모달 open 토글에 연결.
+  // 외부에서 open/onOpenChange 로 제어할 땐 생략 가능.
+  trigger?: ReactNode
+  // 외부 제어 (controlled mode) — 둘 다 넘기면 internal state 대신 사용.
+  // ReportButton 처럼 자체 click handler 에서 모달을 띄우는 경우용.
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  // OAuth 완료 후 복귀할 경로. 미지정 시 window.location.search 의 ?next 를 읽음.
+  // ReportButton 등 URL 변경 없이 모달만 띄우는 경우 직접 전달.
+  next?: string
 }
 
-export function StartModal({ trigger }: StartModalProps) {
-  const [open, setOpen] = useState(false)
+export function StartModal({
+  trigger,
+  open: openProp,
+  onOpenChange,
+  next: nextProp,
+}: StartModalProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  // controlled 면 외부 상태 사용, 아니면 internal
+  const open = openProp !== undefined ? openProp : internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
 
@@ -40,7 +56,9 @@ export function StartModal({ trigger }: StartModalProps) {
       window.location.hostname === "localhost"
         ? window.location.origin
         : "https://www.unfoldk.com"
-    const nextRaw = new URLSearchParams(window.location.search).get("next")
+    // next 우선순위: prop(외부 지정) → URL ?next 파라미터
+    const nextRaw =
+      nextProp ?? new URLSearchParams(window.location.search).get("next")
     // 내부 경로만 forward — open redirect 방지 (callback 도 재검증하지만 클라이언트에서도 가드)
     const next = nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : null
     const callbackUrl = next
@@ -61,7 +79,7 @@ export function StartModal({ trigger }: StartModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent
         className="sm:max-w-[420px] border-0 p-0 gap-0 rounded-2xl"
         style={{ backgroundColor: "#141418" }}

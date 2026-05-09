@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -14,11 +13,13 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { Flag } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { StartModal } from "@/components/start-modal"
 
 // 콘텐츠 신고 공통 컴포넌트 — 전체 서비스(이벤트/아티스트/드라마/학습/레시피) 공유
 //
 // 동작:
-//   - 비로그인 → /login 으로 redirect (현재 경로 next 파라미터)
+//   - 비로그인 → StartModal 인플레이스 오픈 (페이지 이동 없음). 현재 pathname 을
+//     next 로 넘겨 OAuth 완료 후 같은 페이지로 복귀.
 //   - 로그인 → 사유 선택 모달 → /api/reports 로 POST → 토스트
 //   - "기타" 선택 시 텍스트 입력란 노출 (note 필수)
 //
@@ -43,9 +44,11 @@ interface Props {
 }
 
 export function ReportButton({ contentType, contentId }: Props) {
-  const router = useRouter()
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
+  const [startModalOpen, setStartModalOpen] = useState(false)
+  // StartModal 열 때 캡처한 pathname — 모달 닫혀도 유지돼야 OAuth 완료 후 복귀 가능
+  const [pendingNext, setPendingNext] = useState<string | undefined>(undefined)
   const [reason, setReason] = useState<ReportReason>("mismapping")
   const [note, setNote] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -56,8 +59,11 @@ export function ReportButton({ contentType, contentId }: Props) {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) {
-      const next = typeof window !== "undefined" ? window.location.pathname : "/"
-      router.push(`/login?redirect=${encodeURIComponent(next)}`)
+      // 비로그인 → 페이지 이동 없이 StartModal 오픈, next 로 현재 경로 보존
+      setPendingNext(
+        typeof window !== "undefined" ? window.location.pathname : "/"
+      )
+      setStartModalOpen(true)
       return
     }
     setOpen(true)
@@ -107,6 +113,13 @@ export function ReportButton({ contentType, contentId }: Props) {
         <Flag className="w-3 h-3" />
         Report incorrect info
       </button>
+
+      {/* 비로그인 클릭 시 같은 자리에서 OAuth 모달 — pendingNext 로 복귀 경로 전달 */}
+      <StartModal
+        open={startModalOpen}
+        onOpenChange={setStartModalOpen}
+        next={pendingNext}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="bg-[#141418] border-[#2a2a2a] text-foreground max-w-md">
