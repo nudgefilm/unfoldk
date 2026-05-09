@@ -21,6 +21,28 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 React #418 hydration fix — `toLocaleDateString` 에 `timeZone` 명시 의무화
+
+- 결정 내용:
+  - client component 안에서 `new Date(...).toLocaleDateString(...)` 또는 `toLocaleString(...)` 호출 시 **반드시 `timeZone` 옵션 명시**.
+  - 적용 기준값: **`Asia/Seoul`** (UnfoldK 운영팀이 한국 기반, 어드민 표 일관성 우선).
+  - 적용 완료: `components/admin/events-manager.tsx`, `components/admin/users-table.tsx`.
+  - 미적용 (영향 없음으로 판정): `kpop-artists-manager.tsx::fmt` 의 `n.toLocaleString()` — 도달 숫자 < 1000 이라 천 단위 구분자 무관.
+  - 미적용 (이번 범위 밖, 별도 처리 권장): `app/calendar/page.tsx` 의 `viewDate.toLocaleString` 및 `useState(() => new Date(...))` initializer.
+- 이유:
+  - **React #418 의 본질**: client component 는 SSR + hydrate 두 단계 모두 렌더링됨. `new Date(...).toLocaleDateString()` 처럼 timezone·locale 의존 함수가 두 환경 (Vercel UTC vs 브라우저 KST) 에서 결과 다르면 hydration mismatch.
+  - **자정 근처 케이스가 결정타**: `event_date = "2026-05-09T15:30:00Z"` 같은 UTC 시각은 서버(UTC)에서 5월 9일, 클라이언트(KST)에서 5월 10일 → 일자 자체가 다름.
+  - **해결 옵션 비교**:
+    - `timeZone: "Asia/Seoul"` 명시 (채택) — 서버·클라이언트 모두 같은 TZ 강제, 형식 유지
+    - `event_date.slice(0, 10)` — locale-free, 100% 안전하지만 한국어 "YYYY. M. D." 형식 사라짐 (어드민 가독성 약간 손실)
+    - `suppressHydrationWarning` — silent, 진짜 mismatch 가려질 위험
+    - client-only 렌더 (`useEffect` mounted gate) — UX 깜빡임
+  - **운영 timezone 으로 KST 채택**: 영어권+동남아 글로벌 서비스지만 어드민 운영자가 한국팀. 어드민 표 형식은 한국 기준이 자연. 추후 타국 admin 합류 시 사용자별 timezone preference 고민 가능.
+- 대안으로 고려했던 것:
+  - **모든 곳 `slice(0, 10)` 으로 단순 ISO 문자열 표시**: 100% 안전이지만 어드민 표 시각적 형식 변경 + 디자인 결정 자체 별도 작업.
+  - **모든 client component 에 timeZone 강제 lint rule**: 더 견고하지만 ESLint 룰 작성·관리 비용. 팀 규모가 1명 → 메모리·DECISIONS 박제로 충분.
+  - **server component 로 컴포넌트 분리**: events-manager 의 표 부분만 server 컴포넌트로 분리하면 hydration 자체가 발생 안 함. 단 폼·다이얼로그 분리해야 해 리팩터 부담 큼.
+
 ## 2026-05-09 어드민 이벤트 description 자동 생성 — 안전 모드 (`generateSafeEventDescription`)
 
 - 결정 내용:

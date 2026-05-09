@@ -4,6 +4,29 @@
 
 ---
 
+## 현재 상태 (2026-05-09 / React #418 hydration 에러 fix — 어드민 toLocaleDateString TZ)
+
+- **완료**:
+  - **진단** — cede892 변경 파일은 hydration 과 무관 (전부 서버 전용 — API 라우트, lib/claude, docs)
+  - **진짜 원인 발견** — client component 의 `new Date(...).toLocaleDateString("ko-KR")` 가 timeZone 명시 없이 호출:
+    - SSR(Vercel UTC) vs hydrate(브라우저 KST) 의 결과 불일치 → 자정 근처 날짜에서 일자 자체가 달라짐 → React #418
+  - **2개 파일 수정** — `timeZone: "Asia/Seoul"` 명시:
+    - `components/admin/events-manager.tsx:159` — 이벤트 표 날짜
+    - `components/admin/users-table.tsx:102` — 유저 표 가입일
+  - **그 외 점검 결과 (안전)**:
+    - `app/admin/events/page.tsx` — server component, hydration 무관
+    - `events-manager.tsx:68` `slice(0, 16)` — 문자열 처리, locale 무관
+    - `events-manager.tsx:82` `new Date(form.event_date).toISOString()` — `handleSubmit` 안 (사용자 클릭 시 호출, hydration 시점 미실행)
+    - API 라우트들 — 서버 전용
+    - `kpop-artists-manager.tsx:29` `n.toLocaleString()` — 천 단위 구분자, 도달 숫자 < 1000 이라 영향 없음
+- **다음 (사용자 작업)**:
+  1. `/admin/events`, `/admin/users` 진입 → 콘솔에 React #418 에러 사라졌는지 확인
+- **별도 보고 (이번 범위 밖)**:
+  - `app/calendar/page.tsx` — `viewDate` 가 `useState(() => new Date(...))` initializer 로 SSR/hydrate 시점 timezone 의존. L171, L405-406 의 `viewDate.toLocaleString("en-US", ...)` 도 동일 패턴 — 사용자 명시 범위가 admin/events 였으므로 이번엔 미포함. 다음 세션에서 함께 fix 권장.
+- **블로커**: 없음
+
+---
+
 ## 현재 상태 (2026-05-09 / 어드민 이벤트 description 자동 생성 — 안전 모드)
 
 - **완료**:

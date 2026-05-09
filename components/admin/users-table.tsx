@@ -99,7 +99,8 @@ export function UsersTable({ users: initial }: { users: AdminUserRow[] }) {
                 <td className="text-foreground text-sm px-4 py-3">{u.email}</td>
                 <td className="text-muted-foreground text-sm px-4 py-3">{u.name ?? "—"}</td>
                 <td className="text-muted-foreground text-sm px-4 py-3">
-                  {new Date(u.created_at).toLocaleDateString("ko-KR")}
+                  {/* timeZone 명시 — SSR(UTC) vs hydrate(브라우저 TZ) 불일치 방지 (React #418) */}
+                  {new Date(u.created_at).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}
                 </td>
                 <td className="px-4 py-3">
                   <Select value={u.plan_type} onValueChange={(v) => onChangePlan(u.id, v as PlanType)}>

@@ -156,7 +156,11 @@ export function EventsManager({ events }: { events: AdminEventRow[] }) {
                   <div className="text-muted-foreground text-xs">{ev.artist_or_drama}</div>
                 </td>
                 <td className="text-muted-foreground text-sm px-4 py-3">
-                  {new Date(ev.event_date).toLocaleDateString("ko-KR")}
+                  {/*
+                    timeZone 명시 필수 — 안 하면 SSR(UTC) vs hydrate(브라우저 TZ) 결과 불일치 →
+                    React #418 hydration 에러. 자정 근처 event_date 에서 일자 자체가 달라짐.
+                  */}
+                  {new Date(ev.event_date).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}
                 </td>
                 <td className="text-muted-foreground text-sm px-4 py-3">{ev.type}</td>
                 <td className="text-muted-foreground text-sm px-4 py-3">{ev.source_api ?? "—"}</td>
