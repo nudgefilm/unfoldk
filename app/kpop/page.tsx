@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Search, TrendingUp, TrendingDown, Minus, Lock } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { hasProAccess } from "@/lib/auth/plan"
 
 // ============================================
 // 숫자 포맷터 — 2_400_000_000 → "2.4B"
@@ -71,8 +72,9 @@ export default function KpopStatsPage() {
   const [authChecked, setAuthChecked] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [planType, setPlanType] = useState<PlanType>("free")
+  const [isPro, setIsPro] = useState(false)                 // monthly/annual/admin 통합 판별
 
-  // 인증 + plan_type 로드 — 노출 개수 분기용
+  // 인증 + plan_type + is_admin 로드 — 노출 개수 분기용
   useEffect(() => {
     let cancelled = false
     const supabase = createSupabaseBrowserClient()
@@ -85,12 +87,14 @@ export default function KpopStatsPage() {
       setIsLoggedIn(true)
       const { data: profile } = await supabase
         .from("users")
-        .select("plan_type")
+        .select("plan_type, is_admin")
         .eq("id", user.id)
         .single()
       if (cancelled) return
-      const pt = (profile as { plan_type?: string } | null)?.plan_type
+      const row = profile as { plan_type?: string; is_admin?: boolean } | null
+      const pt = row?.plan_type
       setPlanType(pt === "monthly" || pt === "annual" ? pt : "free")
+      setIsPro(hasProAccess({ planType: pt, isAdmin: row?.is_admin }))
       setAuthChecked(true)
     })
     return () => {
@@ -134,7 +138,7 @@ export default function KpopStatsPage() {
   // 노출 개수 분기
   const visibleLimit = !authChecked
     ? 5
-    : planType === "monthly" || planType === "annual"
+    : isPro
     ? 20
     : isLoggedIn
     ? 10
@@ -457,7 +461,7 @@ export default function KpopStatsPage() {
             </div>
 
             {/* Overlay */}
-            {planType !== "monthly" && planType !== "annual" && (
+            {!isPro && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
                   <div

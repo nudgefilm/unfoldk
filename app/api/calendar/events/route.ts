@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 // 이벤트 타입 매핑 (DB enum → UI 라벨)
 const TYPE_TO_DISPLAY = {
@@ -39,8 +40,25 @@ export async function GET(request: Request) {
 
   const supabase = await createSupabaseServerClient()
 
-  // RLS 가 is_premium 게이팅을 자동 처리
-  const { data, error } = await supabase
+  // 어드민 우대 — is_admin = true 면 RLS 우회용 service role 클라이언트로 모든 premium 이벤트 조회
+  // (Pro 유저는 RLS 가 자동 통과시키므로 분기 불필요)
+  let queryClient: ReturnType<typeof createSupabaseAdminClient> | typeof supabase = supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (user) {
+    const { data: profile } = await supabase
+      .from("users")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle()
+    if ((profile as { is_admin?: boolean } | null)?.is_admin === true) {
+      queryClient = createSupabaseAdminClient()
+    }
+  }
+
+  // RLS 가 is_premium 게이팅을 자동 처리 (어드민은 위에서 service role 로 우회됨)
+  const { data, error } = await queryClient
     .from("hallyu_calendar_events")
     .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium")
     .gte("event_date", startOfMonth.toISOString())

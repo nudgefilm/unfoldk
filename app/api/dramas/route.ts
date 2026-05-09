@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { hasProAccess } from "@/lib/auth/plan"
 
 // GET /api/dramas — 드라마 목록 (필터·검색·plan-based limit)
 //
@@ -65,12 +66,12 @@ export async function GET(request: Request) {
     // RLS users_select_own 정책으로 본인 행만 조회 가능
     const { data: profile } = await supabase
       .from("users")
-      .select("plan_type, subscription_status")
+      .select("plan_type, subscription_status, is_admin")
       .eq("id", user.id)
       .maybeSingle()
 
-    const isPaidActive =
-      profile?.plan_type === "monthly" || profile?.plan_type === "annual"
+    const row = profile as { plan_type?: string; is_admin?: boolean } | null
+    const isPaidActive = hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin })
     limit = isPaidActive ? PAID_LIMIT : FREE_LIMIT
   }
 

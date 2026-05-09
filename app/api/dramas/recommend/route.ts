@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { recommendDramas } from "@/lib/claude/recommend-dramas"
+import { hasProAccess } from "@/lib/auth/plan"
 
 // POST /api/dramas/recommend — 취향 기반 추천
 //
@@ -53,11 +54,11 @@ export async function POST(request: Request) {
   if (user) {
     const { data: profile } = await supabase
       .from("users")
-      .select("plan_type")
+      .select("plan_type, is_admin")
       .eq("id", user.id)
       .maybeSingle()
-    const isPaidActive =
-      profile?.plan_type === "monthly" || profile?.plan_type === "annual"
+    const row = profile as { plan_type?: string; is_admin?: boolean } | null
+    const isPaidActive = hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin })
     limit = isPaidActive ? PAID_LIMIT : FREE_LIMIT
   }
 

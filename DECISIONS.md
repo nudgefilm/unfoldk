@@ -21,6 +21,32 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 Pro 잠금 판별 통일 + is_admin 우대 — `lib/auth/plan.ts`
+
+- 결정 내용:
+  - **`lib/auth/plan.ts` 신규 — 유틸 3개**:
+    - `hasProAccess({ planType, isAdmin })`: 종합 판별. **일반 서비스 잠금 분기는 무조건 이 함수만 사용**.
+    - `isProPlan(planType)`: plan_type 만 (admin 무시). 결제·관리 UI 처럼 admin 우대가 부적절한 곳 한정.
+    - `normalizePlanType(value)`: DB 값 → `"free" | "monthly" | "annual"` 정규화.
+  - **`is_admin = true` 유저는 plan_type 무관 Pro 접근권 보장** (사용자 명시 요구). free 플랜 어드민이라도 모든 서비스 개방.
+  - **인라인 비교 9곳 → 유틸 호출로 통일**: `monthly || annual` 산재 패턴이 향후 변경 시 누락 위험. 한 함수에서 관리.
+  - **적용 범위 (5개 파일)**:
+    - 서비스 페이지/API: `app/api/dramas`, `app/api/dramas/recommend`, `app/kpop`, `app/api/calendar/events`
+    - calendar 는 RLS 가 plan_type 게이팅 처리 → 어드민 우대를 위해 **service role 클라이언트로 우회** (Pro 유저는 RLS 자동 통과라 분기 불필요)
+  - **수정하지 않은 파일** (의도적):
+    - `/mypage/subscription`: 결제 상태 UI 분기. 어드민이라도 결제 안 했으면 Free UI 가 사실관계상 맞음.
+    - `/mypage`, `/mypage/fan-events`: 사이드바 plan 라벨은 정확한 사실 표시.
+    - 결제·관리·가입 라우트들 (lemonsqueezy/*, complete-signup, apply-coupon, admin/*): plan 분기 자체가 잠금이 아닌 결제·관리 흐름.
+- 이유:
+  - **annual 누락 우려 — 점검 결과 0건**. 모든 잠금 분기가 이미 `monthly || annual` 둘 다 체크 중이었음. 사용자 우려는 합리적이었으나 실제 갭은 없었음.
+  - **진짜 갭은 어드민 우대**: 운영 중에 어드민 계정으로 사이트 점검할 때 free 플랜이면 일반 서비스 잠금이 발동. UnfoldK 운영자가 본인 계정으로 모든 서비스 동작 확인하려면 plan_type 변경하거나 코드 우회 필요했던 상태.
+  - **`hasProAccess` 단일 진입점**: plan_type 비교 로직이 향후 변경(예: 'lifetime' 플랜 추가, 'trial' 분기) 시 한 곳만 수정하면 모든 사이트 자동 반영. 현재 9곳 인라인 패턴은 부분 수정 위험.
+  - **calendar service role 우회 vs RLS 정책 수정**: 후자가 더 깔끔하지만 SQL migration 필요해 별도 작업으로 분리. 코드 우회는 즉시 동작.
+- 대안으로 고려했던 것:
+  - **RLS 정책에 `is_admin=true` 분기 추가**: SQL migration 으로 모든 보호 테이블(events, coupons, fan_event_requests 등) 일괄 처리 가능. 별도 SQL 작업이라 이번 세션에 미포함 — `별도 작업 권장`으로 PROGRESS 박제.
+  - **`subscription_status === 'active'` 도 함께 검증**: cancel 후 expires 까지 race window 에서 잠금 해제되는 구멍. 단 유예 기간 정책(즉시 잠금 vs 만료일까지 노출) 미결정. 현 시점 결정 보류, 향후 `hasProAccess` 에 status 인자 추가 가능하게 시그니처 확장 여지 남김.
+  - **`/mypage/subscription` 의 `isPaid` 도 `hasProAccess` 로 교체**: 어드민이 free 라도 Hallyu Pass UI 표시 = 사실관계 왜곡. 결제 페이지는 plan_type 직접 비교가 의도적으로 맞음 — `isProPlan` 또는 직접 비교 유지가 정답.
+
 ## 2026-05-09 webhook subscription_expired + subscription_payment_success 핸들러 추가
 
 - 결정 내용:

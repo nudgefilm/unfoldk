@@ -4,6 +4,33 @@
 
 ---
 
+## 현재 상태 (2026-05-09 / Pro 잠금 판별 유틸 통일 + is_admin 우대)
+
+- **완료**:
+  - **전수 점검** — `plan_type` 비교 / `isPro|isPaid|isSubscribed` 변수 / `monthly|annual` 패턴 모두 검색
+    - **annual 누락 케이스 0건** — 모든 곳이 이미 `monthly || annual` 둘 다 체크 (사용자 우려 1번 해소)
+    - **`is_admin` 우대 전혀 미구현** — 어드민이 free 면 일반 서비스 잠금됐던 갭 발견
+    - **인라인 비교 9곳** — 같은 로직 산재, 향후 변경 시 누락 위험
+  - **`lib/auth/plan.ts` 신규** — 유틸 3개:
+    - `hasProAccess({ planType, isAdmin })`: 일반 서비스 잠금 분기 표준
+    - `isProPlan(planType)`: 결제·관리 UI 한정 (admin 무시)
+    - `normalizePlanType(value)`: DB 값 → 안전한 union 정규화
+  - **5개 파일 수정** — UI/스타일 무변경, 판별 로직만:
+    - `app/api/dramas/route.ts` — `is_admin` select + `hasProAccess`
+    - `app/api/dramas/recommend/route.ts` — 동일
+    - `app/kpop/page.tsx` — `is_admin` select + `isPro` 상태 도입 + 분기 2곳 (visibleLimit, Pro overlay)
+    - `app/api/calendar/events/route.ts` — 어드민이면 service role 클라이언트로 RLS 우회
+  - **의도적으로 수정 안 한 파일** — 결제 페이지·사이드바 라벨은 사실관계 표시라 어드민 우대 무관 (`/mypage/subscription`, `/mypage`, `/mypage/fan-events`)
+- **다음 (사용자 작업)**:
+  1. **로컬 `pnpm dev` 검증** — 어드민 계정으로 `/kpop`, `/drama`, `/calendar` 진입 → Top 20 / Pro overlay 미노출 / premium events 노출 확인
+  2. **Vercel 자동 배포 확인** — 푸시 후 새 빌드 성공
+- **별도 작업 권장 (다음 세션)**:
+  - **RLS 정책에 `is_admin=true` 분기 추가** (SQL migration) — calendar API 의 service role 우회를 SQL 레벨에서 처리하면 다른 보호 테이블도 같은 패턴 일괄 적용 가능
+  - **`subscription_status === 'active'` 검증** — cancel 후 expires 까지 race window 정책 결정 후 `hasProAccess` 에 status 인자 추가
+- **블로커**: 없음 (직전 블록의 LMS Products Publish / USD 심사 대기는 외부)
+
+---
+
 ## 현재 상태 (2026-05-09 / LMS 운영 준비 — webhook 8 이벤트 + 환경변수 + 심사 발송)
 
 - **완료**:
