@@ -24,11 +24,20 @@ export function StartModal({ trigger }: StartModalProps) {
   const [errorMsg, setErrorMsg] = useState("")
 
   // Google OAuth — 콜백은 /api/auth/callback (신규/기존 분기 처리)
+  // 현재 URL 의 ?next=X 를 콜백 URL 에 forward — ReportButton 등에서
+  //   /login?redirect=/calendar → /?next=%2Fcalendar 로 들어온 경우
+  //   OAuth 완료 후 /calendar 로 복귀하기 위해 필요.
+  // useSearchParams 대신 클릭 시점 window.location.search 를 읽어 Suspense 경계 부담 회피.
   const handleGoogleStart = async () => {
     setIsLoading(true)
     setErrorMsg("")
     const supabase = createSupabaseBrowserClient()
-    const callbackUrl = `${window.location.origin}/api/auth/callback`
+    const nextRaw = new URLSearchParams(window.location.search).get("next")
+    // 내부 경로만 forward — open redirect 방지 (callback 도 재검증하지만 클라이언트에서도 가드)
+    const next = nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : null
+    const callbackUrl = next
+      ? `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(next)}`
+      : `${window.location.origin}/api/auth/callback`
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
