@@ -4,6 +4,40 @@
 
 ---
 
+## 현재 상태 (2026-05-09 / 콘텐츠 신고 시스템 구현 — HallyuCalendar 이벤트 우선 적용)
+
+- **완료**:
+  - **migration 0015** — `content_reports` 테이블 + RLS
+    - 컬럼: `id, content_type(event/artist/drama/phrase/recipe), content_id, user_id, reason(mismapping/date_error/duplicate/cancelled/other), note, status(pending/reviewed/dismissed), created_at, reviewed_at, reviewed_by`
+    - RLS 4개 정책: 본인 select / 관리자 select / 본인 insert / 관리자 update
+    - 0013 패턴대로 service_role GRANT 명시
+  - **`components/common/report-button.tsx` 신규** — 전체 서비스 공통 신고 버튼
+    - "Report incorrect info" 트리거 + Dialog 모달
+    - 사유 5종 라디오 선택 + "기타" 시 textarea 표시
+    - 비로그인 시 `/login?redirect=...` 으로 유도
+    - Dialog 디자인은 events-manager 패턴 준수 (어드민 모달 톤 통일)
+  - **`/api/reports` POST 라우트** — 로그인 검증 + content_reports insert (RLS 가 본인 user_id 강제)
+  - **`app/calendar/page.tsx`** — EventDetailModal 하단(reminder 토글 아래) 에 `<ReportButton contentType="event" contentId={event.id} />` 통합
+  - **`/admin/reports` 페이지** — server component + client `ReportsTable` 분리
+    - pending 우선 정렬 (어드민이 처리할 항목 항상 위)
+    - 신고자 이메일 부가 lookup (실패 fallback)
+    - content_type 별 어드민 페이지 빠른 이동 링크 (event→/admin/events, artist→/admin/kpop)
+    - 처리/기각 버튼 — `/api/admin/reports/[id]` PATCH
+  - **`/api/admin/reports/[id]` PATCH 라우트** — `status` reviewed/dismissed + reviewed_at + reviewed_by 갱신 (`requireAdmin` 검증)
+  - **`/admin` 사이드바에 "Reports" 메뉴 추가** (Flag 아이콘, fan-events 와 KpopStats 사이)
+- **다음 (사용자 작업)**:
+  1. **Supabase**: `0015_content_reports.sql` SQL Editor 에서 실행
+  2. **로컬·production 검증**:
+     - `/calendar` 진입 → 이벤트 클릭 → 모달 하단 "Report incorrect info" 클릭 → 사유 선택 → Submit → "Thanks" 토스트 확인
+     - 비로그인 클릭 시 `/login?redirect=/calendar` 이동 확인
+     - `/admin/reports` 진입 → pending 신고 노출 → 처리/기각 버튼 동작 확인
+- **다음 세션 후보**:
+  - 다른 서비스(KpopStats artist / KdramaMatch drama / HangeulGo phrase / KfoodKit recipe) 에 ReportButton 추가
+  - 어드민 reports 테이블 — 콘텐츠 미리보기 (event title 등) inline 노출 — 현재는 content_id UUID 만 표시
+- **블로커**: 없음 (migration 적용은 외부 작업)
+
+---
+
 ## 현재 상태 (2026-05-09 / Calendar 모달 Copy iCal Link 클립보드 + 피드백)
 
 - **완료**:

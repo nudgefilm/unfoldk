@@ -21,6 +21,35 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 콘텐츠 신고 시스템 (M+0 보완책) — `content_reports` 테이블 + 공통 컴포넌트
+
+- 결정 내용:
+  - **migration 0015** — 단일 `content_reports` 테이블로 5개 서비스 신고 통합
+    - `content_type` enum 으로 event/artist/drama/phrase/recipe 구분
+    - `content_id` UUID — 각 서비스 테이블 PK 참조 (FK 제약 없음 — 다형 관계)
+    - `reason` enum 5종 + `note` 텍스트 (기타 사유 자유 기입)
+    - `status` enum: pending → reviewed/dismissed
+    - `reviewed_at`, `reviewed_by` 로 어드민 처리 기록
+  - **공통 컴포넌트 `ReportButton`** — `components/common/report-button.tsx`
+    - 모든 서비스 페이지에서 `<ReportButton contentType="..." contentId="..." />` 한 줄로 부착
+    - 비로그인 → `/login?redirect=...` 유도, 로그인 → Dialog 모달
+    - Dialog 디자인은 events-manager 패턴 동일 (UI 일관성)
+  - **API 분리**:
+    - `/api/reports` POST — 일반 유저용, RLS 가 본인 user_id 강제
+    - `/api/admin/reports/[id]` PATCH — 관리자 전용, `requireAdmin` + status/reviewed_at/reviewed_by 갱신
+  - **HallyuCalendar 이벤트부터 우선 적용** — EventDetailModal 하단에만 버튼. 다른 서비스는 점진 확대.
+  - **어드민 처리 워크플로**: 신고 받음 → 어드민이 콘텐츠 페이지(/admin/events 등) 이동 (테이블의 ExternalLink 링크) → 콘텐츠 수정/삭제 → reports 테이블에서 "처리 완료" 클릭. 이 흐름은 수동 — 자동 연결은 향후 작업.
+- 이유:
+  - **단일 테이블 + content_type discriminator vs 서비스별 분리**: 5개 서비스 모두 같은 워크플로(신고 → 어드민 처리). 분리 시 어드민 페이지 5개 + API 5개로 코드 폭발. 단일 테이블 + 다형 관계가 운영 단순.
+  - **FK 제약 없음**: content_id 가 events / artists / dramas / phrases / recipes 5개 테이블 中 어디든 가리킴. PostgreSQL 단일 FK 로 다형 관계 표현 불가 → 무결성 검증은 application 레이어. 콘텐츠 삭제 시 신고도 자동 삭제되지 않음 (어드민이 처리 완료 후 데이터 보존 — 감사 로그 가치).
+  - **자동 인제스트 한계의 보완**: 직전 ingest-all 진단에서 HUNTR/X 오매핑·ENHYPEN 옛날 vlive 케이스 발견. 자동 검증으로 못 막는 케이스를 유저 신고 + 어드민 수동 처리로 보완 (DECISIONS A안 결정의 직접 후속).
+  - **HallyuCalendar 우선**: M+0 에 가장 많은 데이터 + 자동 인제스트 신뢰도 가장 약함. 다른 서비스(M+1~4) 는 데이터 적거나 미구현이라 우선순위 낮음.
+- 대안으로 고려했던 것:
+  - **서비스별 신고 테이블 분리** (`event_reports`, `artist_reports`, ...): 타입 안전 ↑ 이지만 어드민 UI 5개 + API 5개. 운영 부담 > 타입 가치.
+  - **`content_id` 를 text 로** (다양한 PK 타입 지원): 우리는 모든 서비스가 UUID PK 라 uuid 로 강제 — 타입 안전 우위.
+  - **신고 후 자동 콘텐츠 비활성화** (예: 3건 이상 신고 → is_active=false): 악의적 신고 봇 위험. 어드민 검토 후 수동 처리가 안전.
+  - **익명 신고 허용**: 스팸 폭증 위험. 로그인 강제 + RLS 로 본인 신고만 select 함.
+
 ## 2026-05-09 YouTube ingest — 영상 description 저장 금지, Claude 자동 생성으로만
 
 - 결정 내용:

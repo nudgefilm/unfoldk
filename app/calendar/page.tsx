@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight, Plus, Calendar, X, Lock } from "lucide-react
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
+import { ReportButton } from "@/components/common/report-button"
 
 type EventType = "K-pop" | "K-drama" | "Concert" | "Fan Meet"
 
@@ -294,6 +295,11 @@ function EventDetailModal({
               </button>
             </label>
           </div>
+        </div>
+
+        {/* Report incorrect info — 모달 하단 우측, 콘텐츠 신고 시스템 진입점 */}
+        <div className="mt-4 pt-4 border-t border-border/30 flex justify-end">
+          <ReportButton contentType="event" contentId={event.id} />
         </div>
       </div>
     </div>
