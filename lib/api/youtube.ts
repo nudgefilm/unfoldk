@@ -117,21 +117,28 @@ export interface YoutubeSearchResult {
   rawSearchCount: number      // search.list 가 반환한 총 hits
   videoIdCount: number        // videoId 추출된 건수
   detailsCount: number        // videos.list 가 반환한 detail 건수
-  withScheduledTime: number   // liveStreamingDetails.scheduledStartTime 보유 건수
+  withScheduledTime: number   // liveStreamingDetails.scheduledStartTime 이 미래인 건수
   sampleTitle?: string
 }
 
-// 아티스트 키워드로 upcoming live/premiere 검색
-// 컴백 M/V 가 YouTube Premiere 로 예약되는 경우만 감지됨 (한계 명시)
+// 아티스트 이름으로 upcoming K-pop 컴백 검색
+//   - artistName 만 받아 내부에서 "k-pop comeback" 키워드 부착해 정교화
+//     (예: "HUNTR/X" 단독 검색 시 'Hunter x Hunter' 애니메이션 livestream 으로
+//      오매핑되던 케이스 방지)
+//   - 후처리 검증: scheduledStartTime 이 현재 시각보다 미래인 것만 events 에 포함
+//     (YouTube API 의 eventType=upcoming 분류가 옛날 vlive 를 가끔 포함 — 2021년
+//      ENHYPEN VLive 가 미래로 잘못 분류되던 케이스 방지)
+//   - 컴백 M/V 가 YouTube Premiere 로 예약되는 경우만 감지됨 (한계 명시)
 export async function searchUpcomingComebacks(
-  query: string,
+  artistName: string,
   maxResults = 5
 ): Promise<YoutubeSearchResult> {
   const youtube = getYoutubeClient()
+  const refinedQuery = `${artistName} k-pop comeback`
 
   const searchRes = await youtube.search.list({
     part: ["snippet"],
-    q: query,
+    q: refinedQuery,
     eventType: "upcoming",
     type: ["video"],
     maxResults,
@@ -148,7 +155,7 @@ export async function searchUpcomingComebacks(
   const videoIdCount = videoIds.length
 
   console.log(
-    `[youtube] q="${query}" rawSearchHits=${rawSearchCount} videoIds=${videoIdCount}` +
+    `[youtube] q="${refinedQuery}" rawSearchHits=${rawSearchCount} videoIds=${videoIdCount}` +
       (sampleTitle ? ` sample="${sampleTitle}"` : "")
   )
 
@@ -172,10 +179,13 @@ export async function searchUpcomingComebacks(
   const detailsCount = details.length
 
   const events: YoutubeUpcomingEvent[] = []
+  const nowMs = Date.now()
   for (const video of details) {
     const scheduled = video.liveStreamingDetails?.scheduledStartTime
     const snippet = video.snippet
     if (!video.id || !scheduled || !snippet?.title) continue
+    // 후처리: scheduledStartTime 이 미래여야 함 (옛날 라이브 오분류 방지)
+    if (new Date(scheduled).getTime() <= nowMs) continue
     events.push({
       videoId: video.id,
       title: snippet.title,
@@ -190,7 +200,7 @@ export async function searchUpcomingComebacks(
   }
 
   console.log(
-    `[youtube] q="${query}" detailsCount=${detailsCount} withScheduledTime=${events.length}`
+    `[youtube] q="${refinedQuery}" detailsCount=${detailsCount} withScheduledTime(future)=${events.length}`
   )
 
   return {
@@ -198,7 +208,7 @@ export async function searchUpcomingComebacks(
     rawSearchCount,
     videoIdCount,
     detailsCount,
-    withScheduledTime: events.length,
+    withScheduledTime: events.length,        // = 미래의 scheduledStartTime 보유 건수
     sampleTitle,
   }
 }

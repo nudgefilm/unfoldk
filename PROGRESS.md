@@ -4,6 +4,27 @@
 
 ---
 
+## 현재 상태 (2026-05-09 / YouTube 컴백 검색 정교화 + 미래 검증)
+
+- **완료**:
+  - **production `ingest-all` 수동 트리거** — 6.6초, YouTube 9건 upsert 성공. 단 진단 결과:
+    - HUNTR/X 가 'Hunter x Hunter' 애니메이션 livestream 으로 오매핑
+    - ENHYPEN 의 2021년 옛날 vlive 가 `eventType=upcoming` 으로 잘못 분류돼 통과
+    - **TMDB 인제스트 실패** — `TMDB_READ_ACCESS_TOKEN` Vercel 환경변수 미등록 (별도 조치 필요)
+  - **`lib/api/youtube.ts::searchUpcomingComebacks` 정교화**:
+    - 시그니처 `query` → `artistName` 변경, 내부에서 `"<artist> k-pop comeback"` 자동 부착 → 동음 매칭 감소
+    - 후처리 검증 추가 — `new Date(scheduledStartTime).getTime() > Date.now()` 인 영상만 events 에 push (옛날 라이브 오분류 방지)
+    - `YoutubeSearchResult.withScheduledTime` 의 의미 재정의: "미래의 scheduledStartTime 보유 건수"
+    - console.log 진단도 `withScheduledTime(future)=N` 표기로 명확화
+  - **`lib/ingest/youtube.ts` 호출 측 단순화** — `${artist.name} comeback` → `artist.name` (정교화 책임을 라이브러리로 이동)
+- **다음 (사용자 작업)**:
+  1. **Vercel 에 `TMDB_READ_ACCESS_TOKEN` 추가** — calendar TMDB drama 인제스트 정상화 (P0)
+  2. 배포 반영 후 `ingest-all` 재호출 → 9건이 어떻게 변하는지 진단 (오매핑 케이스 줄었는지)
+  3. 잘못 인제스트된 기존 9건 中 옛날·오매핑 영상은 어드민(`/admin/events`) 에서 수동 삭제
+- **블로커**: 없음 (TMDB 환경변수는 외부 작업)
+
+---
+
 ## 현재 상태 (2026-05-09 / KpopStats — youtube_channel_id 자동 매핑)
 
 - **완료**:

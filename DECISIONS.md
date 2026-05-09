@@ -21,6 +21,26 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 YouTube 컴백 검색 정교화 — query 보강 + 미래 scheduledStartTime 검증
+
+- 결정 내용:
+  - **검색 query 정교화** — `searchUpcomingComebacks(artistName)` 내부에서 `"<artist> k-pop comeback"` 자동 부착.
+    - 시그니처도 `query: string` → `artistName: string` 으로 의미 명확화
+    - 호출 측(`lib/ingest/youtube.ts`)은 단순 아티스트 이름만 넘김 — 정교화 책임을 API 래퍼로 이동
+  - **미래 검증 후처리** — `new Date(scheduledStartTime).getTime() > Date.now()` 인 영상만 events 배열에 포함.
+    - YouTube API 의 `eventType=upcoming` 분류가 가끔 옛날 vlive·라이브를 포함하는 케이스 차단
+  - **`YoutubeSearchResult.withScheduledTime` 의미 재정의** — "scheduledStartTime 보유 건수" → "미래의 scheduledStartTime 보유 건수". console.log 도 `withScheduledTime(future)=N` 으로 명시.
+- 이유:
+  - **production `ingest-all` 트리거 결과 진단**: 9건 upsert 中 HUNTR/X → 'Hunter x Hunter' 애니메이션 오매핑 / ENHYPEN 2021 옛날 vlive 오분류 발견. 단순 query (`"<name> comeback"`) 와 미래 검증 부재가 주원인.
+  - **"k-pop" 키워드 추가**: 동음이의 영상(애니메이션, 게임 livestream 등)을 1차로 거르고, K-pop 카테고리에 가까운 결과로 한정.
+  - **호출 측이 아닌 라이브러리 내부에서 정교화**: 함수 이름이 `searchUpcomingComebacks` — 컴백 검색 전용. query 정교화 책임이 라이브러리 측에 있는 게 의미상 일관. 호출 측이 매번 같은 prefix 를 붙이는 패턴은 누락 위험.
+  - **`withScheduledTime` 의미 변경 vs 새 카운터 추가**: 후자가 더 명확하지만 인터페이스 확장 시 호출 측·db·로그 모두 갱신 필요. 의미만 자연스럽게 좁혀도 0 = 미래 컴백 0건 으로 일관 — 단순 변경 채택.
+- 대안으로 고려했던 것:
+  - **호출 측에서 query 정교화**: `lib/ingest/youtube.ts` 만 수정. 다만 `searchUpcomingComebacks` 의 다른 사용처가 생기면 같은 정교화 누락 가능 → 라이브러리 내부 캡슐화가 안전.
+  - **`q` 에 `kpop|comeback|teaser` OR 표현 사용**: YouTube search 가 OR 연산자를 공식 지원하지 않음. 일반 키워드 추가가 단순.
+  - **검색 후 title 매칭 (regex)**: false positive 더 줄지만 한국어 / 영문 컴백 표기 다양성에 robust 하지 않음. 1차 query 정교화 + 미래 검증으로 충분 — 추가 케이스 발견되면 그때 보강.
+  - **`withScheduledTime` 외에 신규 `inFuture` 카운터 추가**: 의미 분리는 깔끔. 단 인터페이스 변경 = 운영 가시성·로그 형식 영향. 의미 좁히기로 충분.
+
 ## 2026-05-09 KpopStats — youtube_channel_id 자동 매핑 (`searchChannelByName`)
 
 - 결정 내용:

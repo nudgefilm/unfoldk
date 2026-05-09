@@ -76,7 +76,7 @@ export async function runYoutubeIngest(): Promise<YoutubeIngestResult> {
   for (const artist of artists) {
     try {
       const result = await searchUpcomingComebacks(
-        `${artist.name} comeback`,
+        artist.name,                          // searchUpcomingComebacks 가 내부에서 "k-pop comeback" 부착
         RESULTS_PER_ARTIST
       )
       perArtistDiag.push({
