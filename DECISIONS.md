@@ -21,6 +21,25 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 webhook subscription_expired + subscription_payment_success 핸들러 추가
+
+- 결정 내용:
+  - **`subscription_expired`** 핸들러: `plan_type='free'` + `subscription_status='expired'`. `subscription_cancelled` 와 status 값만 다름 (`canceled` ↔ `expired`).
+  - **`subscription_payment_success`** 핸들러: `plan_expires_at` 추정 갱신.
+    - payload 가 **invoice 객체** (`data.type='subscription-invoices'`) — `subscription_id` 와 `created_at` 보유, `renews_at` 없음.
+    - `users` 테이블에서 `plan_type` 조회 → `created_at + 1month`(monthly) 또는 `created_at + 1year`(annual) 로 추정.
+    - `subscription_updated` 가 LMS 측에서 함께 발송될 때 정확한 `renews_at` 로 덮어씀 — 정확도 부족분이 자동 보정.
+  - **`InvoiceAttributes` 인터페이스 분리**: `SubscriptionAttributes` 와 별도. `WebhookData.attributes` 타입은 `OrderAttributes & SubscriptionAttributes & InvoiceAttributes` 인터섹션.
+  - **유저 식별 우선순위 유지**: `meta.custom_data.user_id` → `lms_subscription_id` lookup (기존 패턴 동일).
+- 이유:
+  - 두 이벤트 모두 LMS 대시보드에 어제 체크돼 있었으나 코드 핸들러 없어 default 분기로 흘러감 — 운영 동기화 갭. 사용자가 어제 권장한 6개 이벤트 중 우리 코드가 처리 안 하던 둘.
+  - **`subscription_payment_success` 정확도 부족 허용 이유**: LMS 가 결제 성공 시 `subscription_updated` 도 거의 동시에 발송. updated 핸들러가 정확한 `renews_at` 로 덮어쓰므로 최종 DB 값은 정확. payment_success 단독 처리 시점의 며칠 오차는 실제 노출 영향 미미.
+  - `InvoiceAttributes` 분리: invoice 와 subscription 객체는 LMS 측에서 다른 type. 인터페이스를 합치면 의미 흐려져 디버깅 어려워짐.
+- 대안으로 고려했던 것:
+  - **SDK `getSubscription(subscriptionId)` 호출**: 정확한 `renews_at` 즉시 확보. 추가 LMS API 호출 비용 + 구현 복잡도 + rate limit 위험. `subscription_updated` 안전망이 충분해 보류.
+  - **`subscription_payment_success` 에서 `plan_expires_at` 갱신 안 함** (subscription_updated 에 위임): 단순하지만 사용자 명시 요청("plan_expires_at 갱신") 반영 못 함. 사용자 의도 우선.
+  - **`subscription_expired` 와 `subscription_cancelled` 합치기**: status 값 차이만으로는 통합 가치 미미. 분리 유지가 LMS 측 원본 이벤트와 1:1 대응 — 디버깅·로그 추적에 유리.
+
 ## 2026-05-09 Lemon Squeezy Switch Plan — updateSubscription + webhook 동기화
 
 - 결정 내용:

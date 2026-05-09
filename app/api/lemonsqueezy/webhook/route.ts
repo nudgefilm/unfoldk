@@ -9,12 +9,14 @@ export const runtime = "nodejs"                                    // node:crypt
 // Lemon Squeezy webhook 수신 라우트
 //
 // 처리 이벤트:
-//   - order_created               → users.plan_type 활성화 + LMS ID 저장
-//   - subscription_created        → 보강용 로그만 (order_created 가 이미 처리)
-//   - subscription_updated        → variant_id → plan_type 재매핑 + plan_expires_at 갱신
-//   - subscription_resumed        → cancel 후 재구독 시 plan_type 복구
-//   - subscription_cancelled      → users.plan_type = 'free'
-//   - subscription_payment_failed → 결제 실패 안내 이메일
+//   - order_created                → users.plan_type 활성화 + LMS ID 저장
+//   - subscription_created         → 보강용 로그만 (order_created 가 이미 처리)
+//   - subscription_updated         → variant_id → plan_type 재매핑 + plan_expires_at 갱신
+//   - subscription_resumed         → cancel 후 재구독 시 plan_type 복구
+//   - subscription_cancelled       → users.plan_type = 'free'
+//   - subscription_expired         → users.plan_type = 'free' + status='expired'
+//   - subscription_payment_success → 결제 성공 시 plan_expires_at 갱신
+//   - subscription_payment_failed  → 결제 실패 안내 이메일
 //
 // 보안:
 //   - X-Signature 헤더에 HMAC-SHA256(rawBody, secret) hex 가 들어옴
@@ -54,6 +56,12 @@ interface SubscriptionAttributes {
   ends_at?: string | null
 }
 
+// subscription_payment_success 의 data 는 invoice 객체 — subscription_id 와 created_at 보유
+interface InvoiceAttributes {
+  subscription_id?: number
+  created_at?: string
+}
+
 // LMS variant_id → 우리 plan_type 매핑 (env 기반, 코드 하드코딩 금지)
 function variantIdToPlan(variantId: number | undefined): "monthly" | "annual" | null {
   if (!variantId) return null
@@ -67,7 +75,7 @@ function variantIdToPlan(variantId: number | undefined): "monthly" | "annual" | 
 interface WebhookData {
   type?: string
   id?: string
-  attributes?: OrderAttributes & SubscriptionAttributes
+  attributes?: OrderAttributes & SubscriptionAttributes & InvoiceAttributes
 }
 
 interface WebhookPayload {
@@ -297,6 +305,102 @@ export async function POST(request: Request) {
 
       if (error) {
         console.error("[lms/webhook] subscription_resumed — update 실패:", error.message)
+      }
+      break
+    }
+
+    case "subscription_expired": {
+      // 구독 만료 — 결제 실패 후 자동 만료, 또는 cancel 이후 ends_at 도달.
+      // plan_type='free' 다운그레이드 + subscription_status='expired'
+      const userId = payload.meta?.custom_data?.user_id
+      const subId = payload.data?.id
+
+      const expireUpdate = {
+        plan_type: "free",
+        subscription_status: "expired",
+      }
+
+      let error: { message: string } | null = null
+      if (userId) {
+        const res = await supabase.from("users").update(expireUpdate).eq("id", userId)
+        error = res.error
+      } else if (subId) {
+        const res = await supabase
+          .from("users")
+          .update(expireUpdate)
+          .eq("lms_subscription_id", subId)
+        error = res.error
+      } else {
+        console.warn("[lms/webhook] subscription_expired — user 식별 불가")
+        return NextResponse.json({ ok: true, warning: "no_user_lookup" })
+      }
+
+      if (error) {
+        console.error("[lms/webhook] subscription_expired — update 실패:", error.message)
+      }
+      break
+    }
+
+    case "subscription_payment_success": {
+      // 매월/매년 결제 성공 — plan_expires_at 을 다음 결제일로 갱신.
+      // payload.data 는 invoice 객체 (data.attributes.subscription_id 보유).
+      // invoice 에는 renews_at 가 없으므로 created_at + plan_type(±1m / ±1y) 으로 추정.
+      // (subscription_updated 가 함께 발송되면 거기서 정확한 renews_at 로 덮어씀)
+      const userId = payload.meta?.custom_data?.user_id
+      const invoiceSubId = payload.data?.attributes?.subscription_id
+      const subId = invoiceSubId ? String(invoiceSubId) : null
+      const paidAt = payload.data?.attributes?.created_at ?? null
+
+      if (!userId && !subId) {
+        console.warn("[lms/webhook] subscription_payment_success — user 식별 불가")
+        return NextResponse.json({ ok: true, warning: "no_user_lookup" })
+      }
+
+      // plan_type 조회 → 다음 결제일 추정
+      let userPlan: string | null = null
+      if (userId) {
+        const { data } = await supabase
+          .from("users")
+          .select("plan_type")
+          .eq("id", userId)
+          .maybeSingle()
+        userPlan = (data as { plan_type?: string } | null)?.plan_type ?? null
+      } else if (subId) {
+        const { data } = await supabase
+          .from("users")
+          .select("plan_type")
+          .eq("lms_subscription_id", subId)
+          .maybeSingle()
+        userPlan = (data as { plan_type?: string } | null)?.plan_type ?? null
+      }
+
+      let nextExpiresAt: string | null = null
+      if (paidAt && (userPlan === "monthly" || userPlan === "annual")) {
+        const paid = new Date(paidAt)
+        if (userPlan === "monthly") paid.setUTCMonth(paid.getUTCMonth() + 1)
+        else paid.setUTCFullYear(paid.getUTCFullYear() + 1)
+        nextExpiresAt = paid.toISOString()
+      }
+
+      const update: Record<string, string | null> = {
+        subscription_status: "active",
+      }
+      if (nextExpiresAt) update.plan_expires_at = nextExpiresAt
+
+      let error: { message: string } | null = null
+      if (userId) {
+        const res = await supabase.from("users").update(update).eq("id", userId)
+        error = res.error
+      } else if (subId) {
+        const res = await supabase
+          .from("users")
+          .update(update)
+          .eq("lms_subscription_id", subId)
+        error = res.error
+      }
+
+      if (error) {
+        console.error("[lms/webhook] subscription_payment_success — update 실패:", error.message)
       }
       break
     }
