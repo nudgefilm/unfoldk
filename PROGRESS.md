@@ -4,6 +4,54 @@
 
 ---
 
+## 세션 회고 (2026-05-09 종료) — 16 커밋 누적
+
+오늘 한 세션 안에서 큰 작업 다수 처리. 시간 흐름 그대로:
+
+### 결제·구독 (Lemon Squeezy)
+- `a9ef950` Switch Plan 이중청구 fix (`/api/lemonsqueezy/switch` 신규, `updateSubscription` SDK 호출) + Stripe→LMS 전환 박제 (CLAUDE.md §2/§7/§11/§12/§13 + 백필 7건)
+- `6c337a6` webhook 8 이벤트 완성 — `subscription_expired` + `subscription_payment_success` 핸들러 추가
+- 운영 환경: Vercel 17개 env 등록 (LMS 7 + ANTHROPIC + 기존 9), LMS variant ID 1628505/1628480 확정
+
+### 인증·권한
+- `e368e50` Pro 잠금 판별 유틸 통일 — `lib/auth/plan.ts::hasProAccess({ planType, isAdmin })` + is_admin 우대
+- `b89093e` 4개 서비스 페이지 적용 (drama / korean / food / calendar) — UI 무변경
+- `357ef50` kpop Artist Comparison 블러도 isPro 조건부로 해제
+- `70ddf1d` `/login?redirect=X` 를 `/?next=X` 으로 forward (ReportButton 비로그인 흐름 복원)
+
+### YouTube 인제스트 (3단계 정교화 사이클)
+- `18fa177` `youtube_channel_id` NULL 자동 매핑 (`searchChannelByName`, search.list 1위)
+- `3a227e6` 컴백 query 정교화 (`<artist> k-pop comeback`) + 미래 `scheduledStartTime` 검증
+- `7fc55ab` query 완화 — `"k-pop"` 제거 (정상 컴백도 차단되던 부작용 해결, 미래 검증만 유지)
+- `3cddd9d` 운영 정책 결정 — A안 (현 상태 유지 + 어드민·신고 보완) 박제
+- `1b2aa49` 영상 description DB 저장 금지 + 오매핑 10건 일괄 삭제 (BTS·BLACKPINK·HUNTR/X·ENHYPEN 등)
+
+### AI · 어드민 · 기타
+- `cede892` 어드민 이벤트 description 자동 생성 — `generateSafeEventDescription` 안전 모드 (앨범명·장소·가격 추측 금지)
+- `175064d` React #418 hydration fix — `toLocaleDateString({ timeZone: "Asia/Seoul" })` 명시 의무화 (events-manager / users-table)
+- `d27fe96` Calendar 모달 Copy iCal Link — 클립보드 복사 + 2초 "Copied!" 피드백
+- `848ffb1` **콘텐츠 신고 시스템 구현** — migration 0015 + `<ReportButton />` + `/api/reports` + `/admin/reports` (HallyuCalendar 이벤트 우선)
+
+### 사용자 외부 작업 완료
+- Vercel `TMDB_READ_ACCESS_TOKEN` 등록 → ingest-all calendar TMDB 호출 정상화
+- Vercel `LEMONSQUEEZY_VARIANT_ID_MONTHLY/ANNUAL` + `ANTHROPIC_API_KEY` 추가
+- LMS USD 통화 심사 메일 답장 발송 (대기 중)
+- migration 0015_content_reports.sql Supabase 적용 완료 (Success. No rows returned)
+
+### 다음 세션 후보 (우선순위 순)
+1. **LMS USD 심사 결과 받으면 product 재설정** — variant ID 새로 생성될 수 있음 (env 만 갱신하면 코드 재배포 없이 대응 가능)
+2. **LMS Products Publish** — 현재 status=pending 이라 결제 차단 상태
+3. **콘텐츠 신고 시스템 확장** — KpopStats artist / KdramaMatch drama / HangeulGo phrase / KfoodKit recipe 에 ReportButton 추가
+4. **`app/calendar/page.tsx` hydration 룰 적용** — `viewDate.toLocaleString` 및 `useState(() => new Date(...))` initializer (admin 영역 외 미적용)
+5. **YouTube 인제스트 자체 가치 재평가** — A안 결정 후 며칠 관찰. 신고 누적 패턴 보고 시드 확장 / 검증 강화 결정
+6. **RLS 정책에 `is_admin=true` 분기 추가 (SQL migration)** — calendar service role 우회를 SQL 레벨로 정리, 다른 보호 테이블 일괄 적용
+7. **`subscription_status='active'` 검증** — cancel 후 expires race window 정책 결정 후 `hasProAccess` 시그니처 확장
+
+### 블로커
+- 없음 (외부 의존 — LMS USD 심사 답장 / Products Publish 만 대기)
+
+---
+
 ## 현재 상태 (2026-05-09 / `/login` redirect 파라미터 forward — ReportButton 보강)
 
 - **완료**:
