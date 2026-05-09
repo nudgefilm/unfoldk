@@ -4,6 +4,32 @@
 
 ---
 
+## 현재 상태 (2026-05-09 / Pro 잠금 해제 — 4개 서비스 페이지에 hasProAccess 적용)
+
+- **완료**:
+  - 직전 커밋(e368e50) 의 `lib/auth/plan.ts` 적용 범위 확장 — 잠금/블러 영역이 있는 모든 서비스 페이지에 통일 패턴 적용
+  - **공통 패턴** — 각 페이지에 `isPro` 상태 도입:
+    - "use client" 마운트 시 `supabase.from('users').select('plan_type, is_admin')`
+    - `setIsPro(hasProAccess({ planType, isAdmin }))`
+    - 블러 className 조건부: `${isPro ? "" : "blur-[Npx] pointer-events-none"}`
+    - Upgrade overlay div 조건부: `{!isPro && (...)}`
+  - **페이지별 변경**:
+    - `app/drama/page.tsx`: AI Drama Summary (Episode Analysis + Character Relationship Map) — 블러 + 오버레이
+    - `app/korean/page.tsx`: AI Grammar Explanation — 블러 + 오버레이
+    - `app/food/page.tsx`: AI Ingredient Finder + My Shopping List — 두 영역 동일 처리
+    - `app/calendar/page.tsx` (4 분기):
+      - `handleTabClick`: Pro 면 Concert/Fan Meet 탭 잠금 우회
+      - 탭 표시 `isLocked` 계산 — Pro 면 자물쇠 아이콘 미노출
+      - Artist Tracking Limit Banner ("3/3 artists on Free plan") — Pro 면 미노출
+      - Upcoming events 4번째부터 블러 우회 (`!isPro && index >= 3`) + Blur Upsell Overlay 미노출
+  - UI/스타일 무변경 원칙 준수 — className 조건부 토글 + 오버레이 mount 조건만 추가
+- **다음 (사용자 작업)**:
+  1. **로컬 검증** — 어드민(plan_type='free' 임시 변경) 또는 Pro 계정으로 4개 페이지 진입 → 잠금 해제 확인
+  2. **Vercel 자동 배포 확인**
+- **블로커**: 없음
+
+---
+
 ## 현재 상태 (2026-05-09 / Pro 잠금 판별 유틸 통일 + is_admin 우대)
 
 - **완료**:

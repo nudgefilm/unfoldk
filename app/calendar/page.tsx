@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, Plus, Calendar, X, Lock } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { hasProAccess } from "@/lib/auth/plan"
 
 type EventType = "K-pop" | "K-drama" | "Concert" | "Fan Meet"
 
@@ -380,6 +381,22 @@ export default function HallyuCalendarPage() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [lockedFeature, setLockedFeature] = useState<string | null>(null)
   const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [isPro, setIsPro] = useState(false)                      // monthly/annual/admin 통합 판별
+
+  // 마운트 시 plan 권한 확인 — 탭/배너/이벤트 블러 가드용
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data: profile } = await supabase
+        .from("users")
+        .select("plan_type, is_admin")
+        .eq("id", user.id)
+        .single()
+      const row = profile as { plan_type?: string; is_admin?: boolean } | null
+      setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
+    })
+  }, [])
 
   // 표시 월 파생값 (viewDate 변경 시 자동 갱신)
   const viewYear = viewDate.getFullYear()
@@ -429,7 +446,8 @@ export default function HallyuCalendarPage() {
   }, [monthQuery])
 
   const handleTabClick = (tab: string) => {
-    if (lockedTabs.includes(tab)) {
+    // Pro 유저는 lockedTabs 우회 — 모든 탭 자유 전환
+    if (!isPro && lockedTabs.includes(tab)) {
       setLockedFeature(tab)
       setShowUpgradeModal(true)
     } else {
@@ -508,7 +526,7 @@ export default function HallyuCalendarPage() {
             {/* Tabs */}
             <div className="flex items-center gap-1 overflow-x-auto">
               {tabs.map((tab) => {
-                const isLocked = lockedTabs.includes(tab)
+                const isLocked = !isPro && lockedTabs.includes(tab)
                 return (
                   <div key={tab} className="relative">
                     <button
@@ -557,21 +575,23 @@ export default function HallyuCalendarPage() {
           </div>
         </section>
 
-        {/* Artist Tracking Limit Banner */}
-        <section className="mb-6">
-          <div className="bg-[#1a1a1a] border border-border/30 rounded-xl px-4 py-3 flex items-center justify-between">
-            <span className="text-muted-foreground text-sm">
-              You are tracking <span className="text-foreground font-medium">3/3 artists</span> on Free plan
-            </span>
-            <Link 
-              href="/signup"
-              className="text-sm font-medium hover:underline"
-              style={{ color: "#FF4B6E" }}
-            >
-              Upgrade to track unlimited artists
-            </Link>
-          </div>
-        </section>
+        {/* Artist Tracking Limit Banner — isPro 면 미노출 (무제한 트래킹) */}
+        {!isPro && (
+          <section className="mb-6">
+            <div className="bg-[#1a1a1a] border border-border/30 rounded-xl px-4 py-3 flex items-center justify-between">
+              <span className="text-muted-foreground text-sm">
+                You are tracking <span className="text-foreground font-medium">3/3 artists</span> on Free plan
+              </span>
+              <Link
+                href="/signup"
+                className="text-sm font-medium hover:underline"
+                style={{ color: "#FF4B6E" }}
+              >
+                Upgrade to track unlimited artists
+              </Link>
+            </div>
+          </section>
+        )}
 
         {/* Main Calendar Grid */}
         <section className="mb-12">
@@ -653,7 +673,8 @@ export default function HallyuCalendarPage() {
           </h2>
           <div className="space-y-4 relative">
             {upcomingEvents.map((event, index) => {
-              const isBlurred = index >= 3
+              // Pro 유저는 4번째 이후도 명확 (블러 미적용)
+              const isBlurred = !isPro && index >= 3
               return (
                 <div
                   key={event.id}
@@ -694,8 +715,8 @@ export default function HallyuCalendarPage() {
               )
             })}
 
-            {/* Blur Upsell Overlay - positioned over 4th and 5th events */}
-            {upcomingEvents.length > 3 && (
+            {/* Blur Upsell Overlay - positioned over 4th and 5th events. Pro 면 미노출 */}
+            {!isPro && upcomingEvents.length > 3 && (
               <div 
                 className="absolute bottom-0 left-0 right-0 flex items-center justify-center pointer-events-auto"
                 style={{ 

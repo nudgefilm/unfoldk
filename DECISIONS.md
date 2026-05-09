@@ -21,6 +21,33 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 4개 서비스 페이지에 Pro 잠금 해제 적용 — 공통 패턴 박제
+
+- 결정 내용:
+  - 직전 결정(`lib/auth/plan.ts`) 의 적용 범위를 잠금/블러 영역이 있는 모든 서비스 페이지로 확장.
+  - **공통 적용 패턴**:
+    - `useState(false)` 로 `isPro` 상태 도입 (페이지 단위)
+    - 마운트 시 `supabase.auth.getUser()` → `users.select("plan_type, is_admin")` → `setIsPro(hasProAccess({ planType, isAdmin }))`
+    - 블러는 className 조건부 토글: `${isPro ? "" : "blur-[Npx] pointer-events-none"}`
+    - Upgrade overlay 는 mount 조건부: `{!isPro && (<overlay/>)}`
+  - **페이지별 분기 처리**:
+    - drama / korean / food: 단순 패턴 (블러 div + 오버레이 div 한 쌍)
+    - **calendar 4 분기 통합**:
+      - `handleTabClick`: Pro 면 `lockedTabs` 우회
+      - 탭 자물쇠 표시: `isLocked = !isPro && lockedTabs.includes(tab)`
+      - Artist Tracking Banner 자체 mount 조건부 (`!isPro` 일 때만)
+      - Upcoming events 4번째 블러: `isBlurred = !isPro && index >= 3`
+      - Blur Upsell Overlay: `!isPro && upcomingEvents.length > 3`
+- 이유:
+  - **단일 패턴 박제**: 페이지마다 잠금 영역의 형태가 다양한데(블러 div, 오버레이, 탭 자물쇠, 배너, 4번째부터 블러), 모두 `isPro` 단일 상태로 통합해야 향후 확장(예: 'lifetime' 플랜)이나 정책 변경 시 한 곳에서 관리.
+  - **블러는 className 조건부, 오버레이는 mount 조건부**: 블러는 콘텐츠가 항상 DOM 에 있어야 layout shift 없이 자연 (Pro 면 그대로 노출). 오버레이는 mount 자체를 제거해야 클릭 가로채기가 사라짐 — 두 패턴 차이를 의도적으로 유지.
+  - **calendar Banner 미노출 vs 텍스트 변경**: "3/3 artists" 라는 사실관계 자체가 Free 한도. Pro 면 무제한이라 배너 자체가 부적절 → 통째로 mount 안 함.
+  - **drama 의 mock 콘텐츠 노출**: Pro 시 블러가 풀리면 "Crash Landing on You - Episode Analysis" 같은 mock 텍스트가 그대로 노출됨. 실제 AI Summary 기능은 미구현 상태이지만 사용자 요구는 "잠금/블러 판별 로직만 수정". 향후 실제 AI 결과로 교체할 때 동일한 위치·구조 유지하므로 노출 형태 유지가 일관.
+- 대안으로 고려했던 것:
+  - **잠금 컴포넌트(`<ProGate>`) 추출**: blur+overlay+isPro fetch 를 하나의 wrapper 로 묶기. 코드 줄임은 가능하지만 페이지마다 잠금 영역의 구조(탭, 배너, 그리드 등)가 달라 wrapper 가 복잡해짐. 페이지 단위 인라인 패턴이 가독성 우위.
+  - **`useUserPlan()` 훅 추출**: 4개 페이지가 거의 동일한 useEffect (auth + plan/admin select) 를 가짐. hook 으로 묶을 가치 있음. 단 이번 커밋 범위 밖 — 다음 리팩터로 분리.
+  - **calendar Banner 텍스트만 "Unlimited artists" 로 변경**: Pro 인지 표시는 되지만 UI 점유는 그대로. 미노출이 더 깔끔.
+
 ## 2026-05-09 Pro 잠금 판별 통일 + is_admin 우대 — `lib/auth/plan.ts`
 
 - 결정 내용:

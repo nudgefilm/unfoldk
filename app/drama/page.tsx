@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Star, Plus, Play, Lock } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { hasProAccess } from "@/lib/auth/plan"
 
 // ============================================================
 // KdramaMatch (M+2) — UI 무변경. Mock 데이터 → 실제 API 연동.
@@ -216,12 +217,21 @@ export default function KdramaMatchPage() {
     completed: [],
   })
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const [isPro, setIsPro] = useState(false)                                  // monthly/annual/admin 통합 판별
 
-  // 1. 마운트 시 로그인 상태 1회 확인 (watchlist 호출 가드용)
+  // 1. 마운트 시 로그인 상태 + plan 권한 1회 확인 (watchlist · Pro 잠금 가드용)
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       setIsAuthenticated(!!user)
+      if (!user) return
+      const { data: profile } = await supabase
+        .from("users")
+        .select("plan_type, is_admin")
+        .eq("id", user.id)
+        .single()
+      const row = profile as { plan_type?: string; is_admin?: boolean } | null
+      setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
     })
   }, [])
 
@@ -500,8 +510,8 @@ export default function KdramaMatchPage() {
           </div>
 
           <div className="relative">
-            {/* Blurred Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 blur-[4px] pointer-events-none">
+            {/* Blurred Cards — isPro 면 블러 해제 */}
+            <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${isPro ? "" : "blur-[4px] pointer-events-none"}`}>
               <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
                 <h3 className="text-foreground font-semibold mb-2">Crash Landing on You - Episode Analysis</h3>
                 <p className="text-muted-foreground text-sm">
@@ -518,28 +528,30 @@ export default function KdramaMatchPage() {
               </div>
             </div>
 
-            {/* Upgrade Overlay */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
-                <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-                  style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
-                >
-                  <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
-                </div>
-                <p className="text-foreground font-medium mb-4">
-                  Unlock AI Drama Summaries with Hallyu Pass
-                </p>
-                <Link href="/signup">
-                  <Button
-                    className="px-6 py-2 rounded-full font-medium text-white"
-                    style={{ backgroundColor: "#FF4B6E" }}
+            {/* Upgrade Overlay — isPro 면 미노출 */}
+            {!isPro && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
                   >
-                    Upgrade — $15/month
-                  </Button>
-                </Link>
+                    <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+                  </div>
+                  <p className="text-foreground font-medium mb-4">
+                    Unlock AI Drama Summaries with Hallyu Pass
+                  </p>
+                  <Link href="/signup">
+                    <Button
+                      className="px-6 py-2 rounded-full font-medium text-white"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      Upgrade — $15/month
+                    </Button>
+                  </Link>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </section>
       </main>

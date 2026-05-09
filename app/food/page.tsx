@@ -1,12 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, Trophy, ChevronRight, Lock, Bot } from "lucide-react"
 import Link from "next/link"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { hasProAccess } from "@/lib/auth/plan"
 
 const foodCards = [
   { drama: "Squid Game", dish: "Dalgona", difficulty: "Easy", image: "/placeholder-food.jpg" },
@@ -25,6 +27,22 @@ const difficultyColors: Record<string, string> = {
 
 export default function KfoodKitPage() {
   const [searchQuery, setSearchQuery] = useState("")
+  const [isPro, setIsPro] = useState(false)                         // monthly/annual/admin 통합 판별
+
+  // 마운트 시 plan 권한 확인 — Pro 잠금 가드용
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data: profile } = await supabase
+        .from("users")
+        .select("plan_type, is_admin")
+        .eq("id", user.id)
+        .single()
+      const row = profile as { plan_type?: string; is_admin?: boolean } | null
+      setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
+    })
+  }, [])
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0d0d0f" }}>
@@ -140,16 +158,16 @@ export default function KfoodKitPage() {
           </div>
         </section>
 
-        {/* AI Ingredient Substitution (Pro Feature) */}
+        {/* AI Ingredient Substitution (Pro Feature) — isPro 면 블러·오버레이 해제 */}
         <section className="mb-12">
           <h2 className="text-2xl font-semibold text-white mb-6">AI Ingredient Finder</h2>
           <div className="relative">
-            <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6 blur-[4px]">
+            <div className={`bg-[#1a1a1a] border border-border/30 rounded-xl p-6 ${isPro ? "" : "blur-[4px]"}`}>
               <div className="flex items-center gap-3 mb-6">
                 <Bot className="w-6 h-6" style={{ color: "#FF4B6E" }} />
                 <h3 className="text-lg font-semibold text-white">Local Ingredient Finder</h3>
               </div>
-              
+
               {/* Country Selector */}
               <div className="mb-6">
                 <label className="text-sm text-muted-foreground mb-2 block">Select your country</label>
@@ -159,7 +177,7 @@ export default function KfoodKitPage() {
                   <option>Germany</option>
                 </select>
               </div>
-              
+
               {/* Sample Output */}
               <div className="bg-[#252525] rounded-lg p-4">
                 <p className="text-sm text-muted-foreground mb-1">You searched: Gochugaru</p>
@@ -168,30 +186,32 @@ export default function KfoodKitPage() {
                 </p>
               </div>
             </div>
-            
+
             {/* Upgrade Overlay */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
-                <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
-                <p className="text-white font-medium mb-4">Unlock with Hallyu Pass</p>
-                <Link href="/signup">
-                  <Button
-                    className="rounded-full font-medium text-white"
-                    style={{ backgroundColor: "#FF4B6E" }}
-                  >
-                    Upgrade — $15/month
-                  </Button>
-                </Link>
+            {!isPro && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
+                  <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
+                  <p className="text-white font-medium mb-4">Unlock with Hallyu Pass</p>
+                  <Link href="/signup">
+                    <Button
+                      className="rounded-full font-medium text-white"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      Upgrade — $15/month
+                    </Button>
+                  </Link>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </section>
 
-        {/* Shopping List (Pro Feature) */}
+        {/* Shopping List (Pro Feature) — isPro 면 블러·오버레이 해제 */}
         <section className="mb-16">
           <h2 className="text-2xl font-semibold text-white mb-6">My Shopping List</h2>
           <div className="relative">
-            <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6 blur-[4px]">
+            <div className={`bg-[#1a1a1a] border border-border/30 rounded-xl p-6 ${isPro ? "" : "blur-[4px]"}`}>
               <ul className="space-y-3">
                 <li className="flex items-center gap-3 text-foreground">
                   <div className="w-5 h-5 rounded border border-border/50" />
@@ -215,22 +235,24 @@ export default function KfoodKitPage() {
                 </li>
               </ul>
             </div>
-            
+
             {/* Upgrade Overlay */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
-                <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
-                <p className="text-white font-medium mb-4">Unlock with Hallyu Pass</p>
-                <Link href="/signup">
-                  <Button
-                    className="rounded-full font-medium text-white"
-                    style={{ backgroundColor: "#FF4B6E" }}
-                  >
-                    Upgrade — $15/month
-                  </Button>
-                </Link>
+            {!isPro && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
+                  <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
+                  <p className="text-white font-medium mb-4">Unlock with Hallyu Pass</p>
+                  <Link href="/signup">
+                    <Button
+                      className="rounded-full font-medium text-white"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      Upgrade — $15/month
+                    </Button>
+                  </Link>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </section>
       </main>

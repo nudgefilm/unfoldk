@@ -1,11 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Volume2, Check, RotateCcw, Lock } from "lucide-react"
 import Link from "next/link"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { hasProAccess } from "@/lib/auth/plan"
 
 const dramaPacks = [
   { title: "Crash Landing on You", phrases: 24, difficulty: "Beginner", progress: 75 },
@@ -24,6 +26,22 @@ const quizOptions = [
 
 export default function HangeulGoPage() {
   const [selectedAnswer, setSelectedAnswer] = useState<string>("B")
+  const [isPro, setIsPro] = useState(false)                         // monthly/annual/admin 통합 판별
+
+  // 마운트 시 plan 권한 확인 — Pro 잠금 가드용
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data: profile } = await supabase
+        .from("users")
+        .select("plan_type, is_admin")
+        .eq("id", user.id)
+        .single()
+      const row = profile as { plan_type?: string; is_admin?: boolean } | null
+      setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
+    })
+  }, [])
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }}>
@@ -230,8 +248,8 @@ export default function HangeulGoPage() {
           </h2>
           
           <div className="relative">
-            {/* Blurred Content */}
-            <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-8 blur-[6px] pointer-events-none">
+            {/* Blurred Content — isPro 면 블러 해제 */}
+            <div className={`bg-[#1a1a1a] border border-border/30 rounded-2xl p-8 ${isPro ? "" : "blur-[6px] pointer-events-none"}`}>
               <div className="space-y-4">
                 <div className="h-6 bg-[#252528] rounded w-3/4" />
                 <div className="h-4 bg-[#252528] rounded w-full" />
@@ -245,28 +263,30 @@ export default function HangeulGoPage() {
               </div>
             </div>
 
-            {/* Upgrade Overlay */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
-                <div 
-                  className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-                  style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
-                >
-                  <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
-                </div>
-                <p className="text-foreground font-medium mb-4">
-                  Unlock AI Grammar Explanations
-                </p>
-                <Link href="/signup">
-                  <Button
-                    className="px-6 py-2 rounded-full font-medium text-white"
-                    style={{ backgroundColor: "#FF4B6E" }}
+            {/* Upgrade Overlay — isPro 면 미노출 */}
+            {!isPro && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
                   >
-                    Upgrade to Hallyu Pass
-                  </Button>
-                </Link>
+                    <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+                  </div>
+                  <p className="text-foreground font-medium mb-4">
+                    Unlock AI Grammar Explanations
+                  </p>
+                  <Link href="/signup">
+                    <Button
+                      className="px-6 py-2 rounded-full font-medium text-white"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      Upgrade to Hallyu Pass
+                    </Button>
+                  </Link>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </section>
       </main>
