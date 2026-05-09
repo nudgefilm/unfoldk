@@ -415,8 +415,8 @@ export default function KpopStatsPage() {
           </h2>
 
           <div className="relative">
-            {/* Blurred Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 blur-[4px] pointer-events-none">
+            {/* Blurred Cards — isPro 면 블러 해제 */}
+            <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${isPro ? "" : "blur-[4px] pointer-events-none"}`}>
               {/* Card 1 */}
               <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6">
                 <div className="flex items-center gap-4 mb-4">
