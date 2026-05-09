@@ -61,7 +61,7 @@ export function AdminSidebar() {
           href="/"
           className="text-foreground text-lg font-semibold px-3 py-2 block hover:opacity-80 transition-opacity"
         >
-          ← UnfoldK <span style={{ color: "#FF4B6E" }}>HOME</span>
+          UnfoldK <span style={{ color: "#FF4B6E" }}>HOME</span>
         </Link>
       </div>
     </aside>
