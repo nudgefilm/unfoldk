@@ -1,5 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { EventsManager } from "@/components/admin/events-manager"
+import { AdminErrorBanner } from "@/components/admin/admin-error-banner"
+import { formatPostgrestError } from "@/lib/admin/format-error"
 
 export const dynamic = "force-dynamic"
 
@@ -15,8 +17,12 @@ export interface AdminEventRow {
   is_premium: boolean
 }
 
-async function loadEvents(): Promise<AdminEventRow[]> {
-  // service_role로 모든 이벤트(프리미엄 포함) 조회
+type LoadResult =
+  | { ok: true; events: AdminEventRow[] }
+  | { ok: false; error: string }
+
+async function loadEvents(): Promise<LoadResult> {
+  // service_role 로 모든 이벤트(프리미엄 포함) 조회
   const supabase = createSupabaseAdminClient()
   const { data, error } = await supabase
     .from("hallyu_calendar_events")
@@ -25,23 +31,36 @@ async function loadEvents(): Promise<AdminEventRow[]> {
     .limit(500)
 
   if (error) {
-    console.error("[admin/events] 조회 실패:", error.message)
-    return []
+    // 빈 배열 fallback 금지 — 0건처럼 위장되는 사고 방지 (2026-05-09 인시던트 회고)
+    console.error("[admin/events] 조회 실패:", error)
+    return { ok: false, error: formatPostgrestError(error) }
   }
-  return (data ?? []) as AdminEventRow[]
+  return { ok: true, events: (data ?? []) as AdminEventRow[] }
 }
 
 export default async function AdminEventsPage() {
-  const events = await loadEvents()
+  const result = await loadEvents()
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-foreground text-2xl font-semibold mb-1">이벤트 관리</h1>
-        <p className="text-muted-foreground text-sm">총 {events.length.toLocaleString()}건 (최근 500건)</p>
+        <p className="text-muted-foreground text-sm">
+          {result.ok
+            ? `총 ${result.events.length.toLocaleString()}건 (최근 500건)`
+            : "조회 실패"}
+        </p>
       </div>
 
-      <EventsManager events={events} />
+      {!result.ok && (
+        <AdminErrorBanner
+          title="이벤트 조회 실패"
+          detail={result.error}
+          logPrefix="[admin/events]"
+        />
+      )}
+
+      {result.ok && <EventsManager events={result.events} />}
     </div>
   )
 }

@@ -21,6 +21,21 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 신규 테이블 추가 시 service_role GRANT 의무화 (인시던트 회고)
+
+- 결정 내용:
+  - 모든 신규 마이그레이션은 `public` 스키마에 테이블/시퀀스/함수를 만든 직후 `service_role` 에 명시적 GRANT 를 추가한다.
+  - `migration 0013_service_role_grants.sql` 로 누락된 GRANT 를 보강하고, `alter default privileges in schema public ... to service_role` 로 향후 신규 객체에도 자동 부여되도록 박제.
+  - `app/admin/users/page.tsx` — service_role 조회 실패 시 빈 배열로 fallback 하지 않고 화면 상단에 배너로 가시화 (code/message/hint 합쳐 노출). 동일 패턴을 다른 어드민 페이지에도 점진 적용.
+- 이유:
+  - 인시던트: `/admin/users` 가 빈 화면 → 추적 결과 service_role 이 `public.users` SELECT 권한 없어 PostgREST 가 403 (code 42501) 반환. JS SDK 가 PostgrestError 를 `error.message=""` 로 마스킹해 `console.error` 만 찍히고 페이지는 0행 fallback 으로 정상처럼 보임.
+  - 신규 발급된 Supabase publishable/secret 키 시스템에선 옛 service_role 자동 bypass 가 보장되지 않음 — 명시 GRANT 가 사실상 표준.
+  - 같은 사고가 새 테이블(KpopStats, fan_event_requests, coupons 등) 추가할 때마다 반복 가능 → default privileges 로 일괄 처리.
+- 대안으로 고려했던 것:
+  - 페이지마다 `try/catch` + `error.code === "42501"` 분기: 어드민 페이지 N개에 보일러플레이트만 늘어남.
+  - service_role 대신 RPC SECURITY DEFINER 함수로 우회: GRANT 를 함수 레벨로 옮기는 표면적 해결.
+  - Dashboard 에서 GRANT 만 한 번 박고 끝: DB 리셋·신규 테이블 추가 시 재발 — 거부.
+
 ## 2026-05-08 HallyuCalendar M+0 Phase 3.5 — 리마인더 영속화 + Resend D-Day 알림
 
 - 결정 내용:

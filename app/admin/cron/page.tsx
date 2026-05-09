@@ -1,5 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { CronMonitor } from "@/components/admin/cron-monitor"
+import { AdminErrorBanner } from "@/components/admin/admin-error-banner"
+import { formatPostgrestError } from "@/lib/admin/format-error"
 
 export const dynamic = "force-dynamic"
 
@@ -21,20 +23,43 @@ interface RouteSummary {
 
 const ROUTES = ["ingest-all", "send-reminders"] as const
 
-// 각 라우트의 가장 최근 로그를 1건씩 조회
-async function loadSummaries(): Promise<RouteSummary[]> {
+type LoadResult =
+  | { ok: true; summaries: RouteSummary[]; logs: CronLogRow[] }
+  | { ok: false; error: string }
+
+// summaries + recent logs 를 하나의 트랜잭션처럼 로드.
+// 어느 하나라도 실패하면 화면에는 배너만 — 0건/누락으로 위장 금지 (2026-05-09 인시던트 회고)
+async function load(): Promise<LoadResult> {
   const supabase = createSupabaseAdminClient()
 
-  const summaries: RouteSummary[] = []
+  // 1) 최근 로그 20건
+  const { data: logsData, error: logsError } = await supabase
+    .from("cron_logs")
+    .select("id, route, status, result_json, executed_at")
+    .order("executed_at", { ascending: false })
+    .limit(20)
 
+  if (logsError) {
+    console.error("[admin/cron] cron_logs 조회 실패:", logsError)
+    return { ok: false, error: formatPostgrestError(logsError) }
+  }
+  const logs = (logsData ?? []) as CronLogRow[]
+
+  // 2) 각 라우트의 가장 최근 로그 1건 → summary
+  const summaries: RouteSummary[] = []
   for (const route of ROUTES) {
-    const { data } = await supabase
+    const { data, error: sumError } = await supabase
       .from("cron_logs")
       .select("status, result_json, executed_at")
       .eq("route", route)
       .order("executed_at", { ascending: false })
       .limit(1)
       .maybeSingle()
+
+    if (sumError) {
+      console.error(`[admin/cron] summary(${route}) 조회 실패:`, sumError)
+      return { ok: false, error: formatPostgrestError(sumError) }
+    }
 
     if (!data) {
       summaries.push({
@@ -75,30 +100,30 @@ async function loadSummaries(): Promise<RouteSummary[]> {
     })
   }
 
-  return summaries
-}
-
-async function loadRecentLogs(): Promise<CronLogRow[]> {
-  const supabase = createSupabaseAdminClient()
-  const { data } = await supabase
-    .from("cron_logs")
-    .select("id, route, status, result_json, executed_at")
-    .order("executed_at", { ascending: false })
-    .limit(20)
-  return (data ?? []) as CronLogRow[]
+  return { ok: true, summaries, logs }
 }
 
 export default async function AdminCronPage() {
-  const [summaries, logs] = await Promise.all([loadSummaries(), loadRecentLogs()])
+  const result = await load()
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-foreground text-2xl font-semibold mb-1">Cron 모니터</h1>
-        <p className="text-muted-foreground text-sm">자동 인제스트 + 리마인더 발송 상태</p>
+        <p className="text-muted-foreground text-sm">
+          {result.ok ? "자동 인제스트 + 리마인더 발송 상태" : "조회 실패"}
+        </p>
       </div>
 
-      <CronMonitor summaries={summaries} logs={logs} />
+      {!result.ok && (
+        <AdminErrorBanner
+          title="Cron 로그 조회 실패"
+          detail={result.error}
+          logPrefix="[admin/cron]"
+        />
+      )}
+
+      {result.ok && <CronMonitor summaries={result.summaries} logs={result.logs} />}
     </div>
   )
 }

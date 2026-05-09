@@ -1,5 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { FanEventsTable } from "@/components/admin/fan-events-table"
+import { AdminErrorBanner } from "@/components/admin/admin-error-banner"
+import { formatPostgrestError } from "@/lib/admin/format-error"
 
 export const dynamic = "force-dynamic"
 
@@ -18,9 +20,13 @@ export interface AdminFanEventRow {
   reviewed_at: string | null
 }
 
-async function loadRequests(): Promise<AdminFanEventRow[]> {
+type LoadResult =
+  | { ok: true; rows: AdminFanEventRow[] }
+  | { ok: false; error: string }
+
+async function loadRequests(): Promise<LoadResult> {
   const supabase = createSupabaseAdminClient()
-  // pending 우선 정렬을 위해 status enum을 정렬 우선순위로 변환 — Supabase의 raw order로는 어려워 두 번 쿼리
+  // pending 우선 정렬을 위해 status enum 을 정렬 우선순위로 변환 — Supabase raw order 로는 어려워 두 번 쿼리
   const { data, error } = await supabase
     .from("fan_event_requests")
     .select("id, user_id, title, description, event_date, location, proof_url, status, admin_note, created_at, reviewed_at")
@@ -28,19 +34,27 @@ async function loadRequests(): Promise<AdminFanEventRow[]> {
     .limit(500)
 
   if (error) {
-    console.error("[admin/fan-events] 조회 실패:", error.message)
-    return []
+    // 빈 배열 fallback 금지 — 권한/네트워크 오류를 화면에 가시화 (2026-05-09 인시던트 회고)
+    console.error("[admin/fan-events] 조회 실패:", error)
+    return { ok: false, error: formatPostgrestError(error) }
   }
 
-  // 신청자 이메일 lookup
+  // 신청자 이메일 lookup — 부가 정보라 실패해도 메인 데이터는 살리되, 콘솔에는 남김
   const userIds = Array.from(new Set((data ?? []).map((r) => r.user_id)))
   let emailMap = new Map<string, string>()
   if (userIds.length > 0) {
-    const { data: users } = await supabase.from("users").select("id, email").in("id", userIds)
-    emailMap = new Map((users ?? []).map((u) => [u.id, u.email]))
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("id, email")
+      .in("id", userIds)
+    if (usersError) {
+      console.error("[admin/fan-events] users lookup 실패 (이메일 미표시):", usersError)
+    } else {
+      emailMap = new Map((users ?? []).map((u) => [u.id, u.email]))
+    }
   }
 
-  // pending이 항상 위에 오도록 클라이언트 정렬
+  // pending 이 항상 위에 오도록 클라이언트 정렬
   const order = { pending: 0, approved: 1, rejected: 2 } as const
   const rows = (data ?? []).map((r) => ({
     ...r,
@@ -48,23 +62,34 @@ async function loadRequests(): Promise<AdminFanEventRow[]> {
   })) as AdminFanEventRow[]
 
   rows.sort((a, b) => order[a.status] - order[b.status])
-  return rows
+  return { ok: true, rows }
 }
 
 export default async function AdminFanEventsPage() {
-  const rows = await loadRequests()
-  const pendingCount = rows.filter((r) => r.status === "pending").length
+  const result = await loadRequests()
+  const pendingCount = result.ok ? result.rows.filter((r) => r.status === "pending").length : 0
+  const totalCount = result.ok ? result.rows.length : 0
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-foreground text-2xl font-semibold mb-1">팬 행사 신청</h1>
         <p className="text-muted-foreground text-sm">
-          대기 {pendingCount.toLocaleString()}건 / 전체 {rows.length.toLocaleString()}건
+          {result.ok
+            ? `대기 ${pendingCount.toLocaleString()}건 / 전체 ${totalCount.toLocaleString()}건`
+            : "조회 실패"}
         </p>
       </div>
 
-      <FanEventsTable rows={rows} />
+      {!result.ok && (
+        <AdminErrorBanner
+          title="팬 행사 신청 조회 실패"
+          detail={result.error}
+          logPrefix="[admin/fan-events]"
+        />
+      )}
+
+      {result.ok && <FanEventsTable rows={result.rows} />}
     </div>
   )
 }

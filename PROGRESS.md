@@ -4,6 +4,23 @@
 
 ---
 
+## 현재 상태 (2026-05-09)
+
+- **완료 (오늘 인시던트 대응)**:
+  - **`/admin/users` 빈 화면 인시던트 해결** — service_role 이 `public.users` SELECT 권한 없어 PostgREST 가 403 (code 42501) 반환. JS SDK 가 `error.message=""` 로 마스킹해 0행 fallback. 빈 배열을 정상으로 오인.
+  - **migration 0013_service_role_grants.sql 추가** — `public` 스키마 전체에 service_role GRANT + `alter default privileges` 로 신규 객체 자동 부여 + `handle_new_user` 트리거 idempotent 재설치
+  - **Supabase Dashboard 적용 완료** (사용자 직접 실행) → 4명 모두 `public.users` 에 정상 존재 확인 (트리거는 처음부터 잘 작동 중이었음 — 단지 service_role 이 못 읽었을 뿐)
+  - **admin 권한 부여**: `nudgefilm@gmail.com` → `is_admin = true`
+  - **`app/admin/users/page.tsx` 개선** — 조회 실패 시 빈 배열로 숨기지 않고 화면 상단에 빨간 배너로 code/message/hint 노출 (재발 시 1초 만에 진단 가능)
+  - **DECISIONS.md 갱신** — 신규 테이블 추가 시 service_role GRANT 의무화 정책 박제
+- **진행 중**: 없음
+- **다음 세션 후보**:
+  - 다른 어드민 페이지(`/admin/events`, `/admin/fan-events`, `/admin/kpop`, `/admin/cron`)에도 동일한 에러 가시화 패턴 적용 검토
+  - `app/api/admin/*` 라우트들도 PostgrestError 가시화 동일 적용
+- **블로커**: 없음
+
+---
+
 ## 현재 상태 (2026-05-08)
 
 - **완료 (이번 세션)**:
