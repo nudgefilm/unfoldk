@@ -33,6 +33,11 @@ function StartPageInner() {
   const searchParams = useSearchParams()
   // ?new=true 가 아니어도 진입 가능 — agreed_to_terms 가 이미 true 면 자동으로 /mypage 로 우회
   const _isNew = searchParams.get("new") === "true"
+  // 가입 완료 후 복귀 경로 — callback 에서 forward 한 ?next 우선, 없으면 /mypage.
+  // open redirect 방지 — 내부 경로만 허용 (callback 도 검증하지만 이중 가드)
+  const nextRaw = searchParams.get("next")
+  const nextPath =
+    nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/mypage"
 
   const [selectedPlan, setSelectedPlan] = useState<"free" | "pro">("pro")
   const [isAnnual, setIsAnnual] = useState(false)
@@ -86,8 +91,8 @@ function StartPageInner() {
     }
 
     if (planChoice === "free") {
-      // 무료 플랜 — 곧장 마이페이지
-      router.push("/mypage")
+      // 무료 플랜 — next 가 있으면 원래 경로, 없으면 /mypage
+      router.push(nextPath)
       router.refresh()
       return
     }

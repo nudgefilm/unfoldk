@@ -1,29 +1,32 @@
 import { createServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 
 // OAuth 콜백 — Google 로그인 성공 시 Supabase 가 ?code=... 로 redirect
 // code → session 교환 후 신규/기존 유저 분기:
 //   - users.agreed_to_terms = false → /start?new=true (플랜 + 약관 동의)
 //   - users.agreed_to_terms = true  → ?next 경로 (기본 /mypage)
 //
-// C안: next/headers cookies() 기반 cookieStore 패턴 (Supabase 공식 정석)
-//   - createServerClient 의 setAll 콜백에서 cookieStore.set 으로 직접 적용
-//   - Next.js Route Handler 컨텍스트에선 cookieStore 변경분이 자동으로 응답 Set-Cookie 에
-//     반영되므로, NextResponse.redirect 를 그대로 반환해도 쿠키 누락 없음
+// ⚠️ Route Handler 의 cookieStore.set 으로 적은 신규 세션 쿠키가
+//    NextResponse.redirect(...) 응답에 자동 적재되지 않아 — 다음 페이지에서
+//    getUser() 가 null 로 판단되며 /start 가드가 / 로 튕기는 사례 다수 보고됨.
+//    middleware.ts 의 supabaseResponse 패턴을 그대로 사용해 cookie 를 명시 복사.
 // 참고: https://supabase.com/docs/guides/auth/server-side/nextjs
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
-  const nextRaw = searchParams.get("next") ?? "/mypage"
-  // open redirect 방지 — 내부 경로만 허용
-  const next = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/mypage"
+  // open redirect 방지 — 내부 경로만 허용. nextRaw 가 빈 문자열·외부 URL 이면 null.
+  const nextRaw = searchParams.get("next")
+  const next =
+    nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : null
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`)
   }
 
-  const cookieStore = await cookies()
+  // supabaseResponse 를 만들어 setAll 콜백이 직접 응답에 쿠키를 적재하도록.
+  // (middleware 와 동일 — Next.js 15 Route Handler 의 cookieStore.set 자동 반영
+  //  의존을 피하고 ResponseCookie options 를 보존)
+  let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,26 +34,26 @@ export async function GET(request: Request) {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll()
+          return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // 서버 컴포넌트에서 호출 시 throw — Route Handler 에선 정상 동작 (안전 가드)
-          }
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          )
+          supabaseResponse = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
         },
       },
     }
   )
 
-  // code → session 교환 — setAll 콜백이 호출되며 cookieStore 에 새 쿠키 기록
+  // code → session 교환 — setAll 이 호출되며 supabaseResponse 에 새 쿠키 기록
   const { error } = await supabase.auth.exchangeCodeForSession(code)
   if (error) {
     console.error("[auth/callback] exchange 실패:", error.message)
-    return NextResponse.redirect(`${origin}/login?error=auth`)
+    return redirectWithCookies(`${origin}/login?error=auth`, supabaseResponse)
   }
 
   // 세션 교환 완료 — 현재 유저 조회
@@ -61,7 +64,7 @@ export async function GET(request: Request) {
   if (!user) {
     // 정상 흐름이면 도달 불가, 방어용 가드
     console.error("[auth/callback] getUser 실패 — 세션 교환 후 user null")
-    return NextResponse.redirect(`${origin}/login?error=no_user`)
+    return redirectWithCookies(`${origin}/login?error=no_user`, supabaseResponse)
   }
 
   // 신규/기존 분기 — public.users.agreed_to_terms 조회
@@ -81,9 +84,26 @@ export async function GET(request: Request) {
 
   if (!isExistingMember) {
     // 신규 가입자 — 플랜 선택 + 약관 동의 화면으로
-    return NextResponse.redirect(`${origin}/start?new=true`)
+    // next 가 명시돼 있으면 보존 → /start 가 가입 완료 후 원래 경로로 복귀
+    const startUrl = new URL("/start", origin)
+    startUrl.searchParams.set("new", "true")
+    if (next) {
+      startUrl.searchParams.set("next", next)
+    }
+    return redirectWithCookies(startUrl, supabaseResponse)
   }
 
-  // 기존 유저 — 원래 가려던 경로 (기본 /mypage)
-  return NextResponse.redirect(`${origin}${next}`)
+  // 기존 유저 — 원래 가려던 경로 (next 없으면 /mypage)
+  return redirectWithCookies(`${origin}${next ?? "/mypage"}`, supabaseResponse)
+}
+
+// redirect 응답에 supabaseResponse 의 쿠키(options 포함) 명시 복사
+// middleware.ts 의 redirectWithCookies 와 동일 구조
+function redirectWithCookies(
+  url: string | URL,
+  source: NextResponse
+): NextResponse {
+  const redirect = NextResponse.redirect(url)
+  source.cookies.getAll().forEach((c) => redirect.cookies.set(c))
+  return redirect
 }
