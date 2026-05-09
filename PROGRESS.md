@@ -4,6 +4,28 @@
 
 ---
 
+## 현재 상태 (2026-05-09 / YouTube 자동 인제스트 운영 정책 결정 — A안 채택)
+
+- **완료**:
+  - **production `ingest-all` 재호출 진단** (query 완화 후):
+    - YouTube: artistsScanned 15 / raw 9 / future 1 / **upserted 1**
+    - 통과한 1건도 ATEEZ 팬 reading livestream — 공식 컴백 M/V 아님
+    - BTS·BLACKPINK 정상 컴백 sample 영상도 미래 검증으로 차단됨 (실제로는 끝난 라이브)
+    - HUNTR/X 'Hunter x Hunter', ENHYPEN 2021 vlive 모두 차단 ✅
+  - **운영 정책 결정 — A안 (현 상태 유지)**:
+    - YouTube 자동 인제스트의 0~1건/일 결과를 자연스러운 운영 상태로 받아들임
+    - 이유: 미래 검증이 정확히 작동 → upsert 되는 건수가 적은 게 정상. 직전 9건은 검증 약했던 시기에 통과한 옛날·오매핑 영상.
+    - 보완: 어드민 수동 입력(`/admin/events`) + 유저 신고 시스템 (PROGRESS 다음 세션 후보 항목)
+  - **기각된 대안**:
+    - B안 시드 15명 → 50명 확장: raw hits 늘어도 미래 검증 못 통과하면 의미 없음
+    - C안 다른 데이터 소스(Soompi RSS, AllKpop): 별도 인제스트 작업 + 출처 신뢰도 검증 부담. 어드민 수동 + 신고 시스템이 ROI 우위
+- **다음 세션 후보** (이전 블록의 콘텐츠 신고 시스템과 연계):
+  - **콘텐츠 신고 시스템 우선순위 ↑** — HallyuCalendar 이벤트 신고 구현이 자동 인제스트 한계의 직접 보완책
+  - 기존 `hallyu_calendar_events` 의 youtube=10건 점검 — 어드민에서 옛날·오매핑 영상 수동 삭제
+- **블로커**: 없음
+
+---
+
 ## 현재 상태 (2026-05-09 / YouTube query 완화 — "k-pop" 제거)
 
 - **완료**:
