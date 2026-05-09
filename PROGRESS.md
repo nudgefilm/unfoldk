@@ -4,6 +4,24 @@
 
 ---
 
+## 현재 상태 (2026-05-09 / `/login` redirect 파라미터 forward — ReportButton 보강)
+
+- **완료**:
+  - **진단** — ReportButton 의 비로그인 흐름이 `/` 로 튕기던 원인 추적:
+    - `report-button.tsx` 자체는 의도대로 `/login?redirect=/calendar` 로 push
+    - 진짜 원인은 `app/login/page.tsx` (커밋 `7bf5cbc` Start 단일화 시 폐지) — `useEffect(() => router.replace("/"))` 로 무조건 / 이동, `?redirect=` 파라미터 무시
+  - **`app/login/page.tsx` 수정** — redirect 파라미터 forward
+    - `useSearchParams.get("redirect")` 읽어 `/?next=${encodeURIComponent(redirect)}` 으로 변환 후 replace
+    - `auth/callback` 가 next 파라미터를 OAuth 완료 후 redirect 대상으로 사용 (기존 동작)
+    - `useSearchParams` 는 Suspense 경계 필수 — `<Suspense fallback={null}>` 으로 분리
+- **다음 (사용자 작업)**:
+  1. `/calendar` → 이벤트 클릭 → "Report incorrect info" 클릭 (비로그인 상태)
+  2. `/login?redirect=%2Fcalendar` → `/?next=%2Fcalendar` 으로 forward
+  3. Start 클릭 → OAuth → `/calendar` 로 복귀 확인
+- **블로커**: 없음
+
+---
+
 ## 현재 상태 (2026-05-09 / 콘텐츠 신고 시스템 구현 — HallyuCalendar 이벤트 우선 적용)
 
 - **완료**:
