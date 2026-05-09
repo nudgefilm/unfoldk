@@ -21,6 +21,43 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-10 ReportButton 비로그인 흐름 — StartModal 인플레이스 오픈 (페이지 이동 X)
+
+- 결정 내용:
+  - **비로그인 사용자가 ReportButton 클릭 시 페이지 이동 없이 같은 자리에서 StartModal 오픈**
+  - 클릭 한 번에 OAuth 시작 — 이전엔 `router.push('/login?redirect=...')` → `/login` useEffect → `/?next=...` → Start 다시 클릭 → OAuth 의 4단계
+  - **StartModal 외부 제어 모드 추가** — `open` / `onOpenChange` / `next` / `trigger` 모두 옵셔널 prop. ReportButton 같은 외부 컨텍스트에서 모달 제어 가능. next 우선순위: prop → URL `?next` 파라미터 (backward-compat 유지)
+  - **ReportButton 내부 구조** — 자체 `startModalOpen` state + `pendingNext` state 로 클릭 시점 pathname 캡처. `<StartModal open={...} onOpenChange={...} next={pendingNext} />` 임베드
+  - **향후 다른 서비스(KpopStats artist / KdramaMatch drama / HangeulGo phrase / KfoodKit recipe)에 ReportButton 적용 시 동일 패턴 적용**
+- 이유:
+  - **UX 차원의 해결책**: "비로그인 → 로그인 모달 → OAuth → 원래 페이지" 가 사용자 의도. 페이지 이동을 거치는 건 불필요한 우회.
+  - **OAuth 후 복귀 보장**: pathname 을 모달 prop 으로 직접 전달 → URL 변경 없이도 callback 의 `?next` 정확히 도착
+  - **StartModal 사용처 호환**: 기존 trigger 방식(header / hero / cta / hero-cta-buttons) 그대로 동작
+  - **레슨**: 처음 보고된 증상("OAuth 후 / 로 튕긴다")을 OAuth 자체 문제로 깊이 파고든 끝에 정답에 도달. 향후 비슷한 증상 시 **"원하는 흐름이 뭐냐" 한 줄 확인 후 진단 시작** — UX 흐름 변경이 정답인 케이스가 코드 깊이 파고드는 것보다 흔함
+- 대안으로 고려했던 것:
+  - **`/login` 경유 유지 + redirect/next 파라미터 forward 강화** (커밋 `c0f4e19` `c1f48be` `d40ae32` 가 이 방향): 페이지 이동 두 번 + 클릭 두 번. 사용성 떨어지고 도메인·인코딩·쿠키 sync 등 변수 多
+  - **ReportButton 자체 OAuth 트리거** (StartModal 안 거침): UI 일관성 깨짐 (로그인 모달 디자인은 한 곳)
+  - **로그인 후 신고 이어가기** (modal 닫힌 후 자동 reopen): state 관리 복잡 + UX 직관성 떨어짐. OAuth 완료 후 `/calendar` 복귀하면 사용자가 다시 신고 버튼 클릭하면 됨 (한 번 더 클릭이지만 흐름 단순)
+
+## 2026-05-10 OAuth callback redirect 패턴 — middleware 의 `redirectWithCookies` 동일 구조
+
+- 결정 내용:
+  - **`app/api/auth/callback/route.ts` 가 middleware 와 동일한 supabaseResponse 패턴 사용**
+  - `let supabaseResponse = NextResponse.next({ request })` 객체 생성 → `setAll` 콜백이 이 응답에 직접 cookie(options 포함) 적재 → redirect 시 `redirectWithCookies(url, supabaseResponse)` 헬퍼로 쿠키 명시 복사
+  - 모든 redirect 분기(success / error 4종 / new_user / existing_user) 에서 동일 헬퍼 사용
+  - **신규 가입자 분기에서도 next 보존** — `/start?new=true&next=<원래경로>` 형태. `/start` 페이지가 가입 완료 시 `searchParams.get("next") || "/mypage"` 로 사용
+  - **production callback origin 은 `https://www.unfoldk.com` 하드코딩** — `start-modal.tsx` 의 `handleGoogleStart` 에서 `hostname === "localhost" ? window.location.origin : "https://www.unfoldk.com"`
+- 이유:
+  - **`NextResponse.redirect` 단독 반환 시 쿠키 누락 가능성**: Next.js 15 Route Handler 에서 `cookies()` 의 `set` 호출이 redirect 응답에 자동 반영되지 않는 케이스 다수 보고. 결과: 다음 페이지에서 `getUser()` null → `/start` 가드(`useEffect → router.replace("/")`) 발동 → "/" 튕김
+  - **middleware 패턴이 검증된 정답**: 이미 동작 중인 `redirectWithCookies` 와 같은 구조 적용 — 일관성 + 중복 제거
+  - **www 하드코딩 이유**: apex(`unfoldk.com`) 진입 사용자가 OAuth 시작하면 callback URL 이 apex 로 생성됨. Vercel apex→www redirect 가 OAuth 완료 후 끼어들면 code 파라미터 손실 가능. 시작부터 www 로 통일해 도메인 경계 redirect 자체를 차단
+  - **localhost 예외**: 로컬 개발 환경에선 `localhost:3000` 그대로 사용 (production www 로 보내면 로컬 callback 깨짐). preview 배포(`*.vercel.app`)는 현재 OAuth 동작 안 하므로 제외 — 필요 시 `vercel.app` 분기 추가
+- 대안으로 고려했던 것:
+  - **`cookies()` API 만 사용** (NextResponse 없이): Next.js 15 의 자동 반영에 의존. 불안정 — 실제로 / 튕김 증상의 원인이었음
+  - **callback 에서 cookie 수동 set** (Set-Cookie 헤더 직접 작성): Supabase auth 쿠키는 여러 개(access/refresh) + 옵션(httpOnly/secure/sameSite) 다양 → 직접 작성은 위험
+  - **Vercel apex→www redirect 비활성화**: SEO 카노니컬 손실. 301 유지가 표준
+  - **모든 진입점에서 origin 하드코딩** (header / hero / cta 등): 사용처 多 → 누락 위험. callback URL 생성 한 곳(`start-modal.tsx`) 만 하드코딩으로 충분
+
 ## 2026-05-09 콘텐츠 신고 시스템 (M+0 보완책) — `content_reports` 테이블 + 공통 컴포넌트
 
 - 결정 내용:
