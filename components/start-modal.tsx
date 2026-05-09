@@ -28,16 +28,24 @@ export function StartModal({ trigger }: StartModalProps) {
   //   /login?redirect=/calendar → /?next=%2Fcalendar 로 들어온 경우
   //   OAuth 완료 후 /calendar 로 복귀하기 위해 필요.
   // useSearchParams 대신 클릭 시점 window.location.search 를 읽어 Suspense 경계 부담 회피.
+  //
+  // ⚠️ origin 은 localhost 외엔 www 로 하드코딩 — Supabase 가 OAuth 완료 후 보내는
+  //    callback URL 이 non-www(unfoldk.com)이면 Vercel apex→www redirect 가 끼어
+  //    code 파라미터 손실 가능성. www/non-www 일관성으로 도메인 경계 redirect 자체를 차단.
   const handleGoogleStart = async () => {
     setIsLoading(true)
     setErrorMsg("")
     const supabase = createSupabaseBrowserClient()
+    const origin =
+      window.location.hostname === "localhost"
+        ? window.location.origin
+        : "https://www.unfoldk.com"
     const nextRaw = new URLSearchParams(window.location.search).get("next")
     // 내부 경로만 forward — open redirect 방지 (callback 도 재검증하지만 클라이언트에서도 가드)
     const next = nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : null
     const callbackUrl = next
-      ? `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(next)}`
-      : `${window.location.origin}/api/auth/callback`
+      ? `${origin}/api/auth/callback?next=${encodeURIComponent(next)}`
+      : `${origin}/api/auth/callback`
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
