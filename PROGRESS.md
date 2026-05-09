@@ -4,6 +4,45 @@
 
 ---
 
+## 현재 상태 (2026-05-10 / ReportButton 비로그인 흐름 단순화 — StartModal 인플레이스 오픈)
+
+> ⚠️ **다음 세션이 같은 함정에 빠지지 않도록**: 이번 세션의 진짜 문제는
+> "비로그인 Report 클릭 시 페이지 이동 없이 모달 띄우기" 라는 **UX 차원의 흐름 변경**
+> 이었음. 그런데 OAuth callback / 도메인 정합성 / 인코딩 / 미들웨어까지 깊이 파고든
+> 끝에야 이 단순한 흐름이 정답인 걸 깨달음. 다음에 비슷한 증상 (`/`로 튕김 등) 보면
+> **먼저 한 줄로 "원하는 흐름이 뭐냐" 확인 후 코드 진단 시작할 것**.
+
+### 최종 정답 — `0a16a72` 한 커밋
+- **`components/start-modal.tsx`** — 외부 제어 prop 추가
+  - `open?`, `onOpenChange?`, `next?`, `trigger?` 모두 옵셔널화
+  - next 우선순위: prop → URL `?next` 파라미터 (backward-compat 유지)
+  - 기존 사용처 (header / hero / cta / hero-cta-buttons) 모두 무수정 호환
+- **`components/common/report-button.tsx`** — 인플레이스 오픈
+  - `useRouter` 제거 (페이지 이동 없음)
+  - 비로그인 클릭 시: `setStartModalOpen(true)` + `pendingNext` 에 현재 pathname 저장
+  - `<StartModal open={startModalOpen} onOpenChange={setStartModalOpen} next={pendingNext} />` 임베드
+  - UI 스타일(className/style) 모두 보존
+
+### 그 과정에서 같이 들어간 보강 (잠재 버그 미리 막음)
+- `c0f4e19` — StartModal 의 `?next` 파라미터를 OAuth 콜백 URL 로 forward
+- `c1f48be` — callback redirect 시 세션 쿠키 명시 복사 (middleware 의 `redirectWithCookies` 패턴) + 신규 가입자 분기에서도 next 보존 (`/start?new=true&next=...`) + `/start` 페이지가 가입 완료 시 next 사용
+- `d40ae32` — production 에서 callback origin 을 `https://www.unfoldk.com` 으로 하드코딩 (apex→www redirect 끼는 케이스 차단). 로컬은 `window.location.origin` 그대로
+- `7985bc3` / `9da347d` — callback 진단 로그 추가/제거 (한 사이클 마무리)
+
+### 검증 완료
+- production OAuth: 비로그인 `/calendar` → Report 클릭 → StartModal 인플레이스 → Continue with Google → 완주 후 `/calendar` 직행 ✅
+- callback 진단 로그가 모든 의심(인코딩·도메인·next 누락) 정상임을 입증한 후 제거
+
+### 다음 세션 후보
+- 다른 서비스(KpopStats artist / KdramaMatch drama / HangeulGo phrase / KfoodKit recipe) 에도 ReportButton 추가 — 새로 단순해진 비로그인 흐름이 그대로 적용됨
+- 어드민 reports 테이블 — content_id UUID 만 표시되는 부분에 콘텐츠 미리보기(이벤트 title 등) inline 추가
+- `app/calendar/page.tsx` 의 hydration 룰 적용 (admin 영역엔 적용됨, 일반 영역 미적용)
+
+### 블로커
+- 없음
+
+---
+
 ## 세션 회고 (2026-05-09 종료) — 16 커밋 누적
 
 오늘 한 세션 안에서 큰 작업 다수 처리. 시간 흐름 그대로:
