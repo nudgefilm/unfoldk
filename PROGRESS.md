@@ -4,6 +4,23 @@
 
 ---
 
+## 현재 상태 (2026-05-09 / YouTube query 완화 — "k-pop" 제거)
+
+- **완료**:
+  - **production `ingest-all` 재호출 진단** (정교화 후 첫 트리거):
+    - TMDB ✅ 환경변수 해결 — `TMDB_READ_ACCESS_TOKEN` Vercel 등록 완료. scanned 40 / upserted 0 (미래 first_air_date 매칭 0건 — 정상 결과)
+    - YouTube ⚠️ 정교화 효과 확인됐으나 부작용 — HUNTR/X·ENHYPEN 옛날 영상 모두 차단 ✅, 단 BTS·BLACKPINK·ATEEZ 정상 컴백도 함께 0건. **"k-pop" 키워드가 너무 좁힘**. BTS "arirang comeback live" 같은 영상 매칭 못 함
+  - **`lib/api/youtube.ts::searchUpcomingComebacks` query 완화**:
+    - `"<artist> k-pop comeback"` → `"<artist> comeback"`
+    - 미래 `scheduledStartTime` 검증은 유지 — 단독으로도 옛날 vlive 차단 충분 (직전 호출에서 검증)
+    - 주석에 변경 이유 박제
+- **다음 (사용자 작업)**:
+  1. 배포 반영 후 ingest-all 재호출 → 정상 컴백 영상이 다시 잡히는지 확인
+  2. 만약 HUNTR/X 같은 오매핑 재발하면 → 채널명 검증 추가 등 별도 보강
+- **블로커**: 없음
+
+---
+
 ## 현재 상태 (2026-05-09 / YouTube 컴백 검색 정교화 + 미래 검증)
 
 - **완료**:
@@ -22,6 +39,25 @@
   2. 배포 반영 후 `ingest-all` 재호출 → 9건이 어떻게 변하는지 진단 (오매핑 케이스 줄었는지)
   3. 잘못 인제스트된 기존 9건 中 옛날·오매핑 영상은 어드민(`/admin/events`) 에서 수동 삭제
 - **블로커**: 없음 (TMDB 환경변수는 외부 작업)
+- **다음 세션 후보**:
+  - **콘텐츠 신고 시스템 (전체 서비스 공통)**
+
+    **개요**: 유저가 잘못된 정보를 신고 → 어드민이 확인 후 수정/삭제
+
+    **신고 대상**:
+    - HallyuCalendar: 이벤트 (오매핑 / 날짜 오류 / 중복 / 취소된 이벤트)
+    - KpopStats: 아티스트 (잘못된 채널 / 통계 오류)
+    - KdramaMatch: 드라마 (잘못된 플랫폼 / 평점 오류 / 중복)
+    - HangeulGo: 학습 카드 (번역 오류 / 발음 오류 / 예문 부적절)
+    - KfoodKit: 레시피 (재료 오류 / 잘못된 드라마 연결)
+
+    **구현 범위**:
+    - DB: `content_reports` 테이블 — `content_type` (event/artist/drama/phrase/recipe), `content_id`, `user_id`, `reason`, `note`, `status`
+    - 공통 컴포넌트: `<ReportButton />` — 모든 서비스 페이지에 적용
+    - 유저 UI: 각 콘텐츠 상세 모달/카드 하단 "Report incorrect info" 버튼
+    - 어드민: `/admin/reports` 신규 페이지 — 서비스별 필터 + 승인/기각 처리
+
+    **우선순위**: HallyuCalendar 이벤트 신고부터 구현 후 나머지 서비스로 확대 적용 (오늘 ingest-all 진단에서 HUNTR/X 오매핑·ENHYPEN 옛날 vlive 케이스 발견 — 자동 검증으로 부족한 부분을 유저 신고로 보완)
 
 ---
 

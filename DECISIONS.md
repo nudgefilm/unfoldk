@@ -21,6 +21,21 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 YouTube query 완화 — `"k-pop" 제거`, 미래 검증만 유지
+
+- 결정 내용:
+  - `searchUpcomingComebacks` 의 query 정교화를 한 단계 완화:
+    - `${artistName} k-pop comeback` → `${artistName} comeback`
+  - 미래 `scheduledStartTime` 후처리 검증은 그대로 유지
+- 이유:
+  - 정교화 직후 ingest-all 재호출 결과: HUNTR/X 'Hunter x Hunter' 오매핑 / ENHYPEN 옛날 vlive 모두 차단 ✅, 단 **BTS·BLACKPINK·ATEEZ 정상 컴백도 0건**. 직전 호출에서 잡히던 BTS "arirang comeback live!" 같은 영상이 새 query 에 매칭 안 됨.
+  - 영상 제목에 `"k-pop"` 단어가 직접 포함되는 컴백 영상이 드뭄 — `"comeback"` 만으로도 동음 매칭 상당 부분 거를 수 있고, 미래 검증이 옛날 라이브 차단 책임을 단독으로 감당.
+  - 직전 호출에서 ENHYPEN 2021 vlive 가 "ENHYPEN comeback" 검색에 잡혔는데 미래 검증으로 events 배열에 안 들어감 — 미래 검증의 효과가 단독으로도 강력함을 production 데이터로 확인.
+- 대안으로 고려했던 것:
+  - **`"k-pop"` 유지하되 채널명 검증 추가** (HYBE LABELS, JYP Entertainment 등 공식 채널 화이트리스트): 정확도 더 높지만 화이트리스트 유지 부담 + 신생 아티스트·인디 그룹 누락. 단순 `"comeback"` + 미래 검증으로 충분.
+  - **현재 상태 유지하고 며칠 관찰**: 데이터 수집 미발생 = 사용자 가치 0. 즉시 완화가 합리적.
+  - **`"k-pop"` 대신 `"M/V"` 또는 `"official"` 키워드**: M/V 는 잘 매칭되지만 컴백 티저·라이브 빠짐. official 도 한정적. `"comeback"` 단일 키워드가 가장 폭 넓음.
+
 ## 2026-05-09 YouTube 컴백 검색 정교화 — query 보강 + 미래 scheduledStartTime 검증
 
 - 결정 내용:

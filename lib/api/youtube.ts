@@ -121,20 +121,20 @@ export interface YoutubeSearchResult {
   sampleTitle?: string
 }
 
-// 아티스트 이름으로 upcoming K-pop 컴백 검색
-//   - artistName 만 받아 내부에서 "k-pop comeback" 키워드 부착해 정교화
-//     (예: "HUNTR/X" 단독 검색 시 'Hunter x Hunter' 애니메이션 livestream 으로
-//      오매핑되던 케이스 방지)
+// 아티스트 이름으로 upcoming 컴백 검색
+//   - artistName 만 받아 내부에서 "comeback" 키워드 부착
+//     (이전 "k-pop comeback" 은 너무 좁아 정상 컴백 영상도 0건으로 차단됨 —
+//      BTS "arirang comeback live" 같은 결과가 매칭 안 됨. "comeback" 만 유지)
 //   - 후처리 검증: scheduledStartTime 이 현재 시각보다 미래인 것만 events 에 포함
 //     (YouTube API 의 eventType=upcoming 분류가 옛날 vlive 를 가끔 포함 — 2021년
-//      ENHYPEN VLive 가 미래로 잘못 분류되던 케이스 방지)
+//      ENHYPEN VLive 가 미래로 잘못 분류되던 케이스 방지. 미래 검증만으로도 차단됨)
 //   - 컴백 M/V 가 YouTube Premiere 로 예약되는 경우만 감지됨 (한계 명시)
 export async function searchUpcomingComebacks(
   artistName: string,
   maxResults = 5
 ): Promise<YoutubeSearchResult> {
   const youtube = getYoutubeClient()
-  const refinedQuery = `${artistName} k-pop comeback`
+  const refinedQuery = `${artistName} comeback`
 
   const searchRes = await youtube.search.list({
     part: ["snippet"],
