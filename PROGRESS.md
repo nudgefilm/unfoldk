@@ -4,6 +4,23 @@
 
 ---
 
+## 현재 상태 (2026-05-09 / Calendar 모달 Copy iCal Link 클립보드 + 피드백)
+
+- **완료**:
+  - `app/calendar/page.tsx::EventDetailModal` 의 Copy iCal Link 버튼:
+    - `icalCopyStatus` state + `icalResetTimerRef` ref 추가 (`"idle" | "copied" | "failed"`)
+    - `handleCopyIcal` — `navigator.clipboard.writeText` 로 placeholder URL `${origin}/api/calendar/ical/${event.id}` 복사
+    - 성공/실패 시 버튼 텍스트 → `"Copied!"` / `"Copy failed"` 2초간 → 원복 (setTimeout)
+    - useEffect cleanup 에 `icalResetTimerRef` 정리 추가 (모달 unmount 시 누수 방지)
+    - UI 무변경 — className/style 그대로, 버튼 텍스트만 조건부
+  - **헤더의 동명 버튼은 미수정** — `<Link href="/mypage/calendar">` navigate 디자인이라 의도적 유지 (사용자가 헤더도 동일 처리 원하면 별도 요청)
+- **다음 (사용자 작업)**:
+  1. 캘린더 진입 → 이벤트 클릭 → 모달의 Copy iCal Link 클릭 → "Copied!" 2초간 노출 + 클립보드에 placeholder URL 들어가는지 확인
+  2. (별도 작업) `/api/calendar/ical/[id]` 라우트 구현 — 현재 placeholder URL 만 복사
+- **블로커**: 없음
+
+---
+
 ## 현재 상태 (2026-05-09 / YouTube description fallback 제거 + 오매핑 데이터 정리)
 
 - **완료**:

@@ -45,6 +45,9 @@ function EventDetailModal({
   const [authChecked, setAuthChecked] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // iCal 복사 피드백 — "Copied!" 또는 "Copy failed" 2초간 표시 후 원복
+  const [icalCopyStatus, setIcalCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
+  const icalResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 모달 열릴 때 (event 변경) — 로그인 여부 확인 + 서버에서 리마인더 설정 로드
   useEffect(() => {
@@ -85,8 +88,25 @@ function EventDetailModal({
     return () => {
       cancelled = true
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      if (icalResetTimerRef.current) clearTimeout(icalResetTimerRef.current)
     }
   }, [event])
+
+  // Copy iCal Link 버튼 — 클립보드에 이벤트별 iCal feed URL 복사 + 2초간 상태 표시
+  // 운영 시 /api/calendar/ical/{id} 라우트 구현 예정. 현재는 placeholder URL.
+  const handleCopyIcal = async () => {
+    if (!event) return
+    const url = `${window.location.origin}/api/calendar/ical/${event.id}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setIcalCopyStatus("copied")
+    } catch (err) {
+      console.error("[calendar] iCal 복사 실패:", err)
+      setIcalCopyStatus("failed")
+    }
+    if (icalResetTimerRef.current) clearTimeout(icalResetTimerRef.current)
+    icalResetTimerRef.current = setTimeout(() => setIcalCopyStatus("idle"), 2000)
+  }
 
   // 토글 변경 시 300ms debounce 후 서버 저장
   const scheduleSave = (next: typeof reminders) => {
@@ -208,11 +228,16 @@ function EventDetailModal({
             <Calendar className="w-4 h-4 mr-2" />
             Add to Google Calendar
           </Button>
-          <Button 
+          <Button
             variant="outline"
             className="w-full py-3 rounded-xl font-medium border-border/50 hover:bg-secondary/50"
+            onClick={handleCopyIcal}
           >
-            Copy iCal Link
+            {icalCopyStatus === "copied"
+              ? "Copied!"
+              : icalCopyStatus === "failed"
+              ? "Copy failed"
+              : "Copy iCal Link"}
           </Button>
         </div>
 
