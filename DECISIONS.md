@@ -21,6 +21,181 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 Lemon Squeezy Switch Plan — updateSubscription + webhook 동기화
+
+- 결정 내용:
+  - **Switch Plan 라우트 분리**: `/api/lemonsqueezy/switch` 신규. 기존 `/checkout` 은 신규 결제 전용으로 유지.
+    - 기존 구독자(monthly ↔ annual 전환) → SDK `updateSubscription(subscriptionId, { variantId })` 로 기존 구독 prorate 변경.
+    - 미구독자가 실수로 switch 라우트 진입한 경우 → `/checkout` 으로 자동 위임 (fallback).
+  - **DB 동기화는 webhook 이 담당**: switch 라우트는 LMS API 호출만 하고 DB 직접 갱신 안 함. `subscription_updated` 이벤트가 plan_type/plan_expires_at 동기화. 이중 갱신·race 방지.
+  - **variant_id → plan_type 매핑은 env 관리**: `LEMONSQUEEZY_VARIANT_ID_MONTHLY=1628505`, `LEMONSQUEEZY_VARIANT_ID_ANNUAL=1628480`. 코드 하드코딩 금지.
+  - **webhook 신규 3 case**:
+    - `subscription_created`: order_created 가 이미 처리하므로 보강 로그만
+    - `subscription_updated`: Switch Plan / 관리자 변경 / variant 교체 동기화 — variant_id 로 plan_type 재매핑, `ends_at`(취소 예정) 우선·없으면 `renews_at`(다음 결제일) 으로 plan_expires_at 갱신
+    - `subscription_resumed`: cancel 이후 재구독 시 plan_type 복구
+  - **`SubscriptionAttributes` 인터페이스 확장**: `variant_id`, `renews_at`, `ends_at` 추가.
+  - **유저 식별 우선순위 유지**: `meta.custom_data.user_id` → `lms_subscription_id` lookup (기존 패턴 동일).
+- 이유:
+  - 기존 Switch Plan UI 가 `/checkout` 으로 redirect 했던 패턴은 LMS 가 새 구독을 추가 생성 → 한 유저가 월간·연간 둘 다 청구되는 **이중청구 발생**. `updateSubscription` 은 단일 구독을 prorate 변경해 이 문제 원천 차단.
+  - DB 갱신을 라우트가 아닌 webhook 에 위임하면 LMS 가 단일 진실의 원천(SoT). LMS API 호출은 성공했는데 우리 DB write 가 실패한 케이스가 발생해도 webhook 후속 이벤트(또는 자동 retry)로 재시도 가능.
+  - **variant ID env 관리**: KRW → USD 전환 시 LMS 가 variant 를 새로 발급할 가능성 — 코드 재배포 없이 env 만 수정해 대응 가능. 현재 LMS 심사 대기 중이라 이 유연성이 즉시 가치 있음.
+  - `ends_at` 우선: 취소 예정 상태가 항상 UI 에 먼저 노출돼야 사용자가 인지 가능.
+- 대안으로 고려했던 것:
+  - **switch 라우트에서 DB 도 즉시 갱신**: UI 가 즉시 새 plan 표시 가능하지만, race 발생 시 webhook 과 충돌. 신뢰성 우선으로 webhook 단일 갱신 채택.
+  - **variant ID 코드 상수화**: 단순하지만 USD 전환 시 코드 변경 + 재배포 필요. env 관리가 운영 민첩.
+  - **Switch Plan UI 에서 confirm modal**: MVP 단계 단순화 위해 즉시 LMS 호출. LMS 측 prorate 정책이 변경 시 자동 반영.
+  - **`subscription_created` 도 plan_type 재활성화 로직 추가**: order_created 와의 race 위험 + 중복 갱신 의미 없음. 보강 로그로만 두는 게 깔끔.
+
+## 2026-05-09 백필 결정 7건 (당시 박제 누락분)
+
+> ⚠️ 2026-05-08~05-09 사이에 내려진 결정들이 그때 DECISIONS.md 에 기록되지 않아 회고 박제. 본 블록은 메타 안내이고, 실제 결정은 아래 7개 항목으로 분리 기록.
+
+## 2026-05-09 migration 0012 unique 제약 idempotent 화 + 함수 index 폐기
+
+- 결정 내용:
+  - `kpop_artists.name` 에 함수 unique index `(lower(name))` 대신 일반 unique constraint 사용.
+  - 기존 함수 unique index 는 `drop index if exists` 로 정리 (부분 실행 환경 클린업).
+  - 시드 insert 의 `on conflict on constraint <이름>` → `on conflict (name)` 컬럼 inference 로 변경.
+  - 전체를 DO block 으로 감싸 멱등 보장.
+- 이유:
+  - `create unique index ... on (lower(name))` 는 INDEX 일 뿐 CONSTRAINT 가 아니라 `on conflict on constraint` 가 첫 실행 시 매칭 실패(42704 에러). 부분 실행 후 재시도해도 같은 위치에서 깨짐.
+  - 대소문자 dedup 가 명목상 목적이었지만, 시드 25명을 사람이 입력하므로 정규화는 코드(앱 레이어) 책임으로 옮김.
+  - DO block 멱등성은 다른 마이그레이션과 패턴 통일.
+- 대안으로 고려했던 것:
+  - 함수 unique index 유지 + `on conflict` 절을 `where lower(name) = lower(EXCLUDED.name)` upsert 로 우회: 시드만 가능하고 일반 INSERT 는 여전히 어색.
+  - 시드 자체를 어드민 입력으로 옮기기: MVP 단계에 부담 — 25명 핸들 채우기 자동화가 쉬움.
+
+## 2026-05-09 KpopStats (M+1) — DB·인제스트·공개 API·어드민 구조
+
+- 결정 내용:
+  - **DB**: `kpop_artists` (id, name, lastfm_name, youtube_channel_id, image_url, is_active) + `kpop_stats_daily` (artist_id, date, total_views, weekly_views, lastfm_listeners, lastfm_playcount). RLS: artists read 는 anon+auth (is_active 한정), stats_daily 동일. write 는 service_role.
+  - **인제스트 전략**: YouTube `channels.list` 50명/call (1 unit) — 25명 시드면 1 call. Last.fm `artist.getInfo` 는 N call(병렬 6 limit). weekly_views 는 `now()` total_views 와 7일전 row 의 total_views 차이로 계산.
+  - **시드**: 25명 lastfm_name 만 채워 두고 youtube_channel_id 는 NULL → 어드민이 `/admin/kpop` 에서 입력. 채널 ID 검증은 단건 Refresh 버튼으로 즉시 확인.
+  - **공개 API plan-based 노출**:
+    - `/api/kpop/artists` — 활성 목록 + 검색(q) + 최신 stats join, 비회원 5 / 로그인 10 / 유료 20
+    - `/api/kpop/artists/[id]` — 상세 + 30일 히스토리
+    - `/api/kpop/charts` — weekly_views 정렬 + 7일전 비교로 rank_change
+  - **UI 분기**: `/kpop` 비회원 Top 5 / Free Top 10 / 유료 Top 20. spotlight 는 클릭 시 30일 트렌드 SVG (별도 차트 라이브러리 없이 path 직접). Pro 잠금 overlay 는 유료 유저에게 숨김.
+  - **YouTube GCP 프로젝트**: HallyuCalendar 와 동일한 UnfoldK 전용 GCP 프로젝트 재활용 (CLAUDE.md §8 명시 — tubewatch.kr 와 분리).
+- 이유:
+  - YouTube `channels.list` 가 50명/call 1 unit 으로 매우 효율적 — 일일 10,000 unit 한도에 비하면 무시 가능. 다른 cron 들과 합산해도 전체 사용률 < 20%.
+  - weekly_views 를 매번 계산하지 않고 stats_daily 에 미리 저장: 차트 API 가 단순 select + sort 로 끝남, P95 latency 안정.
+  - 비회원/Free/유료 단계가 KdramaMatch 추천 API(anon 6/free 12/paid 100) 와 의도적 일관: 사용자가 plan upgrade 동기를 모든 서비스에서 동일한 형태로 경험.
+- 대안으로 고려했던 것:
+  - 차트 API 가 stats_daily 매 query 마다 7일전 비교 SQL: 인제스트 시점 1회 계산 vs API 시점 N회 — 후자는 read 부하.
+  - YouTube 시드를 lastfm 트렌딩으로 자동: 계정 매핑 정확도가 낮아 어드민 검수 단계 필수 → 수동 입력으로 결정.
+  - Top 50 까지 노출: 데이터가 25명뿐이라 의미 없음. 시드 확장 후 재논의.
+
+## 2026-05-09 /mypage/subscription — plan_type 분기 + Switch Plan 양방향
+
+- 결정 내용:
+  - 사이드바 mock("Mia T.") 제거 → Google `full_name` + avatar_url. avatar 없으면 이니셜 fallback.
+  - Free 유저 화면: "You're on the Free plan" + 업그레이드 카드 2개(Monthly $15 / Annual $120) + 쿠폰 보유자용 `/redeem` 안내.
+  - 유료 유저 화면: Active 카드 + Switch Plan **양방향**(자기 플랜은 Current 라벨, 반대편은 Switch 버튼) + Billing History (mock 유지).
+  - planExpiresAt 있을 때만 "Active until / Cancel after" 표시.
+  - Billing History 는 LMS API 동기화 미구현 — v0 mock 유지 (spec).
+- 이유:
+  - 기존엔 mock 으로 모든 유저에게 Hallyu Pass Active 가 보여 전환율·신뢰성 양쪽 손상. plan_type 분기는 Lemon Squeezy 도입 직후 우선순위 1.
+  - Switch Plan 양방향은 v0 디자인이 한 방향(annual 전용)만 그려 둔 상태였는데, 사용자 직접 요청으로 monthly→annual / annual→monthly 모두 대칭화. UI 클래스/스타일 무변경 원칙 준수.
+- 대안으로 고려했던 것:
+  - Billing History 도 LMS `getOrders` 로 채우기: webhook 만으로 충분히 동기화 가능하지만 페이지네이션·실패 복구가 추가 작업 — Phase 5 후속으로 분리.
+  - Switch 버튼 클릭 시 confirm modal: MVP 단계에선 즉시 LMS 결제 페이지 이동으로 단순화 (LMS 호스팅 페이지에서 한 번 더 확인 받음).
+
+## 2026-05-08 결제 — Stripe → Lemon Squeezy 전환 (CLAUDE.md §2 정정)
+
+- 결정 내용:
+  - **CLAUDE.md §2 의 "결제는 반드시 Stripe 사용. TossPayments 사용 금지" 규정을 Lemon Squeezy 로 변경.**
+  - `@lemonsqueezy/lemonsqueezy.js` 4.0.0 채택. SDK 초기화 + 체크아웃 URL 빌더 + 호스팅 결제 페이지 redirect.
+  - Webhook: HMAC-SHA256 raw body 서명 검증(timingSafeEqual). 처리 이벤트 — `order_created`(plan_type 활성화 + LMS ID 저장) / `subscription_cancelled`(plan_type='free') / `subscription_payment_failed`(Resend 안내 메일).
+  - DB: migration 0011 — `users.lms_customer_id / lms_subscription_id / lms_order_id` 컬럼 추가.
+  - 회원가입 진입(`/start`)이 Free→/mypage, 유료→/api/lemonsqueezy/checkout 으로 분기. complete-signup 은 항상 plan_type='free' 락인(webhook 이 결제 시 업그레이드).
+  - 운영 환경변수: `LEMONSQUEEZY_API_KEY` / `LEMONSQUEEZY_STORE_ID` / `LEMONSQUEEZY_WEBHOOK_SECRET` / `NEXT_PUBLIC_LMS_MONTHLY_URL` / `NEXT_PUBLIC_LMS_ANNUAL_URL`.
+- 이유:
+  - **Merchant of Record (MoR) 모델**: Lemon Squeezy 가 글로벌 세금(VAT/GST/sales tax)·인보이스·환불을 모두 대신 처리. UnfoldK 는 영어권+동남아 타깃이라 국가별 세무 컴플라이언스가 Stripe 직접 결제 대비 압도적으로 단순.
+  - **계정 셋업 속도**: Stripe 한국 계정은 사업자등록·대표자 검증 등 며칠 단위. Lemon Squeezy 는 즉시 가능 → MVP 출시 일정에 부합.
+  - **호스팅 체크아웃 페이지 기본 제공**: Stripe Checkout 도 비슷하지만 LMS 는 추가 설정 없이 도메인·로고·약관까지 한 번에. 개발 시간 절약.
+  - **수수료**: LMS 5% + 50¢/거래 vs Stripe 2.9% + 30¢ + (글로벌 세무 별도 처리 비용). MoR 비용 포함 시 LMS 가 비슷하거나 우위.
+- 대안으로 고려했던 것:
+  - **Stripe + Stripe Tax**: 세무 자동화 가능하지만 별도 구독($120+ 부터)·국가별 등록 의무 잔존. MoR 가 아님.
+  - **Paddle**: LMS 와 유사한 MoR. 신청 심사 더 길고 한국 셀러 승인 속도 약함.
+  - **TossPayments**: CLAUDE.md §13 에 "해외 유저 경험 불량" 으로 이미 제외. 변동 없음.
+
+## 2026-05-08 쿠폰 시스템 + 팬 행사 승인 자동 발급
+
+- 결정 내용:
+  - **DB**: migration 0009 — `coupons` 테이블 (code unique, plan_type, granted_to user_id, granted_for fan_event_request_id, used_at, expires_at) + `users.plan_expires_at`.
+  - **RLS**: 본인 사용 쿠폰만 select, admin 전체 read/update, insert/delete 는 service_role 전용.
+  - **코드 형식**: 8자리 `XXXX-XXXX` (0/O/I/1 제외 — 손글씨/OCR 혼동 방지). DB unique 충돌 시 자동 재시도.
+  - **이메일 발송**: Resend HTML+text. 브랜드 컬러(#FF4B6E) + 사용 안내(`/redeem`).
+  - **승인 라우트 흐름**: 캘린더 이벤트 등록 → 쿠폰 발급 → 이메일 발송. 각 단계 실패해도 승인 자체는 유지하고 warning 누적(승인을 롤백하면 어드민이 재처리해야 하는 부담).
+  - **`/api/auth/apply-coupon`**: code 정규화(toUpperCase) + 조건부 update(used_at IS NULL AND granted_to = ?) 로 동시 적용 차단.
+  - **`/redeem` 페이지 신설**: v0 subscription UI 보존을 위해 별도 페이지로 분리(subscription 페이지 안에 redeem 폼 끼워넣으면 v0 디자인 변형 발생).
+  - **운영 환경변수**: `RESEND_API_KEY` + `RESEND_FROM_EMAIL`. 도메인 verify 전엔 `onboarding@resend.dev` 우회 가능.
+- 이유:
+  - 팬 행사 승인 = 쿠폰 발급 = 플랜 무료 부여 → 이 3단계가 자주 누락되면 운영 불편. 자동화 + 부분 실패 허용 패턴이 운영 리스크 최소.
+  - 사용자/admin/service_role 3단 RLS 는 0001 init 부터의 패턴과 일관.
+  - 코드에 0/O/I/1 제외는 사용자가 음성 안내·수기 입력 시 흔히 혼동 — 발급량 감소 미미.
+- 대안으로 고려했던 것:
+  - 쿠폰을 별도 promo_codes 와 redemption_log 두 테이블로 분리: 감사·여러 명 사용 케이스에 유리. 1인 1회 사용 모델이라 단일 테이블로 충분.
+  - Resend 대신 Supabase Auth email templates: 트랜잭션 마케팅 메일 분리·템플릿 자유도 위해 Resend 유지.
+  - Stripe 쿠폰 기능 사용: 결제수단을 LMS 로 전환했으므로 사용 불가 + 자체 발급 시스템이 더 유연.
+
+## 2026-05-08 AI 이벤트 한 줄 설명 — Claude Haiku 4.5 인제스트 통합
+
+- 결정 내용:
+  - `lib/claude/generate-event-description.ts` — Haiku 4.5 호출. system prompt 에 cache_control: ephemeral 부착(현재 ~600 토큰 → Haiku 캐시 임계값 4096 미만이라 silent no-op, 추후 프롬프트 확장 시 자동 활성).
+  - `lib/ingest/{tmdb,youtube}.ts` 가 upsert 직전 `Promise.all` 로 Claude 호출 병렬 실행. Claude 실패 시 source description (TMDB overview / YouTube 영상 설명) fallback.
+  - `lib/ingest/lastfm.ts` 는 이벤트 직접 생성 안 하므로 변경 없음.
+  - 어드민 events-manager + 캘린더 EventDetailModal 에 description 한 줄 노출.
+  - migration 0008: description 컬럼 idempotent 보장 (0001 에 이미 존재했음 — 0008 은 안전망).
+  - **비용 최적화** (후속 commit `cbdafb3`): 기존 description 있는 이벤트는 Claude 호출 skip — 재인제스트 시 같은 이벤트에 중복 호출 방지.
+  - `@anthropic-ai/sdk` 0.95.1 설치.
+- 이유:
+  - TMDB overview / YouTube 영상 설명은 너무 길고 마케팅 톤이 일관되지 않음. Haiku 한 줄 요약으로 캘린더 카드에 적합한 hook 텍스트 생성.
+  - cache_control 사전 부착은 향후 프롬프트가 4096 토큰을 넘기면 자동으로 캐시 hit 되는 free upgrade — 비용·지연 양쪽 보험.
+  - 인제스트 시 1회 호출 + DB 저장 → 페이지 노출은 캐시된 결과로 제로 코스트.
+- 대안으로 고려했던 것:
+  - 페이지 렌더 시점 호출: 첫 방문에 latency 추가 + 비용 폭증 가능성. 인제스트 시 사전 생성이 안전.
+  - GPT 등 타 모델: CLAUDE.md §2 가 Claude API 로 확정(Haiku 4.5). 일관성 유지.
+  - 사람이 직접 작성: 인제스트가 매일 수십~수백 건 → 비현실적.
+
+## 2026-05-08 인증 플로우 개편 — Start 단일화 + 약관 동의 분리
+
+- 결정 내용:
+  - **진입점 통합**: "Log in" / "Try for Free" → 단일 "Start" 버튼. Header(데스크톱·모바일), Hero, CTA 모든 자리에서 동일한 `StartModal` 트리거.
+  - **StartModal**: Google OAuth 진입만 담당. 신규/기존 분기는 **callback 에서** `users.agreed_to_terms` 조회로 결정.
+  - **신규**: `/start` 페이지로 이동 → 플랜 선택(Free/Monthly/Annual) + 약관 동의 → `/api/auth/complete-signup` 이 plan_type/agreed_to_terms/agreed_at 업데이트.
+  - **기존**: callback 의 next 파라미터로 직진 (`/mypage` 또는 deep link).
+  - **migration 0007**: `users.agreed_to_terms boolean` + `agreed_at timestamptz`. 기존 유저는 `agreed_to_terms=true` 로 백필(이미 가입한 사람을 재동의 강제하면 UX 폭격).
+  - **`/login`, `/signup` 폐지**: 둘 다 `/` 로 자동 리디렉트만 수행. 외부에서 들어오는 옛 링크 호환.
+- 이유:
+  - 한국·영어권·동남아 모두에서 "Login vs Sign up" 분리 UI 가 컨버전 깎는 원인 — Stripe Atlas/Linear 등 최신 SaaS 가 Start 단일화로 통일된 패턴.
+  - 약관 동의를 가입 폼에서 분리하면 Google OAuth 직후 한 번만 받게 돼 신규 유저 전환 단계가 줄어듦.
+  - callback 에서 agreed_to_terms 조회로 분기: 신규/기존 판별을 DB 스냅샷으로 결정 → OAuth metadata 만으로 분기하는 fragile 한 방식 회피.
+- 대안으로 고려했던 것:
+  - 기존 /signup 폼 유지 + 약관 체크박스만 분리: 진입점 두 개 유지로 컨버전 분산. Start 단일화 효과 못 봄.
+  - agreed_to_terms 필드 없이 raw_user_meta_data 사용: trigger 로 자동 백필이 어렵고, RLS 에서 직접 참조하기도 불편.
+  - 신규 가입자에게도 `/mypage` 즉시 노출 + 약관은 모달: 약관 미동의 상태로 데이터 적재되는 시간 발생 → 법무 리스크.
+
+## 2026-05-08 HallyuCalendar M+0 Phase 4 — 어드민 시스템
+
+- 결정 내용:
+  - **DB**: migration 0005 — `users.is_admin boolean`(기본 false), `fan_event_requests`(신청 폼 데이터 + status enum + admin_note + proof_url), `cron_logs`(route, started_at, finished_at, status, scanned, upserted, errors). RLS 8개 정책.
+  - **권한 모델**: 환경변수 화이트리스트 대신 **`users.is_admin` 플래그** 채택. SQL 한 줄로 부여/박탈 가능, 다중 어드민 확장 자연.
+  - **middleware**: `/admin/*` 가드 — 미로그인→`/login`, 비관리자→`/`(접근 거부 토스트 표시).
+  - **`/admin` 5페이지**: 대시보드(MRR/MAU 카드), 유저 관리(검색·플랜·is_admin 토글), 이벤트 CRUD(수동 등록·편집·삭제), 팬 행사 승인·거절, Cron 모니터(수동 실행 프록시 + 최근 로그).
+  - **`/api/admin/*` 5라우트** + `requireAdmin` 헬퍼(중복 체크 제거).
+  - **footer ©를 진입점**으로 wrap: 어드민 진입을 일반 사용자에게 노출하지 않으려 footer 저작권 표기를 클릭 영역으로 사용.
+  - **cron 라우트 instrumentation**: 기존 ingest-all/send-reminders 가 실행 결과를 `cron_logs` 에 기록. 어드민 Cron 페이지에서 실패·성공 패턴 가시화.
+- 이유:
+  - 환경변수 화이트리스트는 신규 어드민 추가/박탈 시 배포 필요 — DB 플래그가 운영 민첩.
+  - footer ©를 진입점으로 사용: 일반 사용자에게 admin 링크 노출하지 않고도 직관적 진입 가능. URL 직접 입력도 함께 지원.
+  - cron_logs 는 send-reminders 발송 실패 추적·인제스트 0건 알림 등 운영 관측에 즉시 활용.
+- 대안으로 고려했던 것:
+  - 환경변수 `ADMIN_EMAILS` 화이트리스트: 신뢰성 있지만 운영 민첩성 부족.
+  - Supabase Dashboard 만 사용 + 어드민 페이지 미구현: 비기술 스태프가 사용 못 함. 팬 행사 승인 같은 워크플로는 UI 필수.
+  - `/admin` 진입을 `?admin=1` 쿼리 토글로: 보안 effect zero, footer 진입이 더 단순.
+
 ## 2026-05-09 KdramaMatch (M+2) — 데이터·API·UI 연동
 
 - 결정 내용:

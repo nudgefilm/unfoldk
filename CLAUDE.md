@@ -30,15 +30,15 @@
 | 백엔드 | Python FastAPI | Railway 배포 |
 | DB | Supabase (PostgreSQL) | Auth 포함 |
 | 인증 | Supabase Auth | Google OAuth, Apple OAuth, 이메일 로그인 |
-| 결제 | Stripe | 글로벌 결제. TossPayments 사용 금지 |
+| 결제 | Lemon Squeezy | Merchant of Record. 글로벌 세금·인보이스·환불 대행. TossPayments 사용 금지 |
 | 프론트 배포 | Vercel | |
 | 백엔드 배포 | Railway | |
 | AI | Claude API (Haiku 4.5) | $1/$5 per 1M 토큰, 배치 API 활용 |
 | TTS | ElevenLabs Creator | HangeulGo 전용, $22/월 |
 | 이메일 | Resend | 무료 3,000건/월 |
 
-> ⚠️ 결제는 반드시 Stripe 사용. TossPayments는 해외 유저 경험 불량으로 제외 확정.
-> ⚠️ **현재 백엔드 SDK 미설치 상태** — `@supabase/*`, `stripe`, `@anthropic-ai/sdk`, `resend`, `googleapis` 등은 package.json에 없음. M+0 API 연동 시작 시점에 설치 예정.
+> ⚠️ 결제는 Lemon Squeezy(MoR)로 확정 — 2026-05-08 Stripe 에서 전환. 자세한 내용은 DECISIONS.md 참조. TossPayments 는 해외 유저 경험 불량으로 영구 제외.
+> ⚠️ 백엔드 SDK 설치 완료 — `@supabase/*`, `@lemonsqueezy/lemonsqueezy.js`, `@anthropic-ai/sdk`, `resend`, `googleapis` 등 package.json에 반영됨.
 
 ### UI 시스템 (확정)
 - **shadcn/ui** (style: `new-york`, base: `neutral`, RSC on) — `components.json` 기준
@@ -206,7 +206,7 @@ users
 
 subscriptions
   id, user_id, plan_type, billing_cycle(monthly/annual),
-  starts_at, expires_at, stripe_subscription_id
+  starts_at, expires_at, lms_subscription_id
 
 hallyu_calendar_events
   id, type(comeback/drama/concert/fanmeet),
@@ -353,7 +353,7 @@ UnfoldKorea/
 └── styles/
 ```
 
-> ※ `app/api/` 없음, `lib/supabase.ts`/`lib/stripe.ts`/`types/`/`docs/` 모두 미생성. 백엔드 연동 시점에 추가.
+> ※ `app/api/` 없음, `lib/supabase.ts`/`lib/lemonsqueezy.ts`/`types/`/`docs/` 모두 미생성. 백엔드 연동 시점에 추가.
 
 ### 11-B. 목표 구조 (Target, M+0 완료 시점)
 
@@ -369,13 +369,13 @@ UnfoldKorea/
 │       ├── calendar/               ← HallyuCalendar API
 │       ├── kpop/, drama/, korean/, food/
 │       ├── auth/                   ← Supabase Auth 콜백
-│       └── stripe/                 ← 결제 웹훅
+│       └── lemonsqueezy/           ← 결제 웹훅
 ├── components/
 │   ├── common/                     ← navbar, footer 이동
 │   └── [service]/                  ← 서비스별 컴포넌트
 ├── lib/
 │   ├── supabase.ts                 ← 클라이언트 초기화
-│   ├── stripe.ts
+│   ├── lemonsqueezy.ts
 │   ├── api/                        ← 외부 API 래퍼 (youtube, tmdb, lastfm, ...)
 │   └── utils/                      ← utils.ts에서 폴더로 확장
 ├── types/                          ← 공용 타입
@@ -394,7 +394,7 @@ UnfoldKorea/
 - [ ] unfoldk.com 상표권 출원 (kipris.or.kr 선행 조회)
 - [ ] Supabase RLS 설정 확인 — 배포 전 필수
 - [ ] API 키 노출 여부 — 배포 전 전체 코드 검토
-- [ ] Stripe 계약 완료 확인
+- [ ] Lemon Squeezy 계약 완료 확인 (Store ID, API Key, Webhook Secret 운영 환경변수 등록)
 - [ ] MyDramaList 상업적 사용 조건 별도 협의
 ```
 
@@ -410,7 +410,7 @@ UnfoldKorea/
    → 2025.05부터 법인 계정 필수. Last.fm으로 대체
 
 ❌ TossPayments 사용
-   → 해외 유저 대상 서비스. Stripe로 확정
+   → 해외 유저 대상 서비스. Lemon Squeezy로 확정
 
 ❌ 서비스별 별도 users 테이블 생성
    → Hallyu Pass 통합 구독 구현 불가

@@ -325,7 +325,7 @@ export default function SubscriptionPage() {
                     </div>
                     <p className="text-muted-foreground text-sm mb-4">Billed monthly. Cancel anytime.</p>
                     {planType !== "monthly" && (
-                      <a href="/api/lemonsqueezy/checkout?plan=monthly">
+                      <a href="/api/lemonsqueezy/switch?plan=monthly">
                         <Button
                           className="w-full rounded-full font-medium text-white"
                           style={{ backgroundColor: "#FF4B6E" }}
@@ -359,7 +359,7 @@ export default function SubscriptionPage() {
                     </div>
                     <p className="text-muted-foreground text-sm mb-4">$120/year, billed annually</p>
                     {planType !== "annual" && (
-                      <a href="/api/lemonsqueezy/checkout?plan=annual">
+                      <a href="/api/lemonsqueezy/switch?plan=annual">
                         <Button
                           className="w-full rounded-full font-medium text-white"
                           style={{ backgroundColor: "#FF4B6E" }}
