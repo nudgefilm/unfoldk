@@ -4,6 +4,22 @@
 
 ---
 
+## 현재 상태 (2026-05-09 / 어드민 이벤트 description 자동 생성 — 안전 모드)
+
+- **완료**:
+  - **`lib/claude/generate-event-description.ts`** — `generateSafeEventDescription(artistOrDrama, type, eventDate)` 신규
+    - 별도 `SAFE_SYSTEM_PROMPT` — 앨범명·장소·가격·에피소드 등 사실 미검증 정보 강력 금지
+    - 1~2 문장, 영어, "Check official channels for details." 폴백 문구 강제
+    - 기존 함수와 동일 패턴 (Anthropic client, claude-haiku-4-5, cache_control, 300자 안전망, null fallback)
+  - **`app/api/admin/events/route.ts` (POST)** — description 비어있으면 자동 생성 후 insert
+  - **`app/api/admin/events/[id]/route.ts` (PATCH)** — description 이 빈 문자열·null 로 들어오면 자동 생성. 자동 생성에 필요한 필드(artist_or_drama, type, event_date)가 body 에 없으면 DB 에서 채워서 호출
+- **다음 (사용자 작업)**:
+  1. 로컬 또는 production `/admin/events` 에서 description 비운 채로 이벤트 저장 → DB 의 description 컬럼에 안전 문구 채워지는지 확인
+  2. 캘린더 모달에 자동 생성 description 노출 검증
+- **블로커**: 없음
+
+---
+
 ## 현재 상태 (2026-05-09 / YouTube 자동 인제스트 운영 정책 결정 — A안 채택)
 
 - **완료**:

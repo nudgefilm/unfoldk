@@ -21,6 +21,27 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-09 어드민 이벤트 description 자동 생성 — 안전 모드 (`generateSafeEventDescription`)
+
+- 결정 내용:
+  - **`lib/claude/generate-event-description.ts` 안에 별도 함수 `generateSafeEventDescription` 추가** — 같은 파일·같은 패턴 유지하되 SYSTEM_PROMPT 분리.
+  - 시그니처 `(artistOrDrama, type, eventDate)` — title 안 받음. 어드민 입력 title 은 사실 검증 안 됐으니 프롬프트에서 사용 금지.
+  - **사실 미검증 정보 강력 금지**: 앨범명·노래명·장소·가격·에피소드 수·투어명·줄거리. 프롬프트에 enumerate 해 모델이 적극적으로 회피하도록.
+  - **폴백 문구 강제**: "Check official channels for details." 또는 "See official sources for the latest info." — 이게 1~2 문장의 두 번째 문장으로 항상 들어감. 사용자가 "X의 Y 이벤트입니다. 자세한 내용은 공식 채널을 확인하세요." 패턴으로 명시한 안전 톤.
+  - **POST/PATCH 양쪽 통합**:
+    - POST: description 빈 채로 들어오면 자동 생성 후 insert
+    - PATCH: description 이 명시적 빈 문자열·null 일 때만 자동 생성. body 에 description 필드 자체가 없으면 변경 안 함 (기존 값 유지).
+    - PATCH 자동 생성 시 artist_or_drama/type/event_date 가 body 에 없으면 DB SELECT 로 채움 — 부분 수정 케이스 견고화.
+- 이유:
+  - **인제스트 vs 어드민 입력 신뢰도 차이**: 인제스트 source title 은 외부 API 가 검증한 실제 영상·드라마 메타데이터 → 마케팅 카피 자유롭게 가능. 어드민 수동 입력 title 은 검증 안 됨 → 같은 톤으로 생성하면 환각 위험 (예: "BTS의 신곡 X 가 발매됩니다" 인데 X 가 가짜).
+  - **별도 함수 vs 옵션 매개변수**: 옵션은 호출 측이 매번 정확히 지정해야 하는 부담 + 실수 위험. 별도 함수는 의도가 함수 이름에 박힘 → 어드민 코드에서 잘못된 함수 호출 시 lint 단계에서 즉시 보임.
+  - **PATCH 의 "부분 수정 + DB 보강" 패턴**: 어드민이 "description 만 비웠어요" 케이스에도 자동 생성이 작동해야 함. body 에 description 만 보낸 경우 artist/type/date 는 DB 에 있는 기존 값으로 자동 생성. 사용자 마찰 0.
+- 대안으로 고려했던 것:
+  - **단일 함수에 mode 매개변수 추가** (`mode: "rich" | "safe"`): cache_control 키가 SYSTEM_PROMPT 통째로 잡혀 캐시 효과 분리되긴 하나 의미는 같음. 단 호출 측 호출 시 매번 mode 명시 필요 — 누락 위험. 별도 함수가 더 안전.
+  - **PATCH 자동 생성 안 함** (POST 만 처리): 어드민 흐름 일관성 깨짐. 수정 화면에서도 description 비우면 자동 생성이 직관적.
+  - **title 도 프롬프트에 포함**: 사용자 명시 "아티스트명, 이벤트 유형, 날짜만 기반". title 은 어드민이 임의로 적은 문자열이라 사실 검증 안 됨 → 모델이 title 의 단어를 진실로 받아들여 환각할 위험 → 프롬프트에서 의도적으로 제거.
+  - **폴백 문구 강제 안 함**: 사용자 명시 패턴이 "공식 채널 확인하세요" 마무리 — 강제하면 톤이 약간 단조롭지만 신뢰도 일관 + 사용자가 자동 생성된 것임을 자연스럽게 인지.
+
 ## 2026-05-09 YouTube 자동 인제스트 운영 정책 — 현 상태 유지 + 어드민·신고로 보완
 
 - 결정 내용:

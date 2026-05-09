@@ -2,6 +2,10 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireAdmin } from "@/lib/admin/auth"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
+import {
+  generateSafeEventDescription,
+  type EventType,
+} from "@/lib/claude/generate-event-description"
 
 export const dynamic = "force-dynamic"
 
@@ -37,6 +41,45 @@ export async function PATCH(
   }
 
   const supabase = createSupabaseAdminClient()
+
+  // description 이 명시적으로 비어 들어왔으면 Claude Haiku 안전 모드로 자동 생성 시도
+  // 자동 생성에 필요한 artist_or_drama / type / event_date 가 body 에 없으면 DB 에서 채움
+  const desc = parsed.data.description
+  const isEmptyDesc =
+    desc === null ||
+    (typeof desc === "string" && desc.trim().length === 0)
+
+  if (isEmptyDesc) {
+    let artistOrDrama = parsed.data.artist_or_drama
+    let type = parsed.data.type
+    let eventDate = parsed.data.event_date
+    if (!artistOrDrama || !type || !eventDate) {
+      const { data: existing } = await supabase
+        .from("hallyu_calendar_events")
+        .select("artist_or_drama, type, event_date")
+        .eq("id", id)
+        .single()
+      const row = existing as {
+        artist_or_drama?: string
+        type?: string
+        event_date?: string
+      } | null
+      if (row) {
+        artistOrDrama = artistOrDrama ?? row.artist_or_drama
+        type = (type ?? row.type) as typeof type
+        eventDate = eventDate ?? row.event_date
+      }
+    }
+    if (artistOrDrama && type && eventDate) {
+      const generated = await generateSafeEventDescription(
+        artistOrDrama,
+        type as EventType,
+        eventDate
+      )
+      if (generated) parsed.data.description = generated
+    }
+  }
+
   const { data, error } = await supabase
     .from("hallyu_calendar_events")
     .update(parsed.data)

@@ -95,3 +95,88 @@ export async function generateEventDescription(
     return null
   }
 }
+
+// ============================================================
+// 어드민 수동 입력 이벤트용 — 사실 확인 안 된 구체 정보 금지 (안전 모드)
+// ============================================================
+//
+// 차이점:
+// - 인제스트(rich) 모드는 source title 이 검증된 외부 API 결과물이라 마케팅 카피 자유로움.
+// - 어드민 수동 입력은 title/artist/date 만 검증됨. 앨범명·장소·가격·에피소드 등은
+//   추측 금지 — 1~2문장 안전 안내 + "공식 채널 확인" 지향.
+
+const SAFE_SYSTEM_PROMPT = `You are a copywriter for UnfoldK, a Hallyu (Korean wave) calendar service for English-speaking K-pop and K-drama fans worldwide.
+
+This description is for a MANUALLY-ENTERED event where ONLY the artist/drama name, event type, and date are verified. Anything else (album name, song title, venue, ticket price, episode number, plot detail) CANNOT be assumed and must NOT be invented.
+
+Strict rules:
+- Output 1-2 short sentences in English, maximum 200 characters total.
+- Use ONLY the provided artist/drama name, event type, and date.
+- Do NOT mention albums, songs, venues, prices, episode counts, tour names, or any other specifics.
+- Always end with a fallback like "Check official channels for details." or "See official sources for the latest info."
+- Plain English only — no Korean characters, no markdown, no emojis, no surrounding quotes, no preamble.
+- Friendly but neutral tone — avoid hype superlatives that could mislead.
+
+Examples:
+- comeback (BTS, 2026-06-15): BTS has a comeback event scheduled for June 15, 2026. Check official channels for details.
+- drama (Queen of Tears, 2026-07-01): A Queen of Tears event is scheduled for July 1, 2026. See official sources for the latest info.
+- concert (BLACKPINK, 2026-09-20): BLACKPINK has a concert scheduled for September 20, 2026. Check official channels for details.
+- fanmeet (NewJeans, 2026-08-10): NewJeans has a fanmeet planned for August 10, 2026. See official channels for the latest details.`
+
+export async function generateSafeEventDescription(
+  artistOrDrama: string,
+  type: EventType,
+  eventDate: string
+): Promise<string | null> {
+  try {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 200,
+      system: [
+        {
+          type: "text",
+          text: SAFE_SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      messages: [
+        {
+          role: "user",
+          content: `Type: ${type}\nArtist or Drama: ${artistOrDrama}\nDate: ${eventDate}\n\nWrite the description.`,
+        },
+      ],
+    })
+
+    const textBlock = response.content.find(
+      (b): b is Anthropic.TextBlock => b.type === "text"
+    )
+    if (!textBlock) return null
+
+    const description = textBlock.text.trim()
+    if (description.length === 0) return null
+
+    // 1~2 문장 + 안내 fallback 까지 포함하면 200자 빠듯할 수 있어 300자로 안전망
+    if (description.length > 300) {
+      console.warn(
+        "[claude/generate-safe-event-description] 응답이 300자 초과 — null 반환:",
+        description.slice(0, 50)
+      )
+      return null
+    }
+
+    return description
+  } catch (err) {
+    if (err instanceof Anthropic.APIError) {
+      console.error(
+        `[claude/generate-safe-event-description] API error ${err.status}:`,
+        err.message
+      )
+    } else {
+      console.error(
+        "[claude/generate-safe-event-description] 예외:",
+        err instanceof Error ? err.message : String(err)
+      )
+    }
+    return null
+  }
+}
