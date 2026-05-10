@@ -6,7 +6,6 @@
 // Artist Comparison 섹션은 v0 그대로 (Pro 잠금)
 
 import { useEffect, useMemo, useState } from "react"
-import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Search, TrendingUp, TrendingDown, Minus, Lock } from "lucide-react"
@@ -219,8 +218,6 @@ export default function KpopStatsPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }}>
-      <Header />
-
       <main className="max-w-[1200px] mx-auto px-6 py-12">
         {/* Page Header */}
         <section className="text-center mb-12">

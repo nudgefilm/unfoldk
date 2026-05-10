@@ -1,5 +1,4 @@
 import React from "react"
-import { Header } from "./header"
 import { GhostGlobe } from "./ghost-globe-dynamic"
 import { HeroCTAButtons } from "./hero-cta-buttons"
 
@@ -430,11 +429,6 @@ export function HeroSection() {
             </clipPath>
           </defs>
         </svg>
-      </div>
-
-      {/* Header positioned at top of hero container */}
-      <div className="absolute top-0 left-0 right-0 z-20">
-        <Header />
       </div>
 
       {/* Ghost globe — 3D 와이어프레임 지구본 (한국 하이라이트 + 세계 수도 마커) */}

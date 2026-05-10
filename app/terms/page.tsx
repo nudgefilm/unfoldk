@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 
 export default function TermsPage() {
@@ -9,8 +8,6 @@ export default function TermsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-      
       <main className="max-w-[800px] mx-auto px-5 py-16 md:py-24">
         {/* Title */}
         <h1 className="text-4xl md:text-5xl font-bold text-white text-center mb-3">

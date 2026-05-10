@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,8 +45,6 @@ export default function KfoodKitPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0d0d0f" }}>
-      <Header />
-      
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
         {/* Page Header */}
         <section className="text-center mb-12">

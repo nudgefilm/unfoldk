@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Languages } from "lucide-react"
@@ -47,8 +46,6 @@ const stats = [
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-
       <main className="max-w-[1320px] mx-auto px-5">
         {/* Hero Section */}
         <section className="pt-24 pb-16 text-center relative">

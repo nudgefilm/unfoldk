@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { Header } from '@/components/header'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -46,6 +47,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans antialiased bg-background pt-[72px]">
+        {/* Header 단일 마운트 — 페이지 navigation 간 unmount 안 돼 인증/프로필
+            state 영속, 깜빡임 0. /admin·/login 등은 Header 내부에서 pathname 가드로 null 반환. */}
+        <Header />
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

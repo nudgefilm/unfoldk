@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Star, Plus, Play, Lock } from "lucide-react"
@@ -371,8 +370,6 @@ export default function KdramaMatchPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-
       <main className="max-w-[1320px] mx-auto px-6 py-12">
         {/* Page Header */}
         <section className="text-center mb-12">

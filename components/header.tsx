@@ -6,9 +6,22 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Menu, ChevronDown, Calendar, Music, Film, Languages, UtensilsCrossed, User, LogOut } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { StartModal } from "@/components/start-modal"
+
+// Header 를 노출하지 않는 경로들 — 자체 레이아웃이 있거나 풀스크린 인증/결제 페이지.
+// root layout 에서 Header 를 단일 마운트하므로 여기서 prefix 매칭으로 가드.
+const HIDE_HEADER_PREFIXES = [
+  "/admin",            // admin 자체 사이드바·layout
+  "/login",
+  "/signup",
+  "/start",
+  "/redeem",
+  "/forgot-password",
+  "/verify-email",
+  "/payment",          // /payment/success, /payment/fail
+]
 
 const services = [
   { icon: Calendar, name: "HallyuCalendar", description: "Never miss a comeback or premiere", href: "/calendar" },
@@ -20,6 +33,7 @@ const services = [
 
 export function Header() {
   const router = useRouter()
+  const pathname = usePathname()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [closeTimeout, setCloseTimeout] = useState<NodeJS.Timeout | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false)
@@ -34,6 +48,16 @@ export function Header() {
   const [mypageStartOpen, setMypageStartOpen] = useState(false)
   // 모바일 시트 — My Page (비로그인) 클릭 시 시트 닫고 모달 띄우기 위해 controlled 로 전환
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
+
+  // pathname 변경 시 드롭다운 / 시트 / 모달 자동 close.
+  // root layout 에 Header 가 단일 마운트되며 instance 가 영속되므로 페이지 이동해도
+  // hover 드롭다운이 열린 채 남는 등의 문제 방지.
+  useEffect(() => {
+    setIsDropdownOpen(false)
+    setIsProfileOpen(false)
+    setMobileSheetOpen(false)
+    setMypageStartOpen(false)
+  }, [pathname])
 
   useEffect(() => {
     // 로그인 상태 + Google 프로필을 헤더에 반영. onAuthStateChange로 실시간 갱신.
@@ -135,6 +159,12 @@ export function Header() {
     await supabase.auth.signOut()
     router.push("/")
     router.refresh()
+  }
+
+  // 노출 가드 — 자체 레이아웃이 있거나 풀스크린 인증/결제 페이지에서는 Header 미노출.
+  // hooks 호출 후에 위치해야 React rules-of-hooks 위반하지 않음.
+  if (pathname && HIDE_HEADER_PREFIXES.some((p) => pathname.startsWith(p))) {
+    return null
   }
 
   return (

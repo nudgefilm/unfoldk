@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, Plus, Calendar, X, Lock } from "lucide-react"
@@ -555,8 +554,6 @@ export default function HallyuCalendarPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-      
       {/* Event Detail Modal */}
       <EventDetailModal event={selectedEvent} onClose={closeModal} viewDate={viewDate} />
       

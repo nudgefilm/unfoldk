@@ -14,7 +14,6 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -286,8 +285,6 @@ export default function MyFanEventsPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0d0d0f" }}>
-      <Header />
-
       <div className="flex-1 flex max-w-7xl mx-auto w-full px-4 md:px-6 py-8 gap-8">
         {/* Left Sidebar — /mypage 패턴 그대로 */}
         <aside className="hidden md:flex flex-col w-[240px] flex-shrink-0">

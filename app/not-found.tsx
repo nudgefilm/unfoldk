@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 
 const quickLinks = [
@@ -13,9 +12,6 @@ const quickLinks = [
 export default function NotFound() {
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0d0d0f" }}>
-      {/* Navbar */}
-      <Header />
-
       {/* Main Content */}
       <main className="flex-1 flex flex-col items-center justify-center px-4 relative">
         {/* Glow Effect */}

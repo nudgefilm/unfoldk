@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Header } from "@/components/header"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Volume2, Check, RotateCcw, Lock } from "lucide-react"
@@ -45,8 +44,6 @@ export default function HangeulGoPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }}>
-      <Header />
-      
       <main className="max-w-[1320px] mx-auto px-5 py-12">
         {/* Page Header */}
         <section className="text-center mb-12">
