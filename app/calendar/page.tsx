@@ -444,6 +444,18 @@ export default function HallyuCalendarPage() {
     realToday.getFullYear() === viewYear && realToday.getMonth() === viewMonth
   const today = isCurrentRealMonth ? realToday.getDate() : -1
 
+  // "오늘 이전" 판정 — 과거 월이면 전부 past, 미래 월이면 전부 future, 현재 월일 때만 일자 비교.
+  // 오늘 당일 이벤트는 past 가 아님 (= dim 미적용).
+  const todayMidnight = new Date(
+    realToday.getFullYear(),
+    realToday.getMonth(),
+    realToday.getDate()
+  )
+  const isPastEvent = (eventDay: number): boolean => {
+    const eventDate = new Date(viewYear, viewMonth, eventDay)
+    return eventDate < todayMidnight
+  }
+
   const goPrev = () =>
     setViewDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))
   const goNext = () =>
@@ -680,7 +692,9 @@ export default function HallyuCalendarPage() {
                         <button
                           key={event.id}
                           onClick={() => handleEventClick(event)}
-                          className="w-full text-left text-[10px] md:text-xs font-medium text-white px-1.5 py-0.5 rounded truncate hover:opacity-80 transition-opacity cursor-pointer"
+                          className={`w-full text-left text-[10px] md:text-xs font-medium text-white px-1.5 py-0.5 rounded truncate hover:opacity-80 transition-opacity cursor-pointer ${
+                            isPastEvent(event.date) ? "opacity-40" : ""
+                          }`}
                           style={{ backgroundColor: "#FF4B6E" }}
                           title={event.title}
                         >
@@ -706,13 +720,14 @@ export default function HallyuCalendarPage() {
             {upcomingEvents.map((event, index) => {
               // Pro 유저는 4번째 이후도 명확 (블러 미적용)
               const isBlurred = !isPro && index >= 3
+              const isPast = isPastEvent(event.date)
               return (
                 <div
                   key={event.id}
                   onClick={() => !isBlurred && handleEventClick(event)}
                   className={`flex items-center justify-between bg-[#1a1a1a] border border-border/30 rounded-xl p-4 transition-colors ${
                     isBlurred ? "blur-[4px] pointer-events-none" : "cursor-pointer hover:border-primary/50"
-                  }`}
+                  } ${isPast ? "opacity-40" : ""}`}
                 >
                   <div className="flex items-center gap-4">
                     {/* Date Badge */}
