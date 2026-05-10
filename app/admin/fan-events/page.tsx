@@ -18,6 +18,9 @@ export interface AdminFanEventRow {
   admin_note: string | null
   created_at: string
   reviewed_at: string | null
+  // 이 사용자의 "본 row 를 제외한" 누적 승인 횟수 — 어드민이 같은 사용자
+  // 반복 승인 패턴(쿠폰 farming)을 즉시 인지할 수 있도록 행마다 노출.
+  prior_approved_count: number
 }
 
 type LoadResult =
@@ -54,12 +57,37 @@ async function loadRequests(): Promise<LoadResult> {
     }
   }
 
+  // 사용자별 누적 승인 횟수 lookup — 본 페이지 500건 안에서만 세면 과거가 잘릴 수 있어
+  // 별도 쿼리로 fan_event_requests 전체에서 status='approved' 만 user_id 별로 집계.
+  // 부가 정보 — 실패해도 메인 데이터는 살리고 0 으로 fallback.
+  const approvedCountByUser = new Map<string, number>()
+  if (userIds.length > 0) {
+    const { data: approvedRows, error: countError } = await supabase
+      .from("fan_event_requests")
+      .select("user_id")
+      .eq("status", "approved")
+      .in("user_id", userIds)
+    if (countError) {
+      console.error("[admin/fan-events] 승인 카운트 lookup 실패:", countError)
+    } else {
+      for (const row of (approvedRows ?? []) as Array<{ user_id: string }>) {
+        approvedCountByUser.set(row.user_id, (approvedCountByUser.get(row.user_id) ?? 0) + 1)
+      }
+    }
+  }
+
   // pending 이 항상 위에 오도록 클라이언트 정렬
   const order = { pending: 0, approved: 1, rejected: 2 } as const
-  const rows = (data ?? []).map((r) => ({
-    ...r,
-    user_email: emailMap.get(r.user_id) ?? null,
-  })) as AdminFanEventRow[]
+  const rows = (data ?? []).map((r) => {
+    const totalApproved = approvedCountByUser.get(r.user_id) ?? 0
+    // 본 row 가 이미 approved 면 자기 자신 제외 (실제 "이전" 승인 횟수)
+    const prior = r.status === "approved" ? Math.max(0, totalApproved - 1) : totalApproved
+    return {
+      ...r,
+      user_email: emailMap.get(r.user_id) ?? null,
+      prior_approved_count: prior,
+    }
+  }) as AdminFanEventRow[]
 
   rows.sort((a, b) => order[a.status] - order[b.status])
   return { ok: true, rows }

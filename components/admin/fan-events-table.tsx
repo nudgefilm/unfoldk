@@ -22,6 +22,7 @@ export interface AdminFanEventRow {
   admin_note: string | null
   created_at: string
   reviewed_at: string | null
+  prior_approved_count: number
 }
 
 const STATUS_STYLE: Record<Status, { label: string; bg: string; color: string }> = {
@@ -112,7 +113,23 @@ export function FanEventsTable({ rows }: { rows: AdminFanEventRow[] }) {
                     <div className="font-medium">{r.title}</div>
                     {r.location && <div className="text-muted-foreground text-xs">{r.location}</div>}
                   </td>
-                  <td className="text-muted-foreground text-sm px-4 py-3">{r.user_email ?? "—"}</td>
+                  <td className="text-muted-foreground text-sm px-4 py-3">
+                    <div>{r.user_email ?? "—"}</div>
+                    {/* 이전 승인 N회 배지 — 1회 이상만 노출. 어드민 어뷰징 검토 시그널.
+                        색상 톤은 pending 배지와 동일한 amber 계열로 통일 (주의 환기 의미). */}
+                    {r.prior_approved_count > 0 && (
+                      <span
+                        className="inline-block text-[10px] font-medium px-2 py-0.5 rounded-full mt-1"
+                        style={{
+                          backgroundColor: "rgba(234, 179, 8, 0.15)",
+                          color: "#eab308",
+                        }}
+                        title={`이 사용자의 이전 승인 ${r.prior_approved_count}회 — 쿠폰 farming 가능성 확인 필요`}
+                      >
+                        이전 승인 {r.prior_approved_count}회
+                      </span>
+                    )}
+                  </td>
                   <td className="text-muted-foreground text-sm px-4 py-3">
                     {new Date(r.event_date).toLocaleDateString("ko-KR")}
                   </td>
