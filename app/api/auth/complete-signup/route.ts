@@ -1,19 +1,22 @@
 import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
-// 신규 가입 완료 처리 — /start 페이지에서 약관 동의 + 플랜 선택 후 호출
-// body: { plan_type: 'free' | 'monthly' | 'annual', agreed_to_terms: true }
+// 신규 가입 완료 처리 — /start 페이지에서 약관 동의 후 호출
+// body: { plan_type: 'free', agreed_to_terms: true }
 //
 // 동작:
 //   1. 인증된 유저 확인
 //   2. 약관 동의 검증 (agreed_to_terms === true)
-//   3. plan_type 화이트리스트 검증
-//   4. public.users 업데이트 — plan_type, agreed_to_terms=true, agreed_at=now()
+//   3. plan_type 'free' 만 허용 (화이트리스트)
+//   4. public.users 업데이트 — plan_type='free', agreed_to_terms=true, agreed_at=now()
 //
-// ⚠️ 결제 연동 전 단계 — paid 플랜 선택 시에도 일단 plan_type 만 기록하고
-//    실제 Stripe 결제는 별도 후속 단계에서 처리.
+// ⚠️ plan_type 'monthly'/'annual' 은 의도적으로 거절.
+//    유료 플랜 활성화는 LMS webhook(order_created) 또는 쿠폰(/api/auth/apply-coupon)
+//    경로만 정당. 둘 다 subscription_status='active' 도 함께 set 해 RLS 통과 보장.
+//    이 API 가 paid plan_type 을 받으면 status 가 미설정인 broken state 가 만들어져
+//    캘린더 premium 이벤트 RLS 통과 못 하는 클래스 버그 발생 (2026-05-10 인시던트 회고).
 
-const ALLOWED_PLANS = ["free", "monthly", "annual"] as const
+const ALLOWED_PLANS = ["free"] as const
 type PlanType = (typeof ALLOWED_PLANS)[number]
 
 interface CompleteSignupBody {
