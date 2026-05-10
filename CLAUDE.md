@@ -300,60 +300,72 @@ Claude Haiku 4.5     $1/$5 per 1M 토큰, 레시피 1건 ≈ 400토큰
 
 ## 11. 폴더 구조
 
-### 11-A. 현재 실제 구조 (Actual, 2026-05-07 기준)
+### 11-A. 현재 실제 구조 (Actual, 2026-05-10 기준)
 
 ```
 UnfoldKorea/
-├── CLAUDE.md
-├── DECISIONS.md                    ← 빈 템플릿
-├── PROGRESS.md                     ← 빈 템플릿
-├── .env.local                      ← 템플릿만 존재, 실제 키 미입력
-├── package.json                    (name: "unfoldk", pnpm)
-├── pnpm-lock.yaml
-├── next.config.mjs                 (ignoreBuildErrors: true)
-├── tsconfig.json                   (paths: @/* → ./*)
-├── tailwind.config.ts
-├── postcss.config.mjs
-├── components.json                 (shadcn/ui new-york, neutral)
+├── CLAUDE.md / DECISIONS.md / PROGRESS.md   ← 누적 운영
+├── .env.local                                ← LMS / Supabase / Anthropic / Resend / TMDB / YouTube / Last.fm / CRON 모두 등록
+├── middleware.ts                             ← /admin 가드 + 비관리자 ?toast=unauthorized redirect
+├── vercel.json                               ← cron 슬롯 (ingest-all 04:00 UTC, send-reminders 09:00 UTC, ingest-kpop-stats 07:00 UTC, ingest-tmdb-dramas 05:30 UTC)
+├── next.config.mjs                          (ignoreBuildErrors: true / images.unoptimized: true / image.tmdb.org remotePatterns)
+├── components.json                          (shadcn/ui new-york, neutral)
 ├── app/
-│   ├── layout.tsx
-│   ├── page.tsx                    ← 랜딩
-│   ├── globals.css
-│   ├── not-found.tsx
-│   ├── login/page.tsx
-│   ├── signup/page.tsx
-│   ├── forgot-password/page.tsx
-│   ├── verify-email/page.tsx
+│   ├── layout.tsx                           (Metadata: title/description/icons/openGraph/twitter)
+│   ├── page.tsx                              ← 랜딩
+│   ├── globals.css / not-found.tsx
+│   ├── (auth 분리 안 됨 — flat 구조 유지)
+│   │   ├── login/, signup/, forgot-password/, verify-email/, start/, redeem/
 │   ├── mypage/
-│   │   ├── page.tsx                ✅ 대시보드
-│   │   └── subscription/page.tsx   ✅ 구독 관리
-│   │   (※ calendar/artists/dramas/learning/recipes/settings 라우트는 아직 없음)
-│   ├── calendar/page.tsx
-│   ├── kpop/page.tsx
-│   ├── drama/page.tsx
-│   ├── korean/page.tsx
-│   ├── food/page.tsx
-│   ├── about/page.tsx
-│   ├── privacy/page.tsx
-│   ├── terms/page.tsx
-│   └── payment/
-│       ├── success/page.tsx
-│       └── fail/page.tsx
+│   │   ├── page.tsx (대시보드) / subscription/, fan-events/
+│   │   (※ calendar / artists / dramas / learning / recipes / settings 미구현)
+│   ├── calendar/, kpop/, drama/, korean/, food/        ← 5개 서비스
+│   ├── about/, privacy/, terms/                        ← 정적 페이지
+│   ├── payment/{success,fail}/
+│   ├── admin/                                          ← is_admin 가드
+│   │   ├── layout.tsx (Toaster 마운트, requireAdmin 가드)
+│   │   ├── page.tsx (대시보드 — MRR/MAU/쿠폰)
+│   │   ├── events/, fan-events/, users/, kpop/, reports/, cron/
+│   └── api/
+│       ├── auth/                ← callback / apply-coupon / complete-signup
+│       ├── calendar/            ← events / reminders
+│       ├── cron/                ← ingest-all / ingest-kpop-stats / ingest-tmdb-dramas / send-reminders
+│       ├── dramas/              ← list / recommend / watchlist
+│       ├── kpop/                ← artists / charts
+│       ├── lemonsqueezy/        ← checkout / switch / webhook
+│       ├── mypage/              ← fan-events / fan-events/[id]
+│       ├── reports/             ← 콘텐츠 신고
+│       └── admin/               ← events / fan-events / kpop / reports / cron 트리거
 ├── components/
-│   ├── ui/                         ← shadcn 컴포넌트
-│   ├── bento/                      ← v0 템플릿 잔재 (랜딩 전용)
-│   ├── header.tsx, footer-section.tsx, hero-section.tsx, ...
+│   ├── ui/                      ← shadcn 컴포넌트
+│   ├── admin/                   ← events-manager / fan-events-table / users-table / kpop-artists-manager / cron-monitor / reports-table 등
+│   ├── common/                  ← report-button / redeem-coupon-modal
+│   ├── bento/                   ← v0 템플릿 잔재 (랜딩 전용)
+│   ├── floating-calendar-widget.tsx / start-modal.tsx / unauthorized-toast.tsx
+│   ├── header.tsx / footer-section.tsx / hero-section.tsx 등 랜딩 컴포넌트
+│   ├── ghost-globe.tsx / ghost-globe-dynamic.tsx       ← 히어로 3D
 │   └── theme-provider.tsx
-├── hooks/
-│   ├── use-mobile.ts
-│   └── use-toast.ts
+├── hooks/                       ← use-mobile.ts / use-toast.ts
 ├── lib/
-│   └── utils.ts                    ← cn() 헬퍼만 존재
-├── public/
+│   ├── utils.ts                 ← cn() 헬퍼
+│   ├── supabase/                ← server.ts / browser.ts / admin.ts 분리
+│   ├── lemonsqueezy.ts          ← SDK 초기화 + 체크아웃 URL 빌더
+│   ├── api/                     ← youtube.ts / tmdb.ts / lastfm.ts (외부 API 래퍼)
+│   ├── ingest/                  ← youtube.ts / tmdb.ts / lastfm.ts / kpop-stats.ts / dramas.ts
+│   ├── claude/                  ← generate-event-description.ts / recommend-dramas.ts
+│   ├── coupons/                 ← generate-code.ts
+│   ├── email/                   ← send-coupon-email.ts / send-payment-failed-email.ts
+│   ├── auth/                    ← plan.ts (hasProAccess / isProPlan / normalizePlanType)
+│   ├── admin/                   ← auth.ts (requireAdmin) / format-error.ts
+│   └── cron/                    ← auth.ts (CRON_SECRET 검증)
+├── supabase/
+│   ├── seed.sql
+│   └── migrations/              ← 0001 ~ 0016 (init / grants / events RLS / reminder flags / admin+fan_events / admin security definer / signup terms / event description / coupons / fan_event_storage / lms_fields / kpop_stats / service_role_grants / kdrama_match / content_reports / fan_events_owner_update)
+├── public/                       ← favicon.png / og-image.png / apple-icon.png / icon.svg / unfoldk_ghost_globe_white.png 등
 └── styles/
 ```
 
-> ※ `app/api/` 없음, `lib/supabase.ts`/`lib/lemonsqueezy.ts`/`types/`/`docs/` 모두 미생성. 백엔드 연동 시점에 추가.
+> ✅ §11-B 목표 구조에 거의 도달. 차이: `(auth)` route group 미사용(flat 유지), `types/` 미생성(공용 타입은 각 모듈에서 export), `docs/` 미생성.
 
 ### 11-B. 목표 구조 (Target, M+0 완료 시점)
 
@@ -429,6 +441,27 @@ UnfoldKorea/
 
 ❌ 한 세션에서 여러 서비스 동시 개발
    → 컨텍스트 분산으로 품질 저하. 서비스 하나씩 완성 후 다음으로
+
+❌ 새 필드 추가 시 서버 zod 스키마만 점검하고 UI 폼 누락
+   → 서버 라우트는 받게 돼있는데 폼에 입력칸 없으면 항상 빈값(NULL)으로 저장됨.
+     에러 안 뜨고 "성공" 토스트만 떠서 데이터 안 들어가는 걸 한참 모름.
+     필드 1개 추가 = 다음 6단계 모두 동기화 필수:
+     ① 마이그레이션 컬럼 / ② 서버 zod 스키마(POST + PATCH 둘 다) /
+     ③ 서버 응답 매핑(snake_case → camelCase) / ④ 클라이언트 type 인터페이스 /
+     ⑤ FormState + EMPTY_FORM + startEdit pre-fill / ⑥ 폼 JSX 입력 + handleSubmit body
+     2026-05-10 thumbnail_url 누락 인시던트 — 서버는 받게 돼있었지만 어드민 폼이 없어
+     사용자 입장에선 "저장 성공"인데 DB는 NULL. 진단에 시간 소요.
+
+❌ Toaster 마운트 안 된 영역에서 useToast 호출
+   → 토스트가 silently no-op. 사용자는 작업 결과를 모르고, 개발자는 "왜 토스트 안 뜨지?"
+     로 시간 낭비. 현재 root layout 에 Toaster 미마운트 — admin 영역만 마운트됨.
+     비-admin 페이지에서 useToast 쓰려면 해당 페이지에 <Toaster /> 로컬 마운트 필수.
+     ReportButton 도 admin 외에선 silent fail 상태 (의도적 미해결, 다음 세션 후보).
+
+❌ RLS 정책 변경했는데 마이그레이션 SQL 실행 누락
+   → 코드만 배포되고 DB 정책 미적용 시 silent fail. 본인 데이터 update 가 RLS 차단으로
+     0행 update 되며 에러도 안 남. 마이그레이션 추가 시 PROGRESS.md "사용자 액션 필요"
+     섹션에 SQL 명시 박제 + 사용자 직접 Supabase Dashboard 에서 실행 의무화.
 ```
 
 ---
