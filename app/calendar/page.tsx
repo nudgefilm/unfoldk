@@ -10,6 +10,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 import { ReportButton } from "@/components/common/report-button"
 import { getEventTypeColor } from "@/lib/calendar/event-type-colors"
+import { StartModal } from "@/components/start-modal"
 
 type EventType = "K-pop" | "K-drama" | "Concert" | "Fan Meet"
 
@@ -438,11 +439,17 @@ export default function HallyuCalendarPage() {
   const [lockedFeature, setLockedFeature] = useState<string | null>(null)
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [isPro, setIsPro] = useState(false)                      // monthly/annual/admin 통합 판별
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isAuthReady, setIsAuthReady] = useState(false)
+  // My Fan Events 비로그인 클릭 시 인플레이스 OAuth 모달
+  const [fanEventsStartOpen, setFanEventsStartOpen] = useState(false)
 
   // 마운트 시 plan 권한 확인 — 탭/배너/이벤트 블러 가드용
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
     supabase.auth.getUser().then(async ({ data: { user } }) => {
+      setIsLoggedIn(!!user)
+      setIsAuthReady(true)
       if (!user) return
       const { data: profile } = await supabase
         .from("users")
@@ -453,6 +460,15 @@ export default function HallyuCalendarPage() {
       setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
     })
   }, [])
+
+  // My Fan Events 클릭 — 인증 ready + 비로그인이면 navigation 차단하고 StartModal 오픈.
+  // 로딩 중 / 로그인 됨 → Link 정상 navigate (Free 포함 모든 plan 진입 가능 — 별도 제한 없음).
+  const handleMyFanEventsClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (isAuthReady && !isLoggedIn) {
+      e.preventDefault()
+      setFanEventsStartOpen(true)
+    }
+  }
 
   // 표시 월 파생값 (viewDate 변경 시 자동 갱신)
   const viewYear = viewDate.getFullYear()
@@ -750,6 +766,7 @@ export default function HallyuCalendarPage() {
             Selected submissions receive a complimentary Hallyu Pass. Ready to contribute? Head to{" "}
             <Link
               href="/mypage/fan-events"
+              onClick={handleMyFanEventsClick}
               className="hover:underline"
               style={{ color: "#FF4B6E" }}
             >
@@ -897,6 +914,14 @@ export default function HallyuCalendarPage() {
         </section>
 
       </main>
+
+      {/* My Fan Events (비로그인) 클릭 시 인플레이스 OAuth 모달.
+          OAuth 완료 후 next=/mypage/fan-events 로 직접 진입. */}
+      <StartModal
+        open={fanEventsStartOpen}
+        onOpenChange={setFanEventsStartOpen}
+        next="/mypage/fan-events"
+      />
 
       <FooterSection />
     </div>
