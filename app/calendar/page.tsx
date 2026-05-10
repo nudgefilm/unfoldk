@@ -10,6 +10,7 @@ import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 import { ReportButton } from "@/components/common/report-button"
+import { getEventTypeColor } from "@/lib/calendar/event-type-colors"
 
 type EventType = "K-pop" | "K-drama" | "Concert" | "Fan Meet"
 
@@ -195,9 +196,9 @@ function EventDetailModal({
 
         {/* Event Type Badge */}
         <div className="mb-4">
-          <span 
+          <span
             className="inline-block px-3 py-1 text-xs font-medium text-white rounded-full"
-            style={{ backgroundColor: "#FF4B6E" }}
+            style={{ backgroundColor: getEventTypeColor(event.type) }}
           >
             {event.type}
           </span>
@@ -728,7 +729,7 @@ export default function HallyuCalendarPage() {
                           className={`w-full text-left text-[10px] md:text-xs font-medium text-white px-1.5 py-0.5 rounded truncate hover:opacity-80 transition-opacity cursor-pointer ${
                             isPastEvent(event.date) ? "opacity-40" : ""
                           }`}
-                          style={{ backgroundColor: "#FF4B6E" }}
+                          style={{ backgroundColor: getEventTypeColor(event.type) }}
                           title={event.title}
                         >
                           {event.title}
@@ -793,8 +794,12 @@ export default function HallyuCalendarPage() {
                   </div>
                   <div className="p-3">
                     <h3 className="text-foreground font-medium text-sm truncate">{event.title}</h3>
-                    <p className="text-muted-foreground text-xs mt-1">
-                      {monthShort} {event.date}
+                    {/* 날짜 라벨을 타입 색으로 — 카드에 새 element 추가 없이 타입 표시 */}
+                    <p
+                      className="text-xs mt-1"
+                      style={{ color: getEventTypeColor(event.type) }}
+                    >
+                      {monthShort} {event.date} · {event.type}
                     </p>
                   </div>
                 </button>
@@ -836,10 +841,10 @@ export default function HallyuCalendarPage() {
                   } ${isPast ? "opacity-40" : ""}`}
                 >
                   <div className="flex items-center gap-4">
-                    {/* Date Badge */}
+                    {/* Date Badge — 타입별 색상 */}
                     <div
                       className="w-14 h-14 rounded-xl flex flex-col items-center justify-center text-white"
-                      style={{ backgroundColor: "#FF4B6E" }}
+                      style={{ backgroundColor: getEventTypeColor(event.type) }}
                     >
                       <span className="text-xs font-medium">{monthShort}</span>
                       <span className="text-xl font-bold">{event.date}</span>

@@ -2,11 +2,16 @@
 
 import { useEffect, useState } from "react"
 import { Calendar } from "lucide-react"
+import {
+  getEventTypeColor,
+  getEventTypeColorAlpha,
+} from "@/lib/calendar/event-type-colors"
 
 type CalendarEvent = {
   id: string
   title: string
   date: number
+  type: string
 }
 
 export function FloatingCalendarWidget() {
@@ -31,12 +36,13 @@ export function FloatingCalendarWidget() {
     }
   }, [])
 
-  // 그리드 하이라이트는 과거·미래 모두 노출 (이벤트 있는 날 = 핑크).
+  // 그리드 하이라이트는 과거·미래 모두 노출 (이벤트 있는 날 = 타입별 색).
   // 하단 태그 목록은 오늘 이후만, 가까운 순 최대 3건.
   // 동월 총 건수(과거 포함)는 footer 에서 events.length 로 별도 표시.
   const today = new Date().getDate()
-  const eventDays: Record<number, string> = Object.fromEntries(
-    (events ?? []).map((ev) => [ev.date, ev.title])
+  // 같은 날 여러 이벤트면 마지막 것이 win (현재 디자인이 일자당 1건만 표시).
+  const eventDays: Record<number, { title: string; type: string }> = Object.fromEntries(
+    (events ?? []).map((ev) => [ev.date, { title: ev.title, type: ev.type }])
   )
   const displayed = (events ?? [])
     .filter((ev) => ev.date >= today)
@@ -90,10 +96,18 @@ export function FloatingCalendarWidget() {
                     key={day}
                     className={`aspect-square flex flex-col items-center justify-center rounded-lg text-xs transition-all ${
                       event
-                        ? "bg-[#FF4B6E]/15 text-[#FF4B6E] font-semibold"
+                        ? "font-semibold"
                         : "text-foreground/70 hover:bg-secondary/30"
                     }`}
-                    title={event || undefined}
+                    style={
+                      event
+                        ? {
+                            backgroundColor: getEventTypeColorAlpha(event.type, 0.15),
+                            color: getEventTypeColor(event.type),
+                          }
+                        : undefined
+                    }
+                    title={event?.title || undefined}
                   >
                     {day}
                   </div>
@@ -107,7 +121,7 @@ export function FloatingCalendarWidget() {
                 <div key={ev.id} className="flex items-center gap-2">
                   <span
                     className="px-2 py-0.5 rounded text-[10px] font-medium text-white"
-                    style={{ backgroundColor: "#FF4B6E" }}
+                    style={{ backgroundColor: getEventTypeColor(ev.type) }}
                   >
                     May {ev.date}
                   </span>
