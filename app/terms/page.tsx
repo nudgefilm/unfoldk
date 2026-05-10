@@ -82,7 +82,7 @@ export default function TermsPage() {
                   <p><strong className="text-foreground">Hallyu Pass Monthly:</strong> $15.00/month</p>
                   <p><strong className="text-foreground">Hallyu Pass Annual:</strong> $120.00/year ($10.00/month)</p>
                   <ul className="list-disc list-inside space-y-1 mt-3">
-                    <li>Payments processed securely by Stripe (stripe.com)</li>
+                    <li>Payments are processed by Lemon Squeezy (lemonsqueezy.com), our Merchant of Record. Lemon Squeezy handles billing, taxes, refunds, and invoices on behalf of UNFOLD LAB.</li>
                     <li>Prices may change with 30 days&apos; notice</li>
                   </ul>
                 </div>
@@ -178,7 +178,7 @@ export default function TermsPage() {
                   <p><strong className="text-foreground">Hallyu Pass 월간:</strong> 월 $15.00</p>
                   <p><strong className="text-foreground">Hallyu Pass 연간:</strong> 연 $120.00 (월 $10.00)</p>
                   <ul className="list-disc list-inside space-y-1 mt-3">
-                    <li>결제는 Stripe(stripe.com)를 통해 안전하게 처리됩니다</li>
+                    <li>결제는 당사의 Merchant of Record(공식 판매처)인 Lemon Squeezy(lemonsqueezy.com)를 통해 처리되며, Lemon Squeezy가 UNFOLD LAB을 대신하여 결제·세금·환불·인보이스를 처리합니다</li>
                     <li>가격 변경 시 30일 전 사전 안내합니다</li>
                   </ul>
                 </div>

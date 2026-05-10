@@ -746,6 +746,24 @@ export default function HallyuCalendarPage() {
           </div>
         </section>
 
+        {/* Community contribution note — 달력 바로 아래 2줄 안내 */}
+        <section className="mb-12">
+          <p className="text-muted-foreground text-sm leading-relaxed text-center max-w-3xl mx-auto">
+            This calendar is built together with Hallyu fans around the world.
+            Submit a fan event happening in your area — concerts, fan meets, pop-ups, anything K-culture.
+            <br />
+            Approved submissions earn a complimentary Hallyu Pass. Ready to contribute? Head to{" "}
+            <Link
+              href="/mypage/fan-events"
+              className="hover:underline"
+              style={{ color: "#FF4B6E" }}
+            >
+              My Fan Events
+            </Link>
+            .
+          </p>
+        </section>
+
         {/* Featured 가로 스크롤 — 썸네일 있는 이벤트만, 카드 클릭 시 EventDetailModal 오픈.
             featuredEvents 가 비어있으면 섹션 자체 미노출 (빈 placeholder 안 보임). */}
         {featuredEvents.length > 0 && (
@@ -863,23 +881,6 @@ export default function HallyuCalendarPage() {
           </div>
         </section>
 
-        {/* Community contribution note — Upcoming 리스트 아래 마무리 안내 */}
-        <section className="mb-12">
-          <p className="text-muted-foreground text-sm leading-relaxed text-center max-w-2xl mx-auto">
-            This calendar is built together with Hallyu fans around the world.
-            Submit a fan event happening in your area — concerts, fan meets,
-            pop-ups, anything K-culture. Approved submissions earn a
-            complimentary Hallyu Pass. Ready to contribute? Head to{" "}
-            <Link
-              href="/mypage/fan-events"
-              className="hover:underline"
-              style={{ color: "#FF4B6E" }}
-            >
-              My Fan Events
-            </Link>
-            .
-          </p>
-        </section>
       </main>
 
       <FooterSection />
