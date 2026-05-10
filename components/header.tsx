@@ -237,7 +237,7 @@ export function Header() {
                 href="/mypage"
                 prefetch={false}
                 aria-label="My Page"
-                className="px-4 py-2 rounded-full font-medium transition-colors flex items-center justify-center"
+                className="h-10 px-4 rounded-full transition-colors flex items-center justify-center"
               >
                 {userAvatar ? (
                   <img
