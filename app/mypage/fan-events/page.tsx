@@ -430,7 +430,7 @@ export default function MyFanEventsPage() {
 
               <div>
                 <label className="text-muted-foreground text-xs mb-1 block">
-                  Proof <span className="text-muted-foreground/70 ml-1">— JPG / PNG / PDF, max 5 MB</span>
+                  Proof <span className="text-muted-foreground/70 ml-1">— JPG / PNG / PDF, max 5 MB · 3:4 portrait recommended for best display</span>
                 </label>
                 <label
                   htmlFor="fan-event-proof"

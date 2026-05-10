@@ -779,14 +779,16 @@ export default function HallyuCalendarPage() {
                   key={event.id}
                   type="button"
                   onClick={() => handleEventClick(event)}
-                  className="flex-shrink-0 w-64 bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors text-left"
+                  className="flex-shrink-0 w-48 bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors text-left"
                 >
-                  <div className="aspect-video bg-[#0d0d0f] overflow-hidden">
+                  {/* 프레임 3:4 세로 고정. object-contain 으로 원본 비율 유지 —
+                      16:9 가로 썸네일은 가로폭 맞춤 + 위아래 레터박스, 2:3 포스터는 좌우 살짝 레터박스. */}
+                  <div className="aspect-[3/4] bg-[#0d0d0f] overflow-hidden flex items-center justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={event.thumbnailUrl}
                       alt={event.title}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                       loading="lazy"
                       referrerPolicy="no-referrer"
                     />
