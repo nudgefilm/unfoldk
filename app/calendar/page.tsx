@@ -23,6 +23,7 @@ interface CalendarEvent {
   description?: string                   // Claude 가 생성한 한 줄 설명 (영어)
   isPremium?: boolean
   thumbnailUrl?: string                  // DB hallyu_calendar_events.thumbnail_url
+  createdAt?: string                     // ISO string — Featured 정렬 키 (등록순)
 }
 
 const tabs = ["All", "K-pop", "K-drama", "Concert", "Fan Meet"] as const
@@ -535,18 +536,13 @@ export default function HallyuCalendarPage() {
     .sort((a, b) => a.date - b.date)
     .slice(0, 5)
 
-  // Featured 카드용 — 썸네일 있는 이벤트만, 오늘 이후 가까운 순 우선,
-  // 모자라면 최근 과거(가까운 순)로 채워서 최대 6장.
-  const featuredEvents = (() => {
-    const withThumb = filteredEvents.filter((e) => !!e.thumbnailUrl)
-    const future = withThumb
-      .filter((e) => !isPastEvent(e.date))
-      .sort((a, b) => a.date - b.date)
-    const past = withThumb
-      .filter((e) => isPastEvent(e.date))
-      .sort((a, b) => b.date - a.date)
-    return [...future, ...past].slice(0, 6)
-  })()
+  // Featured 카드용 — 썸네일 있는 이벤트만, created_at desc 로 최신 등록이 좌측.
+  // ISO 타임스탬프는 lexicographic sort 가 chronological sort 와 동치.
+  const featuredEvents = filteredEvents
+    .filter((e) => !!e.thumbnailUrl)
+    .slice()
+    .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+    .slice(0, 6)
 
   const handleEventClick = (event: CalendarEvent) => {
     setSelectedEvent(event)
@@ -766,14 +762,16 @@ export default function HallyuCalendarPage() {
         </section>
 
         {/* Featured 가로 스크롤 — 썸네일 있는 이벤트만, 카드 클릭 시 EventDetailModal 오픈.
-            featuredEvents 가 비어있으면 섹션 자체 미노출 (빈 placeholder 안 보임). */}
+            featuredEvents 가 비어있으면 섹션 자체 미노출 (빈 placeholder 안 보임).
+            우측 가장자리는 background 색 → transparent 그라데이션 오버레이로 추가 콘텐츠 신호. */}
         {featuredEvents.length > 0 && (
           <section className="mb-12">
             <h2 className="text-2xl font-semibold text-foreground mb-6">Featured events</h2>
-            <div
-              className="flex gap-4 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"
-              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-            >
+            <div className="relative">
+              <div
+                className="flex gap-4 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"
+                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+              >
               {featuredEvents.map((event) => (
                 <button
                   key={event.id}
@@ -801,6 +799,18 @@ export default function HallyuCalendarPage() {
                   </div>
                 </button>
               ))}
+              </div>
+              {/* 우측 페이드 — "더 있어요" 신호. overflow 없을 땐 빈 영역에 겹쳐 사실상 비표시.
+                  scroll 끝까지 갔을 땐 마지막 카드가 살짝 페이드되는 미세 wart 가 있지만,
+                  JS 스크롤 위치 트래킹 없이 얻는 비용 대비 효율 좋음. */}
+              <div
+                className="pointer-events-none absolute right-0 top-0 bottom-2 w-12"
+                style={{
+                  background:
+                    "linear-gradient(to left, hsl(var(--background)) 0%, transparent 100%)",
+                }}
+                aria-hidden="true"
+              />
             </div>
           </section>
         )}
