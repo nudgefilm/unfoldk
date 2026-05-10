@@ -30,6 +30,10 @@ export function Header() {
   // 프로필 hover 드롭다운 — Services 드롭다운과 동일 패턴
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [profileCloseTimeout, setProfileCloseTimeout] = useState<NodeJS.Timeout | null>(null)
+  // 비로그인 My Page 클릭 시 인플레이스 OAuth 모달 — ReportButton 과 동일 패턴
+  const [mypageStartOpen, setMypageStartOpen] = useState(false)
+  // 모바일 시트 — My Page (비로그인) 클릭 시 시트 닫고 모달 띄우기 위해 controlled 로 전환
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
 
   useEffect(() => {
     // 로그인 상태 + Google 프로필을 헤더에 반영. onAuthStateChange로 실시간 갱신.
@@ -110,6 +114,18 @@ export function Header() {
       setIsProfileOpen(false)
     }, 200)
     setProfileCloseTimeout(timeout)
+  }
+
+  // My Page 클릭 핸들러 — 인증 ready + 비로그인이면 navigation 차단하고 OAuth 모달 인플레이스.
+  // 로딩 중 / 로그인 됨 → Link 가 정상 navigate (로그인 됨이면 /mypage 진입,
+  // 로딩 중이면 middleware 가 /로 리디렉트하던 기존 동작 유지).
+  const handleMyPageClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (isAuthReady && !isLoggedIn) {
+      e.preventDefault()
+      // 모바일 시트가 열려있다면 같이 닫음 — 시트 위에 모달 올리지 않기 위해
+      setMobileSheetOpen(false)
+      setMypageStartOpen(true)
+    }
   }
 
   // 로그아웃 — Supabase 세션 종료 후 메인으로 복귀, RSC 캐시 무효화로 헤더 즉시 갱신
@@ -202,6 +218,7 @@ export function Header() {
           <Link
             href="/mypage"
             prefetch={false}
+            onClick={handleMyPageClick}
             className="text-[#888888] hover:text-foreground px-4 py-2 rounded-full font-medium transition-colors"
           >
             My Page
@@ -281,7 +298,7 @@ export function Header() {
         </div>
 
         {/* Mobile Hamburger Menu */}
-        <Sheet>
+        <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
           <SheetTrigger asChild className="md:hidden">
             <Button variant="ghost" size="icon" className="text-foreground">
               <Menu className="h-7 w-7" />
@@ -324,6 +341,7 @@ export function Header() {
               <Link
                 href="/mypage"
                 prefetch={false}
+                onClick={handleMyPageClick}
                 className="text-foreground hover:text-primary px-2 py-3 font-medium"
               >
                 My Page
@@ -356,6 +374,14 @@ export function Header() {
           </SheetContent>
         </Sheet>
       </div>
+
+      {/* My Page (비로그인) 클릭 시 인플레이스 OAuth 모달.
+          OAuth 완료 후 next=/mypage 로 복귀 — 사용자가 의도한 페이지로 직접 진입. */}
+      <StartModal
+        open={mypageStartOpen}
+        onOpenChange={setMypageStartOpen}
+        next="/mypage"
+      />
     </header>
   )
 }
