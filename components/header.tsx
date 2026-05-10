@@ -206,14 +206,11 @@ export function Header() {
           >
             My Page
           </Link>
-          {/* 로그인 상태에 따라 분기 — 비로그인: Start / 로그인: 아바타 hover 드롭다운.
-              인증 확인 전엔 아바타 크기(36px) placeholder 로 자리를 고정해
-              페이지 이동 시 flex 컨테이너 width 변동 → 우측 메뉴 layout shift 방지.
-              로그인 유저(주 케이스) 는 0 shift, 비로그인은 Start 등장 시 약간 widen.
-              isAuthReady=false 동안엔 placeholder 만 노출. */}
-          {!isAuthReady ? (
-            <div className="w-9 h-9" aria-hidden="true" />
-          ) : isLoggedIn ? (
+          {/* 인증 슬롯 — min-w 로 자리를 고정해 어떤 상태(loading/avatar/Start)든
+              컨테이너 폭이 동일. Start 버튼(~88px) 기준 여유롭게 100px 확보.
+              내부 항목은 justify-end 로 우측 정렬해 우측 메뉴 그룹의 right edge 일정 유지. */}
+          <div className="min-w-[100px] flex justify-end">
+          {isAuthReady && (isLoggedIn ? (
             <div
               className="relative"
               onMouseEnter={handleProfileMouseEnter}
@@ -279,7 +276,8 @@ export function Header() {
                 </Button>
               }
             />
-          )}
+          ))}
+          </div>
         </div>
 
         {/* Mobile Hamburger Menu */}
