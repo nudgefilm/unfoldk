@@ -20,6 +20,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Home,
   Calendar,
   Music,
@@ -32,6 +39,7 @@ import {
   Upload,
   Sparkles,
   ExternalLink,
+  Pencil,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { RedeemCouponModal } from "@/components/common/redeem-coupon-modal"
@@ -83,6 +91,20 @@ const EMPTY_FORM: FormState = {
   file: null,
 }
 
+// 파일명 안전화 — Storage 정책과 호환되는 ASCII slug.
+// 모듈 스코프 — 신규 등록 / 편집 모달 양쪽에서 재사용.
+function slugifyFilename(name: string): string {
+  const dot = name.lastIndexOf(".")
+  const base = dot > 0 ? name.slice(0, dot) : name
+  const ext = dot > 0 ? name.slice(dot) : ""
+  const safeBase =
+    base
+      .replace(/[^a-zA-Z0-9-_]/g, "_")
+      .slice(0, 40)
+      .replace(/^_+|_+$/g, "") || "file"
+  return safeBase + ext.toLowerCase()
+}
+
 export default function MyFanEventsPage() {
   const router = useRouter()
   const [authChecked, setAuthChecked] = useState(false)
@@ -97,6 +119,7 @@ export default function MyFanEventsPage() {
   const [errorMsg, setErrorMsg] = useState("")
   const [successMsg, setSuccessMsg] = useState("")
   const [redeemOpen, setRedeemOpen] = useState(false)
+  const [editingRequest, setEditingRequest] = useState<FanEventRequest | null>(null)
 
   // 진입 가드 + 프로필·신청 목록 로드
   useEffect(() => {
@@ -176,18 +199,6 @@ export default function MyFanEventsPage() {
       return
     }
     setForm((f) => ({ ...f, file }))
-  }
-
-  // 파일명 안전화 — Storage 정책과 호환되는 ASCII slug
-  const slugifyFilename = (name: string): string => {
-    const dot = name.lastIndexOf(".")
-    const base = dot > 0 ? name.slice(0, dot) : name
-    const ext = dot > 0 ? name.slice(dot) : ""
-    const safeBase = base
-      .replace(/[^a-zA-Z0-9-_]/g, "_")
-      .slice(0, 40)
-      .replace(/^_+|_+$/g, "") || "file"
-    return safeBase + ext.toLowerCase()
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -367,6 +378,7 @@ export default function MyFanEventsPage() {
                     key={req.id}
                     req={req}
                     onRedeemClick={() => setRedeemOpen(true)}
+                    onEditClick={() => setEditingRequest(req)}
                   />
                 ))}
               </div>
@@ -479,6 +491,15 @@ export default function MyFanEventsPage() {
 
       {/* 쿠폰 등록 모달 — RequestCard 의 Redeem 버튼 트리거. 성공 시 토스트 + 모달 닫힘. */}
       <RedeemCouponModal open={redeemOpen} onOpenChange={setRedeemOpen} />
+      {/* 편집 모달 — pending 상태 신청만 진입. 저장 성공 시 목록 재조회. */}
+      <EditFanEventModal
+        request={editingRequest}
+        onClose={() => setEditingRequest(null)}
+        onSaved={async () => {
+          setEditingRequest(null)
+          await refetchRequests()
+        }}
+      />
       {/* 토스트 컨테이너 — root layout 에 미마운트라 페이지 레벨에서 로컬 마운트 */}
       <Toaster />
 
@@ -487,13 +508,15 @@ export default function MyFanEventsPage() {
   )
 }
 
-// 신청 1건 카드 — 상태별 배지·부가 영역
+// 신청 1건 카드 — 상태별 배지·부가 영역. pending 일 때만 Edit 버튼 노출.
 function RequestCard({
   req,
   onRedeemClick,
+  onEditClick,
 }: {
   req: FanEventRequest
   onRedeemClick: () => void
+  onEditClick: () => void
 }) {
   const eventDateLabel = new Date(req.event_date).toLocaleDateString("en-US", {
     year: "numeric",
@@ -511,7 +534,20 @@ function RequestCard({
             {req.location && <> · {req.location}</>}
           </p>
         </div>
-        <StatusBadge status={req.status} />
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <StatusBadge status={req.status} />
+          {req.status === "pending" && (
+            <button
+              type="button"
+              onClick={onEditClick}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 px-2 py-1 rounded-full border border-border/50 hover:border-border"
+              aria-label="Edit submission"
+            >
+              <Pencil className="w-3 h-3" />
+              Edit
+            </button>
+          )}
+        </div>
       </div>
 
       {req.description && (
@@ -573,6 +609,256 @@ function RequestCard({
         </a>
       )}
     </div>
+  )
+}
+
+// 편집 모달 — pending 신청 수정. 기존 inline 등록 폼과 동일한 필드 구조.
+// 파일 업로드 정책: 새 파일을 선택하면 Storage 직접 업로드 → proof_url 교체.
+//                 미선택이면 기존 proof_url 유지 (PATCH body 에 키 자체 omit).
+function EditFanEventModal({
+  request,
+  onClose,
+  onSaved,
+}: {
+  request: FanEventRequest | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [errorMsg, setErrorMsg] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // request 변경(모달 오픈) 시 폼 pre-fill
+  useEffect(() => {
+    if (!request) return
+    setForm({
+      title: request.title,
+      description: request.description ?? "",
+      event_date: request.event_date.slice(0, 10), // YYYY-MM-DD
+      location: request.location ?? "",
+      file: null, // 새 파일은 사용자가 다시 선택할 때만 업로드
+    })
+    setErrorMsg("")
+  }, [request])
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setErrorMsg("")
+    const file = e.target.files?.[0] ?? null
+    if (!file) {
+      setForm((f) => ({ ...f, file: null }))
+      return
+    }
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      setErrorMsg("Only JPG, PNG, or PDF files are allowed.")
+      return
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setErrorMsg("File must be under 5 MB.")
+      return
+    }
+    setForm((f) => ({ ...f, file }))
+  }
+
+  const handleSave = async () => {
+    if (!request) return
+    setErrorMsg("")
+    if (!form.title.trim() || !form.event_date) {
+      setErrorMsg("Title and event date are required.")
+      return
+    }
+
+    setIsSubmitting(true)
+
+    // 새 파일이 있을 때만 Storage 업로드 → proof_url 교체. 실패 시 PATCH 자체 중단.
+    let newProofUrl: string | undefined
+    if (form.file) {
+      try {
+        const supabase = createSupabaseBrowserClient()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          const safeName = slugifyFilename(form.file.name)
+          const path = `${user.id}/${Date.now()}-${safeName}`
+          const { error: uploadErr } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .upload(path, form.file, {
+              cacheControl: "3600",
+              upsert: false,
+              contentType: form.file.type,
+            })
+          if (uploadErr) {
+            console.warn("[fan-events/edit] 업로드 실패:", uploadErr.message)
+            setErrorMsg("File upload failed. Please try again.")
+            setIsSubmitting(false)
+            return
+          }
+          const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path)
+          newProofUrl = pub.publicUrl
+        }
+      } catch (err) {
+        console.warn("[fan-events/edit] 업로드 예외:", err)
+        setErrorMsg("File upload failed. Please try again.")
+        setIsSubmitting(false)
+        return
+      }
+    }
+
+    // PATCH body — proof_url 은 새 파일 있을 때만 포함 (기존 값 보존)
+    const body: Record<string, unknown> = {
+      title: form.title.trim(),
+      description: form.description.trim() || null,
+      event_date: form.event_date,
+      location: form.location.trim() || null,
+    }
+    if (newProofUrl !== undefined) {
+      body.proof_url = newProofUrl
+    }
+
+    try {
+      const res = await fetch(`/api/mypage/fan-events/${request.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: unknown }
+        const errorText =
+          typeof data.error === "string"
+            ? data.error
+            : "Failed to update. Please try again."
+        setErrorMsg(errorText)
+        setIsSubmitting(false)
+        return
+      }
+      // 성공
+      setIsSubmitting(false)
+      onSaved()
+    } catch (err) {
+      console.error("[fan-events/edit] PATCH 예외:", err)
+      setErrorMsg("Network error. Please try again.")
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog
+      open={!!request}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <DialogContent className="bg-[#141418] border-[#2a2a2a] text-foreground max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit Event</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-muted-foreground text-xs mb-1 block">
+              Title <span style={{ color: "#FF4B6E" }}>*</span>
+            </label>
+            <Input
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              className="h-11 bg-[#0d0d0f] border-[#2a2a2a] rounded-lg text-foreground placeholder:text-muted-foreground"
+              maxLength={200}
+            />
+          </div>
+
+          <div>
+            <label className="text-muted-foreground text-xs mb-1 block">Description</label>
+            <Textarea
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              className="bg-[#0d0d0f] border-[#2a2a2a] rounded-lg text-foreground placeholder:text-muted-foreground min-h-[80px] resize-y"
+              maxLength={2000}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-muted-foreground text-xs mb-1 block">
+                Event date <span style={{ color: "#FF4B6E" }}>*</span>
+              </label>
+              <Input
+                type="date"
+                value={form.event_date}
+                onChange={(e) => setForm((f) => ({ ...f, event_date: e.target.value }))}
+                className="h-11 bg-[#0d0d0f] border-[#2a2a2a] rounded-lg text-foreground"
+              />
+            </div>
+            <div>
+              <label className="text-muted-foreground text-xs mb-1 block">Location</label>
+              <Input
+                value={form.location}
+                onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+                className="h-11 bg-[#0d0d0f] border-[#2a2a2a] rounded-lg text-foreground placeholder:text-muted-foreground"
+                maxLength={200}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-muted-foreground text-xs mb-1 block">
+              Proof <span className="text-muted-foreground/70 ml-1">— JPG / PNG / PDF, max 5 MB · 3:4 portrait recommended for best display</span>
+            </label>
+            {/* 기존 증빙 파일 — 새 파일 미선택 시에만 노출 */}
+            {request?.proof_url && !form.file && (
+              <a
+                href={request.proof_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs mb-2 hover:underline"
+                style={{ color: "#FF4B6E" }}
+              >
+                Current proof <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+            <label
+              htmlFor="fan-event-edit-proof"
+              className="flex items-center gap-3 px-4 py-3 bg-[#0d0d0f] border border-dashed border-[#2a2a2a] rounded-lg cursor-pointer hover:border-[#FF4B6E]/50 transition-colors"
+            >
+              <Upload className="w-5 h-5 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground truncate">
+                {form.file
+                  ? form.file.name
+                  : request?.proof_url
+                  ? "Choose a new file (replaces current)"
+                  : "Click to choose a file"}
+              </span>
+            </label>
+            <input
+              id="fan-event-edit-proof"
+              type="file"
+              accept="image/jpeg,image/png,application/pdf"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
+
+          {errorMsg && (
+            <p className="text-sm" style={{ color: "#FF4B6E" }}>
+              {errorMsg}
+            </p>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={isSubmitting}
+            className="rounded-full"
+            style={{ backgroundColor: "#FF4B6E", color: "white" }}
+          >
+            {isSubmitting ? "Saving..." : "Save changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
