@@ -41,7 +41,7 @@ export async function PATCH(
   // 1. 신청 행 조회 (이미 처리된 건 제외)
   const { data: req, error: fetchErr } = await supabase
     .from("fan_event_requests")
-    .select("id, user_id, title, description, event_date, location, status")
+    .select("id, user_id, title, description, event_date, location, status, proof_url")
     .eq("id", id)
     .single()
 
@@ -77,6 +77,10 @@ export async function PATCH(
   const warnings: string[] = []
 
   // 3. 캘린더 자동 등록
+  // proof_url 이 이미지면 thumbnail_url 로 승계 (PDF 는 무시 — 캘린더 카드는 이미지만 표시).
+  // 사용자는 fan-events 폼에서 "3:4 portrait recommended for best display" 안내를 이미 받음.
+  const proofIsImage =
+    !!req.proof_url && /\.(jpe?g|png|webp)(\?|$)/i.test(req.proof_url)
   const { error: insertErr } = await supabase.from("hallyu_calendar_events").insert({
     type: "fanmeet",
     title: req.title,
@@ -86,6 +90,7 @@ export async function PATCH(
     source_api: "fan_event_request",
     source_id: `fer-${req.id}`,                          // unique 제약 회피
     is_premium: false,
+    thumbnail_url: proofIsImage ? req.proof_url : null,
   })
   if (insertErr) {
     console.error("[admin/fan-events] 캘린더 삽입 실패:", insertErr.message)
