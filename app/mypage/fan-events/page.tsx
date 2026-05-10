@@ -34,6 +34,8 @@ import {
   ExternalLink,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { RedeemCouponModal } from "@/components/common/redeem-coupon-modal"
+import { Toaster } from "@/components/ui/toaster"
 
 const sidebarLinks = [
   { icon: Home, label: "Dashboard", href: "/mypage" },
@@ -94,6 +96,7 @@ export default function MyFanEventsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
   const [successMsg, setSuccessMsg] = useState("")
+  const [redeemOpen, setRedeemOpen] = useState(false)
 
   // 진입 가드 + 프로필·신청 목록 로드
   useEffect(() => {
@@ -360,7 +363,11 @@ export default function MyFanEventsPage() {
             ) : (
               <div className="space-y-3">
                 {requests.map((req) => (
-                  <RequestCard key={req.id} req={req} />
+                  <RequestCard
+                    key={req.id}
+                    req={req}
+                    onRedeemClick={() => setRedeemOpen(true)}
+                  />
                 ))}
               </div>
             )}
@@ -470,13 +477,24 @@ export default function MyFanEventsPage() {
         </main>
       </div>
 
+      {/* 쿠폰 등록 모달 — RequestCard 의 Redeem 버튼 트리거. 성공 시 토스트 + 모달 닫힘. */}
+      <RedeemCouponModal open={redeemOpen} onOpenChange={setRedeemOpen} />
+      {/* 토스트 컨테이너 — root layout 에 미마운트라 페이지 레벨에서 로컬 마운트 */}
+      <Toaster />
+
       <FooterSection />
     </div>
   )
 }
 
 // 신청 1건 카드 — 상태별 배지·부가 영역
-function RequestCard({ req }: { req: FanEventRequest }) {
+function RequestCard({
+  req,
+  onRedeemClick,
+}: {
+  req: FanEventRequest
+  onRedeemClick: () => void
+}) {
   const eventDateLabel = new Date(req.event_date).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
@@ -518,13 +536,14 @@ function RequestCard({ req }: { req: FanEventRequest }) {
               <div className="text-muted-foreground text-sm">Check the email we sent you</div>
             )}
           </div>
-          <Link
-            href="/redeem"
+          <button
+            type="button"
+            onClick={onRedeemClick}
             className="flex-shrink-0 text-sm font-medium hover:underline flex items-center gap-1"
             style={{ color: "#22c55e" }}
           >
             <Sparkles className="w-4 h-4" /> Redeem
-          </Link>
+          </button>
         </div>
       )}
 
