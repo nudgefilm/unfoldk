@@ -206,9 +206,14 @@ export function Header() {
           >
             My Page
           </Link>
-          {/* 로그인 상태에 따라 분기 — 비로그인: Log in + Try for Free / 로그인: 아바타 hover 드롭다운 */}
-          {/* isAuthReady=false 동안엔 어느 쪽도 렌더링하지 않아 초기 깜빡임 방지 */}
-          {isAuthReady && (isLoggedIn ? (
+          {/* 로그인 상태에 따라 분기 — 비로그인: Start / 로그인: 아바타 hover 드롭다운.
+              인증 확인 전엔 아바타 크기(36px) placeholder 로 자리를 고정해
+              페이지 이동 시 flex 컨테이너 width 변동 → 우측 메뉴 layout shift 방지.
+              로그인 유저(주 케이스) 는 0 shift, 비로그인은 Start 등장 시 약간 widen.
+              isAuthReady=false 동안엔 placeholder 만 노출. */}
+          {!isAuthReady ? (
+            <div className="w-9 h-9" aria-hidden="true" />
+          ) : isLoggedIn ? (
             <div
               className="relative"
               onMouseEnter={handleProfileMouseEnter}
@@ -274,7 +279,7 @@ export function Header() {
                 </Button>
               }
             />
-          ))}
+          )}
         </div>
 
         {/* Mobile Hamburger Menu */}
