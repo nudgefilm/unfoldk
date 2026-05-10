@@ -17,7 +17,7 @@ export default function TermsPage() {
           {language === "en" ? "Terms of Use" : "이용약관"}
         </h1>
         <p className="text-muted-foreground text-center mb-8">
-          {language === "en" ? "Last updated: May 7, 2026" : "최종 수정일: 2026년 5월 7일"}
+          {language === "en" ? "Last updated: May 10, 2026" : "최종 수정일: 2026년 5월 10일"}
         </p>
 
         {/* Language Toggle */}
@@ -108,30 +108,41 @@ export default function TermsPage() {
                 </ul>
               </Section>
 
-              <Section title="7. Intellectual Property">
+              <Section title="7. User-Submitted Content">
+                <p className="mb-2">
+                  By submitting images, photos, or any content to UnfoldK (including fan event submissions), you confirm that:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                  <li>You own the copyright to the submitted content, or have explicit permission from the copyright holder to share it.</li>
+                  <li>You grant UNFOLD LAB a non-exclusive, royalty-free license to display the submitted content on UnfoldK.</li>
+                  <li>You are solely responsible for any content you upload. UNFOLD LAB reserves the right to remove content that violates these terms or applicable law.</li>
+                </ul>
+              </Section>
+
+              <Section title="8. Intellectual Property">
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li>UnfoldK content and design are owned by UNFOLD LAB</li>
                   <li>&quot;This product uses the TMDB API but is not endorsed or certified by TMDB.&quot;</li>
                 </ul>
               </Section>
 
-              <Section title="8. Disclaimer">
+              <Section title="9. Disclaimer">
                 <p>UnfoldK is provided &quot;as is&quot; without warranties of any kind.</p>
               </Section>
 
-              <Section title="9. Limitation of Liability">
+              <Section title="10. Limitation of Liability">
                 <p>UNFOLD LAB shall not be liable for indirect or consequential damages.</p>
               </Section>
 
-              <Section title="10. Governing Law">
+              <Section title="11. Governing Law">
                 <p>Governed by the laws of the Republic of Korea.</p>
               </Section>
 
-              <Section title="11. Changes">
+              <Section title="12. Changes">
                 <p>We will notify users of changes via email at least 14 days in advance.</p>
               </Section>
 
-              <Section title="12. Contact">
+              <Section title="13. Contact">
                 <p>support@unfoldk.com · UNFOLD LAB · unfoldk.com</p>
               </Section>
             </>
@@ -192,30 +203,41 @@ export default function TermsPage() {
                 </ul>
               </Section>
 
-              <Section title="7. 지식재산권">
+              <Section title="7. 사용자 제출 콘텐츠">
+                <p className="mb-2">
+                  이미지, 사진 등 UnfoldK에 콘텐츠를 제출(팬 이벤트 신청 포함)함으로써 다음 사항에 동의합니다:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                  <li>제출하는 콘텐츠의 저작권을 보유하고 있거나, 저작권자로부터 명시적 허가를 받았음을 확인합니다.</li>
+                  <li>UNFOLD LAB에 해당 콘텐츠를 UnfoldK에 표시할 수 있는 비독점적·무상 라이선스를 부여합니다.</li>
+                  <li>업로드한 콘텐츠에 대한 책임은 전적으로 사용자에게 있으며, UNFOLD LAB은 본 약관 또는 관련 법령을 위반하는 콘텐츠를 삭제할 권리를 보유합니다.</li>
+                </ul>
+              </Section>
+
+              <Section title="8. 지식재산권">
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li>UnfoldK 콘텐츠 및 디자인은 UNFOLD LAB 소유</li>
                   <li>&quot;본 서비스는 TMDB API를 활용하나 TMDB의 공식 인증을 받지 않았습니다.&quot;</li>
                 </ul>
               </Section>
 
-              <Section title="8. 면책 조항">
+              <Section title="9. 면책 조항">
                 <p>UnfoldK는 &quot;있는 그대로&quot; 제공되며 어떠한 보증도 제공하지 않습니다.</p>
               </Section>
 
-              <Section title="9. 책임 제한">
+              <Section title="10. 책임 제한">
                 <p>UNFOLD LAB은 서비스 이용으로 인한 간접적 손해에 대해 책임지지 않습니다.</p>
               </Section>
 
-              <Section title="10. 준거법 및 관할">
+              <Section title="11. 준거법 및 관할">
                 <p>본 약관은 대한민국 법률에 따르며, 분쟁 시 대한민국 법원을 관할로 합니다.</p>
               </Section>
 
-              <Section title="11. 약관 변경">
+              <Section title="12. 약관 변경">
                 <p>중요한 변경 사항은 적용 14일 전 이메일로 안내합니다.</p>
               </Section>
 
-              <Section title="12. 문의">
+              <Section title="13. 문의">
                 <p>support@unfoldk.com · UNFOLD LAB · unfoldk.com</p>
               </Section>
             </>
