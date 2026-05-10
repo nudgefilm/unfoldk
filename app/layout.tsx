@@ -7,12 +7,34 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'UnfoldK',
-  description: 'Created with v0',
+  title: 'Unfold K',
+  description: 'Your Pass to Korean Culture',
   generator: 'v0.app',
+  metadataBase: new URL('https://www.unfoldk.com'),
   icons: {
-    icon: '/unfoldk_favicon.png',
-    apple: '/unfoldk_favicon.png',
+    icon: '/unfoldk_favicon.jpg',
+    apple: '/unfoldk_favicon.jpg',
+  },
+  openGraph: {
+    title: 'Unfold K',
+    description: 'Your Pass to Korean Culture',
+    url: 'https://www.unfoldk.com',
+    siteName: 'Unfold K',
+    images: [
+      {
+        url: 'https://www.unfoldk.com/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Unfold K — Your Pass to Korean Culture',
+      },
+    ],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Unfold K',
+    description: 'Your Pass to Korean Culture',
+    images: ['https://www.unfoldk.com/og-image.png'],
   },
 }
 
