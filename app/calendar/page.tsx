@@ -746,11 +746,12 @@ export default function HallyuCalendarPage() {
           </div>
         </section>
 
-        {/* Community contribution note — 달력 바로 아래 2줄 안내 */}
+        {/* Community contribution note — 달력 바로 아래 3줄 안내 (문장 단위 줄바꿈) */}
         <section className="mb-12">
           <p className="text-muted-foreground text-sm leading-relaxed text-center max-w-3xl mx-auto">
             This calendar is built together with Hallyu fans around the world.
-            Submit a fan event happening in your area — concerts, fan meets, pop-ups, anything K-culture.
+            <br />
+            Submit a fan event happening in your area: concerts, fan meets, pop-ups, anything K-culture.
             <br />
             Approved submissions earn a complimentary Hallyu Pass. Ready to contribute? Head to{" "}
             <Link
