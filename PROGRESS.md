@@ -4,6 +4,96 @@
 
 ---
 
+## 현재 상태 (2026-05-10 세션 2 / 메타·캘린더 Featured·팬이벤트 수정·어드민 시그널)
+
+> 한 세션에 굵직한 흐름 4개가 같이 들어갔습니다. 영역별로 정리.
+
+### A. 메타 / OG / 파비콘
+- **`4d8e2b8`** OG image (1200x630) + Twitter Card meta (`metadataBase`, `summary_large_image`)
+  - SVG → sharp(node_modules pnpm 스토어 경로) 로 PNG 변환, `public/og-image.png` 67KB
+  - `app/layout.tsx` openGraph/twitter 메타 풀 셋 + `metadataBase: https://www.unfoldk.com`
+- **`62b1a90`** 파비콘 `unfoldk_favicon.jpg` → `favicon.png` 단순화
+- **소셜 캐시 무효화 가이드 박제** (텔레그램 @WebpageBot / Facebook debugger / KakaoTalk / LinkedIn / X 컴포저)
+
+### B. HallyuCalendar 랜딩·캘린더 페이지 UX
+- **`5ec2330`** 랜딩 플로팅 위젯 — 하드코딩 3건 → `/api/calendar/events?month=YYYY-MM` 실 DB 호출
+- **`93cffe1`** 그리드 하이라이트(전체 이벤트) / 하단 태그(오늘 이후 가까운 순 max 3) 분리 — footer "N events this month" 는 동월 전체 카운트
+- **`99a3a5a`** 캘린더 페이지 — 오늘 이전 이벤트 카드/뱃지 `opacity-40` (그리드+Upcoming 둘 다, today 당일은 미적용)
+- **`306422f`** 모달 "Add to Google Calendar" 활성화 — OAuth 없이 GCal TEMPLATE URL (`?action=TEMPLATE&dates=YYYYMMDD/YYYYMMDD+1`), event.time 라벨은 파싱 위험으로 종일 포맷 채택
+- **`6d6799f`** + **`114fd59`** + **`a636044`** **Featured 가로 스크롤 카드 신설**:
+  - API `/api/calendar/events`: select 절에 `thumbnail_url`, `created_at` 추가 → 응답 `thumbnailUrl`, `createdAt` 매핑
+  - 카드: `w-48 aspect-[3/4]` 세로 프레임 + `object-contain` (16:9 가로/2:3 포스터 모두 잘림 없이 letterbox)
+  - 정렬: `created_at desc` (최신 등록 좌측). future asc + past desc fallback 로직 폐기 — 스케일 시 의미 없음 (사용자 피드백)
+  - 우측 가장자리 페이드 오버레이 (`hsl(var(--background)) → transparent`) — 스크롤 어포던스
+  - `[&::-webkit-scrollbar]:hidden` + 인라인 `scrollbarWidth`/`msOverflowStyle` cross-browser
+- **`93708b6`** + **`9cfe6c4`** + **`1400594`** Community contribution 안내 문구 — Upcoming 아래 → 달력 바로 아래로 이동, 3줄 sentence-based 줄바꿈 + 톤 수정 ("Submit ... K-culture" → "Share news about Hallyu events ...")
+
+### C. 쿠폰 / 팬이벤트 흐름 재정비
+- **`49ea597`** `/redeem` 전체 페이지 → 인플레이스 **`<RedeemCouponModal />`** 로 전환 (Dialog 패턴, ReportButton 톤 일치)
+  - 토스트 노출 위해 fan-events 페이지에 `<Toaster />` 로컬 마운트 (root layout 미마운트라 ReportButton useToast 도 비-admin 영역에서 silently no-op 인 점 박제)
+  - `/redeem` 페이지는 그대로 유지 (이메일 링크 등 외부 진입로 보존)
+- **`68f74ee`** 어드민 승인 시 `proof_url` → `thumbnail_url` 자동 승계 — `/(jpe?g|png|webp)(\?|$)/i` 매칭 시만 (PDF는 null), 사용자 §7 약관 동의 + 폼 라벨 안내로 라이선스 커버
+- **`914d7b0`** **본인 pending 신청 수정 기능** — 0016 RLS + PATCH 라우트 + Edit 버튼 + EditFanEventModal:
+  - migration `0016_fan_events_owner_update.sql` — `fan_events_update_own` (auth.uid()=user_id and status='pending') 양쪽(using/with check) 검증으로 status 변조 차단
+  - `app/api/mypage/fan-events/[id]/route.ts` PATCH — 본인+pending 1차 가드 + RLS 2차 가드 (defence-in-depth)
+  - 화이트리스트: title/description/event_date/location/proof_url
+  - UI: Edit 버튼은 pending 한정 + EditFanEventModal Dialog 패턴 + 새 파일 미선택 시 기존 proof_url 보존
+
+### D. 어드민 시그널 / 운영 정책
+- **`40b2d11`** **어드민 events 폼 `thumbnail_url` 풀 플러그인 (버그 수정)**:
+  - **증상 진단**: API는 created_at 응답하는데 DB thumbnail 0건. 사용자 "이미지 첨부했다"는데 안 들어감.
+  - **원인**: `app/api/admin/events/route.ts` POST 스키마는 `thumbnail_url` 받게 돼있으나 **UI 폼 자체에 입력 필드 없음** + `app/admin/events/page.tsx` SELECT 절에도 미포함 → 편집 시 기존 값 손실까지.
+  - 수정: AdminEventRow / FormState / EMPTY_FORM / startEdit / handleSubmit / 폼 JSX 전 단계 풀 플러그인. URL 입력 시 3:4 미리보기 (카드와 동일 정책) 즉시 노출. 편집 PATCH 는 빈 문자열을 null 로 명시 (기존 값 제거 가능).
+- **`d02bcf3`** **어드민 fan-events 신청자별 "이전 승인 N회" amber 배지** (Tier 2 채택):
+  - 사용자별 `status='approved'` 카운트 별도 쿼리 (loaded 500건 안에서만 세면 누적 잘림 위험 → 전체 fan_event_requests 대상)
+  - 본 row 가 approved 면 자기 자신 제외 → 진짜 "이전" 횟수
+  - 1회 이상만 노출 (0회 신규는 깔끔). pending 배지와 동일 amber 톤으로 주의 환기.
+
+### 운영 정책 결정 (코드 변경 없음 / DECISIONS 후속 박제 필요)
+- **승인 후 수정 요청 처리**: 어드민이 `/admin/events`에서 캘린더 이벤트 삭제만. 이미 발급된 쿠폰은 회수하지 않고 혜택 그대로 제공. 자동 cooldown / 3일 만료 정책 모두 미도입 (Tier 1 + Tier 2 조합으로 충분 판단).
+- **어뷰징 1차 방어**: 어드민 fan-events 의 "이전 승인 N회" 배지로 같은 사용자 반복 승인 패턴을 시각적으로 즉시 인지. 자동 차단(Tier 3 cooldown)은 MAU 커진 후 재검토.
+- **거절 이력 노출은 미도입** — 거절은 막힌 시도라 farming 시그널이 아님 (의도).
+
+### 약관
+- **`624e1e8`** + **`9cfe6c4`** §7 "User-Submitted Content / 사용자 제출 콘텐츠" 신설 (EN/KO), 기존 §7~§12 → §8~§13 리넘버링
+  - §4 결제 처리자 표기 Stripe → Lemon Squeezy(MoR) 변경 — billing/taxes/refunds/invoices 책임 소재 명시 (DECISIONS.md 2026-05-08 결정 약관 반영)
+- Last updated 2026-05-10 으로 갱신
+
+### ⚠️ 사용자 액션 필요
+1. **Supabase SQL Editor 에서 `0016_fan_events_owner_update.sql` 실행** — 안 돌리면 fan-events Edit 클릭 → Save 시 RLS 차단으로 silently no-op
+   ```sql
+   drop policy if exists "fan_events_update_own" on public.fan_event_requests;
+   create policy "fan_events_update_own"
+     on public.fan_event_requests for update
+     to authenticated
+     using (auth.uid() = user_id and status = 'pending')
+     with check (auth.uid() = user_id and status = 'pending');
+   ```
+2. (선택) 기존 "Our K-Drama Fanmeet" 이벤트 백필:
+   ```sql
+   update hallyu_calendar_events ce
+   set thumbnail_url = fer.proof_url
+   from fan_event_requests fer
+   where ce.source_id = 'fer-' || fer.id::text
+     and ce.thumbnail_url is null
+     and fer.proof_url is not null
+     and (fer.proof_url ilike '%.jpg' or fer.proof_url ilike '%.jpeg'
+       or fer.proof_url ilike '%.png' or fer.proof_url ilike '%.webp');
+   ```
+3. (선택) 소셜 카드 캐시 무효화 — Telegram @WebpageBot / Facebook debugger / KakaoTalk / LinkedIn 등 각 플랫폼 디버거에서 `https://www.unfoldk.com` 갱신
+
+### 다음 세션 후보
+- **DECISIONS.md 박제** — 오늘 결정 2건 정리 (승인 후 수정 정책 / 어드민 어뷰징 검토 Tier 1+2 채택 이유)
+- **Toaster 마운트 정책 재검토** — root layout 에 올릴지, 페이지별 로컬 유지할지. ReportButton의 비-admin 영역 silent fail 도 같이 해결 가능.
+- **이전 세션 후보 그대로 carry-over**: KpopStats artist / KdramaMatch drama / HangeulGo phrase / KfoodKit recipe 에 ReportButton 추가 / `/admin/reports` 콘텐츠 미리보기 inline / `app/calendar/page.tsx` hydration 룰 적용
+- **YouTube 인제스트 thumbnail backfill** — 기존 youtube source 이벤트들도 `thumbnail_url` 채울지 결정 (인제스터에는 추출 로직 이미 있음)
+- **PDF proof 케이스 안내 강화** — fan-events Proof 라벨에 "PDF는 캘린더 카드에 표시되지 않습니다" 명시 검토
+
+### 블로커
+- 없음 (사용자 액션 1건만 외부 의존)
+
+---
+
 ## 현재 상태 (2026-05-10 / ReportButton 비로그인 흐름 단순화 — StartModal 인플레이스 오픈)
 
 > ⚠️ **다음 세션이 같은 함정에 빠지지 않도록**: 이번 세션의 진짜 문제는
