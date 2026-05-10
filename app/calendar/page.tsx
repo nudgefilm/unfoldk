@@ -747,9 +747,9 @@ export default function HallyuCalendarPage() {
           <p className="text-muted-foreground text-sm leading-relaxed text-center max-w-3xl mx-auto">
             This calendar is built together with Hallyu fans around the world.
             <br />
-            Submit a fan event happening in your area: concerts, fan meets, pop-ups, anything K-culture.
+            Share news about Hallyu events happening in your area.
             <br />
-            Approved submissions earn a complimentary Hallyu Pass. Ready to contribute? Head to{" "}
+            Selected submissions receive a complimentary Hallyu Pass. Ready to contribute? Head to{" "}
             <Link
               href="/mypage/fan-events"
               className="hover:underline"
