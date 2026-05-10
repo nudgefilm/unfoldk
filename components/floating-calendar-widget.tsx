@@ -31,11 +31,17 @@ export function FloatingCalendarWidget() {
     }
   }, [])
 
-  // 그리드 하이라이트·태그 노출은 최대 3건. 동월 총 건수는 footer 에서 별도로 표시.
-  const displayed = (events ?? []).slice(0, 3)
+  // 그리드 하이라이트는 과거·미래 모두 노출 (이벤트 있는 날 = 핑크).
+  // 하단 태그 목록은 오늘 이후만, 가까운 순 최대 3건.
+  // 동월 총 건수(과거 포함)는 footer 에서 events.length 로 별도 표시.
+  const today = new Date().getDate()
   const eventDays: Record<number, string> = Object.fromEntries(
-    displayed.map((ev) => [ev.date, ev.title])
+    (events ?? []).map((ev) => [ev.date, ev.title])
   )
+  const displayed = (events ?? [])
+    .filter((ev) => ev.date >= today)
+    .sort((a, b) => a.date - b.date)
+    .slice(0, 3)
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
@@ -97,15 +103,15 @@ export function FloatingCalendarWidget() {
 
             {/* Event Tags */}
             <div className="flex flex-col gap-2 mt-4 pt-3 border-t border-border/20">
-              {Object.entries(eventDays).map(([day, event]) => (
-                <div key={day} className="flex items-center gap-2">
+              {displayed.map((ev) => (
+                <div key={ev.id} className="flex items-center gap-2">
                   <span
                     className="px-2 py-0.5 rounded text-[10px] font-medium text-white"
                     style={{ backgroundColor: "#FF4B6E" }}
                   >
-                    May {day}
+                    May {ev.date}
                   </span>
-                  <span className="text-foreground text-xs">{event}</span>
+                  <span className="text-foreground text-xs">{ev.title}</span>
                 </div>
               ))}
             </div>
