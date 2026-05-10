@@ -1,12 +1,29 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { StartModal } from "@/components/start-modal"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 export function PricingSection() {
   const [isAnnual, setIsAnnual] = useState(false)
+  // 로그인 상태에 따라 CTA 동작 분기 — 비로그인: StartModal, 로그인: /mypage/subscription
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user)
+    })
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session?.user)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   const freeFeatures = [
     "Basic access to all 5 services",
@@ -65,19 +82,31 @@ export function PricingSection() {
                 </div>
               </div>
             </div>
-            <div className="self-stretch">
-              <StartModal
-                trigger={
-                  <Button
-                    className="w-full px-5 py-2 rounded-[40px] flex justify-center items-center bg-transparent border border-zinc-600 text-zinc-200 hover:bg-zinc-800 hover:border-zinc-500"
-                  >
-                    <span className="text-center text-sm font-medium leading-tight">
-                      Get started
-                    </span>
-                  </Button>
-                }
-              />
-            </div>
+            {isLoggedIn ? (
+              <Link href="/mypage/subscription" className="self-stretch">
+                <Button
+                  className="w-full px-5 py-2 rounded-[40px] flex justify-center items-center bg-transparent border border-zinc-600 text-zinc-200 hover:bg-zinc-800 hover:border-zinc-500"
+                >
+                  <span className="text-center text-sm font-medium leading-tight">
+                    Get started
+                  </span>
+                </Button>
+              </Link>
+            ) : (
+              <div className="self-stretch">
+                <StartModal
+                  trigger={
+                    <Button
+                      className="w-full px-5 py-2 rounded-[40px] flex justify-center items-center bg-transparent border border-zinc-600 text-zinc-200 hover:bg-zinc-800 hover:border-zinc-500"
+                    >
+                      <span className="text-center text-sm font-medium leading-tight">
+                        Get started
+                      </span>
+                    </Button>
+                  }
+                />
+              </div>
+            )}
           </div>
           <div className="self-stretch flex flex-col justify-start items-start gap-4">
             <div className="self-stretch text-sm font-medium leading-tight text-muted-foreground">
@@ -162,19 +191,31 @@ export function PricingSection() {
                 </div>
               </div>
             </div>
-            <div className="self-stretch">
-              <StartModal
-                trigger={
-                  <Button
-                    className="w-full px-5 py-2 rounded-[40px] flex justify-center items-center bg-white hover:bg-white/90"
-                  >
-                    <span className="text-center text-sm font-medium leading-tight" style={{ color: "#FF4B6E" }}>
-                      Join now
-                    </span>
-                  </Button>
-                }
-              />
-            </div>
+            {isLoggedIn ? (
+              <Link href="/mypage/subscription" className="self-stretch">
+                <Button
+                  className="w-full px-5 py-2 rounded-[40px] flex justify-center items-center bg-white hover:bg-white/90"
+                >
+                  <span className="text-center text-sm font-medium leading-tight" style={{ color: "#FF4B6E" }}>
+                    Join now
+                  </span>
+                </Button>
+              </Link>
+            ) : (
+              <div className="self-stretch">
+                <StartModal
+                  trigger={
+                    <Button
+                      className="w-full px-5 py-2 rounded-[40px] flex justify-center items-center bg-white hover:bg-white/90"
+                    >
+                      <span className="text-center text-sm font-medium leading-tight" style={{ color: "#FF4B6E" }}>
+                        Join now
+                      </span>
+                    </Button>
+                  }
+                />
+              </div>
+            )}
           </div>
           <div className="self-stretch flex flex-col justify-start items-start gap-4">
             <div className="self-stretch text-sm font-medium leading-tight text-white/70">
