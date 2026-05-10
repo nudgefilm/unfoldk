@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, Plus, Calendar, X, Lock } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Calendar, X, Lock } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -29,6 +29,22 @@ interface CalendarEvent {
 
 const tabs = ["All", "K-pop", "K-drama", "Concert", "Fan Meet"] as const
 const lockedTabs = ["Concert", "Fan Meet"]
+
+// Google Calendar TEMPLATE URL 빌더 — EventDetailModal / UpcomingAccordionItem 양쪽에서 사용.
+// OAuth 없이 사용자 GCal 에 종일 이벤트 등록. event.time 라벨은 파싱 위험으로 종일 포맷.
+function buildGoogleCalendarUrl(event: CalendarEvent, viewDate: Date): string {
+  const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), event.date)
+  const end = new Date(viewDate.getFullYear(), viewDate.getMonth(), event.date + 1)
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: event.title,
+    dates: `${fmt(start)}/${fmt(end)}`,
+    ...(event.description ? { details: event.description } : {}),
+  })
+  return `https://calendar.google.com/calendar/render?${params.toString()}`
+}
 
 // Event Detail Modal Component
 function EventDetailModal({
@@ -96,26 +112,10 @@ function EventDetailModal({
     }
   }, [event])
 
-  // Add to Google Calendar — OAuth 없이 GCal TEMPLATE URL 로 새 탭 오픈
-  // event.date(1~31) + viewDate(연·월) 로 실제 날짜 합성, event.time 은 라벨 문자열이라
-  // 신뢰성 있는 파싱이 어려워 종일(all-day) 포맷으로 처리. 종료일은 exclusive 라 +1일.
+  // Add to Google Calendar — 모듈 레벨 buildGoogleCalendarUrl 헬퍼 재사용
   const handleAddToGoogleCalendar = () => {
     if (!event) return
-    const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), event.date)
-    const end = new Date(viewDate.getFullYear(), viewDate.getMonth(), event.date + 1)
-    const fmt = (d: Date) =>
-      `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`
-    const params = new URLSearchParams({
-      action: "TEMPLATE",
-      text: event.title,
-      dates: `${fmt(start)}/${fmt(end)}`,
-      ...(event.description ? { details: event.description } : {}),
-    })
-    window.open(
-      `https://calendar.google.com/calendar/render?${params.toString()}`,
-      "_blank",
-      "noopener,noreferrer"
-    )
+    window.open(buildGoogleCalendarUrl(event, viewDate), "_blank", "noopener,noreferrer")
   }
 
   // Copy iCal Link 버튼 — 클립보드에 이벤트별 iCal feed URL 복사 + 2초간 상태 표시
@@ -428,6 +428,199 @@ function UpgradeModal({
   )
 }
 
+// Upcoming 리스트 아코디언 아이템 — 클릭 시 인라인 확장.
+// 표시: AI 설명 / Add to Google Calendar / Reminder 토글 / Report.
+// 모달은 Featured 카드 + 캘린더 그리드 클릭에서만 유지 (이쪽은 동결).
+function UpcomingAccordionItem({
+  event,
+  index,
+  monthShort,
+  viewDate,
+  isPro,
+  isPast,
+  isLoggedIn,
+  isExpanded,
+  onToggle,
+  onLoginNeeded,
+}: {
+  event: CalendarEvent
+  index: number
+  monthShort: string
+  viewDate: Date
+  isPro: boolean
+  isPast: boolean
+  isLoggedIn: boolean
+  isExpanded: boolean
+  onToggle: () => void
+  onLoginNeeded: () => void
+}) {
+  const isBlurred = !isPro && index >= 3
+
+  // 리마인더 — 확장 시 처음 1회 fetch, 토글 시 300ms debounce save
+  const [reminders, setReminders] = useState({ d7: false, d1: true, dayOf: true })
+  const [remindersLoaded, setRemindersLoaded] = useState(false)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (!isExpanded || !isLoggedIn || remindersLoaded) return
+    let cancelled = false
+    fetch(`/api/calendar/reminders?event_id=${event.id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return
+        if (data) {
+          setReminders({
+            d7: !!data.remind_d7,
+            d1: !!data.remind_d1,
+            dayOf: !!data.remind_dayof,
+          })
+        }
+        setRemindersLoaded(true)
+      })
+      .catch((err) => {
+        console.error("[reminder/accordion] load 실패:", err)
+        if (!cancelled) setRemindersLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isExpanded, isLoggedIn, remindersLoaded, event.id])
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [])
+
+  const scheduleSave = (next: typeof reminders) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        await fetch("/api/calendar/reminders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event_id: event.id,
+            remind_d7: next.d7,
+            remind_d1: next.d1,
+            remind_dayof: next.dayOf,
+          }),
+        })
+      } catch (err) {
+        console.error("[reminder/accordion] save 실패:", err)
+      }
+    }, 300)
+  }
+
+  const toggleReminder = (key: keyof typeof reminders) => {
+    if (!isLoggedIn) {
+      onLoginNeeded()
+      return
+    }
+    const next = { ...reminders, [key]: !reminders[key] }
+    setReminders(next)
+    scheduleSave(next)
+  }
+
+  const handleAddToGCal = () => {
+    if (!isLoggedIn) {
+      onLoginNeeded()
+      return
+    }
+    window.open(buildGoogleCalendarUrl(event, viewDate), "_blank", "noopener,noreferrer")
+  }
+
+  return (
+    <div
+      className={`bg-[#1a1a1a] border border-border/30 rounded-xl transition-colors ${
+        isBlurred ? "blur-[4px] pointer-events-none" : "hover:border-primary/50"
+      } ${isPast ? "opacity-40" : ""}`}
+    >
+      {/* Header row — 클릭 시 아코디언 토글 */}
+      <div
+        onClick={() => !isBlurred && onToggle()}
+        className={`flex items-center justify-between p-4 ${isBlurred ? "" : "cursor-pointer"}`}
+      >
+        <div className="flex items-center gap-4">
+          <div
+            className="w-14 h-14 rounded-xl flex flex-col items-center justify-center text-white"
+            style={{ backgroundColor: getEventTypeColor(event.type) }}
+          >
+            <span className="text-xs font-medium">{monthShort}</span>
+            <span className="text-xl font-bold">{event.date}</span>
+          </div>
+          <div>
+            <h3 className="text-foreground font-medium">{event.title}</h3>
+            <span className="text-muted-foreground text-sm">{event.type}</span>
+          </div>
+        </div>
+        <ChevronDown
+          className={`w-5 h-5 text-muted-foreground transition-transform ${
+            isExpanded ? "rotate-180" : ""
+          }`}
+        />
+      </div>
+
+      {/* Expanded body */}
+      {isExpanded && !isBlurred && (
+        <div className="px-4 pb-4 pt-3 border-t border-border/20 space-y-4">
+          {event.description && (
+            <p className="text-muted-foreground text-sm leading-relaxed">{event.description}</p>
+          )}
+
+          <Button
+            onClick={handleAddToGCal}
+            className="w-full py-3 rounded-xl font-medium text-white"
+            style={{ backgroundColor: "#FF4B6E" }}
+          >
+            <Calendar className="w-4 h-4 mr-2" />
+            Add to Google Calendar
+          </Button>
+
+          <div className="text-center">
+            <p className="text-muted-foreground text-sm mb-3">Set reminder:</p>
+            <div className="flex items-center justify-center gap-4">
+              {(["d7", "d1", "dayOf"] as const).map((key) => {
+                const labels: Record<typeof key, string> = {
+                  d7: "D-7",
+                  d1: "D-1",
+                  dayOf: "Day of",
+                }
+                return (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-sm text-muted-foreground">{labels[key]}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleReminder(key)
+                      }}
+                      className={`w-10 h-5 rounded-full transition-colors relative ${
+                        reminders[key] ? "" : "bg-[#333]"
+                      }`}
+                      style={reminders[key] ? { backgroundColor: "#FF4B6E" } : {}}
+                    >
+                      <span
+                        className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                          reminders[key] ? "translate-x-5" : "translate-x-0.5"
+                        }`}
+                      />
+                    </button>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-border/20 flex justify-end">
+            <ReportButton contentType="event" contentId={event.id} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function HallyuCalendarPage() {
   const [activeTab, setActiveTab] = useState<string>("All")
   const [viewDate, setViewDate] = useState<Date>(() => {
@@ -443,6 +636,10 @@ export default function HallyuCalendarPage() {
   const [isAuthReady, setIsAuthReady] = useState(false)
   // My Fan Events 비로그인 클릭 시 인플레이스 OAuth 모달
   const [fanEventsStartOpen, setFanEventsStartOpen] = useState(false)
+  // Upcoming 아코디언에서 비로그인 액션(Add to GCal / Reminder) 시도 시 OAuth 모달
+  const [accordionStartOpen, setAccordionStartOpen] = useState(false)
+  // 한 번에 한 항목만 확장 — null = 모두 닫힘
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
 
   // 마운트 시 plan 권한 확인 — 탭/배너/이벤트 블러 가드용
   useEffect(() => {
@@ -842,49 +1039,23 @@ export default function HallyuCalendarPage() {
               : `Events in ${viewDate.toLocaleString("en-US", { month: "long" })}`}
           </h2>
           <div className="space-y-4 relative">
-            {upcomingEvents.map((event, index) => {
-              // Pro 유저는 4번째 이후도 명확 (블러 미적용)
-              const isBlurred = !isPro && index >= 3
-              const isPast = isPastEvent(event.date)
-              return (
-                <div
-                  key={event.id}
-                  onClick={() => !isBlurred && handleEventClick(event)}
-                  className={`flex items-center justify-between bg-[#1a1a1a] border border-border/30 rounded-xl p-4 transition-colors ${
-                    isBlurred ? "blur-[4px] pointer-events-none" : "cursor-pointer hover:border-primary/50"
-                  } ${isPast ? "opacity-40" : ""}`}
-                >
-                  <div className="flex items-center gap-4">
-                    {/* Date Badge — 타입별 색상 */}
-                    <div
-                      className="w-14 h-14 rounded-xl flex flex-col items-center justify-center text-white"
-                      style={{ backgroundColor: getEventTypeColor(event.type) }}
-                    >
-                      <span className="text-xs font-medium">{monthShort}</span>
-                      <span className="text-xl font-bold">{event.date}</span>
-                    </div>
-
-                    {/* Event Info */}
-                    <div>
-                      <h3 className="text-foreground font-medium">{event.title}</h3>
-                      <span className="text-muted-foreground text-sm">{event.type}</span>
-                    </div>
-                  </div>
-
-                  {/* Add to Calendar Button */}
-                  <Link href="/login" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full border-border/50 hover:bg-secondary/50"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add to Calendar
-                    </Button>
-                  </Link>
-                </div>
-              )
-            })}
+            {upcomingEvents.map((event, index) => (
+              <UpcomingAccordionItem
+                key={event.id}
+                event={event}
+                index={index}
+                monthShort={monthShort}
+                viewDate={viewDate}
+                isPro={isPro}
+                isPast={isPastEvent(event.date)}
+                isLoggedIn={isLoggedIn}
+                isExpanded={expandedEventId === event.id}
+                onToggle={() =>
+                  setExpandedEventId(expandedEventId === event.id ? null : event.id)
+                }
+                onLoginNeeded={() => setAccordionStartOpen(true)}
+              />
+            ))}
 
             {/* Blur Upsell Overlay - positioned over 4th and 5th events. Pro 면 미노출 */}
             {!isPro && upcomingEvents.length > 3 && (
@@ -921,6 +1092,14 @@ export default function HallyuCalendarPage() {
         open={fanEventsStartOpen}
         onOpenChange={setFanEventsStartOpen}
         next="/mypage/fan-events"
+      />
+
+      {/* Upcoming 아코디언 — Add to GCal / Reminder 토글 비로그인 클릭 시 OAuth 모달.
+          완료 후 현재 페이지(/calendar) 로 복귀해 같은 위치에서 재시도 가능. */}
+      <StartModal
+        open={accordionStartOpen}
+        onOpenChange={setAccordionStartOpen}
+        next="/calendar"
       />
 
       <FooterSection />
