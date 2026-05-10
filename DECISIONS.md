@@ -21,6 +21,97 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-10 푸터 결제·라이선스 표기 + 쿠키 동의 배너
+
+- 결정 내용:
+  - 푸터 좌측 소셜 아이콘 아래 2줄로 **"Payments processed by Lemon Squeezy."** + **"This product uses the TMDB API but is not endorsed or certified by TMDB."** 명시.
+  - bottom line 에 **support@unfoldk.com** mailto 링크 추가 (© 행 동석).
+  - Cookie Policy 링크 `/cookies` → `/cookie` 정정 + `app/cookie/page.tsx` 신규 (EN/KO 토글, 5섹션).
+  - 쿠키 동의 배너 — IntersectionObserver 로 footer 진입 시 1회 노출. `localStorage.cookie_consent='accepted'` 박제 시 재방문 미노출.
+- 이유:
+  - **Lemon Squeezy MoR 표기**: 2026-05-08 결제 처리자 전환 결정의 약관·푸터 노출 의무 잔여분 마무리.
+  - **TMDB attribution**: 무료 티어 약관상 모든 페이지 footer 에 명시 필수 (CLAUDE.md §9).
+  - **support 이메일**: 사용자 문의 단일 진입점. 분산된 contact 폼 대신 단순 mailto.
+  - **쿠키 배너**: GDPR / CCPA 대응 첫 단계. footer 진입 = 페이지 충분히 본 상태라 banner 가 콘텐츠 가리지 않음.
+- 대안으로 고려했던 것:
+  - 페이지 진입 즉시 banner 노출 — 콘텐츠 가림. 사용자 경험 저하.
+  - "Manage" 클릭 시 implied consent — opt-out 정책. 현재는 implied (by continuing) 으로 해두고 법무 검토 후 opt-in 필요 시 본문 교체.
+
+---
+
+## 2026-05-10 plan_type ↔ subscription_status 자동 동기화 (RLS 통과 보장)
+
+- 결정 내용:
+  - **모든 plan_type write path 가 subscription_status 도 함께 set** 하도록 정합성 강제.
+  - `app/api/admin/users/[id]/route.ts` PATCH:
+    - plan_type='monthly'|'annual' → subscription_status='active'
+    - plan_type='free' → subscription_status='canceled'
+  - `app/api/auth/complete-signup/route.ts` ALLOWED_PLANS 를 `['free']` 로 좁힘. paid 플랜 활성화는 LMS webhook (order_created) 또는 쿠폰 (apply-coupon) 만 정당 경로.
+- 이유:
+  - 캘린더 RLS 정책 `events_select_premium_paid` 가 `(plan_type IN ('monthly','annual') AND subscription_status='active')` 를 둘 다 검증.
+  - 어드민이 plan_type 만 변경하면 status 가 null/'pending'/'canceled' 인 broken row 생성 → 어드민 수동 부여 Pro 가 premium 이벤트를 못 봄 (실제 인시던트).
+  - 동기화 로직을 한 곳(API write path)에 집중시켜 향후 같은 클래스 버그 재발 차단.
+- 대안으로 고려했던 것:
+  - SQL 데이터 백필만 — 임시방편. 다음에 또 발생.
+  - RLS 정책 완화 — 보안 약화. cancelled 유저도 premium 보임.
+  - DB 트리거로 강제 — 가능하지만 코드 레벨이 더 명시적·테스트 가능.
+
+---
+
+## 2026-05-10 Header 를 root layout 으로 단일 마운트 (아키텍처)
+
+- 결정 내용:
+  - **`<Header />` 를 12개 페이지 + hero-section.tsx 에서 모두 제거** 하고 `app/layout.tsx` 에 단일 마운트.
+  - Header 내부에서 `usePathname` 로 가드 — `HIDE_HEADER_PREFIXES` (admin, login, signup, start, redeem, forgot-password, verify-email, payment) 매칭 시 `null` 반환.
+  - pathname 변경 useEffect 로 모든 드롭다운 / 시트 / 모달 자동 close.
+- 이유:
+  - 페이지마다 Header 가 재마운트되며 useEffect 가 다시 돌아 인증 fetch 반복 + 프로필/로고 깜빡임 발생.
+  - Next.js layout 은 navigation 시 unmount 안 되므로 instance 영속 → 인증 state 유지 → 깜빡임 0.
+  - 페이지마다 `<Header />` 렌더 코드가 13곳 산재 → 1곳으로 통합되어 유지보수 비용 감소.
+- 대안으로 고려했던 것:
+  - placeholder 자리만 reserve (인증 슬롯 min-w-[100px]) — wobble 잡지만 instance 재마운트는 그대로. 깜빡임 잔존.
+  - localStorage 인증 캐시 — 첫 로드 후 재마운트 시 옛 값 즉시 사용. instance 자체 영속화보단 약함.
+
+---
+
+## 2026-05-10 KdramaMatch 3-tier 노출 정책
+
+- 결정 내용:
+  - **Browse all (`/api/dramas`)**: plan 분기 완전 제거, 모든 유저(비로그인 포함) BROWSE_LIMIT=100 단일.
+  - **Top picks (`/api/dramas/recommend`)**: anon 3 / free 5 / paid 30. Claude system prompt 캡 10→30 으로 확장 (max_tokens 1500→3000).
+  - **Watchlist**: 로그인 필수, plan 무관 (Free 도 + 버튼 사용 가능).
+  - 페이지에 Browse all 섹션 신설, "Recommended for You" → "Top picks for you" 라벨.
+- 이유:
+  - 이전 추천 라우트가 PAID_LIMIT=30 이었지만 Claude prompt 의 "up to 10" 캡과 코드 break 로 paid 도 10건만 보던 데드코드 버그.
+  - "추천(curated)" 과 "카탈로그(browse)" 는 의미가 달라서 한 섹션에 섞으면 paid 가 만족 못함.
+  - Browse 는 SQL 만, Top picks 는 Claude 호출 — 비용·UX 분리.
+- 대안으로 고려했던 것:
+  - Top picks 캡을 paid="무제한" 으로 — Claude 비용 통제 어려움. 후보 60개 한계도 있어 30으로 합리적 상한.
+  - 라벨 그대로 유지 — 실제 동작이 "추천"과 "전체" 둘 다 섞이면 사용자 혼란.
+
+---
+
+## 2026-05-10 인플레이스 OAuth 진입점 일관성
+
+- 결정 내용:
+  - 모든 보호 진입점 클릭 시 페이지 이동 없이 **StartModal 인플레이스** 노출 통일:
+    - Header Start / My Page (비로그인)
+    - Hero CTA 버튼
+    - Pricing Get started / Join now (비로그인) — 로그인은 `/mypage/subscription` 직행
+    - Calendar My Fan Events 안내 링크 (비로그인)
+    - Calendar Upcoming 카드 Add to GCal / Reminder 토글 (비로그인)
+    - ReportButton (이전 결정)
+  - 각 진입점은 `next=` 파라미터로 OAuth 완료 후 의도된 페이지로 직접 복귀.
+- 이유:
+  - 페이지 이동 → middleware redirect → / 튕김 → 다시 클릭의 다단계 흐름 제거.
+  - 사용자 컨텍스트(스크롤 위치 / 선택 상태) 유지.
+  - 단일 OAuth 패턴이라 유지보수 부담 감소.
+- 대안으로 고려했던 것:
+  - 진입점마다 다른 흐름 — 사용자 인지 부담↑. 일관성 없는 UX.
+  - 헤더 Start 만 모달 / 나머지 페이지 이동 — 혼합. 권장 안함.
+
+---
+
 ## 2026-05-10 ReportButton 비로그인 흐름 — StartModal 인플레이스 오픈 (페이지 이동 X)
 
 - 결정 내용:

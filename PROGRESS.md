@@ -4,6 +4,99 @@
 
 ---
 
+## 현재 상태 (2026-05-10 세션 3 / Header 영속화·Drama 3-tier·인플레이스 OAuth 통합·법적 표기)
+
+> 이번 세션은 "근본 원인 먼저" 원칙이 박제된 세션. 사용자가 직접 "임시방편 경향 감지 시 짚어달라"
+> 고 메모리에 남기게 했고 (`feedback_root_cause_first.md`), 곧이어 plan_type ↔
+> subscription_status 동기화 누락이라는 클래스 버그를 6개 write path 전수 점검 후
+> 어드민 라우트 + complete-signup 양쪽에서 fix.
+
+### A. Header 깜빡임 — 3단계 점진적 해결
+- **`5e9776e`** Header `fixed top-0 left-0 right-0 z-50 bg-background` + body `pt-[72px]` + admin layout `-mt-[72px]` 보정
+- **`cca2f4c`** 인증 슬롯 `min-w-[100px] flex justify-end` 로 고정폭 reserve — 페이지 이동 시 우측 메뉴 layout shift 제거
+- **`a42e4b4`** 아바타 Link 높이 `h-10` 명시 — row 높이 wobble (avatar Link 가 다른 메뉴보다 12px 더 컸던 문제) 제거
+- **`03fc378`** 아키텍처 fix — Header 를 12개 페이지 + hero-section.tsx 에서 모두 제거하고 `app/layout.tsx` 단일 마운트. usePathname 가드로 admin / login / signup / start / redeem / forgot-password / verify-email / payment 미노출. navigation 시 unmount 안 돼서 인증 fetch / 프로필 깜빡임 완전 제거. 드롭다운·시트는 pathname 변경 시 자동 close.
+
+### B. 인플레이스 OAuth 진입점 통합
+- **`5e9776e`** 비로그인 My Page 클릭 → StartModal (next='/mypage')
+- **`1d092b5`** + **`dc5cd86`** Pricing Get started / Join now → 비로그인 StartModal / 로그인 `/mypage/subscription` 분기
+- **`3827c52`** Calendar My Fan Events 안내 링크 → 비로그인 StartModal (next='/mypage/fan-events')
+- **`845168f`** Upcoming 카드 Add to Calendar — 기존 `<Link href="/login">` 하드코딩 버그 fix. 로그인이면 GCal TEMPLATE URL 즉시 오픈, 비로그인이면 StartModal (next='/calendar'). 모듈 레벨 `buildGoogleCalendarUrl(event, viewDate)` 헬퍼 추출해 모달과 양쪽 재사용.
+- 결과: Header / Hero / Pricing / ReportButton / Calendar 안내 / Upcoming 카드 모든 보호 진입점이 동일 StartModal 패턴.
+
+### C. KdramaMatch 3-tier 노출 정책
+- **`ee8a751`** 페이지가 호출하던 `/api/dramas/recommend` 의 Claude system prompt 가 "up to 10" 으로 캡 박혀 paid 유저도 10건만 보던 데드코드 PAID_LIMIT 발견.
+  - Claude 캡 10→30 (prompt + break + fallback slice + max_tokens 1500→3000)
+  - recommend API: anon 6→3 / free 12→5 / paid 30 유지
+  - `/api/dramas` (Browse all) — plan 분기 완전 제거, BROWSE_LIMIT=100 단일
+  - 페이지에 Browse all 섹션 신설 (Top picks 아래) + 라벨 "Recommended for You" → "Top picks for you"
+  - 노출 매트릭스: 비로그인=Browse 전체+Top 3 / Free=Browse 전체+Top 5 / Pro=Browse 전체+Top 30 / Watchlist 는 plan 무관 로그인만
+
+### D. 캘린더 이벤트 타입별 색상 통일
+- **`ea22b20`** `lib/calendar/event-type-colors.ts` 신규 — K-pop #FF4B6E / K-drama #8B5CF6 / Concert #F97316 / Fan Meet #06B6D4 + alpha 합성 헬퍼.
+- 5개 적용 위치 (그리드 뱃지 / Upcoming 날짜 배지 / 모달 타입 태그 / 랜딩 위젯 그리드+태그 / Featured 카드 날짜).
+- 의도적 유지된 #FF4B6E 16곳 (CTA / 토글 / today highlight / 위젯 헤더 등 — 이벤트 타입 무관 chrome).
+
+### E. KpopStats — Last.fm 7일 증감 트렌드
+- **`67c012f`** spotlight API 가 30일 history 를 이미 반환하므로 새 API 없이 클라이언트 useMemo 로 계산.
+  - 7일치 미만 / |%| 0.0 → 미표시
+  - 증가: 그린 #22c55e / 감소: muted-foreground (절제 톤)
+  - "Listeners up X.X% this week" / "Listeners down X.X% this week" 50자 이내
+
+### F. 데이터 정합성 — plan_type ↔ subscription_status 동기화 (중요)
+- **`de2cd3a`** 캘린더에서 월간 Pro 가 5건만 보이는 버그 진단:
+  - 증상은 데이터 오염처럼 보이지만 근본 원인은 어드민 `/admin/users` PATCH 가 plan_type 만 update 하고 subscription_status 미동기화. RLS `events_select_premium_paid` 가 `(plan_type IN ('monthly','annual') AND subscription_status='active')` 라 status 가 null/'pending' 인 broken row 는 통과 못함.
+  - 사용자가 "임시방편 패턴 감지" 피드백 줌 → 메모리 박제 (`feedback_root_cause_first.md`).
+  - write path 전수 점검 후 admin/users PATCH + complete-signup schema 양쪽 fix:
+    - admin PATCH: plan_type='monthly'|'annual' → status='active' / plan_type='free' → status='canceled' 자동 sync
+    - complete-signup: ALLOWED_PLANS 를 ['free'] 로 좁힘. paid 플랜은 LMS webhook / apply-coupon 만 정당 경로.
+
+### G. Upcoming 리스트 인라인 아코디언
+- **`845168f`** 모달 → 인라인 아코디언으로 동작 변경.
+  - 1개만 expanded (다른 항목 클릭 시 자동 close).
+  - 확장 노출: AI description / Add to Google Calendar / D-7·D-1·Day of 리마인더 토글 / Report.
+  - 리마인더 — 확장 시점에 1회 fetch (지연 로딩) + 토글 변경 300ms debounce save.
+  - 모달은 Featured 카드 + 캘린더 그리드 클릭에서만 유지 (handleEventClick 흐름 동결).
+
+### H. 팬이벤트 소셜링크 + 반려 표시 (6단계 동기화 풀세트)
+- **`2d153d2`** migration 0017 + API zod (POST/PATCH) + 응답 매핑 + 클라 type + FormState/EMPTY_FORM + 폼 JSX (신규+편집 모달 둘 다) — CLAUDE.md §13 체크리스트 그대로 따라감.
+  - Instagram / X username + 자유 URL (Discord/TikTok 등). prefix 박스 UI.
+  - My Submissions 정렬: pending → approved → rejected (rejected 항상 하단).
+  - StatusBadge "Not Approved" → "Rejected", admin_note 없어도 "Your submission was not approved." 명시 안내. admin_note 있으면 "Reason: …" italic.
+  - 어드민 신청자 셀에 IG / X / Other 작은 링크 (입력했을 때만, 새 탭).
+
+### I. 푸터 법적 표기 + 쿠키 동의 배너
+- **`a4fd898`** + **`c75d179`** 푸터 보강:
+  - Cookie Policy 링크 `/cookies` → `/cookie` 정정 + 페이지 신규 (EN/KO 토글, /terms 패턴).
+  - support@unfoldk.com mailto — bottom line © 행에.
+  - "Payments processed by Lemon Squeezy." / TMDB attribution — 좌측 소셜 아이콘 아래 2줄.
+  - 쿠키 동의 배너 (`components/cookie-consent-banner.tsx`) — IntersectionObserver 로 footer 진입 시 1회 노출 (threshold 0.1 + disconnect). localStorage `cookie_consent='accepted'` 면 IO 자체 미설치.
+  - Accept → 저장 + 닫기 / Manage → /cookie navigate (수락은 안 박힘).
+
+### 메모리 박제 (다음 세션 참고)
+- **`feedback_root_cause_first.md`** 신규 — 데이터 SQL fix 로 끝내지 말고 write path 코드 추적 후 구조적 해결. 사용자가 "임시방편 경향 감지 시 짚어달라" 명시.
+
+### ⚠️ 사용자 액션 필요
+1. **Supabase SQL Editor 에서 0017 마이그레이션 실행** ✅ 완료 (Success. No rows returned 확인)
+2. (이전 세션에서) **0016_fan_events_owner_update.sql** 실행 여부 — 미완 시 fan-events Edit 에서 RLS 차단 silent fail
+3. (선택) 캘린더 broken row 백필 — 어드민 UI 에서 plan_type 한 번 토글하면 자동 sync, 또는 SQL 1줄:
+   ```sql
+   update public.users set subscription_status = 'active'
+   where plan_type in ('monthly','annual')
+     and (subscription_status is null or subscription_status not in ('active','canceled','expired'));
+   ```
+
+### 다음 세션 후보
+- **DECISIONS.md 박제** — 이번 세션 굵직한 결정 다수: Header root layout 통합 / plan_type-status 동기화 정책 / Drama 3-tier 노출 / 인플레이스 OAuth 일관성 / 어드민 어뷰징 검토 Tier 1+2.
+- **Cookie Policy 본문 법무 검토** — 현재 기본 템플릿. 실제 쿠키 사용 정책 확정 후 본문 교체 (especially Accept 동의 메커니즘이 GDPR 'opt-in' 기준에 못 미침 — implied consent).
+- **이전 세션 carry-over**: KpopStats artist / KdramaMatch drama / HangeulGo phrase / KfoodKit recipe ReportButton, /admin/reports 콘텐츠 미리보기, hydration 룰 적용.
+- **Vercel/Supabase 플랜 비용 점검** — 사용자 요청으로 산출했으나 정확한 플랜 미확인 상태. 대시보드 확인 후 Free 가능 영역 정리하면 월 ~$20 절감 가능성.
+
+### 블로커
+- 없음
+
+---
+
 ## 현재 상태 (2026-05-10 세션 2 / 메타·캘린더 Featured·팬이벤트 수정·어드민 시그널)
 
 > 한 세션에 굵직한 흐름 4개가 같이 들어갔습니다. 영역별로 정리.
