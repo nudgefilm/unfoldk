@@ -1,11 +1,49 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import { Twitter, Instagram } from "lucide-react"
 import Link from "next/link"
+import { CookieConsentBanner, COOKIE_CONSENT_KEY } from "./cookie-consent-banner"
 
 export function FooterSection() {
+  const footerRef = useRef<HTMLElement>(null)
+  const [bannerOpen, setBannerOpen] = useState(false)
+
+  // 쿠키 동의 배너 — 푸터가 viewport 에 들어올 때 1회만 트리거.
+  // 이미 동의했으면 IO 자체를 걸지 않음 (불필요한 리스너 제거).
+  useEffect(() => {
+    let consented = false
+    try {
+      consented = localStorage.getItem(COOKIE_CONSENT_KEY) === "accepted"
+    } catch {
+      // localStorage 비활성 — 안전하게 매번 노출
+    }
+    if (consented) return
+
+    const target = footerRef.current
+    if (!target) return
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setBannerOpen(true)
+            io.disconnect() // 1회 트리거 후 즉시 해제
+            break
+          }
+        }
+      },
+      { threshold: 0.1 }
+    )
+    io.observe(target)
+    return () => io.disconnect()
+  }, [])
+
   return (
-    <footer className="w-full max-w-[1320px] mx-auto px-5 flex flex-col py-10 md:py-[70px]">
+    <footer
+      ref={footerRef}
+      className="w-full max-w-[1320px] mx-auto px-5 flex flex-col py-10 md:py-[70px]"
+    >
       <div className="flex flex-col md:flex-row justify-between items-start gap-8 md:gap-0">
         {/* Left Section: Logo, Description, Social Links */}
         <div className="flex flex-col justify-start items-start gap-8 p-4 md:p-8">
@@ -75,7 +113,7 @@ export function FooterSection() {
               <Link href="/terms" className="text-foreground text-sm font-normal leading-5 hover:underline">
                 Terms of Use
               </Link>
-              <Link href="/cookies" className="text-foreground text-sm font-normal leading-5 hover:underline">
+              <Link href="/cookie" className="text-foreground text-sm font-normal leading-5 hover:underline">
                 Cookie Policy
               </Link>
               <Link href="/gdpr" className="text-foreground text-sm font-normal leading-5 hover:underline">
@@ -86,13 +124,28 @@ export function FooterSection() {
         </div>
       </div>
       {/* Bottom Line */}
-      <div className="w-full border-t border-border mt-8 pt-6 px-4 md:px-8">
+      <div className="w-full border-t border-border mt-8 pt-6 px-4 md:px-8 space-y-2">
         <p className="text-muted-foreground text-sm text-center md:text-left">
           {/* © 문자만 어드민 진입점 — 일반 유저에게는 호버 외 표시 없음 */}
           <Link href="/admin" prefetch={false} className="hover:opacity-60 transition-opacity">©</Link>
-          {" "}2026 UNFOLD LAB · unfoldk.com
+          {" "}2026 UNFOLD LAB · unfoldk.com ·{" "}
+          <a
+            href="mailto:support@unfoldk.com"
+            className="hover:underline"
+          >
+            support@unfoldk.com
+          </a>
+        </p>
+        {/* 결제 처리자 / TMDB 라이선스 표기 — 글로벌 유저 대상 법적 의무 */}
+        <p className="text-muted-foreground/70 text-xs text-center md:text-left leading-relaxed">
+          Payments processed by Lemon Squeezy.
+          <span className="md:ml-2 block md:inline">
+            This product uses the TMDB API but is not endorsed or certified by TMDB.
+          </span>
         </p>
       </div>
+
+      <CookieConsentBanner open={bannerOpen} onOpenChange={setBannerOpen} />
     </footer>
   )
 }
