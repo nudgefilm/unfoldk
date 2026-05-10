@@ -22,6 +22,7 @@ interface CalendarEvent {
   artist?: string
   description?: string                   // Claude 가 생성한 한 줄 설명 (영어)
   isPremium?: boolean
+  thumbnailUrl?: string                  // DB hallyu_calendar_events.thumbnail_url
 }
 
 const tabs = ["All", "K-pop", "K-drama", "Concert", "Fan Meet"] as const
@@ -534,6 +535,19 @@ export default function HallyuCalendarPage() {
     .sort((a, b) => a.date - b.date)
     .slice(0, 5)
 
+  // Featured 카드용 — 썸네일 있는 이벤트만, 오늘 이후 가까운 순 우선,
+  // 모자라면 최근 과거(가까운 순)로 채워서 최대 6장.
+  const featuredEvents = (() => {
+    const withThumb = filteredEvents.filter((e) => !!e.thumbnailUrl)
+    const future = withThumb
+      .filter((e) => !isPastEvent(e.date))
+      .sort((a, b) => a.date - b.date)
+    const past = withThumb
+      .filter((e) => isPastEvent(e.date))
+      .sort((a, b) => b.date - a.date)
+    return [...future, ...past].slice(0, 6)
+  })()
+
   const handleEventClick = (event: CalendarEvent) => {
     setSelectedEvent(event)
   }
@@ -731,6 +745,44 @@ export default function HallyuCalendarPage() {
             </div>
           </div>
         </section>
+
+        {/* Featured 가로 스크롤 — 썸네일 있는 이벤트만, 카드 클릭 시 EventDetailModal 오픈.
+            featuredEvents 가 비어있으면 섹션 자체 미노출 (빈 placeholder 안 보임). */}
+        {featuredEvents.length > 0 && (
+          <section className="mb-12">
+            <h2 className="text-2xl font-semibold text-foreground mb-6">Featured events</h2>
+            <div
+              className="flex gap-4 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              {featuredEvents.map((event) => (
+                <button
+                  key={event.id}
+                  type="button"
+                  onClick={() => handleEventClick(event)}
+                  className="flex-shrink-0 w-64 bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors text-left"
+                >
+                  <div className="aspect-video bg-[#0d0d0f] overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={event.thumbnailUrl}
+                      alt={event.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div className="p-3">
+                    <h3 className="text-foreground font-medium text-sm truncate">{event.title}</h3>
+                    <p className="text-muted-foreground text-xs mt-1">
+                      {monthShort} {event.date}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Upcoming Events List */}
         <section className="mb-16">

@@ -60,7 +60,7 @@ export async function GET(request: Request) {
   // RLS 가 is_premium 게이팅을 자동 처리 (어드민은 위에서 service role 로 우회됨)
   const { data, error } = await queryClient
     .from("hallyu_calendar_events")
-    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium")
+    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium, thumbnail_url")
     .gte("event_date", startOfMonth.toISOString())
     .lt("event_date", startOfNextMonth.toISOString())
     .order("event_date", { ascending: true })
@@ -81,6 +81,7 @@ export async function GET(request: Request) {
       artist: row.artist_or_drama,
       description: row.description ?? undefined,
       isPremium: row.is_premium,
+      thumbnailUrl: row.thumbnail_url ?? undefined,
     }
   })
 
