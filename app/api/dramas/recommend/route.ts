@@ -4,21 +4,22 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { recommendDramas } from "@/lib/claude/recommend-dramas"
 import { hasProAccess } from "@/lib/auth/plan"
 
-// POST /api/dramas/recommend — 취향 기반 추천
+// POST /api/dramas/recommend — 취향 기반 Top picks 추천
 //
 // body: { genres: string[], moods: string[], platforms: string[] }
 // 동작:
 //   1. 후보 60개 1차 필터링 (선택된 genre/platform OR 전체 인기순)
-//   2. Claude Haiku 로 ranking + reason
-//   3. ranking 결과를 dramas 행 + reason 합성해 반환
+//   2. Claude Haiku 로 ranking + reason (최대 30 추천 반환)
+//   3. plan 별 한도로 슬라이스 후 dramas 행 + reason 합성
 //
-// 인증: 비로그인도 호출 가능 — 추천 자체는 free 기능. 단, 결과 노출 한도는 list API 와 동일하게 비회원 6개.
+// 인증: 비로그인도 호출 가능 (3건 미리보기). 결과 노출 한도가 핵심 plan 변별점.
 
 export const dynamic = "force-dynamic"
 
-const ANON_LIMIT = 6
-const FREE_LIMIT = 12
-const PAID_LIMIT = 30                       // 추천은 list 보다 보수적 (Claude 토큰 비용)
+// Top picks 정책: anon 3 미리보기 / free 5 / paid 30 (Claude 실효 상한)
+const ANON_LIMIT = 3
+const FREE_LIMIT = 5
+const PAID_LIMIT = 30
 
 const BodySchema = z.object({
   genres: z.array(z.string().max(40)).max(10).default([]),

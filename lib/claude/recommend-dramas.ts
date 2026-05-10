@@ -1,7 +1,7 @@
 // KdramaMatch 취향 기반 추천 — Claude Haiku 4.5
 //
 // 입력:  사용자 genres/moods/platforms + 후보 드라마 리스트(이미 DB 에서 1차 필터링)
-// 출력:  ranked drama IDs (≤10) + 각 추천 한 줄 이유
+// 출력:  ranked drama IDs (≤30) + 각 추천 한 줄 이유 — plan 별 슬라이스는 호출자(API)에서
 //
 // 설계:
 //   - 모델: claude-haiku-4-5 (input $1/M, output $5/M)
@@ -45,7 +45,8 @@ export interface RecommendResult {
 const SYSTEM_PROMPT = `You are a K-drama recommender for UnfoldK, an English-language Hallyu service.
 
 You receive a user's taste profile (genres, moods, platforms) and a candidate drama list.
-Pick up to 10 best matches and rank them by fit.
+Pick up to 30 best matches and rank them by fit. Quality over quantity — if fewer
+than 30 strong matches exist, return only the strong ones.
 
 Output STRICT JSON only — an array of objects with this exact shape:
 [{"id": "<candidate id>", "reason": "<one-sentence English reason, max 80 chars>"}, ...]
@@ -85,7 +86,7 @@ Return up to 10 ranked recommendations as a JSON array.`
   try {
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
-      max_tokens: 1500,
+      max_tokens: 3000, // 30 항목 × {id+reason} ≈ 1.8K 토큰, 여유 두고 3K
       system: [
         {
           type: "text",
@@ -129,7 +130,7 @@ Return up to 10 ranked recommendations as a JSON array.`
       if (typeof obj.id !== "string" || !validIds.has(obj.id)) continue
       const reason = typeof obj.reason === "string" ? obj.reason.slice(0, 200) : ""
       items.push({ id: obj.id, reason })
-      if (items.length >= 10) break
+      if (items.length >= 30) break
     }
 
     if (items.length === 0) {
@@ -165,7 +166,7 @@ function fallbackRank(input: RecommendInput, note: string): RecommendResult {
 
   scored.sort((a, b) => b.score - a.score)
 
-  const items: RecommendItem[] = scored.slice(0, 10).map(({ c }) => ({
+  const items: RecommendItem[] = scored.slice(0, 30).map(({ c }) => ({
     id: c.id,
     reason: c.genre
       ? `Top-rated ${c.genre} pick that matches your taste.`

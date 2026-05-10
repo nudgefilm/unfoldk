@@ -210,6 +210,10 @@ export default function KdramaMatchPage() {
   const [recommendLoading, setRecommendLoading] = useState(false)
   const [recommendError, setRecommendError] = useState<string | null>(null)
 
+  // Browse all — 비로그인 포함 전 유저에게 카탈로그 전체 노출
+  const [browseAll, setBrowseAll] = useState<ApiDrama[]>([])
+  const [browseLoading, setBrowseLoading] = useState(true)
+
   // 시청 목록 — 탭별 캐시
   const [watchlist, setWatchlist] = useState<Record<WatchlistTabKey, WatchlistCardData[]>>({
     watching: [],
@@ -233,6 +237,23 @@ export default function KdramaMatchPage() {
       const row = profile as { plan_type?: string; is_admin?: boolean } | null
       setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
     })
+  }, [])
+
+  // 1.5. Browse all — 마운트 시 1회 fetch. 비로그인 포함 전체 공개라 인증 분기 없음.
+  useEffect(() => {
+    const ctrl = new AbortController()
+    fetch("/api/dramas", { signal: ctrl.signal })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body: { dramas: ApiDrama[] }) => {
+        setBrowseAll(body.dramas ?? [])
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return
+        console.error("[drama] browse-all fetch 실패:", err)
+        setBrowseAll([])
+      })
+      .finally(() => setBrowseLoading(false))
+    return () => ctrl.abort()
   }, [])
 
   // 2. 로그인 사용자의 활성 탭 시청 목록 fetch
@@ -427,10 +448,11 @@ export default function KdramaMatchPage() {
           </section>
         )}
 
-        {/* AI Recommendations */}
+        {/* Top picks (AI 추천) — 사용자가 "Get my recommendations" 클릭 시 노출.
+            노출 한도: anon 3 / free 5 / paid 30. */}
         {showRecommendations && (
           <section className="mb-16">
-            <h2 className="text-2xl font-semibold text-foreground mb-6">Recommended for You</h2>
+            <h2 className="text-2xl font-semibold text-foreground mb-6">Top picks for you</h2>
             {recommendError && (
               <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 text-red-400 mb-6">
                 <p className="text-sm font-medium mb-1">추천 요청 실패</p>
@@ -450,6 +472,23 @@ export default function KdramaMatchPage() {
             )}
           </section>
         )}
+
+        {/* Browse all — 비로그인 포함 전체 공개. plan 무관 카탈로그 전체 노출.
+            상단의 Top picks(큐레이션)와 별개로 항상 노출. */}
+        <section className="mb-16">
+          <h2 className="text-2xl font-semibold text-foreground mb-6">Browse all dramas</h2>
+          {browseLoading ? (
+            <p className="text-muted-foreground text-sm">Loading...</p>
+          ) : browseAll.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No dramas yet.</p>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {browseAll.map((drama) => (
+                <DramaCard key={drama.id} drama={drama} onAdd={handleAddToWatchlist} />
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* My Watch List */}
         <section className="mb-16">

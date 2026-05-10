@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { hasProAccess } from "@/lib/auth/plan"
 
-// GET /api/dramas — 드라마 목록 (필터·검색·plan-based limit)
+// GET /api/dramas — Browse all 드라마 목록 (필터·검색)
 //
 // 쿼리:
 //   ?genre=Romance        (반복 가능 — OR)
@@ -12,18 +11,14 @@ import { hasProAccess } from "@/lib/auth/plan"
 //   ?q=tears              (title 부분 일치)
 //   ?offset=0             (페이지네이션 — 기본 0)
 //
-// 노출 한도:
-//   - 비로그인(anon): 6개
-//   - Free 플랜: 12개
-//   - 유료(monthly/annual): 무제한 (최대 100)
+// 노출 한도: 비로그인 포함 모든 유저 동일 — 100개 (현재 카탈로그 64건 ≈ 전부 노출).
+//   plan 변별점은 /api/dramas/recommend (Top picks) 와 watchlist (+ 버튼) 에서.
 //
-// RLS: dramas.is_active=true 만 노출 (어드민이 토글 가능). plan 별 제한은 API 레이어에서 처리.
+// RLS: dramas.is_active=true 만 노출 (어드민이 토글 가능).
 
 export const dynamic = "force-dynamic"
 
-const ANON_LIMIT = 6
-const FREE_LIMIT = 12
-const PAID_LIMIT = 100
+const BROWSE_LIMIT = 100  // plan 무관 — 카탈로그 전체 공개 정책
 
 const QuerySchema = z.object({
   genre: z.array(z.string()).optional(),
@@ -56,26 +51,9 @@ export async function GET(request: Request) {
 
   const supabase = await createSupabaseServerClient()
 
-  // 1. 인증 + plan 조회
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const limit = BROWSE_LIMIT
 
-  let limit = ANON_LIMIT
-  if (user) {
-    // RLS users_select_own 정책으로 본인 행만 조회 가능
-    const { data: profile } = await supabase
-      .from("users")
-      .select("plan_type, subscription_status, is_admin")
-      .eq("id", user.id)
-      .maybeSingle()
-
-    const row = profile as { plan_type?: string; is_admin?: boolean } | null
-    const isPaidActive = hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin })
-    limit = isPaidActive ? PAID_LIMIT : FREE_LIMIT
-  }
-
-  // 2. 쿼리 빌드 — RLS 가 is_active 필터링 처리
+  // 1. 쿼리 빌드 — RLS 가 is_active 필터링 처리. plan 분기 없음 (browse all).
   let query = supabase
     .from("dramas")
     .select(
@@ -108,11 +86,5 @@ export async function GET(request: Request) {
     limit,
     offset,
     total: count ?? null,
-    plan:
-      !user
-        ? "anon"
-        : limit === PAID_LIMIT
-          ? "paid"
-          : "free",
   })
 }
