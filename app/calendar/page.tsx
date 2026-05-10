@@ -810,6 +810,24 @@ export default function HallyuCalendarPage() {
             )}
           </div>
         </section>
+
+        {/* Community contribution note — Upcoming 리스트 아래 마무리 안내 */}
+        <section className="mb-12">
+          <p className="text-muted-foreground text-sm leading-relaxed text-center max-w-2xl mx-auto">
+            This calendar is built together with Hallyu fans around the world.
+            Submit a fan event happening in your area — concerts, fan meets,
+            pop-ups, anything K-culture. Approved submissions earn a
+            complimentary Hallyu Pass. Ready to contribute? Head to{" "}
+            <Link
+              href="/mypage/fan-events"
+              className="hover:underline"
+              style={{ color: "#FF4B6E" }}
+            >
+              My Fan Events
+            </Link>
+            .
+          </p>
+        </section>
       </main>
 
       <FooterSection />
