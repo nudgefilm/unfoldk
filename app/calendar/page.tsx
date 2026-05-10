@@ -93,6 +93,28 @@ function EventDetailModal({
     }
   }, [event])
 
+  // Add to Google Calendar — OAuth 없이 GCal TEMPLATE URL 로 새 탭 오픈
+  // event.date(1~31) + viewDate(연·월) 로 실제 날짜 합성, event.time 은 라벨 문자열이라
+  // 신뢰성 있는 파싱이 어려워 종일(all-day) 포맷으로 처리. 종료일은 exclusive 라 +1일.
+  const handleAddToGoogleCalendar = () => {
+    if (!event) return
+    const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), event.date)
+    const end = new Date(viewDate.getFullYear(), viewDate.getMonth(), event.date + 1)
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`
+    const params = new URLSearchParams({
+      action: "TEMPLATE",
+      text: event.title,
+      dates: `${fmt(start)}/${fmt(end)}`,
+      ...(event.description ? { details: event.description } : {}),
+    })
+    window.open(
+      `https://calendar.google.com/calendar/render?${params.toString()}`,
+      "_blank",
+      "noopener,noreferrer"
+    )
+  }
+
   // Copy iCal Link 버튼 — 클립보드에 이벤트별 iCal feed URL 복사 + 2초간 상태 표시
   // 운영 시 /api/calendar/ical/{id} 라우트 구현 예정. 현재는 placeholder URL.
   const handleCopyIcal = async () => {
@@ -222,9 +244,10 @@ function EventDetailModal({
 
         {/* Action Buttons */}
         <div className="space-y-3 mb-6">
-          <Button 
+          <Button
             className="w-full py-3 rounded-xl font-medium text-white"
             style={{ backgroundColor: "#FF4B6E" }}
+            onClick={handleAddToGoogleCalendar}
           >
             <Calendar className="w-4 h-4 mr-2" />
             Add to Google Calendar
