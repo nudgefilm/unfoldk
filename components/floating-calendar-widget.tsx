@@ -1,16 +1,41 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Calendar } from "lucide-react"
+
+type CalendarEvent = {
+  id: string
+  title: string
+  date: number
+}
 
 export function FloatingCalendarWidget() {
   const [isOpen, setIsOpen] = useState(false)
+  // null = 로딩, [] = 비어있음 / 에러
+  const [events, setEvents] = useState<CalendarEvent[] | null>(null)
 
-  const eventDays: Record<number, string> = {
-    10: "BTS Concert",
-    15: "BLACKPINK Comeback",
-    21: "NewJeans Fan Meet",
-  }
+  useEffect(() => {
+    const now = new Date()
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+    let cancelled = false
+    fetch(`/api/calendar/events?month=${month}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((json: { events?: CalendarEvent[] }) => {
+        if (!cancelled) setEvents(json.events ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setEvents([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // 그리드 하이라이트·태그 노출은 최대 3건. 동월 총 건수는 footer 에서 별도로 표시.
+  const displayed = (events ?? []).slice(0, 3)
+  const eventDays: Record<number, string> = Object.fromEntries(
+    displayed.map((ev) => [ev.date, ev.title])
+  )
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
@@ -87,7 +112,9 @@ export function FloatingCalendarWidget() {
 
             {/* Footer */}
             <p className="text-muted-foreground text-xs mt-3 pt-3 border-t border-border/20">
-              3 events this month
+              {events === null
+                ? "Loading…"
+                : `${events.length} events this month`}
             </p>
           </div>
         </div>
