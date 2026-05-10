@@ -121,12 +121,13 @@ Claude Code는 UI를 수정하지 말고 API 연동·로직·인증만 붙이세
 |--------|--------|
 | /mypage | 대시보드 |
 | /mypage/subscription | 구독 관리 |
-| /mypage/calendar | 내 캘린더 |
-| /mypage/artists | 내 아티스트 |
-| /mypage/dramas | 내 드라마 |
-| /mypage/learning | 학습 진도 |
-| /mypage/recipes | 저장한 레시피 |
-| /mypage/settings | 설정 |
+| /mypage/fan-events | 팬 이벤트 신청·수정 (본인 pending 만 편집 가능) |
+| /mypage/calendar | 내 캘린더 (※ 미구현) |
+| /mypage/artists | 내 아티스트 (※ 미구현) |
+| /mypage/dramas | 내 드라마 (※ 미구현) |
+| /mypage/learning | 학습 진도 (※ 미구현) |
+| /mypage/recipes | 저장한 레시피 (※ 미구현) |
+| /mypage/settings | 설정 (※ 미구현) |
 
 ### 결제 페이지
 | 라우트 | 페이지 |
@@ -140,7 +141,21 @@ Claude Code는 UI를 수정하지 말고 API 연동·로직·인증만 붙이세
 | /about | About |
 | /privacy | 개인정보처리방침 (EN/KO 토글) |
 | /terms | 이용약관 (EN/KO 토글) |
+| /cookie | 쿠키 정책 (EN/KO 토글) |
+| /start | 신규 가입자 약관 동의 + 플랜 선택 |
+| /redeem | 쿠폰 코드 적용 (`/mypage/fan-events` 의 redeem 모달과 동일 API 사용) |
 | /404 | 에러 페이지 |
+
+### 어드민 페이지 (`/admin/*` — `is_admin=true` 만 진입)
+| 라우트 | 페이지 |
+|--------|--------|
+| /admin | 대시보드 (MRR / MAU / 쿠폰) |
+| /admin/users | 유저 관리 — plan_type 변경 시 subscription_status 자동 sync |
+| /admin/events | 캘린더 이벤트 CRUD (썸네일 URL 입력 + 3:4 미리보기) |
+| /admin/fan-events | 팬 이벤트 승인·거절 (이전 승인 N회 + 소셜링크 노출) |
+| /admin/kpop | KpopStats 아티스트 관리 |
+| /admin/reports | 콘텐츠 신고 처리 |
+| /admin/cron | Cron 모니터·수동 실행 |
 
 ---
 
@@ -311,7 +326,7 @@ UnfoldKorea/
 ├── next.config.mjs                          (ignoreBuildErrors: true / images.unoptimized: true / image.tmdb.org remotePatterns)
 ├── components.json                          (shadcn/ui new-york, neutral)
 ├── app/
-│   ├── layout.tsx                           (Metadata: title/description/icons/openGraph/twitter)
+│   ├── layout.tsx                           (Metadata + <Header /> 단일 마운트, body pt-[72px])
 │   ├── page.tsx                              ← 랜딩
 │   ├── globals.css / not-found.tsx
 │   ├── (auth 분리 안 됨 — flat 구조 유지)
@@ -320,7 +335,7 @@ UnfoldKorea/
 │   │   ├── page.tsx (대시보드) / subscription/, fan-events/
 │   │   (※ calendar / artists / dramas / learning / recipes / settings 미구현)
 │   ├── calendar/, kpop/, drama/, korean/, food/        ← 5개 서비스
-│   ├── about/, privacy/, terms/                        ← 정적 페이지
+│   ├── about/, privacy/, terms/, cookie/                ← 정적·법적 페이지 (모두 EN/KO 토글)
 │   ├── payment/{success,fail}/
 │   ├── admin/                                          ← is_admin 가드
 │   │   ├── layout.tsx (Toaster 마운트, requireAdmin 가드)
@@ -341,8 +356,11 @@ UnfoldKorea/
 │   ├── admin/                   ← events-manager / fan-events-table / users-table / kpop-artists-manager / cron-monitor / reports-table 등
 │   ├── common/                  ← report-button / redeem-coupon-modal
 │   ├── bento/                   ← v0 템플릿 잔재 (랜딩 전용)
+│   ├── header.tsx               ← root layout 단일 마운트, usePathname 가드로 admin/login 등에서 null 반환
+│   ├── footer-section.tsx       ← Lemon Squeezy / TMDB 라이선스 표기, 쿠키 배너 트리거
+│   ├── cookie-consent-banner.tsx ← Dialog 패턴, IntersectionObserver 1회 트리거
 │   ├── floating-calendar-widget.tsx / start-modal.tsx / unauthorized-toast.tsx
-│   ├── header.tsx / footer-section.tsx / hero-section.tsx 등 랜딩 컴포넌트
+│   ├── hero-section.tsx 등 랜딩 컴포넌트
 │   ├── ghost-globe.tsx / ghost-globe-dynamic.tsx       ← 히어로 3D
 │   └── theme-provider.tsx
 ├── hooks/                       ← use-mobile.ts / use-toast.ts
@@ -353,6 +371,7 @@ UnfoldKorea/
 │   ├── api/                     ← youtube.ts / tmdb.ts / lastfm.ts (외부 API 래퍼)
 │   ├── ingest/                  ← youtube.ts / tmdb.ts / lastfm.ts / kpop-stats.ts / dramas.ts
 │   ├── claude/                  ← generate-event-description.ts / recommend-dramas.ts
+│   ├── calendar/                ← event-type-colors.ts (타입별 색상 헬퍼)
 │   ├── coupons/                 ← generate-code.ts
 │   ├── email/                   ← send-coupon-email.ts / send-payment-failed-email.ts
 │   ├── auth/                    ← plan.ts (hasProAccess / isProPlan / normalizePlanType)
@@ -360,7 +379,7 @@ UnfoldKorea/
 │   └── cron/                    ← auth.ts (CRON_SECRET 검증)
 ├── supabase/
 │   ├── seed.sql
-│   └── migrations/              ← 0001 ~ 0016 (init / grants / events RLS / reminder flags / admin+fan_events / admin security definer / signup terms / event description / coupons / fan_event_storage / lms_fields / kpop_stats / service_role_grants / kdrama_match / content_reports / fan_events_owner_update)
+│   └── migrations/              ← 0001 ~ 0017 (init / grants / events RLS / reminder flags / admin+fan_events / admin security definer / signup terms / event description / coupons / fan_event_storage / lms_fields / kpop_stats / service_role_grants / kdrama_match / content_reports / fan_events_owner_update / fan_events_social_links)
 ├── public/                       ← favicon.png / og-image.png / apple-icon.png / icon.svg / unfoldk_ghost_globe_white.png 등
 └── styles/
 ```
@@ -462,6 +481,29 @@ UnfoldKorea/
    → 코드만 배포되고 DB 정책 미적용 시 silent fail. 본인 데이터 update 가 RLS 차단으로
      0행 update 되며 에러도 안 남. 마이그레이션 추가 시 PROGRESS.md "사용자 액션 필요"
      섹션에 SQL 명시 박제 + 사용자 직접 Supabase Dashboard 에서 실행 의무화.
+
+❌ plan_type 만 변경하고 subscription_status 미동기화 (페어 컬럼 클래스 버그)
+   → 캘린더 RLS 정책 events_select_premium_paid 가 두 컬럼 동시 검증
+     (plan_type IN ('monthly','annual') AND subscription_status='active').
+     plan_type='monthly' 만 박히고 status 가 null/'pending'/'canceled' 면 어드민이
+     수동 부여한 Pro 도 premium 이벤트를 못 봄. 2026-05-10 인시던트.
+   → write path 6곳 전수 점검 필수: webhook (order_created/cancelled/expired/resumed/
+     updated/payment_success) / apply-coupon / admin/users PATCH / complete-signup.
+     모든 경로가 plan_type 변경 시 status 도 함께 set 해야 일관성 보장.
+   → 데이터 SQL fix 만으로 끝내지 말 것 — write path 수정 없으면 다음에 또 발생.
+     (memory: feedback_root_cause_first.md 도 참고)
+
+❌ 데이터 오염 증상을 SQL UPDATE 로 즉시 봉합 (임시방편 마침)
+   → 진짜 원인은 "어떤 코드가 그 데이터를 썼나" — write path 코드 추적이 정공.
+     SQL 백필은 코드 fix 와 함께만 가치 있음. 단독 SQL 은 다음 인시던트 예약.
+   → 사용자가 "테스트 계정이니 수동으로 …" 같은 단서를 줘도, production 에서 같은
+     경로로 발생할 수 있는지 먼저 점검. 진단 SQL 은 확인용이지 해결 수단이 아님.
+
+❌ Header / 공통 chrome 을 페이지마다 import 해서 렌더
+   → 페이지 navigation 시 매번 unmount/remount 되어 useEffect 의 인증 fetch 가
+     반복 발생, 프로필 / 로고 깜빡임. 공통 chrome 은 root layout (app/layout.tsx) 에
+     단일 마운트 + usePathname 가드로 비노출 영역 제어 (HIDE_HEADER_PREFIXES 패턴).
+     (2026-05-10 Header 아키텍처 fix 인시던트)
 ```
 
 ---
