@@ -64,6 +64,11 @@ export function FooterSection() {
               </svg>
             </a>
           </div>
+          {/* 결제 처리자 / TMDB 라이선스 표기 — 소셜 아이콘 아래 2줄 배치 */}
+          <div className="flex flex-col gap-1 text-muted-foreground/70 text-xs leading-relaxed">
+            <p>Payments processed by Lemon Squeezy.</p>
+            <p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+          </div>
         </div>
         {/* Right Section: Services, Company, Legal */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-8 md:gap-12 p-4 md:p-8 w-full md:w-auto">
@@ -124,7 +129,7 @@ export function FooterSection() {
         </div>
       </div>
       {/* Bottom Line */}
-      <div className="w-full border-t border-border mt-8 pt-6 px-4 md:px-8 space-y-2">
+      <div className="w-full border-t border-border mt-8 pt-6 px-4 md:px-8">
         <p className="text-muted-foreground text-sm text-center md:text-left">
           {/* © 문자만 어드민 진입점 — 일반 유저에게는 호버 외 표시 없음 */}
           <Link href="/admin" prefetch={false} className="hover:opacity-60 transition-opacity">©</Link>
@@ -135,13 +140,6 @@ export function FooterSection() {
           >
             support@unfoldk.com
           </a>
-        </p>
-        {/* 결제 처리자 / TMDB 라이선스 표기 — 글로벌 유저 대상 법적 의무 */}
-        <p className="text-muted-foreground/70 text-xs text-center md:text-left leading-relaxed">
-          Payments processed by Lemon Squeezy.
-          <span className="md:ml-2 block md:inline">
-            This product uses the TMDB API but is not endorsed or certified by TMDB.
-          </span>
         </p>
       </div>
 
