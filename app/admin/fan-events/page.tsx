@@ -18,6 +18,10 @@ export interface AdminFanEventRow {
   admin_note: string | null
   created_at: string
   reviewed_at: string | null
+  // 0017 소셜 링크 — 신청자 진위 검증 보조. instagram/x 는 username 만 저장됨.
+  social_instagram: string | null
+  social_x: string | null
+  social_other: string | null
   // 이 사용자의 "본 row 를 제외한" 누적 승인 횟수 — 어드민이 같은 사용자
   // 반복 승인 패턴(쿠폰 farming)을 즉시 인지할 수 있도록 행마다 노출.
   prior_approved_count: number
@@ -32,7 +36,9 @@ async function loadRequests(): Promise<LoadResult> {
   // pending 우선 정렬을 위해 status enum 을 정렬 우선순위로 변환 — Supabase raw order 로는 어려워 두 번 쿼리
   const { data, error } = await supabase
     .from("fan_event_requests")
-    .select("id, user_id, title, description, event_date, location, proof_url, status, admin_note, created_at, reviewed_at")
+    .select(
+      "id, user_id, title, description, event_date, location, proof_url, status, admin_note, created_at, reviewed_at, social_instagram, social_x, social_other"
+    )
     .order("created_at", { ascending: false })
     .limit(500)
 

@@ -24,6 +24,10 @@ const PatchSchema = z.object({
     .optional(),
   location: z.string().max(200).nullable().optional(),
   proof_url: z.string().url().max(2000).nullable().optional(),
+  // 0017 소셜 링크 — 모두 선택. 빈 문자열은 클라가 trim 후 null 로 보냄.
+  social_instagram: z.string().max(100).nullable().optional(),
+  social_x: z.string().max(100).nullable().optional(),
+  social_other: z.string().max(500).nullable().optional(),
 })
 
 export async function PATCH(
@@ -78,13 +82,19 @@ export async function PATCH(
   }
   if (parsed.data.location !== undefined) update.location = parsed.data.location
   if (parsed.data.proof_url !== undefined) update.proof_url = parsed.data.proof_url
+  if (parsed.data.social_instagram !== undefined)
+    update.social_instagram = parsed.data.social_instagram
+  if (parsed.data.social_x !== undefined) update.social_x = parsed.data.social_x
+  if (parsed.data.social_other !== undefined) update.social_other = parsed.data.social_other
 
   // 2차 가드 — RLS 정책이 본인 + pending 재검증 후에만 통과
   const { data, error } = await supabase
     .from("fan_event_requests")
     .update(update)
     .eq("id", id)
-    .select("id, title, description, event_date, location, proof_url, status, created_at")
+    .select(
+      "id, title, description, event_date, location, proof_url, status, created_at, social_instagram, social_x, social_other"
+    )
     .single()
 
   if (error) {

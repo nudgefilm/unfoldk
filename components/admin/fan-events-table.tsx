@@ -22,6 +22,9 @@ export interface AdminFanEventRow {
   admin_note: string | null
   created_at: string
   reviewed_at: string | null
+  social_instagram: string | null
+  social_x: string | null
+  social_other: string | null
   prior_approved_count: number
 }
 
@@ -128,6 +131,47 @@ export function FanEventsTable({ rows }: { rows: AdminFanEventRow[] }) {
                       >
                         이전 승인 {r.prior_approved_count}회
                       </span>
+                    )}
+                    {/* 0017 소셜 링크 — 신청자가 입력했을 때만 노출. 새 탭으로 진위 확인 진입. */}
+                    {(r.social_instagram || r.social_x || r.social_other) && (
+                      <div className="flex items-center gap-2 mt-1.5">
+                        {r.social_instagram && (
+                          <a
+                            href={`https://instagram.com/${r.social_instagram}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] hover:underline"
+                            style={{ color: "#FF4B6E" }}
+                            title={`Instagram: @${r.social_instagram}`}
+                          >
+                            IG
+                          </a>
+                        )}
+                        {r.social_x && (
+                          <a
+                            href={`https://x.com/${r.social_x}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] hover:underline"
+                            style={{ color: "#FF4B6E" }}
+                            title={`X: @${r.social_x}`}
+                          >
+                            X
+                          </a>
+                        )}
+                        {r.social_other && (
+                          <a
+                            href={r.social_other}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] hover:underline"
+                            style={{ color: "#FF4B6E" }}
+                            title={r.social_other}
+                          >
+                            Other
+                          </a>
+                        )}
+                      </div>
                     )}
                   </td>
                   <td className="text-muted-foreground text-sm px-4 py-3">

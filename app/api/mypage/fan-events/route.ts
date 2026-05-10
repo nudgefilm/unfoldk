@@ -21,6 +21,11 @@ const PostSchema = z.object({
   location: z.string().max(200).optional().nullable(),
   // proof_url 업로드 실패 시 null 허용 — spec: "파일 업로드 실패 시 신청 자체는 계속 가능"
   proof_url: z.string().url().max(2000).optional().nullable(),
+  // 소셜 링크 — 0017 컬럼 추가. 모두 선택 입력. instagram/x 는 username 만 (prefix 폼 UI 가 표시),
+  // other 는 URL 직접 입력 (Discord/TikTok 등 다양 채널 커버).
+  social_instagram: z.string().max(100).optional().nullable(),
+  social_x: z.string().max(100).optional().nullable(),
+  social_other: z.string().max(500).optional().nullable(),
 })
 
 export async function GET() {
@@ -35,7 +40,9 @@ export async function GET() {
   // 본인 신청 — RLS "fan_events_select_own" 정책으로 본인 행만 조회됨
   const { data: requests, error } = await supabase
     .from("fan_event_requests")
-    .select("id, title, description, event_date, location, proof_url, status, admin_note, created_at, reviewed_at")
+    .select(
+      "id, title, description, event_date, location, proof_url, status, admin_note, created_at, reviewed_at, social_instagram, social_x, social_other"
+    )
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(100)
@@ -62,6 +69,9 @@ export async function GET() {
     admin_note: string | null
     created_at: string
     reviewed_at: string | null
+    social_instagram: string | null
+    social_x: string | null
+    social_other: string | null
     coupon_code?: string | null
   }
 
@@ -113,6 +123,9 @@ export async function POST(request: Request) {
       event_date: new Date(parsed.data.event_date).toISOString().slice(0, 10),  // date 컬럼
       location: parsed.data.location ?? null,
       proof_url: parsed.data.proof_url ?? null,
+      social_instagram: parsed.data.social_instagram?.trim() || null,
+      social_x: parsed.data.social_x?.trim() || null,
+      social_other: parsed.data.social_other?.trim() || null,
       status: "pending",
     })
     .select("id, status, created_at")

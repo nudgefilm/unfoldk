@@ -39,6 +39,9 @@ import {
   Sparkles,
   ExternalLink,
   Pencil,
+  Instagram,
+  Twitter,
+  Link as LinkIcon,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { RedeemCouponModal } from "@/components/common/redeem-coupon-modal"
@@ -72,6 +75,9 @@ interface FanEventRequest {
   created_at: string
   reviewed_at: string | null
   coupon_code?: string | null
+  social_instagram: string | null
+  social_x: string | null
+  social_other: string | null
 }
 
 interface FormState {
@@ -80,6 +86,9 @@ interface FormState {
   event_date: string                                                // YYYY-MM-DD
   location: string
   file: File | null
+  social_instagram: string                                          // username 만 (prefix 폼 UI)
+  social_x: string                                                  // username 만
+  social_other: string                                              // 자유 URL
 }
 
 const EMPTY_FORM: FormState = {
@@ -88,6 +97,9 @@ const EMPTY_FORM: FormState = {
   event_date: "",
   location: "",
   file: null,
+  social_instagram: "",
+  social_x: "",
+  social_other: "",
 }
 
 // 파일명 안전화 — Storage 정책과 호환되는 ASCII slug.
@@ -253,6 +265,10 @@ export default function MyFanEventsPage() {
           event_date: form.event_date,
           location: form.location.trim() || null,
           proof_url: proofUrl,
+          // 0017 소셜 링크 — username 입력값에서 @ / 공백 트림
+          social_instagram: form.social_instagram.trim().replace(/^@/, "") || null,
+          social_x: form.social_x.trim().replace(/^@/, "") || null,
+          social_other: form.social_other.trim() || null,
         }),
       })
 
@@ -370,7 +386,18 @@ export default function MyFanEventsPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {requests.map((req) => (
+                {/* 정렬: pending → approved → rejected. 같은 status 내에서는 created_at desc 유지
+                    (서버 정렬 그대로). rejected 가 항상 하단으로 가도록 status 우선순위 부여. */}
+                {[...requests]
+                  .sort((a, b) => {
+                    const order: Record<FanEventRequest["status"], number> = {
+                      pending: 0,
+                      approved: 1,
+                      rejected: 2,
+                    }
+                    return order[a.status] - order[b.status]
+                  })
+                  .map((req) => (
                   <RequestCard
                     key={req.id}
                     req={req}
@@ -457,6 +484,51 @@ export default function MyFanEventsPage() {
                   onChange={handleFileChange}
                   className="hidden"
                 />
+              </div>
+
+              {/* Social Links — 모두 선택. instagram/x 는 prefix 박스로 username 만 입력,
+                  other 는 자유 URL (Discord/TikTok/Naver Cafe 등). */}
+              <div className="space-y-2">
+                <label className="text-muted-foreground text-xs block">
+                  Social Links <span className="text-muted-foreground/70 ml-1">(optional)</span>
+                </label>
+                <div className="flex items-stretch rounded-lg overflow-hidden border border-[#2a2a2a] focus-within:border-[#FF4B6E]/50">
+                  <Instagram className="w-5 h-5 text-muted-foreground mx-3 self-center flex-shrink-0" />
+                  <span className="px-2 self-center text-xs text-muted-foreground/70 bg-[#0d0d0f] border-l border-[#2a2a2a] flex items-center">
+                    instagram.com/
+                  </span>
+                  <Input
+                    value={form.social_instagram}
+                    onChange={(e) => setForm((f) => ({ ...f, social_instagram: e.target.value }))}
+                    placeholder="your_account"
+                    className="h-11 flex-1 bg-[#0d0d0f] border-0 rounded-none text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                    maxLength={100}
+                  />
+                </div>
+                <div className="flex items-stretch rounded-lg overflow-hidden border border-[#2a2a2a] focus-within:border-[#FF4B6E]/50">
+                  <Twitter className="w-5 h-5 text-muted-foreground mx-3 self-center flex-shrink-0" />
+                  <span className="px-2 self-center text-xs text-muted-foreground/70 bg-[#0d0d0f] border-l border-[#2a2a2a] flex items-center">
+                    x.com/
+                  </span>
+                  <Input
+                    value={form.social_x}
+                    onChange={(e) => setForm((f) => ({ ...f, social_x: e.target.value }))}
+                    placeholder="your_account"
+                    className="h-11 flex-1 bg-[#0d0d0f] border-0 rounded-none text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                    maxLength={100}
+                  />
+                </div>
+                <div className="flex items-stretch rounded-lg overflow-hidden border border-[#2a2a2a] focus-within:border-[#FF4B6E]/50">
+                  <LinkIcon className="w-5 h-5 text-muted-foreground mx-3 self-center flex-shrink-0" />
+                  <Input
+                    type="url"
+                    value={form.social_other}
+                    onChange={(e) => setForm((f) => ({ ...f, social_other: e.target.value }))}
+                    placeholder="Discord, TikTok, etc. (full URL)"
+                    className="h-11 flex-1 bg-[#0d0d0f] border-0 rounded-none text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                    maxLength={500}
+                  />
+                </div>
               </div>
 
               {errorMsg && (
@@ -580,16 +652,21 @@ function RequestCard({
         </div>
       )}
 
-      {/* 거절 시 — admin_note */}
-      {req.status === "rejected" && req.admin_note && (
+      {/* 거절 시 — 명시적 안내 + admin_note (이탤릭). admin_note 없어도 안내문은 노출. */}
+      {req.status === "rejected" && (
         <div
           className="mt-3 rounded-lg p-3"
           style={{ backgroundColor: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.2)" }}
         >
           <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "#ef4444" }}>
-            Reason
+            Not approved
           </div>
-          <p className="text-muted-foreground text-sm">{req.admin_note}</p>
+          <p className="text-foreground text-sm">Your submission was not approved.</p>
+          {req.admin_note && (
+            <p className="text-muted-foreground text-sm italic mt-1">
+              Reason: {req.admin_note}
+            </p>
+          )}
         </div>
       )}
 
@@ -634,6 +711,9 @@ function EditFanEventModal({
       event_date: request.event_date.slice(0, 10), // YYYY-MM-DD
       location: request.location ?? "",
       file: null, // 새 파일은 사용자가 다시 선택할 때만 업로드
+      social_instagram: request.social_instagram ?? "",
+      social_x: request.social_x ?? "",
+      social_other: request.social_other ?? "",
     })
     setErrorMsg("")
   }, [request])
@@ -707,6 +787,9 @@ function EditFanEventModal({
       description: form.description.trim() || null,
       event_date: form.event_date,
       location: form.location.trim() || null,
+      social_instagram: form.social_instagram.trim().replace(/^@/, "") || null,
+      social_x: form.social_x.trim().replace(/^@/, "") || null,
+      social_other: form.social_other.trim() || null,
     }
     if (newProofUrl !== undefined) {
       body.proof_url = newProofUrl
@@ -834,6 +917,50 @@ function EditFanEventModal({
             />
           </div>
 
+          {/* Social Links (선택) — 신규 폼과 동일 패턴 */}
+          <div className="space-y-2">
+            <label className="text-muted-foreground text-xs block">
+              Social Links <span className="text-muted-foreground/70 ml-1">(optional)</span>
+            </label>
+            <div className="flex items-stretch rounded-lg overflow-hidden border border-[#2a2a2a] focus-within:border-[#FF4B6E]/50">
+              <Instagram className="w-5 h-5 text-muted-foreground mx-3 self-center flex-shrink-0" />
+              <span className="px-2 self-center text-xs text-muted-foreground/70 bg-[#0d0d0f] border-l border-[#2a2a2a] flex items-center">
+                instagram.com/
+              </span>
+              <Input
+                value={form.social_instagram}
+                onChange={(e) => setForm((f) => ({ ...f, social_instagram: e.target.value }))}
+                placeholder="your_account"
+                className="h-11 flex-1 bg-[#0d0d0f] border-0 rounded-none text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                maxLength={100}
+              />
+            </div>
+            <div className="flex items-stretch rounded-lg overflow-hidden border border-[#2a2a2a] focus-within:border-[#FF4B6E]/50">
+              <Twitter className="w-5 h-5 text-muted-foreground mx-3 self-center flex-shrink-0" />
+              <span className="px-2 self-center text-xs text-muted-foreground/70 bg-[#0d0d0f] border-l border-[#2a2a2a] flex items-center">
+                x.com/
+              </span>
+              <Input
+                value={form.social_x}
+                onChange={(e) => setForm((f) => ({ ...f, social_x: e.target.value }))}
+                placeholder="your_account"
+                className="h-11 flex-1 bg-[#0d0d0f] border-0 rounded-none text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                maxLength={100}
+              />
+            </div>
+            <div className="flex items-stretch rounded-lg overflow-hidden border border-[#2a2a2a] focus-within:border-[#FF4B6E]/50">
+              <LinkIcon className="w-5 h-5 text-muted-foreground mx-3 self-center flex-shrink-0" />
+              <Input
+                type="url"
+                value={form.social_other}
+                onChange={(e) => setForm((f) => ({ ...f, social_other: e.target.value }))}
+                placeholder="Discord, TikTok, etc. (full URL)"
+                className="h-11 flex-1 bg-[#0d0d0f] border-0 rounded-none text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                maxLength={500}
+              />
+            </div>
+          </div>
+
           {errorMsg && (
             <p className="text-sm" style={{ color: "#FF4B6E" }}>
               {errorMsg}
@@ -872,7 +999,7 @@ function StatusBadge({ status }: { status: FanEventRequest["status"] }) {
       color: "#22c55e",
     },
     rejected: {
-      label: "Not Approved",
+      label: "Rejected",
       bg: "rgba(239, 68, 68, 0.15)",
       color: "#ef4444",
     },
