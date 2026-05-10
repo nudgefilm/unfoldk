@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   generator: 'v0.app',
   metadataBase: new URL('https://www.unfoldk.com'),
   icons: {
-    icon: '/unfoldk_favicon.jpg',
-    apple: '/unfoldk_favicon.jpg',
+    icon: '/favicon.png',
+    apple: '/favicon.png',
   },
   openGraph: {
     title: 'Unfold K',
