@@ -12,7 +12,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: "#0d0d0f" }}>
+    <div className="min-h-screen flex -mt-[72px]" style={{ backgroundColor: "#0d0d0f" }}>
+      {/* body 의 pt-[72px] (fixed Header 높이 보정) 을 상쇄 — admin 은 Header 미사용 */}
       <AdminSidebar />
       <main className="flex-1 min-w-0 p-8">{children}</main>
       <Toaster />

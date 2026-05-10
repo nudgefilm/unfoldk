@@ -122,7 +122,7 @@ export function Header() {
   }
 
   return (
-    <header className="w-full py-4 px-6">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full py-4 px-6 bg-background">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Left: Brand */}
         <Link href="/" className="flex items-center">
