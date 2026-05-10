@@ -23,6 +23,7 @@ export interface AdminEventRow {
   description: string | null
   source_api: string | null
   is_premium: boolean
+  thumbnail_url: string | null
 }
 
 interface FormState {
@@ -34,6 +35,7 @@ interface FormState {
   event_time_label: string
   description: string                    // 한 줄 설명 (영어, ~100자 권고)
   is_premium: boolean
+  thumbnail_url: string                  // /calendar Featured 카드 노출용 (3:4 세로 권장)
 }
 
 const EMPTY_FORM: FormState = {
@@ -44,6 +46,7 @@ const EMPTY_FORM: FormState = {
   event_time_label: "",
   description: "",
   is_premium: false,
+  thumbnail_url: "",
 }
 
 export function EventsManager({ events }: { events: AdminEventRow[] }) {
@@ -69,13 +72,17 @@ export function EventsManager({ events }: { events: AdminEventRow[] }) {
       event_time_label: ev.event_time_label ?? "",
       description: ev.description ?? "",
       is_premium: ev.is_premium,
+      thumbnail_url: ev.thumbnail_url ?? "",
     })
     setOpen(true)
   }
 
   async function handleSubmit() {
     const isEdit = Boolean(form.id)
-    const body = {
+    // thumbnail_url 은 빈 문자열이면 보내지 않음 — z.string().url() 검증 통과 위해
+    // (PATCH 는 nullable 이라 null 도 허용되지만, 미입력 = "변경 없음" 의미로 omit)
+    const trimmedThumb = form.thumbnail_url.trim()
+    const body: Record<string, unknown> = {
       title: form.title,
       artist_or_drama: form.artist_or_drama,
       type: form.type,
@@ -83,6 +90,12 @@ export function EventsManager({ events }: { events: AdminEventRow[] }) {
       event_time_label: form.event_time_label || null,
       description: form.description || null,
       is_premium: form.is_premium,
+    }
+    if (trimmedThumb) {
+      body.thumbnail_url = trimmedThumb
+    } else if (isEdit) {
+      // 편집 모드에서 입력값을 비웠다면 null 로 명시 — 기존 값 제거
+      body.thumbnail_url = null
     }
 
     const url = isEdit ? `/api/admin/events/${form.id}` : "/api/admin/events"
@@ -259,6 +272,31 @@ export function EventsManager({ events }: { events: AdminEventRow[] }) {
                 placeholder="aespa is back! The iconic K-pop quartet drops their highly anticipated new album."
                 maxLength={2000}
               />
+            </div>
+            <div>
+              <label className="text-muted-foreground text-xs mb-1 block">
+                썸네일 URL
+                <span className="text-muted-foreground/70 ml-1">— /calendar Featured 카드 노출 (3:4 세로 권장, 미입력 시 미노출)</span>
+              </label>
+              <Input
+                type="url"
+                value={form.thumbnail_url}
+                onChange={(e) => setForm((f) => ({ ...f, thumbnail_url: e.target.value }))}
+                className="bg-[#0d0d0f] border-[#2a2a2a]"
+                placeholder="https://image.tmdb.org/t/p/w500/..."
+              />
+              {form.thumbnail_url.trim() && (
+                <div className="mt-2 inline-block bg-[#0d0d0f] border border-[#2a2a2a] rounded-lg overflow-hidden w-32 aspect-[3/4] flex items-center justify-center">
+                  {/* 미리보기 — 카드와 동일한 3:4 프레임 + object-contain 정책 */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={form.thumbnail_url.trim()}
+                    alt="thumbnail preview"
+                    className="w-full h-full object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

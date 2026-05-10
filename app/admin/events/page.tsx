@@ -15,6 +15,7 @@ export interface AdminEventRow {
   description: string | null
   source_api: string | null
   is_premium: boolean
+  thumbnail_url: string | null
 }
 
 type LoadResult =
@@ -26,7 +27,7 @@ async function loadEvents(): Promise<LoadResult> {
   const supabase = createSupabaseAdminClient()
   const { data, error } = await supabase
     .from("hallyu_calendar_events")
-    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, source_api, is_premium")
+    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, source_api, is_premium, thumbnail_url")
     .order("event_date", { ascending: false })
     .limit(500)
 
