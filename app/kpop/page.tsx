@@ -181,6 +181,42 @@ export default function KpopStatsPage() {
     return { coords, linePath, areaPath, width, height }
   }, [spotlight])
 
+  // Last.fm 청취자 7일 증감률 — spotlight.history 에서 클라이언트 계산.
+  // 정책: 7일치 미만 / 변동률 0.0% 면 null 반환 (=문구 미표시).
+  const lastfmTrend = useMemo(() => {
+    if (!spotlight) return null
+    type WithListeners = DailyStats & { lastfm_listeners: number }
+    const points = spotlight.history.filter(
+      (h): h is WithListeners =>
+        typeof h.lastfm_listeners === "number" && h.lastfm_listeners > 0
+    )
+    if (points.length < 2) return null
+
+    const latest = points[points.length - 1]
+    const latestTs = new Date(latest.date + "T00:00:00Z").getTime()
+    const sevenDaysAgoTs = latestTs - 7 * 24 * 60 * 60 * 1000
+
+    // 최신 기준으로 7일 또는 그 이전인 가장 최근 시점 — 데이터 부족 시 null
+    let pastPoint: WithListeners | null = null
+    for (let i = points.length - 1; i >= 0; i--) {
+      const ts = new Date(points[i].date + "T00:00:00Z").getTime()
+      if (ts <= sevenDaysAgoTs) {
+        pastPoint = points[i]
+        break
+      }
+    }
+    if (!pastPoint) return null
+
+    const percent = ((latest.lastfm_listeners - pastPoint.lastfm_listeners) / pastPoint.lastfm_listeners) * 100
+    const rounded = Math.round(percent * 10) / 10
+    if (rounded === 0) return null
+
+    return {
+      direction: rounded > 0 ? ("up" as const) : ("down" as const),
+      percent: Math.abs(rounded).toFixed(1),
+    }
+  }, [spotlight])
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }}>
       <Header />
@@ -374,6 +410,22 @@ export default function KpopStatsPage() {
                   <p className="text-2xl font-bold text-white">
                     {formatBigNumber(spotlight.latest?.lastfm_listeners)}
                   </p>
+                  {/* 7일 증감 트렌드 — 데이터 충분 + 변동 있을 때만 노출.
+                      up: 그린 (positive 톤) / down: muted-foreground (절제). */}
+                  {lastfmTrend && (
+                    <p
+                      className={
+                        lastfmTrend.direction === "up"
+                          ? "text-xs mt-1"
+                          : "text-xs mt-1 text-muted-foreground"
+                      }
+                      style={
+                        lastfmTrend.direction === "up" ? { color: "#22c55e" } : undefined
+                      }
+                    >
+                      Listeners {lastfmTrend.direction} {lastfmTrend.percent}% this week
+                    </p>
+                  )}
                 </div>
               </div>
 
