@@ -4,6 +4,37 @@
 
 ---
 
+## 현재 상태 (2026-05-12 세션 4 / 랜딩 히어로 globe 한류 확산 효과)
+
+> 짧은 비주얼 세션. 랜딩 히어로 ghost globe 에 "Seoul → 해외 도시" 호 애니메이션 추가 + Seoul 마커 색 통일.
+
+### A. 한류 확산 호 (great circle 아크)
+- **`589d49f`** Seoul 에서 70개 세계 수도로 5초마다 1발씩 핑크 #FF4B6E 호 발사.
+  - slerp 로 정확한 great circle 경로 + 포물선 lift, 호 70개 mount 시 사전 계산.
+  - 슬롯 풀(동시 최대 3개) imperative 관리 — useState 회피, drawRange 확장 + opacity fade.
+  - travel 1.5s + fade 0.8s, 첫 호는 mount 후 ~2초.
+  - `prefers-reduced-motion` 시 spawn 차단 / 언마운트 시 geometry dispose.
+
+### B. 시각 다듬기
+- **`589d49f`** Seoul 마커 색 `#1E40AF` → `#FF6B85` (호와 동일 핑크 + 약간 밝은 변형). 크기 0.018→0.024, opacity 1.0, 펄스 0.75~1.0.
+- 호 곡률: `altitudeFactor` 초기 `0.15+0.35×` 가 너무 높아 화면 이탈 → `0.02+0.06×` 로 표면에 거의 붙음.
+
+### C. 모바일 globe — 시도 후 원복
+- **`bba8632`** 모바일에서 globe 가 `-left-[100px]` 로 좌측 클립되어 사실상 안 보이는 문제 인지. 중앙 정렬 + opacity 0.6 으로 변경.
+- **`981bd55`** 모바일에선 globe 가 어떻게 배치해도 텍스트와 경쟁하거나 잘려서 효과 노출이 어렵다고 판단, 원래 좌측 클립 배치로 복원. 데스크탑 디자인 우선.
+
+### 다음 세션 후보
+- 이전 세션 carry-over 그대로:
+  - **DECISIONS.md 박제** (세션 3 굵직한 결정 다수)
+  - **Cookie Policy 본문 법무 검토**
+  - ReportButton hydration 룰 적용, /admin/reports 콘텐츠 미리보기
+  - **Vercel/Supabase 플랜 비용 점검**
+
+### 블로커
+- 없음
+
+---
+
 ## 현재 상태 (2026-05-10 세션 3 / Header 영속화·Drama 3-tier·인플레이스 OAuth 통합·법적 표기)
 
 > 이번 세션은 "근본 원인 먼저" 원칙이 박제된 세션. 사용자가 직접 "임시방편 경향 감지 시 짚어달라"
