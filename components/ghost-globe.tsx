@@ -5,12 +5,11 @@ import { Canvas, useFrame } from "@react-three/fiber"
 import * as THREE from "three"
 import * as topojson from "topojson-client"
 
-// world-atlas TopoJSON 응답 타입 — land/countries 두 컬렉션을 모두 다룸
+// world-atlas TopoJSON 응답 타입 — land 컬렉션만 사용
 interface WorldAtlas {
   type: string
   objects: {
     land: topojson.GeometryObject
-    countries: topojson.GeometryCollection
   }
   arcs: number[][][]
 }
@@ -27,8 +26,9 @@ function latLonToVector3(lat: number, lon: number, radius: number): THREE.Vector
   )
 }
 
-// Natural Earth ISO 3166-1 numeric — 대한민국
-const SOUTH_KOREA_ID = "410"
+// Seoul 특수 강조 마커 좌표 — 일반 도시 마커와 분리 (큰 사이즈 + 시안 색)
+const SEOUL_LAT = 37.5665
+const SEOUL_LON = 126.978
 
 // 주요 세계 수도 (G20 + 핵심국). 마커 좌표용.
 const WORLD_CAPITALS = [
@@ -109,11 +109,10 @@ const WORLD_CAPITALS = [
 
 function WireframeGlobe() {
   const groupRef = useRef<THREE.Group>(null)
-  const koreaMaterialRef = useRef<THREE.MeshBasicMaterial>(null)
+  const seoulMaterialRef = useRef<THREE.MeshBasicMaterial>(null)
   const cityMaterialRefs = useRef<(THREE.MeshBasicMaterial | null)[]>([])
   const cityPulseLastUpdate = useRef(0)
   const [landGeometry, setLandGeometry] = useState<THREE.BufferGeometry | null>(null)
-  const [koreaGeometry, setKoreaGeometry] = useState<THREE.BufferGeometry | null>(null)
 
   // 지구 자전축 23.5° 기울기, 지구본 반지름
   const EARTH_TILT = 23.5 * (Math.PI / 180)
@@ -121,14 +120,14 @@ function WireframeGlobe() {
   // 도시 마커 펄스 갱신 주기 — 매 프레임(60fps × 80개) 대신 0.5초 단위 step 갱신
   const CITY_PULSE_INTERVAL = 0.5
 
-  // 매 프레임: 자전 + 한국 펄스 / 0.5초마다: 도시 마커 깜빡임
+  // 매 프레임: 자전 + Seoul 강조 마커 펄스 / 0.5초마다: 일반 도시 마커 깜빡임
   useFrame((state, delta) => {
     if (groupRef.current) {
       groupRef.current.rotation.y += delta * 0.3
     }
-    if (koreaMaterialRef.current) {
-      const pulse = Math.sin(state.clock.elapsedTime * Math.PI) * 0.3 + 0.7
-      koreaMaterialRef.current.opacity = pulse
+    if (seoulMaterialRef.current) {
+      const pulse = Math.sin(state.clock.elapsedTime * Math.PI) * 0.25 + 0.75
+      seoulMaterialRef.current.opacity = pulse
     }
     if (state.clock.elapsedTime - cityPulseLastUpdate.current >= CITY_PULSE_INTERVAL) {
       cityPulseLastUpdate.current = state.clock.elapsedTime
@@ -142,7 +141,7 @@ function WireframeGlobe() {
     }
   })
 
-  // CDN에서 world-atlas 데이터 로드 → 대륙 윤곽선 + 한국 채우기 지오메트리 구성
+  // CDN에서 world-atlas land 데이터 로드 → 대륙 윤곽선 지오메트리 구성
   useEffect(() => {
     async function loadWorldData() {
       try {
@@ -178,65 +177,6 @@ function WireframeGlobe() {
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points)
         setLandGeometry(geometry)
-
-        const countriesResponse = await fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
-        const countriesWorld: WorldAtlas = await countriesResponse.json()
-
-        const countries = topojson.feature(countriesWorld, countriesWorld.objects.countries) as unknown as GeoJSON.FeatureCollection
-
-        const koreaFeatures = countries.features.filter((feature: GeoJSON.Feature) => {
-          const id = String(feature.id)
-          return id === SOUTH_KOREA_ID
-        })
-
-        if (koreaFeatures.length > 0) {
-          const koreaVertices: number[] = []
-
-          koreaFeatures.forEach((feature: GeoJSON.Feature) => {
-            // 폴리곤을 fan triangulation 방식으로 채우기 — center-based
-            const processPolygon = (coords: number[][]) => {
-              let centerLat = 0
-              let centerLon = 0
-              coords.forEach(([lon, lat]) => {
-                centerLat += lat
-                centerLon += lon
-              })
-              centerLat /= coords.length
-              centerLon /= coords.length
-
-              const centerPoint = latLonToVector3(centerLat, centerLon, GLOBE_RADIUS + 0.005)
-
-              for (let i = 0; i < coords.length - 1; i++) {
-                const [lon1, lat1] = coords[i]
-                const [lon2, lat2] = coords[i + 1]
-
-                const p1 = latLonToVector3(lat1, lon1, GLOBE_RADIUS + 0.005)
-                const p2 = latLonToVector3(lat2, lon2, GLOBE_RADIUS + 0.005)
-
-                koreaVertices.push(centerPoint.x, centerPoint.y, centerPoint.z)
-                koreaVertices.push(p1.x, p1.y, p1.z)
-                koreaVertices.push(p2.x, p2.y, p2.z)
-              }
-            }
-
-            if (feature.geometry.type === "Polygon") {
-              feature.geometry.coordinates.forEach(ring => {
-                processPolygon(ring as number[][])
-              })
-            } else if (feature.geometry.type === "MultiPolygon") {
-              feature.geometry.coordinates.forEach(polygon => {
-                polygon.forEach(ring => {
-                  processPolygon(ring as number[][])
-                })
-              })
-            }
-          })
-
-          const koreaGeo = new THREE.BufferGeometry()
-          koreaGeo.setAttribute('position', new THREE.Float32BufferAttribute(koreaVertices, 3))
-          koreaGeo.computeVertexNormals()
-          setKoreaGeometry(koreaGeo)
-        }
       } catch (error) {
         console.error("Failed to load world data:", error)
       }
@@ -318,6 +258,15 @@ function WireframeGlobe() {
     })
   }, [])
 
+  // Seoul 강조 마커 — 일반 도시 마커 위에 살짝 띄워 z-fight 회피
+  const seoulMarker = useMemo(() => {
+    const position = latLonToVector3(SEOUL_LAT, SEOUL_LON, GLOBE_RADIUS + 0.012)
+    const normal = position.clone().normalize()
+    const quaternion = new THREE.Quaternion()
+    quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal)
+    return { position, quaternion }
+  }, [])
+
   return (
     <group rotation={[EARTH_TILT, 0, 0]}>
       <group ref={groupRef}>
@@ -330,11 +279,16 @@ function WireframeGlobe() {
           </lineSegments>
         )}
 
-        {koreaGeometry && (
-          <mesh geometry={koreaGeometry}>
-            <meshBasicMaterial ref={koreaMaterialRef} color="#FF4B6E" side={THREE.DoubleSide} transparent opacity={0.7} />
-          </mesh>
-        )}
+        <mesh position={seoulMarker.position} quaternion={seoulMarker.quaternion}>
+          <circleGeometry args={[0.04, 24]} />
+          <meshBasicMaterial
+            ref={seoulMaterialRef}
+            color="#00D9FF"
+            side={THREE.DoubleSide}
+            transparent
+            opacity={0.85}
+          />
+        </mesh>
 
         {cityMarkers.map((city, i) => (
           <mesh key={city.name} position={city.position} quaternion={city.quaternion}>
