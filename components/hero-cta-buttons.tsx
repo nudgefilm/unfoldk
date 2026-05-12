@@ -14,7 +14,7 @@ export function HeroCTAButtons() {
       <StartModal
         trigger={
           <Button className="bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-press px-8 py-3 rounded-full font-medium text-base shadow-lg">
-            Start for free
+            Start Your Routine Free
           </Button>
         }
       />

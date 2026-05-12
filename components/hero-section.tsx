@@ -443,10 +443,10 @@ export function HeroSection() {
         </div>
         
         <h1 className="text-foreground text-3xl md:text-4xl lg:text-6xl font-semibold leading-tight">
-          The home for<br />global <span className="text-primary">Hallyu</span> fans
+          Your Korean Culture<br /><span className="text-primary">Routine</span>
         </h1>
         <p className="text-muted-foreground text-base md:text-base lg:text-lg font-medium leading-relaxed max-w-xl mx-auto">
-          K-pop charts, K-drama picks, Korean lessons, and K-food recipes — all in one place.
+          Pop · Drama · Language · Food · Travel
         </p>
       </div>
 
