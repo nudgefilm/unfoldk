@@ -26,6 +26,35 @@ function latLonToVector3(lat: number, lon: number, radius: number): THREE.Vector
   )
 }
 
+// 두 점 사이 great circle 호 — 중간을 살짝 띄워 부드러운 곡선. 한류 확산 표현용.
+// 거리가 멀수록 호를 더 높이 띄우되 매우 절제 — 지구본 표면에 거의 붙어 화면 이탈 방지.
+function createArcGeometry(
+  start: THREE.Vector3,
+  end: THREE.Vector3,
+  segments: number,
+  radius: number
+): THREE.BufferGeometry {
+  const startN = start.clone().normalize()
+  const endN = end.clone().normalize()
+  const angle = startN.angleTo(endN)
+  // 가까운 도시 ≈ 2%, 지구 반대편 ≈ 8% 만 표면 위로 띄움
+  const altitudeFactor = 0.02 + (angle / Math.PI) * 0.06
+  const sinAngle = Math.sin(angle)
+
+  const points: THREE.Vector3[] = []
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments
+    // 구면 선형보간(slerp) — 정확한 great circle 경로
+    const a = Math.sin((1 - t) * angle) / sinAngle
+    const b = Math.sin(t * angle) / sinAngle
+    const interp = startN.clone().multiplyScalar(a).add(endN.clone().multiplyScalar(b))
+    // 포물선 lift — 중앙에서 가장 높게
+    const lift = 4 * t * (1 - t) * altitudeFactor
+    points.push(interp.normalize().multiplyScalar(radius * (1 + lift)))
+  }
+  return new THREE.BufferGeometry().setFromPoints(points)
+}
+
 // Seoul 특수 강조 마커 좌표 — 일반 도시 마커와 분리 (큰 사이즈 + 시안 색)
 const SEOUL_LAT = 37.5665
 const SEOUL_LON = 126.978
@@ -120,13 +149,37 @@ function WireframeGlobe() {
   // 도시 마커 펄스 갱신 주기 — 매 프레임(60fps × 80개) 대신 0.5초 단위 step 갱신
   const CITY_PULSE_INTERVAL = 0.5
 
-  // 매 프레임: 자전 + Seoul 강조 마커 펄스 / 0.5초마다: 일반 도시 마커 깜빡임
+  // 한류 호 — 절제된 버전: 동시 최대 3개, 5초 간격 발사
+  const MAX_CONCURRENT_ARCS = 3
+  const ARC_SPAWN_INTERVAL = 5
+  const ARC_TRAVEL_DURATION = 1.5
+  const ARC_FADE_DURATION = 0.8
+  const ARC_TOTAL_DURATION = ARC_TRAVEL_DURATION + ARC_FADE_DURATION
+  const ARC_SEGMENTS = 60
+
+  // 호 슬롯 풀 — 매 프레임 useState 회피, ref 로 imperative 관리
+  const arcSlots = useRef(
+    Array.from({ length: MAX_CONCURRENT_ARCS }, () => ({
+      active: false,
+      targetIdx: 0,
+      startTime: 0,
+    }))
+  )
+  const arcLineRefs = useRef<(THREE.Line | null)[]>([])
+  const arcMatRefs = useRef<(THREE.LineBasicMaterial | null)[]>([])
+  // 첫 호는 페이지 진입 ~2초 후 발사 (5초 대기 시 효과 인지 전 사라짐)
+  const lastArcSpawn = useRef(-3)
+  // 접근성 — prefers-reduced-motion 사용자는 호 비활성
+  const reducedMotion = useRef(false)
+
+  // 매 프레임: 자전 + Seoul 펄스 + 한류 호 / 0.5초마다: 일반 도시 마커 깜빡임
   useFrame((state, delta) => {
     if (groupRef.current) {
       groupRef.current.rotation.y += delta * 0.3
     }
     if (seoulMaterialRef.current) {
-      const pulse = Math.sin(state.clock.elapsedTime * Math.PI) * 0.25 + 0.75
+      // 펄스 상단 좁혀 항상 밝게 (0.75~1.0)
+      const pulse = Math.sin(state.clock.elapsedTime * Math.PI) * 0.125 + 0.875
       seoulMaterialRef.current.opacity = pulse
     }
     if (state.clock.elapsedTime - cityPulseLastUpdate.current >= CITY_PULSE_INTERVAL) {
@@ -139,7 +192,87 @@ function WireframeGlobe() {
         }
       })
     }
+
+    // 한류 호 spawn — 5초마다 빈 슬롯에 새 호 발사 (랜덤 도시 타깃)
+    if (!reducedMotion.current) {
+      if (state.clock.elapsedTime - lastArcSpawn.current >= ARC_SPAWN_INTERVAL) {
+        lastArcSpawn.current = state.clock.elapsedTime
+        const slotIdx = arcSlots.current.findIndex(s => !s.active)
+        if (slotIdx >= 0) {
+          const targetIdx = Math.floor(Math.random() * WORLD_CAPITALS.length)
+          arcSlots.current[slotIdx].active = true
+          arcSlots.current[slotIdx].targetIdx = targetIdx
+          arcSlots.current[slotIdx].startTime = state.clock.elapsedTime
+          const line = arcLineRefs.current[slotIdx]
+          if (line) {
+            // 슬롯 동시 활성 시 drawRange 간섭 방지를 위해 clone
+            line.geometry.dispose()
+            line.geometry = arcGeometries[targetIdx].clone()
+            line.geometry.setDrawRange(0, 0)
+          }
+        }
+      }
+
+      // 한류 호 update — 진행도에 따라 drawRange 확장 + opacity fade
+      arcSlots.current.forEach((slot, i) => {
+        if (!slot.active) return
+        const line = arcLineRefs.current[i]
+        const mat = arcMatRefs.current[i]
+        if (!line || !mat) return
+        const elapsed = state.clock.elapsedTime - slot.startTime
+
+        if (elapsed >= ARC_TOTAL_DURATION) {
+          slot.active = false
+          mat.opacity = 0
+          line.geometry.setDrawRange(0, 0)
+          return
+        }
+
+        if (elapsed < ARC_TRAVEL_DURATION) {
+          // 호가 Seoul 에서 목표 도시로 뻗어나가는 단계
+          const t = elapsed / ARC_TRAVEL_DURATION
+          const eased = 1 - Math.pow(1 - t, 3)
+          const count = Math.max(2, Math.floor(eased * (ARC_SEGMENTS + 1)))
+          line.geometry.setDrawRange(0, count)
+          mat.opacity = 0.85
+        } else {
+          // 도달 후 fade out 단계
+          line.geometry.setDrawRange(0, ARC_SEGMENTS + 1)
+          const fadeT = (elapsed - ARC_TRAVEL_DURATION) / ARC_FADE_DURATION
+          mat.opacity = 0.85 * (1 - fadeT)
+        }
+      })
+    }
   })
+
+  // 접근성 — 모션 감도 사용자는 호 발사 차단
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
+    reducedMotion.current = mq.matches
+    const handler = (e: MediaQueryListEvent) => { reducedMotion.current = e.matches }
+    mq.addEventListener("change", handler)
+    return () => mq.removeEventListener("change", handler)
+  }, [])
+
+  // Seoul→각 도시 great circle 호 geometry 사전 계산 (mount 시 1회)
+  const arcGeometries = useMemo(() => {
+    const seoulPos = latLonToVector3(SEOUL_LAT, SEOUL_LON, GLOBE_RADIUS)
+    return WORLD_CAPITALS.map(city => {
+      const targetPos = latLonToVector3(city.lat, city.lon, GLOBE_RADIUS)
+      return createArcGeometry(seoulPos, targetPos, ARC_SEGMENTS, GLOBE_RADIUS)
+    })
+  }, [])
+
+  // GPU 메모리 정리 — 언마운트 시 사전 계산본 + 활성 슬롯 clone 모두 dispose
+  useEffect(() => {
+    return () => {
+      arcGeometries.forEach(g => g.dispose())
+      arcLineRefs.current.forEach(line => {
+        if (line) line.geometry.dispose()
+      })
+    }
+  }, [arcGeometries])
 
   // CDN에서 world-atlas land 데이터 로드 → 대륙 윤곽선 지오메트리 구성
   useEffect(() => {
@@ -258,9 +391,9 @@ function WireframeGlobe() {
     })
   }, [])
 
-  // Seoul 강조 마커 — 일반 도시 마커 위에 살짝 띄워 z-fight 회피
+  // Seoul 강조 마커 — 일반 도시 마커 위에 살짝 띄워 z-fight 회피, 호와 동일 핑크 + 좀 더 밝은 변형
   const seoulMarker = useMemo(() => {
-    const position = latLonToVector3(SEOUL_LAT, SEOUL_LON, GLOBE_RADIUS + 0.012)
+    const position = latLonToVector3(SEOUL_LAT, SEOUL_LON, GLOBE_RADIUS + 0.014)
     const normal = position.clone().normalize()
     const quaternion = new THREE.Quaternion()
     quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal)
@@ -280,15 +413,32 @@ function WireframeGlobe() {
         )}
 
         <mesh position={seoulMarker.position} quaternion={seoulMarker.quaternion}>
-          <circleGeometry args={[0.018, 12]} />
+          <circleGeometry args={[0.024, 16]} />
           <meshBasicMaterial
             ref={seoulMaterialRef}
-            color="#3B82F6"
+            color="#FF6B85"
             side={THREE.DoubleSide}
             transparent
-            opacity={0.85}
+            opacity={1}
           />
         </mesh>
+
+        {/* 한류 호 — Seoul 에서 해외 도시로 5초마다 발사. brand 핑크 컬러. */}
+        {Array.from({ length: MAX_CONCURRENT_ARCS }).map((_, i) => (
+          <line
+            key={`arc-${i}`}
+            ref={el => { arcLineRefs.current[i] = el as unknown as THREE.Line | null }}
+          >
+            <bufferGeometry />
+            <lineBasicMaterial
+              ref={el => { arcMatRefs.current[i] = el }}
+              color="#FF4B6E"
+              transparent
+              opacity={0}
+              depthWrite={false}
+            />
+          </line>
+        ))}
 
         {cityMarkers.map((city, i) => (
           <mesh key={city.name} position={city.position} quaternion={city.quaternion}>
