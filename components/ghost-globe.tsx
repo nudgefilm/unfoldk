@@ -280,10 +280,10 @@ function WireframeGlobe() {
         )}
 
         <mesh position={seoulMarker.position} quaternion={seoulMarker.quaternion}>
-          <circleGeometry args={[0.04, 24]} />
+          <circleGeometry args={[0.018, 12]} />
           <meshBasicMaterial
             ref={seoulMaterialRef}
-            color="#00D9FF"
+            color="#3B82F6"
             side={THREE.DoubleSide}
             transparent
             opacity={0.85}
