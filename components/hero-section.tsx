@@ -432,7 +432,8 @@ export function HeroSection() {
       </div>
 
       {/* Ghost globe — 3D 와이어프레임 지구본 (한국 하이라이트 + 세계 수도 마커) */}
-      <div className="absolute top-[50px] -left-[100px] md:top-[50px] md:-left-[80px] lg:top-[40px] lg:left-[20px] z-10 opacity-80">
+      {/* 모바일: 중앙 정렬 + 텍스트 뒤 배경 / md+: 좌측에서 살짝 잘려 들어오는 디자인 유지 */}
+      <div className="absolute top-[20px] left-1/2 -translate-x-1/2 md:top-[50px] md:-left-[80px] md:translate-x-0 lg:left-[20px] lg:top-[40px] z-10 opacity-60 md:opacity-80">
         <GhostGlobe size="hero" />
       </div>
 
