@@ -78,13 +78,14 @@
 
 ### ⚠️ 사용자 액션 필요
 1. **Supabase SQL Editor 에서 0017 마이그레이션 실행** ✅ 완료 (Success. No rows returned 확인)
-2. (이전 세션에서) **0016_fan_events_owner_update.sql** 실행 여부 — 미완 시 fan-events Edit 에서 RLS 차단 silent fail
-3. (선택) 캘린더 broken row 백필 — 어드민 UI 에서 plan_type 한 번 토글하면 자동 sync, 또는 SQL 1줄:
+2. **0016_fan_events_owner_update.sql** ✅ 완료 (2026-05-12 확인 — `fan_events_update_own` RLS 정책 Supabase 적용 확인)
+3. (선택) 캘린더 broken row 백필 ✅ 완료 (2026-05-12) — 영향 행은 관리자 계정 1건. SELECT 로 미리 확인 후 UPDATE 실행:
    ```sql
    update public.users set subscription_status = 'active'
    where plan_type in ('monthly','annual')
      and (subscription_status is null or subscription_status not in ('active','canceled','expired'));
    ```
+   ※ 사용자 초안 SQL (`subscription_status != 'active'`) 은 NULL 미포함 + canceled/expired 까지 휩쓸어가는 위험이 있었음. PROGRESS 박제 SQL 로 정정 후 실행.
 
 ### 다음 세션 후보
 - **DECISIONS.md 박제** — 이번 세션 굵직한 결정 다수: Header root layout 통합 / plan_type-status 동기화 정책 / Drama 3-tier 노출 / 인플레이스 OAuth 일관성 / 어드민 어뷰징 검토 Tier 1+2.
