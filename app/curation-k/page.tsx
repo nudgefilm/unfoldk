@@ -113,8 +113,9 @@ const KOREA_ISLANDS: Array<{
   { name: "Baengnyeong", lng: 124.7, lat: 37.97, displayLng: 125.4, rx: 5, ry: 3, labelOffset: [9, -4] },
   // 울릉도 — 거의 원형, 본토 inset (실제 130.85 → 130.3)
   { name: "Ulleung", lng: 130.85, lat: 37.5, displayLng: 130.3, rx: 4.2, ry: 3.6, labelOffset: [-55, 4] },
-  // 독도 — 동도·서도 두 바위 가로 타원, 울릉도 우측·약간 아래 inset
-  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 130.7, rx: 2.6, ry: 1.4, labelOffset: [8, 4] },
+  // 독도 — 동도·서도 두 바위 가로 타원, 울릉도 우측·아래 inset.
+  // 첨부 이미지 기준: 울릉(415, 119) 대비 우측·아래 더 거리감 있게 (45px / 50px 차이).
+  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 130.95, displayLat: 37.0, rx: 2.6, ry: 1.4, labelOffset: [8, 4] },
   // 마라도 — 제주 남단, 그대로 (이미 viewBox 안)
   { name: "Marado", lng: 126.27, lat: 33.11, rx: 3.4, ry: 2, labelOffset: [-46, 12] },
 ]
