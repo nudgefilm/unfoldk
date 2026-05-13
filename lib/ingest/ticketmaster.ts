@@ -1,5 +1,6 @@
 // Ticketmaster 글로벌 K팝 공연 → 'concert'/'fanmeet' 이벤트 인제스트
 // classification=K-Pop OR keyword=K-pop 두 전략 병합 + 한국(KR) 제외 (KOPIS 와 중복 방지)
+// 응답 메트릭에 단계별 카운트 포함 — 0건 시 어느 단계에서 사라졌는지 추적
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import {
@@ -7,14 +8,24 @@ import {
   toIso8601Z,
   pickBestImage,
   type TmEvent,
-  type TmListResult,
 } from "@/lib/api/ticketmaster"
 
 export interface TicketmasterIngestResult {
   source: "ticketmaster"
-  scanned: number       // dedupe 후 검토 이벤트 수
+  scanned: number                         // dedupe 후 검토 이벤트 수
   upserted: number
-  filtered_kr: number   // 한국 이벤트 제외 수
+  filtered_kr: number                     // KR 제외 수
+  // 디버깅 메트릭 — 응답 0건 진단용
+  classification_raw: number              // classificationName=K-Pop 페이지 누적 events
+  classification_total_elements: number   // 첫 페이지 page.totalElements (API 전체 매칭 수)
+  classification_error: string | null
+  keyword_raw: number                     // keyword=K-pop 페이지 누적 events
+  keyword_total_elements: number
+  keyword_error: string | null
+  dropped_no_date: number                 // dates.start.dateTime 없어 제외
+  with_kpop_classification: number        // classifications 에 K-Pop (subGenre/genre) 매칭
+  without_kpop_classification: number
+  // 에러
   error?: string
   details?: string
   hint?: string
@@ -45,6 +56,15 @@ function toTimeLabel(localTime?: string): string | null {
   return `${h12}:${m} ${ampm}`
 }
 
+// classifications subGenre/genre 에서 'K-Pop' / 'KPop' 등 매칭 (case-insensitive)
+function hasKpopClassification(ev: TmEvent): boolean {
+  return (ev.classifications ?? []).some((c) => {
+    const sub = c.subGenre?.name ?? ""
+    const gen = c.genre?.name ?? ""
+    return /k-?pop/i.test(sub) || /k-?pop/i.test(gen)
+  })
+}
+
 export async function runTicketmasterIngest(): Promise<TicketmasterIngestResult> {
   const today = new Date()
   const sixMonthsLater = new Date()
@@ -56,41 +76,67 @@ export async function runTicketmasterIngest(): Promise<TicketmasterIngestResult>
     size: 100,
   }
 
-  // 2전략 × 3페이지 = 최대 600건 사전 — Free tier 5,000/day 여유
-  // 어느 한 페이지/전략 실패해도 다른 결과는 활용 (catch 로 빈 배열 반환)
   const pagesPerStrategy = 3
-  const calls: Promise<TmListResult>[] = []
+
+  // classification 전략 — 직렬 호출로 에러 단계별 캡처
+  // 200 응답인데 events 빈 배열인 경우는 throw 안 됨 → classification_raw=0 으로 잡힘
+  const classificationEvents: TmEvent[] = []
+  let classificationTotalElements = 0
+  let classificationError: string | null = null
   for (let p = 0; p < pagesPerStrategy; p++) {
-    calls.push(
-      fetchTicketmasterEvents({
+    try {
+      const result = await fetchTicketmasterEvents({
         ...baseParams,
         classificationName: "K-Pop",
         page: p,
-      }).catch((e) => {
-        console.error(`[ingest-ticketmaster] classification page ${p} 실패:`, e)
-        return { events: [], page: { size: 0, totalElements: 0, totalPages: 0, number: p } }
       })
-    )
-    calls.push(
-      fetchTicketmasterEvents({
+      if (p === 0) classificationTotalElements = result.page.totalElements
+      classificationEvents.push(...result.events)
+      if (result.page.totalPages <= p + 1) break
+    } catch (err) {
+      classificationError = err instanceof Error ? err.message : "unknown"
+      console.error(`[ingest-ticketmaster] classification page ${p} 실패:`, err)
+      break
+    }
+  }
+
+  // keyword 전략
+  const keywordEvents: TmEvent[] = []
+  let keywordTotalElements = 0
+  let keywordError: string | null = null
+  for (let p = 0; p < pagesPerStrategy; p++) {
+    try {
+      const result = await fetchTicketmasterEvents({
         ...baseParams,
         keyword: "K-pop",
         page: p,
-      }).catch((e) => {
-        console.error(`[ingest-ticketmaster] keyword page ${p} 실패:`, e)
-        return { events: [], page: { size: 0, totalElements: 0, totalPages: 0, number: p } }
       })
-    )
+      if (p === 0) keywordTotalElements = result.page.totalElements
+      keywordEvents.push(...result.events)
+      if (result.page.totalPages <= p + 1) break
+    } catch (err) {
+      keywordError = err instanceof Error ? err.message : "unknown"
+      console.error(`[ingest-ticketmaster] keyword page ${p} 실패:`, err)
+      break
+    }
   }
-  const results = await Promise.all(calls)
-  const allEvents = results.flatMap((r) => r.events)
 
-  // event.id 로 dedupe — 두 전략 교집합 처리
+  // event.id 로 dedupe (두 전략 교집합 처리)
   const dedupedMap = new Map<string, TmEvent>()
-  for (const ev of allEvents) dedupedMap.set(ev.id, ev)
+  for (const ev of [...classificationEvents, ...keywordEvents]) {
+    dedupedMap.set(ev.id, ev)
+  }
   const dedupedEvents = Array.from(dedupedMap.values())
 
-  // 한국(KR) 이벤트 제외 — KOPIS 에서 이미 수집
+  // classifications K-Pop 매칭 분포 — keyword 전략은 K-Pop 아닌 이벤트도 잡을 수 있음
+  let withKpopClassification = 0
+  let withoutKpopClassification = 0
+  for (const ev of dedupedEvents) {
+    if (hasKpopClassification(ev)) withKpopClassification++
+    else withoutKpopClassification++
+  }
+
+  // KR 제외 — KOPIS 에서 이미 수집
   let filteredKr = 0
   const filtered = dedupedEvents.filter((ev) => {
     const country = ev._embedded?.venues?.[0]?.country?.countryCode
@@ -101,15 +147,18 @@ export async function runTicketmasterIngest(): Promise<TicketmasterIngestResult>
     return true
   })
 
+  // 행 생성 + dateTime 없는 이벤트 카운트
+  let droppedNoDate = 0
   const rows = filtered
     .map((ev) => {
       const dateTime = ev.dates?.start?.dateTime
-      if (!dateTime) return null
-
+      if (!dateTime) {
+        droppedNoDate++
+        return null
+      }
       const venue = ev._embedded?.venues?.[0]
       const attraction = ev._embedded?.attractions?.[0]
       const artistName = attraction?.name ?? ev.name
-
       const venueDesc = [venue?.name, venue?.city?.name, venue?.country?.name]
         .filter(Boolean)
         .join(" · ")
@@ -129,13 +178,35 @@ export async function runTicketmasterIngest(): Promise<TicketmasterIngestResult>
     })
     .filter((r): r is NonNullable<typeof r> => r !== null)
 
+  const baseMetrics = {
+    source: "ticketmaster" as const,
+    scanned: dedupedEvents.length,
+    filtered_kr: filteredKr,
+    classification_raw: classificationEvents.length,
+    classification_total_elements: classificationTotalElements,
+    classification_error: classificationError,
+    keyword_raw: keywordEvents.length,
+    keyword_total_elements: keywordTotalElements,
+    keyword_error: keywordError,
+    dropped_no_date: droppedNoDate,
+    with_kpop_classification: withKpopClassification,
+    without_kpop_classification: withoutKpopClassification,
+  }
+
+  // 두 전략 모두 실패면 명시적 에러 — silent 0 방지
+  if (classificationError && keywordError) {
+    return {
+      ...baseMetrics,
+      upserted: 0,
+      error: `두 전략 모두 실패: classification=${classificationError}, keyword=${keywordError}`,
+    }
+  }
+
   if (rows.length === 0) {
     return {
-      source: "ticketmaster",
-      scanned: dedupedEvents.length,
+      ...baseMetrics,
       upserted: 0,
-      filtered_kr: filteredKr,
-      note: "유효 이벤트 매칭 없음",
+      note: "유효 이벤트 매칭 없음 — 디버깅 메트릭 확인",
     }
   }
 
@@ -151,10 +222,8 @@ export async function runTicketmasterIngest(): Promise<TicketmasterIngestResult>
   if (error) {
     console.error("[ingest-ticketmaster] upsert 실패:", error)
     return {
-      source: "ticketmaster",
-      scanned: dedupedEvents.length,
+      ...baseMetrics,
       upserted: 0,
-      filtered_kr: filteredKr,
       error: error.message,
       details: error.details ?? undefined,
       hint: error.hint ?? undefined,
@@ -163,9 +232,7 @@ export async function runTicketmasterIngest(): Promise<TicketmasterIngestResult>
   }
 
   return {
-    source: "ticketmaster",
-    scanned: dedupedEvents.length,
+    ...baseMetrics,
     upserted: data?.length ?? 0,
-    filtered_kr: filteredKr,
   }
 }
