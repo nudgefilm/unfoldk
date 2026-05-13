@@ -159,4 +159,6 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 
 ---
 
+서비스 전체 기획 방향은 SERVICE_ARCHITECTURE.md 참조
+
 *UNFOLD LAB | unfoldk.com | 2026-05 | v3.1*
