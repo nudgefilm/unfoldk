@@ -4,6 +4,50 @@
 
 ---
 
+## 현재 상태 (2026-05-14 세션 6 / Curation K (M+5) 메뉴 + 사전 등록 랜딩)
+
+> Services 6번째 서비스 Curation K 의 메뉴·footer 통합 + 실사 한국 지도 기반 마케팅 랜딩 페이지 신규. 기획안 v1.2 §6 완성형 구조 + 부속 도서 (백령·울릉·독도·마라도) 영토 표기.
+
+### A. Services 메뉴 통합
+- **`609b14b`** Header `services` 배열에 Curation K (Map 아이콘, `/curation-k`, "Explore Korea like a Hallyu fan") 추가. KfoodKit 하드코딩을 `services.slice(4).map()` 일반화 → 5번째 이후 full-width 카드 자연 확장. Footer Services 컬럼에도 링크.
+
+### B. /curation-k 페이지 — 기획안 §6 완성형
+- **`609b14b`** 초기 구조 (Hero / Coming Soon / 5탭 / Pre-register CTA + 로컬 Toaster). 폼 submit 은 toast + success state, 백엔드 저장 없음 (`// TODO: waitlist API`).
+- **`712528c`** Hero 컨테이너 `max-w-[1320px]` + `lg:grid-cols-2` split — 좌측 지도, 우측 제목·CTA.
+- **`079a556`** 5탭 카드에 데이터 소스 라벨 (TourAPI · TMDB · Claude AI 등), AI 코스 Pro 배지. 신규 섹션 2개:
+  - **Why you'll keep coming back** — 재방문 4카드 (Monthly Pilgrimage / AI Routes / Visit & Share / Fan-Submitted Spots)
+  - **Connected to your Hallyu routine** — KdramaMatch / KfoodKit / HangeulGo 연계 3카드
+
+### C. 실사 한국 지도 (Ghost-style SVG)
+- **`712528c`** world-atlas `countries-50m` TopoJSON → South Korea (id "410") 폴리곤 fetch → equirectangular projection. 도시 마커도 위경도 → 같은 projection 자동 정렬.
+- **`079a556`·`7392878`** 부속 도서 (50m 누락) 명시 — 본토와 동일 outline `<ellipse>` 로 "섬"으로 시각 통합.
+- **`8ee3655`** 지도 시각 정리:
+  - `SVG_W` 400 → 540 (한국 자연 가로 비율), `aspect-[5/7]` → `aspect-square`.
+  - 본토·섬 `fill="none"` (바탕색 제거), stroke 얇게.
+  - 부속 도서 `displayLng` inset — 한국 공식 지도 관용. 실제 lng/lat 은 보존.
+  - Hero grid `[2fr_1fr]` + 우측 부제 "Korea, mapped for Hallyu fans." 한 줄 (향후 hover 모달 overlay 공간).
+
+### D. 우측 섬 정리 — 사용자 시각 검증 반복
+- **`760c6c0`·`3e43094`·`0254584`** 첨부 이미지 비례 매핑으로 울릉·독도 좌표 미세 조정.
+- **`29bdb8f`** 우측 섬 3개 보이던 원인 진단 — 50m TopoJSON 의 한국 polygon 에 울릉도가 작은 ring 으로 이미 포함되어 내 명시 Ulleung ellipse 와 중복. 해결: `KOREA_ISLANDS.Ulleung` 에 `labelOnly: true` → 마커 안 그리고 라벨만, 50m polygon 위치 (130.85, 37.5) 옆. Dokdo 만 명시 ellipse 로 그 우하.
+- **`e56bfb7`·`125e013`** Dokdo 위치 — 울릉도와 거리 1/3 (SVG 가로 11px / 세로 15px / 직선 ~19px). 705a64a 추가 단축은 revert.
+
+### 다음 세션 후보
+- carry-over (세션 5 잔여):
+  - Ticketmaster 실데이터 인제스트 재검증 (locale fix 후 cron_logs 메트릭)
+  - KOPIS 캘린더 재노출 정책
+  - Claude Haiku Yes/No/Uncertain 분류 로직 fan_event_requests 어드민 큐 이식 여부
+  - fan_event_requests 제보 폼 / admin 검토 큐 UI 정비
+  - Cookie Policy 본문 법무 검토 / Vercel·Supabase 비용 점검
+- 이번 세션 신규:
+  - **Curation K waitlist API** — `/curation-k` 사전 등록 폼이 현재 토스트만 → 실제 DB 저장 + 출시 시 발송 채널
+  - Curation K 지도 hover 모달 — 지역별 정보 카드 띄우는 인터랙션 (페이지 설계 의도)
+
+### 블로커
+- 없음
+
+---
+
 ## 현재 상태 (2026-05-13~14 세션 5 / 외부 이벤트 API 통합 — KOPIS·Ticketmaster 연동 + Eventbrite 폐기)
 
 > 두 날 걸쳐 HallyuCalendar 외부 이벤트 데이터 인프라 구축. KOPIS·Ticketmaster 연동 완료, Eventbrite·Bandsintown 은 API 정책 변경/ToS 회색지대로 폐기 후 fan_event_requests 사용자 제보 채널로 전환. Featured events 섹션도 Ticketmaster 데이터 기준으로 전면 개편.
