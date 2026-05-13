@@ -104,18 +104,19 @@ const KOREA_ISLANDS: Array<{
   lat: number
   displayLng?: number  // 시각 표기용 (생략 시 lng)
   displayLat?: number
-  rx: number           // SVG 시각 크기 — 실제 섬 크기에 비례
-  ry: number
+  rx?: number          // SVG 시각 크기 — labelOnly 면 생략
+  ry?: number
+  labelOnly?: boolean  // true → 마커 안 그리고 라벨만. 50m polygon 이미 그 위치에 그려져 있을 때.
   labelOffset: [number, number]
 }> = [
   // 백령도 — 가장 큰 부속 도서, 비대칭 동서로 길쭉. 실제 lng 124.7 은 본토 서해안에서
   // 시각적으로 멀어 displayLng 로 본토 가까이 inset.
   { name: "Baengnyeong", lng: 124.7, lat: 37.97, displayLng: 125.4, rx: 5, ry: 3, labelOffset: [9, -4] },
-  // 울릉도 — 좌상 위치. "Ulleung 라벨 + 마커" 좌→우 순. 첨부 이미지 기준 px 매핑:
-  // 본토 강원 끝 (~x353) 에서 우측 ~104px / Chuncheon y(84) 에서 아래 ~62px.
-  { name: "Ulleung", lng: 130.85, lat: 37.5, displayLng: 130.9, displayLat: 37.2, rx: 3.5, ry: 2.5, labelOffset: [-55, 4] },
-  // 독도 — 울릉 우하. 가로 차 ~21px / 세로 차 ~32px (이미지 비례).
-  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 131.2, displayLat: 36.85, rx: 2.6, ry: 1.4, labelOffset: [8, 4] },
+  // 울릉도 — 50m TopoJSON 의 South Korea polygon 에 작은 ring 으로 이미 포함됨.
+  // 중복 마커 안 그리고 라벨만 그 위치 옆에 표시 (labelOnly).
+  { name: "Ulleung", lng: 130.85, lat: 37.5, labelOnly: true, labelOffset: [-55, 4] },
+  // 독도 — 50m 울릉도의 우하로 이동. 실제 독도 위치 (131.87, 37.24) 는 너무 멀어 displayLng/Lat inset.
+  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 131.3, displayLat: 37.0, rx: 2.6, ry: 1.4, labelOffset: [8, 4] },
   // 마라도 — 제주 남단, 그대로 (이미 viewBox 안)
   { name: "Marado", lng: 126.27, lat: 33.11, rx: 3.4, ry: 2, labelOffset: [-46, 12] },
 ]
@@ -345,27 +346,31 @@ export default function CurationKPage() {
                     const [lx, ly] = island.labelOffset
                     return (
                       <g key={island.name}>
-                        {/* 본토와 동일 — fill X, outline only */}
-                        <ellipse
-                          cx={cx}
-                          cy={cy}
-                          rx={island.rx}
-                          ry={island.ry}
-                          fill="none"
-                          stroke="#FF4B6E"
-                          strokeOpacity="0.08"
-                          strokeWidth="1.2"
-                        />
-                        <ellipse
-                          cx={cx}
-                          cy={cy}
-                          rx={island.rx}
-                          ry={island.ry}
-                          fill="none"
-                          stroke="#ffffff"
-                          strokeOpacity="0.55"
-                          strokeWidth="0.7"
-                        />
+                        {/* labelOnly 면 마커 안 그림 (50m polygon 이 이미 그 위치에 그리고 있음). */}
+                        {!island.labelOnly && island.rx !== undefined && island.ry !== undefined && (
+                          <>
+                            <ellipse
+                              cx={cx}
+                              cy={cy}
+                              rx={island.rx}
+                              ry={island.ry}
+                              fill="none"
+                              stroke="#FF4B6E"
+                              strokeOpacity="0.08"
+                              strokeWidth="1.2"
+                            />
+                            <ellipse
+                              cx={cx}
+                              cy={cy}
+                              rx={island.rx}
+                              ry={island.ry}
+                              fill="none"
+                              stroke="#ffffff"
+                              strokeOpacity="0.55"
+                              strokeWidth="0.7"
+                            />
+                          </>
+                        )}
                         <text
                           x={cx + lx}
                           y={cy + ly}
