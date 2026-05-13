@@ -641,6 +641,14 @@ export default function HallyuCalendarPage() {
   const [accordionStartOpen, setAccordionStartOpen] = useState(false)
   // 한 번에 한 항목만 확장 — null = 모두 닫힘
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
+  // Featured 가로 스크롤 컨테이너 — PC 화살표 버튼이 한 번에 보이는 폭만큼 이동
+  const featuredScrollRef = useRef<HTMLDivElement>(null)
+
+  const scrollFeatured = (dir: "left" | "right") => {
+    const el = featuredScrollRef.current
+    if (!el) return
+    el.scrollBy({ left: dir === "left" ? -el.clientWidth : el.clientWidth, behavior: "smooth" })
+  }
 
   // 마운트 시 plan 권한 확인 — 탭/배너/이벤트 블러 가드용
   useEffect(() => {
@@ -750,10 +758,9 @@ export default function HallyuCalendarPage() {
     .sort((a, b) => a.date - b.date)
     .slice(0, 5)
 
-  // Featured 카드용 — 썸네일 있는 이벤트만.
+  // Featured 카드용 — 썸네일 있는 이벤트 전체 (개수 제한 없음, 가로 스크롤로 모두 노출).
   // 1차: Ticketmaster (글로벌 공연 데이터) 우선 → 좌측에 노출.
   // 2차: 그 외 source 는 created_at desc 로 정렬 (최신 등록이 좌측).
-  // Ticketmaster 데이터가 6개 미만일 때 다른 source 가 자연스럽게 fallback.
   const featuredEvents = filteredEvents
     .filter((e) => !!e.thumbnailUrl)
     .slice()
@@ -763,7 +770,6 @@ export default function HallyuCalendarPage() {
       if (aTm !== bTm) return bTm - aTm
       return (b.createdAt ?? "").localeCompare(a.createdAt ?? "")
     })
-    .slice(0, 6)
 
   const handleEventClick = (event: CalendarEvent) => {
     setSelectedEvent(event)
@@ -987,8 +993,9 @@ export default function HallyuCalendarPage() {
         {featuredEvents.length > 0 && (
           <section className="mb-12">
             <h2 className="text-2xl font-semibold text-foreground mb-6">Featured events</h2>
-            <div className="relative">
+            <div className="relative group">
               <div
+                ref={featuredScrollRef}
                 className="flex gap-4 overflow-x-auto pb-2 snap-x snap-proximity [&::-webkit-scrollbar]:hidden"
                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
               >
@@ -1024,9 +1031,7 @@ export default function HallyuCalendarPage() {
                 </button>
               ))}
               </div>
-              {/* 우측 페이드 — "더 있어요" 신호. overflow 없을 땐 빈 영역에 겹쳐 사실상 비표시.
-                  scroll 끝까지 갔을 땐 마지막 카드가 살짝 페이드되는 미세 wart 가 있지만,
-                  JS 스크롤 위치 트래킹 없이 얻는 비용 대비 효율 좋음. */}
+              {/* 우측 페이드 — "더 있어요" 신호 (특히 모바일). overflow 없을 땐 빈 영역에 겹쳐 사실상 비표시. */}
               <div
                 className="pointer-events-none absolute right-0 top-0 bottom-2 w-12"
                 style={{
@@ -1035,6 +1040,23 @@ export default function HallyuCalendarPage() {
                 }}
                 aria-hidden="true"
               />
+              {/* PC 전용 화살표 — md+ 에서 group hover 시에만 노출. 모바일은 터치 스와이프 유지. */}
+              <button
+                type="button"
+                onClick={() => scrollFeatured("left")}
+                aria-label="Scroll featured events left"
+                className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-[#1a1a1a]/90 backdrop-blur-sm border border-border/30 items-center justify-center text-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#1a1a1a]"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollFeatured("right")}
+                aria-label="Scroll featured events right"
+                className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-[#1a1a1a]/90 backdrop-blur-sm border border-border/30 items-center justify-center text-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#1a1a1a]"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
             </div>
           </section>
         )}
