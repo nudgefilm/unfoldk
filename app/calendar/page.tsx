@@ -24,6 +24,7 @@ interface CalendarEvent {
   description?: string                   // Claude 가 생성한 한 줄 설명 (영어)
   isPremium?: boolean
   thumbnailUrl?: string                  // DB hallyu_calendar_events.thumbnail_url
+  sourceApi?: string                     // 'ticketmaster' | 'tmdb' | 'youtube' | 'lastfm' — Featured 우선순위
   createdAt?: string                     // ISO string — Featured 정렬 키 (등록순)
 }
 
@@ -749,12 +750,19 @@ export default function HallyuCalendarPage() {
     .sort((a, b) => a.date - b.date)
     .slice(0, 5)
 
-  // Featured 카드용 — 썸네일 있는 이벤트만, created_at desc 로 최신 등록이 좌측.
-  // ISO 타임스탬프는 lexicographic sort 가 chronological sort 와 동치.
+  // Featured 카드용 — 썸네일 있는 이벤트만.
+  // 1차: Ticketmaster (글로벌 공연 데이터) 우선 → 좌측에 노출.
+  // 2차: 그 외 source 는 created_at desc 로 정렬 (최신 등록이 좌측).
+  // Ticketmaster 데이터가 6개 미만일 때 다른 source 가 자연스럽게 fallback.
   const featuredEvents = filteredEvents
     .filter((e) => !!e.thumbnailUrl)
     .slice()
-    .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+    .sort((a, b) => {
+      const aTm = a.sourceApi === "ticketmaster" ? 1 : 0
+      const bTm = b.sourceApi === "ticketmaster" ? 1 : 0
+      if (aTm !== bTm) return bTm - aTm
+      return (b.createdAt ?? "").localeCompare(a.createdAt ?? "")
+    })
     .slice(0, 6)
 
   const handleEventClick = (event: CalendarEvent) => {
@@ -981,7 +989,7 @@ export default function HallyuCalendarPage() {
             <h2 className="text-2xl font-semibold text-foreground mb-6">Featured events</h2>
             <div className="relative">
               <div
-                className="flex gap-4 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"
+                className="flex gap-4 overflow-x-auto pb-2 snap-x snap-proximity [&::-webkit-scrollbar]:hidden"
                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
               >
               {featuredEvents.map((event) => (
@@ -989,11 +997,11 @@ export default function HallyuCalendarPage() {
                   key={event.id}
                   type="button"
                   onClick={() => handleEventClick(event)}
-                  className="flex-shrink-0 w-48 bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors text-left"
+                  className="flex-shrink-0 w-72 snap-start bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors text-left"
                 >
-                  {/* 프레임 3:4 세로 고정. object-contain 으로 원본 비율 유지 —
-                      16:9 가로 썸네일은 가로폭 맞춤 + 위아래 레터박스, 2:3 포스터는 좌우 살짝 레터박스. */}
-                  <div className="aspect-[3/4] bg-[#0d0d0f] overflow-hidden flex items-center justify-center">
+                  {/* 프레임 16:9 가로 고정 — Ticketmaster 표준 비율.
+                      object-contain 으로 원본 비율 유지: Ticketmaster 16:9 는 가득, TMDB 2:3 포스터는 좌우 레터박스. */}
+                  <div className="aspect-video bg-[#0d0d0f] overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={event.thumbnailUrl}

@@ -59,9 +59,10 @@ export async function GET(request: Request) {
 
   // RLS 가 is_premium 게이팅을 자동 처리 (어드민은 위에서 service role 로 우회됨)
   // KOPIS 인제스트 데이터는 DB 보존하되 캘린더 노출에서 제외 (2026-05 정책)
+  // source_api 는 Featured 섹션의 Ticketmaster 우선 정렬에 사용
   const { data, error } = await queryClient
     .from("hallyu_calendar_events")
-    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium, thumbnail_url, created_at")
+    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium, thumbnail_url, source_api, created_at")
     .neq("source_api", "kopis")
     .gte("event_date", startOfMonth.toISOString())
     .lt("event_date", startOfNextMonth.toISOString())
@@ -84,6 +85,7 @@ export async function GET(request: Request) {
       description: row.description ?? undefined,
       isPremium: row.is_premium,
       thumbnailUrl: row.thumbnail_url ?? undefined,
+      sourceApi: row.source_api ?? undefined,
       createdAt: row.created_at,
     }
   })
