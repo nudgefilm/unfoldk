@@ -81,7 +81,7 @@ export async function fetchTicketmasterEvents(
     endDateTime: params.endDateTime,
     size: String(params.size ?? 100),
     page: String(params.page ?? 0),
-    locale: "*,en-us",
+    locale: "en-us,*",
   })
   if (params.classificationName) qs.set("classificationName", params.classificationName)
   if (params.keyword) qs.set("keyword", params.keyword)
