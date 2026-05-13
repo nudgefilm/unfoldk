@@ -44,7 +44,9 @@ const LNG_MIN = 124.3
 const LNG_MAX = 132.1
 const LAT_MIN = 32.9
 const LAT_MAX = 38.8
-const SVG_W = 400
+// SVG_W 540 — 한국 자연 가로 비율 (lng 폭 7.8°, lat 폭 5.9°) 에 가깝게.
+// 작게 잡으면 본토가 세로로 stretched 보이는 문제 해결.
+const SVG_W = 540
 const SVG_H = 540
 
 // equirectangular projection — 한국 영역 lat 폭 좁아 큰 왜곡 없음. lat 큰 게 y 작음.
@@ -106,13 +108,14 @@ const KOREA_ISLANDS: Array<{
   ry: number
   labelOffset: [number, number]
 }> = [
-  // 백령도 — 가장 큰 부속 도서, 비대칭 동서로 길쭉
-  { name: "Baengnyeong", lng: 124.7, lat: 37.97, rx: 5, ry: 3, labelOffset: [9, -4] },
-  // 울릉도 — 거의 원형, 본토 inset
-  { name: "Ulleung", lng: 130.85, lat: 37.5, displayLng: 130.15, rx: 4.2, ry: 3.6, labelOffset: [-58, 4] },
-  // 독도 — 동도·서도 두 바위, 매우 작은 가로 타원으로 표현, 본토 inset
-  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 130.6, rx: 2.6, ry: 1.4, labelOffset: [7, 4] },
-  // 마라도 — 작은 가로 타원
+  // 백령도 — 가장 큰 부속 도서, 비대칭 동서로 길쭉. 실제 lng 124.7 은 본토 서해안에서
+  // 시각적으로 멀어 displayLng 로 본토 가까이 inset.
+  { name: "Baengnyeong", lng: 124.7, lat: 37.97, displayLng: 125.4, rx: 5, ry: 3, labelOffset: [9, -4] },
+  // 울릉도 — 거의 원형, 본토 inset (실제 130.85 → 130.3)
+  { name: "Ulleung", lng: 130.85, lat: 37.5, displayLng: 130.3, rx: 4.2, ry: 3.6, labelOffset: [-55, 4] },
+  // 독도 — 동도·서도 두 바위 가로 타원, 울릉도 우측·약간 아래 inset
+  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 130.7, rx: 2.6, ry: 1.4, labelOffset: [8, 4] },
+  // 마라도 — 제주 남단, 그대로 (이미 viewBox 안)
   { name: "Marado", lng: 126.27, lat: 33.11, rx: 3.4, ry: 2, labelOffset: [-46, 12] },
 ]
 
@@ -270,9 +273,10 @@ export default function CurationKPage() {
         {/* Hero — split 1.6:1 (지도 62% / 텍스트 38%) */}
         <section className="relative w-full overflow-hidden">
           <div className="max-w-[1320px] mx-auto px-6 pt-10 pb-12 md:pt-14 md:pb-16">
-            <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-8 lg:gap-12 items-center">
-              {/* 좌측: 실사 SVG 한국 지도 (부속 도서 포함) */}
-              <div className="relative w-full max-w-[560px] sm:max-w-[680px] lg:max-w-none mx-auto lg:mx-0 aspect-[5/7]">
+            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8 lg:gap-10 items-center">
+              {/* 좌측: 실사 SVG 한국 지도 (부속 도서 포함).
+                  aspect-square — 한국 자연 비율 + 향후 hover 모달 overlay 공간. */}
+              <div className="relative w-full max-w-[560px] sm:max-w-[720px] lg:max-w-none mx-auto lg:mx-0 aspect-square">
                 <svg
                   viewBox={`0 0 ${SVG_W} ${SVG_H}`}
                   className="w-full h-full"
@@ -306,27 +310,26 @@ export default function CurationKPage() {
                     />
                   ))}
 
-                  {/* 실사 South Korea polygon — load 전에는 비어 있음 */}
+                  {/* 실사 South Korea polygon — 깔끔한 outline only.
+                      바탕색 X, stroke 얇게. 향후 hover 모달 overlay 공간 확보. */}
                   {koreaPath && (
                     <>
                       <path
                         d={koreaPath}
                         fillRule="evenodd"
-                        fill="#FF4B6E"
-                        fillOpacity="0.04"
+                        fill="none"
                         stroke="#FF4B6E"
-                        strokeOpacity="0.15"
-                        strokeWidth="4"
+                        strokeOpacity="0.08"
+                        strokeWidth="1.5"
                         strokeLinejoin="round"
                       />
                       <path
                         d={koreaPath}
                         fillRule="evenodd"
-                        fill="#ffffff"
-                        fillOpacity="0.03"
+                        fill="none"
                         stroke="#ffffff"
                         strokeOpacity="0.55"
-                        strokeWidth="1.4"
+                        strokeWidth="0.8"
                         strokeLinejoin="round"
                       />
                     </>
@@ -341,29 +344,26 @@ export default function CurationKPage() {
                     const [lx, ly] = island.labelOffset
                     return (
                       <g key={island.name}>
-                        {/* 핑크 glow — 본토와 동일 2-layer 외곽 */}
+                        {/* 본토와 동일 — fill X, outline only */}
                         <ellipse
                           cx={cx}
                           cy={cy}
                           rx={island.rx}
                           ry={island.ry}
-                          fill="#FF4B6E"
-                          fillOpacity="0.04"
+                          fill="none"
                           stroke="#FF4B6E"
-                          strokeOpacity="0.15"
-                          strokeWidth="2.5"
+                          strokeOpacity="0.08"
+                          strokeWidth="1.2"
                         />
-                        {/* 본토와 동일 흰색 outline */}
                         <ellipse
                           cx={cx}
                           cy={cy}
                           rx={island.rx}
                           ry={island.ry}
-                          fill="#ffffff"
-                          fillOpacity="0.03"
+                          fill="none"
                           stroke="#ffffff"
                           strokeOpacity="0.55"
-                          strokeWidth="1.2"
+                          strokeWidth="0.7"
                         />
                         <text
                           x={cx + lx}
@@ -429,24 +429,21 @@ export default function CurationKPage() {
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 tracking-tight">
                   Curation K
                 </h1>
-                <p className="text-muted-foreground text-base md:text-lg mb-2">
+                <p className="text-muted-foreground text-base md:text-lg mb-7">
                   Korea, mapped for Hallyu fans.
-                </p>
-                <p className="text-muted-foreground/80 text-sm mb-7">
-                  Drama spots · K-pop landmarks · themed stays · AI day courses.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
                   <a
                     href="#pre-register"
-                    className="rounded-full font-medium text-white text-sm px-5 py-3 whitespace-nowrap text-center shadow-sm"
+                    className="rounded-full font-medium text-white text-sm px-5 py-2.5 whitespace-nowrap text-center shadow-sm"
                     style={{ backgroundColor: "#FF4B6E" }}
                   >
                     Notify me at launch
                   </a>
                   <a
                     href="#features"
-                    className="rounded-full font-medium text-foreground text-sm px-5 py-3 whitespace-nowrap text-center border border-border/40 hover:bg-[#1a1a1a] transition-colors"
+                    className="rounded-full font-medium text-foreground text-sm px-5 py-2.5 whitespace-nowrap text-center border border-border/40 hover:bg-[#1a1a1a] transition-colors"
                   >
                     See what's inside
                   </a>
