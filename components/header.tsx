@@ -4,7 +4,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, ChevronDown, Calendar, Music, Film, Languages, UtensilsCrossed, User, LogOut } from "lucide-react"
+import { Menu, ChevronDown, Calendar, Music, Film, Languages, UtensilsCrossed, Map, User, LogOut } from "lucide-react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -29,6 +29,7 @@ const services = [
   { icon: Film, name: "KdramaMatch", description: "AI-powered drama recommendations", href: "/drama" },
   { icon: Languages, name: "HangeulGo", description: "Learn Korean from K-dramas", href: "/korean" },
   { icon: UtensilsCrossed, name: "KfoodKit", description: "Cook your favorite K-drama dishes", href: "/food" },
+  { icon: Map, name: "Curation K", description: "Explore Korea like a Hallyu fan", href: "/curation-k" },
 ]
 
 export function Header() {
@@ -212,17 +213,20 @@ export function Header() {
                   ))}
                 </div>
                 
-                {/* Full-width KfoodKit */}
-                <Link
-                  href={services[4].href}
-                  className="flex items-start gap-3 p-3 rounded-lg hover:bg-[#252525] transition-colors mt-2"
-                >
-                  <UtensilsCrossed className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="text-foreground font-medium text-sm">{services[4].name}</div>
-                    <div className="text-muted-foreground text-xs mt-0.5">{services[4].description}</div>
-                  </div>
-                </Link>
+                {/* Full-width 카드 — 5번째부터 (KfoodKit, Curation K …) */}
+                {services.slice(4).map((service) => (
+                  <Link
+                    key={service.name}
+                    href={service.href}
+                    className="flex items-start gap-3 p-3 rounded-lg hover:bg-[#252525] transition-colors mt-2"
+                  >
+                    <service.icon className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                    <div>
+                      <div className="text-foreground font-medium text-sm">{service.name}</div>
+                      <div className="text-muted-foreground text-xs mt-0.5">{service.description}</div>
+                    </div>
+                  </Link>
+                ))}
 
                 {/* Divider */}
                 <div className="border-t border-[#2a2a2a] my-3" />

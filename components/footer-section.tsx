@@ -90,6 +90,9 @@ export function FooterSection() {
               <Link href="/food" className="text-foreground text-sm font-normal leading-5 hover:underline">
                 KfoodKit
               </Link>
+              <Link href="/curation-k" className="text-foreground text-sm font-normal leading-5 hover:underline">
+                Curation K
+              </Link>
             </div>
           </div>
           <div className="flex flex-col justify-start items-start gap-3">
