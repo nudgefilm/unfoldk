@@ -21,6 +21,27 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-14 Eventbrite + Bandsintown 인제스트 자동화 폐기
+
+- 결정 내용:
+  - SERVICE_ARCHITECTURE.md v1.2 의 "Eventbrite 1차 필터링 + Claude AI 2차 검증 + Uncertain → 어드민" 자동 파이프라인 **폐기**.
+  - Bandsintown 대체 검토 결과도 **폐기**.
+  - 글로벌 K-pop 콘서트는 **Ticketmaster Discovery API** (구현 완료) 단일 소스로 충분.
+  - 팬 커뮤니티 이벤트는 **fan_event_requests 사용자 제보 채널 강화** 로 대체 (0005 마이그레이션 + 어드민 승인 워크플로우는 기존 구축).
+  - Eventbrite 5단계 필터링에서 계획됐던 **Claude Haiku Yes/No/Uncertain 로직은 fan_event_requests 어드민 검토 큐에 이식 검토** (별도 의사결정).
+  - SERVICE_ARCHITECTURE.md 의 Eventbrite 관련 4개 섹션 (주요국 API 표 / 결론 블록 / 1-4 섹션 / 저작권·비용 표) 동시 갱신.
+- 이유:
+  - **Eventbrite**: `/v3/events/search/` 엔드포인트 deprecated. 외부 organization 이벤트 검색 불가. Partner Program (B2B 계약) 만 가능 — 수개월 소요, SaaS 초기에 비현실적. WebSearch / Eventbrite Developers Community 확인 (2026-05-14).
+  - **Bandsintown**: 공식 help 문서에 "API key per single artist", "broad sweeps over catalog 금지" 명시 — 우리 use case (top K-pop 일괄 쿼리) 와 직접 충돌. 키 차단 위험. K-pop·한국 시장 커버리지 자체도 미검증.
+  - **자체 제보가 더 큐레이션 품질 우위**: 팬이 직접 검증한 제보는 자동 크롤보다 신뢰성·관련도 모두 우위. SERVICE_ARCHITECTURE 의 "Selected submissions receive a complimentary Hallyu Pass" 보상 구조와 자연 결합.
+- 대안으로 고려했던 것:
+  - Songkick API: 2023년 이후 사실상 제한, 신규 키 발급 불가.
+  - SeatGeek API: 미국 중심, K-pop 글로벌 투어 커버리지 약함.
+  - Eventbrite Partner Program 강행: 시간·비용 비현실적.
+  - Bandsintown 정식 partnership: 동일 사유 + 한국 시장 커버 약함.
+
+---
+
 ## 2026-05-10 푸터 결제·라이선스 표기 + 쿠키 동의 배너
 
 - 결정 내용:

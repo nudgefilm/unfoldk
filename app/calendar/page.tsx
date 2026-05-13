@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronLeft, ChevronRight, Calendar, X, Lock } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Calendar, X, Lock, Plus } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -967,24 +967,36 @@ export default function HallyuCalendarPage() {
           </div>
         </section>
 
-        {/* Community contribution note — 달력 바로 아래 3줄 안내 (문장 단위 줄바꿈) */}
+        {/* Community contribution CTA — Eventbrite ingest 폐기 후 fan_event_requests 진입점 강화 (2026-05-14).
+            카드형 배너 + Primary CTA 버튼으로 시인성 강화. 헤드라인은 사용자 액션 직접 유도형 문장. */}
         <section className="mb-12">
-          <p className="text-muted-foreground text-sm leading-relaxed text-center max-w-3xl mx-auto">
-            This calendar is built together with Hallyu fans around the world.
-            <br />
-            Share news about Hallyu events happening in your area.
-            <br />
-            Selected submissions receive a complimentary Hallyu Pass. Ready to contribute? Head to{" "}
-            <Link
-              href="/mypage/fan-events"
-              onClick={handleMyFanEventsClick}
-              className="hover:underline"
-              style={{ color: "#FF4B6E" }}
-            >
-              My Fan Events
-            </Link>
-            .
-          </p>
+          <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6 md:p-8 max-w-3xl mx-auto">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="text-center md:text-left">
+                <h3 className="text-foreground text-xl md:text-2xl font-semibold mb-2">
+                  Spot a Hallyu event in your area?
+                </h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  This calendar is built together with Hallyu fans worldwide.
+                  <br />
+                  Selected submissions receive a complimentary Hallyu Pass.
+                </p>
+              </div>
+              <Link
+                href="/mypage/fan-events"
+                onClick={handleMyFanEventsClick}
+                className="flex-shrink-0"
+              >
+                <Button
+                  className="px-6 py-3 rounded-full font-medium text-white whitespace-nowrap"
+                  style={{ backgroundColor: "#FF4B6E" }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Submit a Fan Event
+                </Button>
+              </Link>
+            </div>
+          </div>
         </section>
 
         {/* Featured 가로 스크롤 — 썸네일 있는 이벤트만, 카드 클릭 시 EventDetailModal 오픈.

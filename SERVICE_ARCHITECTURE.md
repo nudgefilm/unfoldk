@@ -27,7 +27,7 @@
 | TourAPI (한국관광공사) | 한국 | 무료 | ✅ 한국 내 축제·문화행사·숙박 정보 |
 | 문화포털 API (문화체육관광부) | 한국 | 무료 | ✅ 문화 행사·전시·공연 |
 | Ticketmaster Discovery API | 글로벌 | 무료 (5,000콜/일) | ✅ 미국·영국·유럽·호주 K팝 투어 |
-| Eventbrite API | 글로벌 | 무료 | ✅ 전세계 팬 커뮤니티 이벤트 (필터링 필수) |
+| ~~Eventbrite API~~ | 글로벌 | — | ❌ 폐기 (2026-05-14) — `/v3/events/search/` deprecated. fan_event_requests 로 대체 |
 | 일본·동남아 공공 API | 일본/동남아 | - | ❌ 한류 특화 데이터 없음 |
 | 미국·영국 정부 API | 미국/영국 | - | ❌ 엔터테인먼트 이벤트 없음 |
 | Songkick API | 글로벌 | - | ❌ 2023년 이후 API 제한 |
@@ -36,7 +36,7 @@
 ```
 한국 내 이벤트  → KOPIS + TourAPI + 문화포털
 글로벌 투어     → Ticketmaster Discovery API
-팬 커뮤니티     → Eventbrite API (1차 필터링 강화) + 자체 팬 행사 접수
+팬 커뮤니티     → 자체 팬 행사 접수 (fan_event_requests) — Eventbrite 폐기 (2026-05-14)
 숙박 정보       → TourAPI 숙박 카테고리 (유저 직접 활용)
 ```
 
@@ -105,49 +105,31 @@ Monthly 월간 아티스트 성장 리포트 / 이달의 성지순례 코스
 > ⚠️ **저작권 주의**: TMDB 출처 표기 필수 — "This product uses the TMDB API but is not endorsed or certified by TMDB."
 > ⚠️ **법무 주의**: 상업적 사용 시 sales@themoviedb.org 라이선스 협의 필요.
 
-### 1-4. 팬 커뮤니티 이벤트 (Eventbrite 1차 필터링 강화)
+### 1-4. 팬 커뮤니티 이벤트 (사용자 제보 채널)
 
 | 제공 정보 | 구현 방법 | API | 비용 |
 |---------|---------|-----|------|
-| 전세계 팬 이벤트 | Eventbrite API + 필터링 파이프라인 | 아래 기준 적용 | 무료 |
-| 팬 직접 등록 | 자체 fan_event_requests | 어드민 승인 후 게시 | - |
+| 전세계 팬 이벤트 | 자체 `fan_event_requests` (사용자 제보) | 어드민 승인 후 게시 | - |
 
-> 🔍 **Eventbrite 1차 필터링 기준 (자동화)**:
+> ⚠️ **Eventbrite ingest 자동화 폐기 (2026-05-14, DECISIONS.md 참조)**
+> - `/v3/events/search/` 엔드포인트 deprecated — 외부 organization 이벤트 검색 불가.
+> - Bandsintown 대체 검토 후 폐기 (ToS 회색지대 + 한국·K-pop 커버리지 미검증).
+> - **결정: 자체 `fan_event_requests` 사용자 제보 채널 강화** — 0005 마이그레이션 + 어드민 승인 워크플로우 기존 구축.
 >
-> **Step 1 — 카테고리 필터**
+> 📥 **사용자 제보 워크플로우**:
 > ```
-> 허용: Music / Cultural Events / Community / Festival
-> 제외: Sports / Business / Food & Drink (K-food 관련 제외)
-> ```
->
-> **Step 2 — 키워드 필터 (제목·설명 포함 여부)**
-> ```
-> 필수 포함 (OR 조건):
-> K-pop / Kpop / Korean / Hallyu / K-drama / Kdrama /
-> BTS / BLACKPINK / K-culture / 한류 / 케이팝
-> ```
->
-> **Step 3 — 가짜·무관 이벤트 제외 기준**
-> ```
-> 제외: 참가자 0명 / 설명 없음 / 이미지 없음
-> 제외: 온라인 도박·성인 키워드 포함
-> 제외: 동일 주최자의 동일 이벤트 중복 등록
+> Step 1 — 사용자가 /mypage/fan-events 에서 이벤트 제보 (제목·일시·장소·URL·이미지)
+> Step 2 — fan_event_requests 어드민 검토 대기열에 자동 입력 (status='pending')
+> Step 3 — Claude Haiku Yes/No/Uncertain 자동 분류 검토 (선택 도입 — 별도 결정)
+>          (구 Eventbrite 5단계 필터링의 AI 검증 로직을 검토 큐에 이식)
+> Step 4 — 어드민 최종 승인 시 hallyu_calendar_events 로 승격, 캘린더 노출
+> Step 5 — 채택 시 Hallyu Pass 1주일권 보상 안내 (재방문/바이럴 유도)
 > ```
 >
-> **Step 4 — Claude AI 2차 검증**
-> ```
-> 1·2·3차 통과한 이벤트를 Claude Haiku가 검토:
-> "이 이벤트가 한류 팬 대상 행사인지 판단 (Yes/No/Uncertain)"
-> Uncertain → 어드민 검토 대기열로 이동
-> Yes → 자동 게시
-> No → 자동 제외
-> ```
->
-> **Step 5 — 어드민 최종 검토 (Uncertain 건만)**
-> ```
-> Claude AI가 분류하지 못한 경계 케이스만 어드민 수동 확인
-> → 어드민 부담 최소화 (전체의 10~20% 예상)
-> ```
+> 🎯 **제보 진입점 강화** (캘린더 페이지):
+> - 캘린더 그리드 바로 아래 카드형 CTA — "Spot a Hallyu event in your area?"
+> - Primary 버튼: "Submit a Fan Event" → `/mypage/fan-events`
+> - 비로그인 클릭 시 StartModal (OAuth) 자동 노출.
 
 ### 1-5. 이메일 & 알림 시스템
 
@@ -513,7 +495,6 @@ Hallyu Pass 연간  $120/년   통합 Pro + 20% 할인 ($10/월)
 | TMDB 출처 표기 | 🟡 낮음 | 푸터에 명시 (완료) |
 | MyDramaList 상업 조건 | 🟡 낮음 | 키 발급 시 상업 조건 확인 |
 | Ticketmaster 데이터 재가공 | 🟡 낮음 | 이용약관 확인 필요 |
-| Eventbrite 데이터 표시 | 🟡 낮음 | 이용약관 확인 필요 |
 
 ---
 
@@ -521,7 +502,7 @@ Hallyu Pass 연간  $120/년   통합 Pro + 20% 할인 ($10/월)
 
 | 서비스 | 무료 API | 유료 API | MAU 500명 기준 월 비용 |
 |--------|---------|---------|----------------------|
-| HallyuCalendar | YouTube·TMDB·KOPIS·Ticketmaster·Eventbrite·TourAPI | Resend | ~$0 |
+| HallyuCalendar | YouTube·TMDB·KOPIS·Ticketmaster·TourAPI | Resend | ~$0 |
 | KpopStats | YouTube·Last.fm | - (X API 보류) | ~$0 |
 | KdramaMatch | TMDB | Claude Haiku | ~$5 |
 | HangeulGo | Naver 사전 | Claude Haiku·ElevenLabs | ~$30 |
