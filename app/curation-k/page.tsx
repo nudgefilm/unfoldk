@@ -115,9 +115,9 @@ const KOREA_ISLANDS: Array<{
   // 울릉도 — 50m TopoJSON 의 South Korea polygon 에 작은 ring 으로 이미 포함됨.
   // 중복 마커 안 그리고 라벨만 그 위치 옆에 표시 (labelOnly).
   { name: "Ulleung", lng: 130.85, lat: 37.5, labelOnly: true, labelOffset: [-55, 4] },
-  // 독도 — 울릉도 거리의 1/3 로 좁혀 가까이 배치 (Ulleung 우하 ~11/15px).
+  // 독도 — 울릉 우측에 가깝게 (가로 ~11px / 세로 ~8px).
   // 실제 독도 위치 (131.87, 37.24) 는 너무 멀어 displayLng/Lat inset.
-  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 131.0, displayLat: 37.33, rx: 2.6, ry: 1.4, labelOffset: [8, 4] },
+  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 131.0, displayLat: 37.41, rx: 2.6, ry: 1.4, labelOffset: [8, 4] },
   // 마라도 — 제주 남단, 그대로 (이미 viewBox 안)
   { name: "Marado", lng: 126.27, lat: 33.11, rx: 3.4, ry: 2, labelOffset: [-46, 12] },
 ]
