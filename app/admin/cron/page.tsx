@@ -21,7 +21,7 @@ interface RouteSummary {
   metricLabel: string
 }
 
-const ROUTES = ["ingest-all", "send-reminders"] as const
+const ROUTES = ["ingest-all", "ingest-kopis", "send-reminders"] as const
 
 type LoadResult =
   | { ok: true; summaries: RouteSummary[]; logs: CronLogRow[] }
@@ -67,7 +67,7 @@ async function load(): Promise<LoadResult> {
         lastExecutedAt: null,
         lastStatus: null,
         metric: "—",
-        metricLabel: route === "ingest-all" ? "수집 이벤트" : "발송 수",
+        metricLabel: route === "send-reminders" ? "발송 수" : "수집 이벤트",
       })
       continue
     }
@@ -86,6 +86,9 @@ async function load(): Promise<LoadResult> {
         return acc
       }, 0)
       metric = total.toLocaleString()
+    } else if (route === "ingest-kopis" && data.result_json) {
+      const r = data.result_json as { upserted?: number }
+      metric = (r.upserted ?? 0).toLocaleString()
     } else if (route === "send-reminders" && data.result_json) {
       const summary = (data.result_json as { summary?: { sent?: number } }).summary
       metric = (summary?.sent ?? 0).toLocaleString()
