@@ -111,11 +111,11 @@ const KOREA_ISLANDS: Array<{
   // 백령도 — 가장 큰 부속 도서, 비대칭 동서로 길쭉. 실제 lng 124.7 은 본토 서해안에서
   // 시각적으로 멀어 displayLng 로 본토 가까이 inset.
   { name: "Baengnyeong", lng: 124.7, lat: 37.97, displayLng: 125.4, rx: 5, ry: 3, labelOffset: [9, -4] },
-  // 울릉도 — 거의 원형, 본토 inset (실제 130.85 → 130.3)
-  { name: "Ulleung", lng: 130.85, lat: 37.5, displayLng: 130.3, rx: 4.2, ry: 3.6, labelOffset: [-55, 4] },
-  // 독도 — 동도·서도 두 바위 가로 타원, 울릉도 우측·아래 inset.
-  // 첨부 이미지 기준: 울릉(415, 119) 대비 우측·아래 더 거리감 있게 (45px / 50px 차이).
-  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 130.95, displayLat: 37.0, rx: 2.6, ry: 1.4, labelOffset: [8, 4] },
+  // 울릉도 — 좌상 위치. "Ulleung 라벨 + 마커" 좌→우 순 (labelOffset 좌측).
+  // 첨부 이미지 기준 좌표.
+  { name: "Ulleung", lng: 130.85, lat: 37.5, displayLng: 130.9, displayLat: 37.0, rx: 3.5, ry: 2.5, labelOffset: [-55, 4] },
+  // 독도 — 울릉 우하. "마커 + Dokdo 라벨" 좌→우 순 (labelOffset 우측).
+  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 131.3, displayLat: 36.65, rx: 2.6, ry: 1.4, labelOffset: [8, 4] },
   // 마라도 — 제주 남단, 그대로 (이미 viewBox 안)
   { name: "Marado", lng: 126.27, lat: 33.11, rx: 3.4, ry: 2, labelOffset: [-46, 12] },
 ]
