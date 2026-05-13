@@ -58,9 +58,11 @@ export async function GET(request: Request) {
   }
 
   // RLS 가 is_premium 게이팅을 자동 처리 (어드민은 위에서 service role 로 우회됨)
+  // KOPIS 인제스트 데이터는 DB 보존하되 캘린더 노출에서 제외 (2026-05 정책)
   const { data, error } = await queryClient
     .from("hallyu_calendar_events")
     .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium, thumbnail_url, created_at")
+    .neq("source_api", "kopis")
     .gte("event_date", startOfMonth.toISOString())
     .lt("event_date", startOfNextMonth.toISOString())
     .order("event_date", { ascending: true })
