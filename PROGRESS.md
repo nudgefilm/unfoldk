@@ -4,6 +4,50 @@
 
 ---
 
+## 현재 상태 (2026-05-13~14 세션 5 / 외부 이벤트 API 통합 — KOPIS·Ticketmaster 연동 + Eventbrite 폐기)
+
+> 두 날 걸쳐 HallyuCalendar 외부 이벤트 데이터 인프라 구축. KOPIS·Ticketmaster 연동 완료, Eventbrite·Bandsintown 은 API 정책 변경/ToS 회색지대로 폐기 후 fan_event_requests 사용자 제보 채널로 전환. Featured events 섹션도 Ticketmaster 데이터 기준으로 전면 개편.
+
+### A. SERVICE_ARCHITECTURE.md v1.2 박제
+- **`1640234`** 서비스 전체 기획안 v1.2 추가 (5개 서비스 + Curation K M+5 기획, 무상 이용/구독 플랜, 저작권·비용 요약, 출시 로드맵). CLAUDE.md 하단에 참조 한 줄 추가.
+
+### B. KOPIS (한국 내 K팝 공연) ingest
+- **`9d3892a`** lib/api/kopis.ts (pblprfr XML→JSON, fast-xml-parser 5.8.0 신규 의존) + lib/ingest/kopis.ts (shcate=AAAA 대중음악, prfstate 01+02 병렬, 6개월 윈도우, mt20id dedupe). app/api/cron/ingest-kopis + vercel cron UTC 06:00 + /admin/cron 카드/manual run 자동 노출.
+- **`9bfb125`** 캘린더 API `.neq("source_api", "kopis")` 한 줄 추가 — KOPIS 데이터는 DB·cron 보존하되 캘린더 노출 차단. 향후 재노출 시 한 줄 삭제로 복구.
+
+### C. Ticketmaster (글로벌 K팝 투어) ingest + 디버깅
+- **`542e927`** Discovery API v2 events.json 래퍼 — classificationName=K-Pop + keyword=K-pop 2전략 × 3페이지 = 최대 600건. countryCode=KR 수동 제외 (KOPIS 와 중복 방지). pickBestImage (16:9 우선), toIso8601Z. /admin/cron 통합.
+- **`8df551d`** 디버그 메트릭 추가 — `.catch()` silent fail 제거, 페이지별 직렬 호출로 에러 명확 캡처. classification_total_elements / keyword_total_elements / with_kpop_classification / dropped_no_date / 단계별 *_error. 두 전략 모두 실패면 명시적 error 반환.
+- **`f6d8823`** ⚠️ 진단 결과: `locale: "*,en-us"` 가 Ticketmaster DIS1008 400 BAD_REQUEST. `*` 와일드카드는 마지막 위치에만 허용 — `locale: "en-us,*"` 로 수정. 디버그 메트릭이 없었으면 이 에러가 "유효 이벤트 매칭 없음" success 로 위장돼 계속 묻혔을 것 (silent fail 위험 박제 가치).
+
+### D. Featured events 섹션 — Ticketmaster 데이터 기준 전면 개편
+- **`7cc4f89`** API 응답에 sourceApi 포함. Featured 정렬: Ticketmaster 우선 → createdAt desc fallback (Ticketmaster < 6건이면 다른 source 자연 보충). 카드: w-48 3:4 세로 → w-72 16:9 가로. object-contain 으로 TMDB 2:3 포스터 좌우 레터박스 (위/아래 잘림 방지). snap-x snap-proximity + 카드 snap-start (데스크탑 부드러움 + 모바일 카드 단위 스냅).
+- **`bf42c46`** `.slice(0, 6)` 제거 → 썸네일 있는 모든 이벤트 노출. useRef + scrollBy(clientWidth) 로 보이는 폭만큼 한 번에 이동 (반응형 자동 적응). 화살표 hidden md:flex + group-hover opacity 로 PC 호버 시에만 노출, 모바일은 기존 터치 스와이프 유지.
+
+### E. Eventbrite + Bandsintown 폐기 결정 + fan_event_requests CTA 강화
+- **`fa4e1fd`** DECISIONS.md `2026-05-14 Eventbrite + Bandsintown 인제스트 자동화 폐기` 엔트리. SERVICE_ARCHITECTURE.md 5곳 동시 갱신 (주요국 API 표·결론 블록·1-4 섹션 전면 개편·저작권 표·비용 표). 캘린더 페이지 3줄 텍스트 → 카드형 CTA 배너 (`Spot a Hallyu event in your area?` + Primary `Submit a Fan Event` 버튼). Plus 아이콘 import 추가.
+
+#### 폐기 사유 (DECISIONS.md 참조)
+- **Eventbrite**: `/v3/events/search/` deprecated. 외부 organization 이벤트 검색 불가, Partner Program (B2B 계약) 만 가능 — 수개월 소요, SaaS 초기 비현실적.
+- **Bandsintown**: "API key per single artist", "broad sweeps over catalog 금지" — 우리 use case (top K-pop 일괄 쿼리) 와 직접 충돌, 키 차단 위험. 한국 시장 커버 약함.
+- 글로벌 K-pop 콘서트는 Ticketmaster 단일 소스로 충분 + fan_event_requests 사용자 제보가 본질적으로 더 큐레이션 품질 우위.
+
+### 다음 세션 후보
+- carry-over:
+  - Cookie Policy 본문 법무 검토
+  - ReportButton hydration 룰 적용, /admin/reports 콘텐츠 미리보기
+  - Vercel/Supabase 플랜 비용 점검
+- 이번 세션 신규:
+  - Ticketmaster 실데이터 인제스트 재검증 (locale fix 후 cron_logs 메트릭 확인)
+  - KOPIS 캘린더 재노출 정책 결정 (현재 `.neq` 로 차단 중)
+  - Claude Haiku Yes/No/Uncertain 자동 분류 로직을 fan_event_requests 어드민 검토 큐에 이식할지 결정 (구 Eventbrite 5단계 필터링의 AI 부분)
+  - fan_event_requests 제보 폼 + admin 검토 큐 UI 정비 (CTA 강화 후 유입 대비)
+
+### 블로커
+- 없음
+
+---
+
 ## 현재 상태 (2026-05-12 세션 4 / 랜딩 히어로 globe 한류 확산 효과)
 
 > 짧은 비주얼 세션. 랜딩 히어로 ghost globe 에 "Seoul → 해외 도시" 호 애니메이션 추가 + Seoul 마커 색 통일.
