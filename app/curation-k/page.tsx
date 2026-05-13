@@ -92,16 +92,28 @@ const KOREA_CITIES: Array<{
 ]
 
 // 50m TopoJSON 에 누락되는 부속 도서 — 영토 주권 표기 (독도·마라도) 포함 명시 마커.
+//
+// 독도·울릉은 실제 위경도 그대로면 본토에서 화면상 너무 멀게 표시되어
+// 한국 공식 지도 관용 (학교 교과서·우표·뉴스 그래픽 등) 따라 displayLng 로
+// 본토 가까이 inset. 실제 좌표(lng/lat) 는 정확성 위해 그대로 보존.
 const KOREA_ISLANDS: Array<{
   name: string
-  lng: number
+  lng: number          // 실제 위경도
   lat: number
+  displayLng?: number  // 시각 표기용 (생략 시 lng)
+  displayLat?: number
+  rx: number           // SVG 시각 크기 — 실제 섬 크기에 비례
+  ry: number
   labelOffset: [number, number]
 }> = [
-  { name: "Baengnyeong", lng: 124.7, lat: 37.97, labelOffset: [8, -6] },
-  { name: "Ulleung", lng: 130.85, lat: 37.5, labelOffset: [-58, 4] },
-  { name: "Dokdo", lng: 131.87, lat: 37.24, labelOffset: [-46, 16] },
-  { name: "Marado", lng: 126.27, lat: 33.11, labelOffset: [-50, 14] },
+  // 백령도 — 가장 큰 부속 도서, 비대칭 동서로 길쭉
+  { name: "Baengnyeong", lng: 124.7, lat: 37.97, rx: 5, ry: 3, labelOffset: [9, -4] },
+  // 울릉도 — 거의 원형, 본토 inset
+  { name: "Ulleung", lng: 130.85, lat: 37.5, displayLng: 130.15, rx: 4.2, ry: 3.6, labelOffset: [-58, 4] },
+  // 독도 — 동도·서도 두 바위, 매우 작은 가로 타원으로 표현, 본토 inset
+  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 130.6, rx: 2.6, ry: 1.4, labelOffset: [7, 4] },
+  // 마라도 — 작은 가로 타원
+  { name: "Marado", lng: 126.27, lat: 33.11, rx: 3.4, ry: 2, labelOffset: [-46, 12] },
 ]
 
 // §6-3 지역 상세 5개 탭
@@ -320,25 +332,44 @@ export default function CurationKPage() {
                     </>
                   )}
 
-                  {/* 부속 도서 명시 마커 — 50m TopoJSON 누락 보완.
-                      독도·마라도 등 영토 주권 표기 + 라벨로 fan-friendly 강조. */}
+                  {/* 부속 도서 — 50m TopoJSON 누락 보완.
+                      본토 polygon 과 동일한 outline 스타일 (옅은 핑크 glow + 흰색 stroke
+                      + 흰색 fill 0.03) 로 그려 "섬"으로 보이게. 둥근 점 X.
+                      독도·울릉은 본토에서 시각적으로 멀어 보이지 않도록 displayLng inset. */}
                   {KOREA_ISLANDS.map((island) => {
-                    const [cx, cy] = proj(island.lng, island.lat)
+                    const [cx, cy] = proj(island.displayLng ?? island.lng, island.displayLat ?? island.lat)
                     const [lx, ly] = island.labelOffset
                     return (
                       <g key={island.name}>
-                        <circle
+                        {/* 핑크 glow — 본토와 동일 2-layer 외곽 */}
+                        <ellipse
                           cx={cx}
                           cy={cy}
-                          r="2.6"
+                          rx={island.rx}
+                          ry={island.ry}
+                          fill="#FF4B6E"
+                          fillOpacity="0.04"
+                          stroke="#FF4B6E"
+                          strokeOpacity="0.15"
+                          strokeWidth="2.5"
+                        />
+                        {/* 본토와 동일 흰색 outline */}
+                        <ellipse
+                          cx={cx}
+                          cy={cy}
+                          rx={island.rx}
+                          ry={island.ry}
                           fill="#ffffff"
-                          opacity="0.65"
+                          fillOpacity="0.03"
+                          stroke="#ffffff"
+                          strokeOpacity="0.55"
+                          strokeWidth="1.2"
                         />
                         <text
                           x={cx + lx}
                           y={cy + ly}
                           fill="#ffffff"
-                          opacity="0.55"
+                          opacity="0.6"
                           fontSize="10"
                           fontStyle="italic"
                           fontFamily="system-ui, sans-serif"
