@@ -14,7 +14,14 @@
 //   - YouTube channels.list: 25명 → 1회 = 1 unit/일 (10,000 daily quota 의 0.01%)
 //   - YouTube search.list   : channel_id NULL 인 아티스트 1명당 100 units (1회만)
 //                             첫 cron 25명 NULL = 2,500 units. 매핑 후엔 0.
+//   - **하루 최대 MAX_CHANNEL_MAPPING_PER_RUN 명만 매핑 시도** — quota 초과 방지
+//     예: 250명 신규 → 5일 분할 (50/일 × 100 units = 5,000 units/일)
 //   - Last.fm: 25명 → 25 calls (병렬 5개 chunk)
+
+// 하루 cron 에서 search.list 자동 매핑을 시도할 최대 인원 수.
+// YouTube daily quota 10,000 units. search.list 100 units/명.
+// 50명 × 100 = 5,000 units (다른 호출 여유 포함). 다음 cron 에서 나머지 처리.
+const MAX_CHANNEL_MAPPING_PER_RUN = 50
 //
 // 멱등성:
 //   - 같은 날짜로 재실행하면 동일 row 가 update 됨 (artist_id, date unique)
@@ -128,12 +135,18 @@ export async function runKpopStatsIngest(
   //      - 이름 검색 1위 채널을 channel_id 로 박음 (search.list 100 units/call)
   //      - 검색 결과 0건이면 NULL 유지 (오매핑 방지)
   //      - 한 번 매핑되면 다음 cron 부터는 skip → 비용 0
+  //      - **하루 최대 MAX_CHANNEL_MAPPING_PER_RUN 명만 처리** (quota 보호).
+  //        나머지는 다음 cron 에서 자동으로 이어 처리됨.
   let channelsAutoMapped = 0
-  const unmappedArtists = artists.filter((a) => !a.youtube_channel_id)
+  const allUnmapped = artists.filter((a) => !a.youtube_channel_id)
+  const unmappedArtists = allUnmapped.slice(0, MAX_CHANNEL_MAPPING_PER_RUN)
+  const channelsDeferred = allUnmapped.length - unmappedArtists.length
   if (unmappedArtists.length > 0) {
     console.log(
       `[ingest-kpop-stats] channel_id 자동 매핑 시도: ${unmappedArtists.length}명 ` +
-        `(예상 쿼터 ${unmappedArtists.length * 100} units)`
+        `(전체 미매핑 ${allUnmapped.length}명 중, 예상 쿼터 ${unmappedArtists.length * 100} units` +
+        (channelsDeferred > 0 ? `, ${channelsDeferred}명 다음 cron 으로 이연` : "") +
+        `)`
     )
     // 5개씩 병렬 — YouTube API rate 보호 (Last.fm 청크 패턴 동일)
     for (let i = 0; i < unmappedArtists.length; i += 5) {
@@ -162,7 +175,8 @@ export async function runKpopStatsIngest(
       }
     }
     console.log(
-      `[ingest-kpop-stats] 자동 매핑 완료: ${channelsAutoMapped}/${unmappedArtists.length}명`
+      `[ingest-kpop-stats] 자동 매핑 완료: ${channelsAutoMapped}/${unmappedArtists.length}명 ` +
+        `(이연 ${channelsDeferred}명)`
     )
   }
 
