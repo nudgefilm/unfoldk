@@ -4,10 +4,13 @@ import { recordCronLog } from "@/lib/cron/log"
 import { runTmdbIngest } from "@/lib/ingest/tmdb"
 import { runYoutubeIngest } from "@/lib/ingest/youtube"
 import { runLastfmIngest } from "@/lib/ingest/lastfm"
+import { runKpopStatsIngest } from "@/lib/ingest/kpop-stats"
 
-// 3개 인제스트를 직렬 실행해 단일 cron 슬롯에 묶음 (Vercel Hobby 2개 한도 대응)
-// 한 단계 실패가 다른 단계를 막지 않도록 각각 try/catch
-export const maxDuration = 300 // 3 단계 합산 시간 — Pro 권장
+// 4개 인제스트를 직렬 실행해 단일 cron 슬롯에 묶음 (Vercel Hobby 2개 한도 대응).
+// 한 단계 실패가 다른 단계를 막지 않도록 각각 try/catch.
+// kpop-stats 는 별도 cron 슬롯도 있지만 어드민 카드 단일 진입점 위해 여기서도 실행
+// (upsert 멱등성 — artist_id+date unique 라 중복 실행 안전).
+export const maxDuration = 400 // 4 단계 합산 — Pro 권장 (kpop-stats +60s 여유)
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
@@ -45,6 +48,16 @@ export async function GET(request: Request) {
   } catch (err) {
     results.lastfm = {
       source: "lastfm",
+      error: err instanceof Error ? err.message : "unknown",
+    }
+  }
+
+  // KpopStats — 일별 통계 + thumbnail backfill (별도 카드 X, ingest-all 합산에만 노출)
+  try {
+    results.kpopStats = await runKpopStatsIngest()
+  } catch (err) {
+    results.kpopStats = {
+      source: "kpop-stats",
       error: err instanceof Error ? err.message : "unknown",
     }
   }
