@@ -3,6 +3,10 @@ import { z } from "zod"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 // 공개 데이터 (kpop_stats_daily) — auth 분기 없음. 응답에 Cache-Control 헤더 박제 (아래).
+// revalidate = 300 — Next.js Route Segment Config 로 명시적 ISR.
+// Cache-Control 헤더만으론 request.url+searchParams 접근 시 Next.js 가 dynamic 처리해
+// Vercel CDN 캐시 활성 안 됨 (x-vercel-cache: MISS). revalidate 명시로 강제 캐시.
+export const revalidate = 300
 
 // /api/kpop/charts — 글로벌 주간 순위
 //
