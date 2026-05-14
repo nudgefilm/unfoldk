@@ -30,6 +30,10 @@ export interface KpopStatsIngestResult {
   channelsAutoMapped: number       // 이번 실행에서 search.list 로 새로 매핑된 채널 수
   youtubeFetched: number
   lastfmFetched: number
+  // Thumbnail backfill 진단 — kpop_artists.thumbnail_url 갱신 추적
+  ytThumbnailsAvailable: number    // getChannelStats 응답에 thumbnail 있던 채널 수
+  thumbnailsAlreadySet: number     // 이미 채워져 있어 skip
+  thumbnailsBackfilled: number     // 이번 실행에서 새로 채운 수
   upserted: number
   errors: string[]
   note?: string
@@ -69,6 +73,9 @@ export async function runKpopStatsIngest(
       channelsAutoMapped: 0,
       youtubeFetched: 0,
       lastfmFetched: 0,
+      ytThumbnailsAvailable: 0,
+      thumbnailsAlreadySet: 0,
+      thumbnailsBackfilled: 0,
       upserted: 0,
       errors: [`artists fetch 실패: ${artistsErr.message}`],
     }
@@ -82,6 +89,9 @@ export async function runKpopStatsIngest(
       channelsAutoMapped: 0,
       youtubeFetched: 0,
       lastfmFetched: 0,
+      ytThumbnailsAvailable: 0,
+      thumbnailsAlreadySet: 0,
+      thumbnailsBackfilled: 0,
       upserted: 0,
       errors: [],
       note: "대상 아티스트 없음",
@@ -161,10 +171,32 @@ export async function runKpopStatsIngest(
   // 2.5. kpop_artists.thumbnail_url backfill — 비어 있는 행에 YouTube 채널 썸네일 채움.
   //      이미 채워진 행은 건드리지 않음 (어드민이 수동 입력한 이미지 보존).
   //      URL 만 저장, 이미지 자체는 저장 금지 (CLAUDE.md §10 저작권).
+  //      빈 문자열·공백은 "비어 있음" 으로 취급 (어드민 폼이 "" 저장 가능).
+  let ytThumbnailsAvailable = 0
+  let thumbnailsAlreadySet = 0
+  let thumbnailsBackfilled = 0
+  for (const yt of ytStatsMap.values()) {
+    if (yt.thumbnailUrl) ytThumbnailsAvailable++
+  }
+  console.log(
+    `[ingest-kpop-stats] thumbnail backfill 시작 — ${artists.length}명 중 ` +
+      `${ytThumbnailsAvailable}개 채널이 YouTube thumbnail 보유`
+  )
   for (const a of artists) {
-    if (a.thumbnail_url) continue
+    if (a.thumbnail_url && a.thumbnail_url.trim().length > 0) {
+      thumbnailsAlreadySet++
+      continue
+    }
     const yt = a.youtube_channel_id ? ytStatsMap.get(a.youtube_channel_id) : null
-    if (!yt?.thumbnailUrl) continue
+    if (!yt?.thumbnailUrl) {
+      // 진단 — 어떤 이유로 skip 됐는지 추적
+      console.log(
+        `[ingest-kpop-stats] thumbnail skip (${a.name}): ` +
+          `channelId=${a.youtube_channel_id ?? "null"}, ` +
+          `ytMapHit=${!!yt}, ytThumb=${yt?.thumbnailUrl ?? "null"}`
+      )
+      continue
+    }
     const { error: thumbErr } = await supabase
       .from("kpop_artists")
       .update({ thumbnail_url: yt.thumbnailUrl })
@@ -173,8 +205,14 @@ export async function runKpopStatsIngest(
       errors.push(`thumbnail backfill 실패 (${a.name}): ${thumbErr.message}`)
     } else {
       a.thumbnail_url = yt.thumbnailUrl
+      thumbnailsBackfilled++
     }
   }
+  console.log(
+    `[ingest-kpop-stats] thumbnail backfill 결과 — ` +
+      `backfilled=${thumbnailsBackfilled}, alreadySet=${thumbnailsAlreadySet}, ` +
+      `ytAvailable=${ytThumbnailsAvailable}`
+  )
 
   // 3. Last.fm 아티스트 info — chunk 5개씩 병렬 (rate limit 보호)
   const lastfmStatsMap = new Map<
@@ -274,6 +312,9 @@ export async function runKpopStatsIngest(
     channelsAutoMapped,
     youtubeFetched,
     lastfmFetched,
+    ytThumbnailsAvailable,
+    thumbnailsAlreadySet,
+    thumbnailsBackfilled,
     upserted: upsertData?.length ?? 0,
     errors,
   }
