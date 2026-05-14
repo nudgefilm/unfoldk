@@ -61,13 +61,16 @@ async function load(): Promise<LoadResult> {
       return { ok: false, error: formatPostgrestError(sumError) }
     }
 
+    // send-reminders 만 "발송 수", 나머지 ingest-* 는 전부 "수집 이벤트".
+    const metricLabel = route === "send-reminders" ? "발송 수" : "수집 이벤트"
+
     if (!data) {
       summaries.push({
         route,
         lastExecutedAt: null,
         lastStatus: null,
         metric: "—",
-        metricLabel: route === "send-reminders" ? "발송 수" : "수집 이벤트",
+        metricLabel,
       })
       continue
     }
@@ -104,7 +107,7 @@ async function load(): Promise<LoadResult> {
       lastExecutedAt: data.executed_at,
       lastStatus: data.status,
       metric,
-      metricLabel: route === "ingest-all" ? "수집 이벤트" : "발송 수",
+      metricLabel,
     })
   }
 
