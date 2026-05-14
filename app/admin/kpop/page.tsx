@@ -14,6 +14,7 @@ export interface AdminKpopArtistRow {
   lastfm_name: string | null
   thumbnail_url: string | null
   is_active: boolean
+  member_count: number | null              // NULL=미분류 / 1=솔로 / 2+=그룹
   created_at: string
   // join 된 최신 stats — 빈 row 도 있을 수 있음
   latest_subscribers: number | null
@@ -31,7 +32,7 @@ async function loadArtists(): Promise<LoadResult> {
 
   const { data: artists, error } = await supabase
     .from("kpop_artists")
-    .select("id, name, name_ko, debut_year, youtube_channel_id, lastfm_name, thumbnail_url, is_active, created_at")
+    .select("id, name, name_ko, debut_year, youtube_channel_id, lastfm_name, thumbnail_url, is_active, member_count, created_at")
     .order("name", { ascending: true })
     .limit(500)
 

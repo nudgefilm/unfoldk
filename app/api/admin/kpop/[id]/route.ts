@@ -14,6 +14,8 @@ const PatchSchema = z.object({
   lastfm_name: z.string().max(100).nullable().optional(),
   thumbnail_url: z.string().url().nullable().optional(),
   is_active: z.boolean().optional(),
+  // NULL=미분류 / 1=솔로 / 2+=그룹 (인원 수)
+  member_count: z.coerce.number().int().min(1).max(50).nullable().optional(),
 })
 
 export async function PATCH(

@@ -14,6 +14,8 @@ const PostSchema = z.object({
   lastfm_name: z.string().max(100).optional().nullable(),
   thumbnail_url: z.string().url().optional().nullable(),
   is_active: z.boolean().optional(),
+  // NULL=미분류 / 1=솔로 / 2+=그룹 (인원 수)
+  member_count: z.coerce.number().int().min(1).max(50).optional().nullable(),
 })
 
 export async function POST(request: Request) {
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
       lastfm_name: parsed.data.lastfm_name ?? null,
       thumbnail_url: parsed.data.thumbnail_url ?? null,
       is_active: parsed.data.is_active ?? true,
+      member_count: parsed.data.member_count ?? null,
     })
     .select()
     .single()

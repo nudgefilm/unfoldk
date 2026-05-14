@@ -38,6 +38,7 @@ interface FormState {
   lastfm_name: string
   thumbnail_url: string
   is_active: boolean
+  member_count: string                     // "", "1" (솔로), "2"+ (그룹). 빈 문자열 = NULL.
 }
 
 const EMPTY_FORM: FormState = {
@@ -48,6 +49,7 @@ const EMPTY_FORM: FormState = {
   lastfm_name: "",
   thumbnail_url: "",
   is_active: true,
+  member_count: "",
 }
 
 export function KpopArtistsManager({ artists }: { artists: AdminKpopArtistRow[] }) {
@@ -73,6 +75,7 @@ export function KpopArtistsManager({ artists }: { artists: AdminKpopArtistRow[] 
       lastfm_name: a.lastfm_name ?? "",
       thumbnail_url: a.thumbnail_url ?? "",
       is_active: a.is_active,
+      member_count: a.member_count != null ? String(a.member_count) : "",
     })
     setOpen(true)
   }
@@ -87,6 +90,7 @@ export function KpopArtistsManager({ artists }: { artists: AdminKpopArtistRow[] 
       lastfm_name: form.lastfm_name.trim() || null,
       thumbnail_url: form.thumbnail_url.trim() || null,
       is_active: form.is_active,
+      member_count: form.member_count.trim() ? Number(form.member_count) : null,
     }
 
     const url = isEdit ? `/api/admin/kpop/${form.id}` : "/api/admin/kpop"
@@ -168,6 +172,7 @@ export function KpopArtistsManager({ artists }: { artists: AdminKpopArtistRow[] 
               <th className="text-left text-muted-foreground text-sm font-medium px-4 py-3">데뷔</th>
               <th className="text-left text-muted-foreground text-sm font-medium px-4 py-3">YT 채널</th>
               <th className="text-left text-muted-foreground text-sm font-medium px-4 py-3">Last.fm</th>
+              <th className="text-center text-muted-foreground text-sm font-medium px-4 py-3">유형</th>
               <th className="text-right text-muted-foreground text-sm font-medium px-4 py-3">최신 구독자</th>
               <th className="text-right text-muted-foreground text-sm font-medium px-4 py-3">최신 청취자</th>
               <th className="text-left text-muted-foreground text-sm font-medium px-4 py-3">상태</th>
@@ -177,7 +182,7 @@ export function KpopArtistsManager({ artists }: { artists: AdminKpopArtistRow[] 
           <tbody>
             {artists.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-muted-foreground text-sm text-center py-8">
+                <td colSpan={9} className="text-muted-foreground text-sm text-center py-8">
                   아티스트 없음
                 </td>
               </tr>
@@ -194,6 +199,15 @@ export function KpopArtistsManager({ artists }: { artists: AdminKpopArtistRow[] 
                 </td>
                 <td className="text-muted-foreground text-xs px-4 py-3 truncate max-w-[120px]">
                   {a.lastfm_name ?? "—"}
+                </td>
+                <td className="text-center px-4 py-3 text-xs">
+                  {a.member_count == null ? (
+                    <span className="text-yellow-400">미분류</span>
+                  ) : a.member_count === 1 ? (
+                    <span className="text-foreground">솔로</span>
+                  ) : (
+                    <span className="text-foreground">그룹 ({a.member_count})</span>
+                  )}
                 </td>
                 <td className="text-foreground text-sm text-right px-4 py-3">{fmt(a.latest_subscribers)}</td>
                 <td className="text-foreground text-sm text-right px-4 py-3">{fmt(a.latest_lastfm_listeners)}</td>
@@ -265,7 +279,7 @@ export function KpopArtistsManager({ artists }: { artists: AdminKpopArtistRow[] 
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="text-muted-foreground text-xs mb-1 block">데뷔 연도</label>
                 <Input
@@ -274,6 +288,21 @@ export function KpopArtistsManager({ artists }: { artists: AdminKpopArtistRow[] 
                   onChange={(e) => setForm((f) => ({ ...f, debut_year: e.target.value }))}
                   className="bg-[#0d0d0f] border-[#2a2a2a]"
                   placeholder="2020"
+                />
+              </div>
+              <div>
+                <label className="text-muted-foreground text-xs mb-1 block">
+                  인원 수
+                  <span className="text-muted-foreground/70 ml-1">— 1=솔로 / 2+=그룹 / 빈값=미분류</span>
+                </label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={form.member_count}
+                  onChange={(e) => setForm((f) => ({ ...f, member_count: e.target.value }))}
+                  className="bg-[#0d0d0f] border-[#2a2a2a]"
+                  placeholder="4"
                 />
               </div>
               <div>
