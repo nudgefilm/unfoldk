@@ -4,6 +4,40 @@
 
 ---
 
+## 현재 상태 (2026-05-14 세션 9 / ingest-all 수집 이벤트 카운트 fix)
+
+> 어드민 Cron 모니터의 ingest-all 카드 "수집 이벤트" 메트릭이 항상 0 으로 표시되던 버그 fix.
+
+### 원인
+- `app/admin/cron/page.tsx` 합산 로직이 각 단계 결과 객체의 `inserted` + `updated` 키를 합산하고 있었으나, 실제 ingest 결과 (tmdb/youtube/lastfm) 는 `upserted` 키만 반환. 매칭 안 돼서 항상 0.
+
+### 수정
+- **`app/api/cron/ingest-all/route.ts`**: payload 에 `total_upserted` 필드 직접 박제. 각 단계 결과의 `upserted` 를 Object.values 자동 순회로 합산 (새 단계 추가 시 별도 코드 변경 불필요). error 단계는 upserted 없으니 자연 스킵.
+- **`app/admin/cron/page.tsx`**: ingest-all summary 추출을 `result_json.total_upserted` 로 변경. 과거 로그 (필드 없음) 호환 위해 각 단계 `upserted` 합산 fallback 유지 — 기존 잘못된 `inserted`/`updated` 합산 로직은 제거.
+
+### 사용자 액션 필요
+- 없음. 다음 ingest-all cron 실행 시 자동으로 total_upserted 박제 + 어드민 카드에 정확한 값 표시.
+- 즉시 검증하려면 `/admin/cron` 에서 ingest-all manual run 1회.
+
+### 다음 세션 후보
+- carry-over 그대로 (세션 5~8):
+  - Ticketmaster 실데이터 인제스트 재검증
+  - KOPIS 캘린더 재노출 정책 + Melon Ticket url
+  - Curation K waitlist API
+  - Curation K 지도 hover 모달
+  - Claude Haiku 분류 로직 fan_event_requests 이식
+  - fan_event_requests 제보 폼 / admin 검토 큐 UI 정비
+  - Cookie Policy 본문 법무 검토 / Vercel·Supabase 비용 점검
+  - TMDB 드라마 모달에 장르·평점 표시
+  - TMDB watch providers 구체 OTT 이름 노출
+- 이번 세션 신규 후보:
+  - admin/cron 의 ingest-kopis·ingest-ticketmaster metricLabel 이 "발송 수" 로 잘못 라벨됨 (실제는 "수집 이벤트"). 메트릭 값은 맞지만 라벨 오류.
+
+### 블로커
+- 없음
+
+---
+
 ## 현재 상태 (2026-05-14 세션 8 / 캘린더 TMDB Watch Now + 출처 표기)
 
 > TMDB 드라마 이벤트에 Watch Now 외부 링크 + ToS 출처 표기. url 컬럼 (세션 7 0018 도입) 을 Ticketmaster·TMDB 양쪽이 source_api 가드로 격리 공유. 마이그레이션 신규 없음.
