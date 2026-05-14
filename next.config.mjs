@@ -4,7 +4,12 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    // 외부 이미지 도메인 명시적 허용. next/image 최적화 활성 (이전 unoptimized:true 제거).
+    // next/image 옵티마이저 비활성 — 메인 페이지의 next/image 사용처 (testimonial,
+    // social-proof, large-testimonial) 가 로컬 SVG·PNG 까지 전부 optimizer 함수에
+    // 통과시켜 Vercel Image Optimization cold start 가 누적, 메인 페이지 hang +
+    // Ghost Globe 미작동 발생 (커밋 f4f0f80 이후). 출시 전 strict 전환 보류.
+    // remotePatterns 은 외부 도메인 next/image 사용 시 대비 유지.
+    unoptimized: true,
     remotePatterns: [
       // Google OAuth 프로필 이미지 CDN
       {
