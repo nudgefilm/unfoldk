@@ -4,6 +4,48 @@
 
 ---
 
+## 현재 상태 (2026-05-14 세션 7 / 캘린더 이벤트 Get Tickets 링크)
+
+> 기획안 v1.2 캘린더 메뉴 개선 — Ticketmaster 이벤트 상세·아코디언에 외부 티켓 예매 페이지 링크 추가. 사용자가 "이미 수집된 url" 이라고 했으나 실제 ingest·DB 양쪽 모두 누락 상태였음. 구조적 fix 로 진행.
+
+### A. DB 컬럼 추가
+- **migration 0018** `hallyu_calendar_events.url text` 추가. comment 박제. **⚠️ 사용자 액션 필요 — Supabase Dashboard SQL Editor 에서 0018_event_external_url.sql 실행.**
+
+### B. Ticketmaster ingest backfill
+- `lib/ingest/ticketmaster.ts` 행 생성에 `url: ev.url ?? null` 추가. upsert `onConflict:source_api,source_id` + `ignoreDuplicates:false` 라 다음 cron 또는 manual run 시 기존 행도 자동 backfill.
+
+### C. API 응답 + 캘린더 페이지 UI
+- `app/api/calendar/events/route.ts` select·매핑에 url 포함.
+- `app/calendar/page.tsx`:
+  - `CalendarEvent.url?: string` 타입 추가.
+  - 헬퍼 `shouldShowGetTickets(event) = sourceApi==='ticketmaster' && !!url` — Ticketmaster 외 소스는 url 의미 다를 수 있어 격리.
+  - `EventDetailModal`: Get Tickets 버튼 (Ticket 아이콘, target=_blank, noopener noreferrer) 을 Add to Google Calendar 위 1차 CTA 위치에. Ticketmaster 가 아닐 땐 미노출 + Add to GCal 이 원래 자리에서 1차 CTA 유지.
+  - `UpcomingAccordionItem`: 동일 패턴.
+  - Featured 카드는 디자인 유지 — 카드 클릭 → 모달 → Get Tickets 로 자연 연결.
+
+### D. KOPIS TODO
+- `lib/ingest/kopis.ts` 행 생성부에 "재노출 시 Melon Ticket url 채울 것" TODO 주석. 현재 캘린더 API `.neq("source_api","kopis")` 로 노출 차단 중이라 우선순위 낮음.
+
+### 사용자 액션 필요
+1. **Supabase Dashboard > SQL Editor 에서 `supabase/migrations/0018_event_external_url.sql` 실행** (컬럼 추가).
+2. 실행 후 `/admin/cron` 에서 ticketmaster manual run 1회 — 기존 행 backfill 트리거.
+3. 캘린더 페이지에서 Ticketmaster 출처 이벤트 클릭 → 모달에 Get Tickets 버튼 노출 확인.
+
+### 다음 세션 후보
+- carry-over (세션 5·6 잔여):
+  - Ticketmaster 실데이터 인제스트 재검증 (locale fix 후 cron_logs 메트릭)
+  - KOPIS 캘린더 재노출 정책 + Melon Ticket url 수집 메커니즘
+  - Curation K waitlist API
+  - Curation K 지도 hover 모달
+  - Claude Haiku Yes/No/Uncertain 분류 로직 fan_event_requests 어드민 큐 이식
+  - fan_event_requests 제보 폼 / admin 검토 큐 UI 정비
+  - Cookie Policy 본문 법무 검토 / Vercel·Supabase 비용 점검
+
+### 블로커
+- 없음
+
+---
+
 ## 현재 상태 (2026-05-14 세션 6 / Curation K (M+5) 메뉴 + 사전 등록 랜딩)
 
 > Services 6번째 서비스 Curation K 의 메뉴·footer 통합 + 실사 한국 지도 기반 마케팅 랜딩 페이지 신규. 기획안 v1.2 §6 완성형 구조 + 부속 도서 (백령·울릉·독도·마라도) 영토 표기.
