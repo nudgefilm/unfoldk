@@ -4,6 +4,81 @@
 
 ---
 
+## 현재 상태 (2026-05-14 세션 12 / KpopStats 전면 개선 + 캐싱 인프라 + 메인 hang 블로커)
+
+> 새 PROGRESS 정책 (세션 종료 시점 일괄, CLAUDE.md §8) 첫 적용. 오늘 세션 11 이후 누적 작업 한 묶음.
+
+### A. KpopStats 페이지 전면 개선 (`f5fb2a0`, `c6841c4`, `5f193b9`)
+- Artist Spotlight 상세 하단에 `ReportButton` (contentType="artist") — HallyuCalendar 모달 패턴 동일. 페이지 레벨 `<Toaster />` 로컬 마운트 (silent no-op 방지).
+- 아티스트 프로필 이미지 — `kpop_artists.thumbnail_url` 활용. 차트 행 좌측 w-10 원형, Spotlight 헤더 w-16 원형. fallback 회색 placeholder.
+- 차트 행 호버 강화 `bg-[#252525]` → `bg-[#2a2a2c]` + `cursor-pointer`.
+- **Today's Trending Top 5** 섹션 신규. `/api/kpop/charts/trending` — today vs yesterday delta desc Top N.
+- 차트/Trending 카드 클릭 시 Artist Spotlight 섹션으로 부드러운 스크롤 — 상세 페이지 구현 전까지 임시 동작 (`spotlightSectionRef` + `pendingScrollRef`).
+
+### B. 캐싱 인프라 (`8389992`, `24e176c`, `e3923af`)
+- `calendar/events` `Cache-Control: private, max-age=60` — Pro 콘텐츠 누출 방지 (RLS isPremium 게이팅).
+- `kpop/charts` `force-dynamic` 제거 + `public, s-maxage=300, stale-while-revalidate=600` + **`export const revalidate=300`** (Cache-Control 헤더만으론 request.url 사용 시 Vercel CDN 캐시 안 됨).
+- `kpop/charts/trending`, `kpop/artists/[id]` 동일 정책. `kpop/artists` `s-maxage=60`.
+- `lastfm.getArtistInfo` `revalidate: 86400`.
+- **`ingest-all` 4번째 단계로 `runKpopStatsIngest` 추가** (별도 카드 X, ingest-all total_upserted 자동 합산). maxDuration 300→400.
+
+### C. BTS·BLACKPINK 채널 ID 정정 (`5f8bcc2`)
+- **migration 0019_fix_bts_blackpink_channel.sql**: BTS=`UCLkAepWjdylmXSltofFvsYQ`, BLACKPINK=`UCOmHUn--16B90oW2L6FRR3A` 강제 박제 + `thumbnail_url=NULL` reset.
+- Artist Comparison 카드 BTS·BLACKPINK 에 chart 응답 thumbnail 직접 노출.
+
+### D. CLAUDE.md 정책 강화 (`1c68425`, `b5bffb8`) → v3.3
+- **§8 종료**: PROGRESS.md 매 작업 갱신 금지 → 세션 종료 신호 시 일괄.
+- **§9 문제 해결 원칙** 6항목 — 가장 단순 먼저, 외부 fetch 단독 시도 금지, 썸네일 SQL 직접 업데이트, 채널 ID 브라우저 확인 요청 등.
+- **§10 작업 범위 원칙** 4항목 — 명시 작업만, 진단 코드 추가 전 승인, 불필요한 fetch 금지.
+
+### E. ingest 진단 도구 강화 (`427d5ec`)
+- `api/youtube.getChannelStats`: channels.list 응답 누락 ID `console.warn`. thumbnails 추출 `default → default_ → medium → high` fallback.
+- `KpopStatsIngestResult`: `channelsRequested` / `channelsReturned` / `missingChannelIds` / `thumbnailDebug[]` (action: skipped_channel_missing, updated, update_zero_rows, ...).
+- `kpop_artists.update().select("id")` — RLS·id mismatch silent 0행 fail 감지.
+
+### F. UI 폴리시 (`f60cf43`, `e7d2a73`)
+- Global Chart 부제 추가 — "Ranked by weekly YouTube view growth".
+- Trending API 3단계 fallback: 2일치 → delta desc / 1일치만 → total_views desc + delta:null / 0일치 → trending:[] (UI "Coming soon").
+- YouTube Views 컬럼 `weekly ?? total` fallback (cron 직후 weekly 없는 행 "—" 회피).
+
+### G. ⚠️ 미해결 블로커 — 메인 페이지 hang + Ghost Globe 미작동
+- `f4f0f80` (next.config images.unoptimized 제거) 이후 `unfoldk.com` 메인 페이지 매우 느림 + Ghost Globe 안 보임 발생. 다른 페이지(`/calendar`, `/kpop`)는 정상.
+- `8562ce7` 로 `unoptimized: true` 복원했으나 **증상 동일**.
+- 코드 직접 변경 0건: `app/page.tsx`, `hero-section.tsx`, `ghost-globe.tsx`, `ghost-globe-dynamic.tsx`, 메인 페이지 import 11개 컴포넌트 모두 오늘 변경 흔적 없음.
+- **현재 가설**: next.config 오늘 두 번 변경으로 build cache 두 번 invalidate → 클라이언트 chunk hash 변경 → 사용자 브라우저 stale chunk cache 가 404. 메인 페이지만 영향인 이유: 사용자가 가장 자주 방문해 stale cache 보유한 페이지.
+- **다음 시도** (사용자 진행 예정): 노트북 재부팅 + 브라우저 hard refresh (CMD+Shift+R) / incognito 창. 여전히 증상이면 코드 측 추가 추적 필요 (hero-section 내 console 에러, topojson fetch URL 등).
+
+### 사용자 액션 필요
+1. **Supabase SQL Editor 마이그레이션 실행** (미실행 시):
+   - `0018_event_external_url.sql` (calendar events url 컬럼)
+   - `0019_fix_bts_blackpink_channel.sql` (BTS·BLACKPINK 채널 ID)
+2. **`/admin/cron` manual run** (미실행 시):
+   - `ingest-tmdb` — 수집 윈도우 확장 + Watch Now url backfill
+   - `ingest-ticketmaster` — Get Tickets url backfill
+   - `ingest-kpop-stats` — thumbnail backfill (BTS·BLACKPINK 포함)
+3. **메인 페이지 hang 진단** (재부팅 후):
+   - 브라우저 hard refresh / incognito
+   - Vercel 대시보드의 `8562ce7` deployment Ready 상태 확인
+   - 여전히 안 되면 다음 세션 추적
+
+### 다음 세션 후보
+- carry-over:
+  - 메인 페이지 hang 추적 (재부팅 후 결과 의존)
+  - TMDB 드라마 모달 장르·평점 표시 / OTT 이름 노출
+  - Curation K waitlist API + 지도 hover 모달
+  - Claude Haiku 분류 로직 fan_event_requests 이식
+  - fan_event_requests 제보 폼 / admin 검토 큐 UI 정비
+  - Cookie Policy 본문 법무 검토 / Vercel·Supabase 비용 점검
+- 이번 세션 신규:
+  - `searchChannelByName` 자동 매핑 정확도 — 화이트리스트 또는 자동 매핑 제거 후 어드민 수동만
+  - 점진적 `<img>` → `<Image>` 마이그레이션 후 `unoptimized` 재시도
+  - admin/cron 의 `kpopStats` 부분 실패 (`errors.length > 0`) 가 anyFailed 에 안 잡히는 이슈 — failure detection 보강
+
+### 블로커
+- **메인 페이지 hang + Ghost Globe 미작동** (위 G 참조). 사용자 재부팅 후 결과 의존.
+
+---
+
 ## 현재 상태 (2026-05-14 세션 11 / TMDB 수집 조건 완화 — 방영 중 드라마 포함)
 
 > 세션 10 진단 결과: tmdb 행 0건 + ingest 로그 "future first_air_date 매칭 없음" 반복. 원인은 필터가 `first_air_date >= today` 라 미래 premiere 만 잡음. TMDB discover/tv?sort_by=popularity 인기 한국 드라마는 대부분 이미 방영 시작 상태라 거의 매칭 안 됨.
