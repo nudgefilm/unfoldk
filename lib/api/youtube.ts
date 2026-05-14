@@ -23,6 +23,7 @@ function getYoutubeClient(): youtube_v3.Youtube {
 export interface YoutubeChannelStats {
   channelId: string
   title: string | null
+  thumbnailUrl: string | null        // snippet.thumbnails.default.url — kpop_artists.thumbnail_url backfill 용
   subscribers: number | null         // hiddenSubscriberCount=true 면 null
   totalViews: number | null
   videoCount: number | null
@@ -53,9 +54,14 @@ export async function getChannelStats(
     for (const ch of items) {
       if (!ch.id) continue
       const stats = ch.statistics
+      // thumbnails.default 가 가장 작고 안정적 (high 는 채널별로 누락 가능).
+      // URL 만 저장 — 이미지 자체는 저장 금지 (CLAUDE.md §10 저작권).
+      const thumb = ch.snippet?.thumbnails
       results.push({
         channelId: ch.id,
         title: ch.snippet?.title ?? null,
+        thumbnailUrl:
+          thumb?.default?.url ?? thumb?.medium?.url ?? thumb?.high?.url ?? null,
         subscribers:
           stats?.hiddenSubscriberCount || !stats?.subscriberCount
             ? null

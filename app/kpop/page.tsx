@@ -8,10 +8,12 @@
 import { useEffect, useMemo, useState } from "react"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { Search, TrendingUp, TrendingDown, Minus, Lock } from "lucide-react"
+import { Search, TrendingUp, TrendingDown, Minus, Lock, Flame } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
+import { ReportButton } from "@/components/common/report-button"
+import { Toaster } from "@/components/ui/toaster"
 
 // ============================================
 // 숫자 포맷터 — 2_400_000_000 → "2.4B"
@@ -35,6 +37,16 @@ interface ChartItem {
   youtube_weekly_views: number | null
   lastfm_listeners: number | null
   rank_change: number | null
+}
+
+interface TrendingItem {
+  rank: number
+  artist_id: string
+  name: string
+  name_ko: string | null
+  thumbnail_url: string | null
+  views_delta: number
+  total_views: number
 }
 
 interface ArtistDetail {
@@ -62,6 +74,8 @@ export default function KpopStatsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [chart, setChart] = useState<ChartItem[]>([])
   const [chartLoading, setChartLoading] = useState(true)
+  const [trending, setTrending] = useState<TrendingItem[]>([])
+  const [trendingLoading, setTrendingLoading] = useState(true)
   const [spotlightId, setSpotlightId] = useState<string | null>(null)
   const [spotlight, setSpotlight] = useState<{
     artist: ArtistDetail
@@ -120,6 +134,21 @@ export default function KpopStatsPage() {
       })
       .finally(() => setChartLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Trending Top 5 로드 — kpop_stats_daily today vs yesterday delta
+  useEffect(() => {
+    setTrendingLoading(true)
+    fetch("/api/kpop/charts/trending?limit=5")
+      .then((r) => (r.ok ? r.json() : { trending: [] }))
+      .then((data: { trending?: TrendingItem[] }) => {
+        setTrending(data.trending ?? [])
+      })
+      .catch((err) => {
+        console.error("[kpop] trending fetch 실패:", err)
+        setTrending([])
+      })
+      .finally(() => setTrendingLoading(false))
   }, [])
 
   // spotlight 상세 로드
@@ -241,6 +270,66 @@ export default function KpopStatsPage() {
           </div>
         </section>
 
+        {/* Today's Trending Top 5 — kpop_stats_daily today vs yesterday delta.
+            데이터 부족 (2일치 미만) 시 "Coming soon" placeholder. */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-2">
+            <Flame className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+            Today&apos;s Trending Top 5
+          </h2>
+          {trendingLoading ? (
+            <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl px-6 py-10 text-center text-muted-foreground text-sm">
+              Loading...
+            </div>
+          ) : trending.length === 0 ? (
+            <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl px-6 py-10 text-center">
+              <p className="text-foreground font-medium mb-1">Coming soon</p>
+              <p className="text-muted-foreground text-sm">
+                Daily comparison needs at least 2 days of data.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {trending.map((item) => (
+                <button
+                  key={item.artist_id}
+                  type="button"
+                  onClick={() => setSpotlightId(item.artist_id)}
+                  className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex flex-col items-center text-center cursor-pointer hover:bg-[#2a2a2c] hover:border-primary/40 transition-colors"
+                >
+                  {/* Rank badge — 좌상단 absolute 대신 상단 inline */}
+                  <span
+                    className={`text-xs font-bold mb-2 ${
+                      item.rank === 1 ? "text-primary" : "text-muted-foreground"
+                    }`}
+                  >
+                    #{item.rank}
+                  </span>
+                  {item.thumbnail_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.thumbnail_url}
+                      alt={item.name}
+                      className="w-16 h-16 rounded-full object-cover bg-[#252525] mb-2"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-[#252525] mb-2" />
+                  )}
+                  <p className="text-foreground font-medium text-sm truncate w-full">
+                    {item.name}
+                  </p>
+                  <p className="text-xs mt-1 flex items-center gap-1" style={{ color: "#22c55e" }}>
+                    <TrendingUp className="w-3 h-3" />
+                    +{formatBigNumber(item.views_delta)}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* Global Chart */}
         <section className="mb-12">
           <h2 className="text-2xl font-semibold text-white mb-6">
@@ -272,7 +361,7 @@ export default function KpopStatsPage() {
                   key={item.artist_id}
                   type="button"
                   onClick={() => setSpotlightId(item.artist_id)}
-                  className="w-full grid grid-cols-12 gap-4 px-6 py-4 border-b border-border/20 last:border-b-0 hover:bg-[#252525] transition-colors text-left"
+                  className="w-full grid grid-cols-12 gap-4 px-6 py-4 border-b border-border/20 last:border-b-0 cursor-pointer hover:bg-[#2a2a2c] transition-colors text-left"
                 >
                   {/* Rank Badge */}
                   <div className="col-span-1 flex items-center">
@@ -287,12 +376,27 @@ export default function KpopStatsPage() {
                     </span>
                   </div>
 
-                  {/* Artist Name */}
-                  <div className="col-span-4 flex items-center">
-                    <span className="text-foreground font-medium">{item.name}</span>
-                    {item.name_ko && (
-                      <span className="text-muted-foreground text-xs ml-2">{item.name_ko}</span>
+                  {/* Artist Avatar + Name */}
+                  <div className="col-span-4 flex items-center gap-3">
+                    {/* 원형 프로필 — YouTube 채널 썸네일 fallback 으로 회색 placeholder */}
+                    {item.thumbnail_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.thumbnail_url}
+                        alt={item.name}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0 bg-[#252525]"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#252525] flex-shrink-0" />
                     )}
+                    <div className="min-w-0">
+                      <span className="text-foreground font-medium">{item.name}</span>
+                      {item.name_ko && (
+                        <span className="text-muted-foreground text-xs ml-2">{item.name_ko}</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* YouTube Views */}
@@ -357,29 +461,43 @@ export default function KpopStatsPage() {
 
             <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6 md:p-8">
               {/* Artist Header */}
-              <div className="flex items-start justify-between mb-6">
-                <div>
-                  <h3 className="text-2xl font-bold text-white mb-2">
-                    {spotlight.artist.name}
-                    {spotlight.artist.name_ko && (
-                      <span className="text-muted-foreground text-base font-normal ml-2">
-                        {spotlight.artist.name_ko}
-                      </span>
-                    )}
-                  </h3>
-                  <div className="flex gap-2 flex-wrap">
-                    <span className="px-3 py-1 rounded-full bg-[#252525] text-muted-foreground text-xs">K-pop</span>
-                    {spotlight.artist.debut_year && (
-                      <span className="px-3 py-1 rounded-full bg-[#252525] text-muted-foreground text-xs">
-                        Debut {spotlight.artist.debut_year}
-                      </span>
-                    )}
+              <div className="flex items-start justify-between mb-6 gap-4">
+                <div className="flex items-start gap-4 min-w-0">
+                  {/* 원형 프로필 — 차트 행과 동일 소스 */}
+                  {spotlight.artist.thumbnail_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={spotlight.artist.thumbnail_url}
+                      alt={spotlight.artist.name}
+                      className="w-16 h-16 rounded-full object-cover flex-shrink-0 bg-[#252525]"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-[#252525] flex-shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <h3 className="text-2xl font-bold text-white mb-2">
+                      {spotlight.artist.name}
+                      {spotlight.artist.name_ko && (
+                        <span className="text-muted-foreground text-base font-normal ml-2">
+                          {spotlight.artist.name_ko}
+                        </span>
+                      )}
+                    </h3>
+                    <div className="flex gap-2 flex-wrap">
+                      <span className="px-3 py-1 rounded-full bg-[#252525] text-muted-foreground text-xs">K-pop</span>
+                      {spotlight.artist.debut_year && (
+                        <span className="px-3 py-1 rounded-full bg-[#252525] text-muted-foreground text-xs">
+                          Debut {spotlight.artist.debut_year}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 {!isLoggedIn && (
-                  <Link href="/">
+                  <Link href="/" className="flex-shrink-0">
                     <Button
-                      className="px-6 py-2 rounded-full font-medium text-white"
+                      className="px-6 py-2 rounded-full font-medium text-white whitespace-nowrap"
                       style={{ backgroundColor: "#FF4B6E" }}
                     >
                       Track this artist
@@ -452,6 +570,12 @@ export default function KpopStatsPage() {
                     Not enough data yet — check back soon.
                   </div>
                 )}
+              </div>
+
+              {/* Report incorrect info — Spotlight 상세 하단 우측. HallyuCalendar 이벤트 모달 패턴 동일.
+                  contentType='artist', contentId=spotlight.artist.id. */}
+              <div className="mt-6 pt-4 border-t border-border/20 flex justify-end">
+                <ReportButton contentType="artist" contentId={spotlight.artist.id} />
               </div>
             </div>
           </section>
@@ -536,6 +660,10 @@ export default function KpopStatsPage() {
           </div>
         </section>
       </main>
+
+      {/* 토스트 컨테이너 — root layout 에 미마운트라 페이지 레벨에서 로컬 마운트.
+          ReportButton 의 submit/error 토스트가 silent no-op 되는 것 방지 (CLAUDE.md §10). */}
+      <Toaster />
 
       <FooterSection />
     </div>

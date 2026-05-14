@@ -40,6 +40,7 @@ interface KpopArtistRow {
   name: string
   youtube_channel_id: string | null
   lastfm_name: string | null
+  thumbnail_url: string | null
 }
 
 // 단일 또는 다수 아티스트 통계 갱신
@@ -53,7 +54,7 @@ export async function runKpopStatsIngest(
   // 1. 대상 아티스트 조회
   let query = supabase
     .from("kpop_artists")
-    .select("id, name, youtube_channel_id, lastfm_name")
+    .select("id, name, youtube_channel_id, lastfm_name, thumbnail_url")
     .eq("is_active", true)
 
   if (artistIds && artistIds.length > 0) {
@@ -136,7 +137,7 @@ export async function runKpopStatsIngest(
 
   let ytStatsMap = new Map<
     string,
-    { subscribers: number | null; totalViews: number | null }
+    { subscribers: number | null; totalViews: number | null; thumbnailUrl: string | null }
   >()
   let youtubeFetched = 0
   if (ytChannelIds.length > 0) {
@@ -147,12 +148,31 @@ export async function runKpopStatsIngest(
         ytStatsMap.set(s.channelId, {
           subscribers: s.subscribers,
           totalViews: s.totalViews,
+          thumbnailUrl: s.thumbnailUrl,
         })
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error("[ingest-kpop-stats] YouTube 호출 실패:", msg)
       errors.push(`YouTube 호출 실패: ${msg}`)
+    }
+  }
+
+  // 2.5. kpop_artists.thumbnail_url backfill — 비어 있는 행에 YouTube 채널 썸네일 채움.
+  //      이미 채워진 행은 건드리지 않음 (어드민이 수동 입력한 이미지 보존).
+  //      URL 만 저장, 이미지 자체는 저장 금지 (CLAUDE.md §10 저작권).
+  for (const a of artists) {
+    if (a.thumbnail_url) continue
+    const yt = a.youtube_channel_id ? ytStatsMap.get(a.youtube_channel_id) : null
+    if (!yt?.thumbnailUrl) continue
+    const { error: thumbErr } = await supabase
+      .from("kpop_artists")
+      .update({ thumbnail_url: yt.thumbnailUrl })
+      .eq("id", a.id)
+    if (thumbErr) {
+      errors.push(`thumbnail backfill 실패 (${a.name}): ${thumbErr.message}`)
+    } else {
+      a.thumbnail_url = yt.thumbnailUrl
     }
   }
 
