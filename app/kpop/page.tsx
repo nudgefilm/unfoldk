@@ -449,9 +449,12 @@ export default function KpopStatsPage() {
                     </div>
                   </div>
 
-                  {/* YouTube Views */}
+                  {/* YouTube Views — weekly_views 우선, 없으면 total_views fallback.
+                      cron 직후엔 weekly 계산 못 한 행도 total 만큼은 채워져 있어 "—" 회피. */}
                   <div className="col-span-3 flex items-center justify-end">
-                    <span className="text-foreground">{formatBigNumber(item.youtube_total_views)}</span>
+                    <span className="text-foreground">
+                      {formatBigNumber(item.youtube_weekly_views ?? item.youtube_total_views)}
+                    </span>
                   </div>
 
                   {/* Last.fm Listeners */}
