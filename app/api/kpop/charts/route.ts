@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
-export const dynamic = "force-dynamic"
+// 공개 데이터 (kpop_stats_daily) — auth 분기 없음. 응답에 Cache-Control 헤더 박제 (아래).
 
 // /api/kpop/charts — 글로벌 주간 순위
 //
@@ -149,5 +149,14 @@ export async function GET(request: Request) {
     }
   })
 
-  return NextResponse.json({ chart, generated_at: new Date().toISOString() })
+  return NextResponse.json(
+    { chart, generated_at: new Date().toISOString() },
+    {
+      // 공개 데이터, 일별 갱신 → edge 5분 + 10분 stale-while-revalidate.
+      // 콜드 트래픽 비용·지연 감소. 새 데이터는 cron 다음 실행 후 5분 내 자연 전파.
+      headers: {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+      },
+    }
+  )
 }

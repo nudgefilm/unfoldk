@@ -93,5 +93,13 @@ export async function GET(request: Request) {
     }
   })
 
-  return NextResponse.json({ events, month: parsed.data.month })
+  return NextResponse.json(
+    { events, month: parsed.data.month },
+    {
+      // Pro 콘텐츠 누출 방지 — RLS 가 isPremium 게이팅 + auth 기반 응답 사용자별 다름.
+      // public 캐시 금지, private 만 허용. 60s 단기 캐시는 동일 사용자의 빠른 페이지 이동·
+      // 월 전환에서 DB 부담 완화 + Pro 신규 가입 직후 60s 내 반영 한계 trade-off.
+      headers: { "Cache-Control": "private, max-age=60" },
+    }
+  )
 }

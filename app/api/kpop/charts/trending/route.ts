@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
-export const dynamic = "force-dynamic"
+// 공개 데이터 — auth 분기 없음. 응답에 Cache-Control 헤더 박제 (아래).
 
 // /api/kpop/charts/trending — 오늘의 급상승 Top 5
 //
@@ -15,6 +15,12 @@ export const dynamic = "force-dynamic"
 //     0명이면 trending: [] 반환. UI 가 "Coming soon" 표시.
 //
 // limit: 기본 5, max 10.
+
+// 공개 데이터 + 일별 갱신 → edge 5분 + 10분 stale-while-revalidate.
+// error 응답에는 적용 X (캐시 폭주 방지).
+const TRENDING_CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+} as const
 
 interface ArtistRow {
   id: string
@@ -48,7 +54,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: latestErr.message }, { status: 500 })
   }
   if (!latestDateData) {
-    return NextResponse.json({ trending: [], generated_at: new Date().toISOString() })
+    return NextResponse.json(
+      { trending: [], generated_at: new Date().toISOString() },
+      { headers: TRENDING_CACHE_HEADERS }
+    )
   }
 
   const todayStr = (latestDateData as { date: string }).date
@@ -97,7 +106,10 @@ export async function GET(request: Request) {
   }
 
   if (deltas.length === 0) {
-    return NextResponse.json({ trending: [], generated_at: new Date().toISOString() })
+    return NextResponse.json(
+      { trending: [], generated_at: new Date().toISOString() },
+      { headers: TRENDING_CACHE_HEADERS }
+    )
   }
 
   // 5) 활성 아티스트 메타
@@ -133,9 +145,12 @@ export async function GET(request: Request) {
       }
     })
 
-  return NextResponse.json({
-    trending,
-    generated_at: new Date().toISOString(),
-    today: todayStr,
-  })
+  return NextResponse.json(
+    {
+      trending,
+      generated_at: new Date().toISOString(),
+      today: todayStr,
+    },
+    { headers: TRENDING_CACHE_HEADERS }
+  )
 }

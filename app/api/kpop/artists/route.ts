@@ -91,5 +91,11 @@ export async function GET(request: Request) {
     latest: latestMap.get(a.id as string) ?? null,
   }))
 
-  return NextResponse.json({ artists: result })
+  return NextResponse.json(
+    { artists: result },
+    {
+      // 공개 데이터. 검색 쿼리 q 가 URL 에 포함되어 자동 키 분리. 60s 단기 캐시.
+      headers: { "Cache-Control": "public, s-maxage=60" },
+    }
+  )
 }

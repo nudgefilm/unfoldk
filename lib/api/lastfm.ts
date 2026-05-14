@@ -69,7 +69,8 @@ interface LastfmArtistGetInfoResponse {
   }
 }
 
-// 단일 아티스트 정보 (listeners + playcount). 캐시는 호출 측 책임.
+// 단일 아티스트 정보 (listeners + playcount). 24h Next.js fetch cache —
+// cron 1회/일 운영이라 cache hit 빈도는 낮지만 rate limit 안전판 (재시도·중복 호출 흡수).
 export async function getArtistInfo(
   artistName: string
 ): Promise<LastfmArtistInfo | null> {
@@ -81,7 +82,9 @@ export async function getArtistInfo(
     autocorrect: "1",
   })
 
-  const res = await fetch(`${LASTFM_BASE}?${params}`)
+  const res = await fetch(`${LASTFM_BASE}?${params}`, {
+    next: { revalidate: 86400 }, // 24h
+  })
   if (!res.ok) {
     console.warn(`[lastfm] artist.getinfo "${artistName}" ${res.status}`)
     return null

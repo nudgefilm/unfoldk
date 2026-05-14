@@ -55,17 +55,25 @@ export async function GET(
   const rows = (history ?? []) as DailyStatsRow[]
   const latest = rows[rows.length - 1] ?? null
 
-  return NextResponse.json({
-    artist: {
-      id: (artist as { id: string }).id,
-      name: (artist as { name: string }).name,
-      name_ko: (artist as { name_ko: string | null }).name_ko,
-      debut_year: (artist as { debut_year: number | null }).debut_year,
-      thumbnail_url: (artist as { thumbnail_url: string | null }).thumbnail_url,
-      has_youtube: !!(artist as { youtube_channel_id: string | null }).youtube_channel_id,
-      has_lastfm: !!(artist as { lastfm_name: string | null }).lastfm_name,
+  return NextResponse.json(
+    {
+      artist: {
+        id: (artist as { id: string }).id,
+        name: (artist as { name: string }).name,
+        name_ko: (artist as { name_ko: string | null }).name_ko,
+        debut_year: (artist as { debut_year: number | null }).debut_year,
+        thumbnail_url: (artist as { thumbnail_url: string | null }).thumbnail_url,
+        has_youtube: !!(artist as { youtube_channel_id: string | null }).youtube_channel_id,
+        has_lastfm: !!(artist as { lastfm_name: string | null }).lastfm_name,
+      },
+      latest,
+      history: rows,
     },
-    latest,
-    history: rows,
-  })
+    {
+      // 공개 데이터 + 일별 갱신 (history). edge 5분 + 10분 SWR.
+      headers: {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+      },
+    }
+  )
 }
