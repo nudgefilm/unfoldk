@@ -2,7 +2,11 @@
 // 라우트(ingest-tmdb, ingest-all) 양쪽에서 import 해 재사용
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
-import { fetchPopularKoreanDramas, tmdbPosterUrl } from "@/lib/api/tmdb"
+import {
+  fetchPopularKoreanDramas,
+  fetchWatchProvidersUs,
+  tmdbPosterUrl,
+} from "@/lib/api/tmdb"
 import { generateEventDescription } from "@/lib/claude/generate-event-description"
 
 export interface TmdbIngestResult {
@@ -78,22 +82,32 @@ export async function runTmdbIngest(): Promise<TmdbIngestResult> {
     existingDescMap.set(row.source_id, row.description)
   }
 
-  // Claude Haiku 로 한 줄 설명 병렬 생성
+  // Claude Haiku 로 한 줄 설명 병렬 생성 + Watch Now 링크 (TMDB watch/providers US)
   // - 기존 description 이 비어있지 않으면 호출 skip + 기존 값 유지
   // - 신규 이벤트 또는 description 비어있는 경우만 호출
   // - Claude 실패 시 TMDB overview fallback
+  // - watch/providers 는 매번 호출 (provider 변동 추적). 비어 있으면 null → UI 에서 버튼 미노출.
+  //   url 컬럼은 Ticketmaster(Get Tickets)·TMDB(Watch Now) 가 source_api 가드로 격리해 공유.
   const rows = await Promise.all(
     baseRows.map(async ({ _tmdb_overview, ...row }) => {
+      const tmdbId = Number(row.source_id)
+      const watchUrlPromise = Number.isFinite(tmdbId)
+        ? fetchWatchProvidersUs(tmdbId)
+        : Promise.resolve(null)
+
       const existingDesc = existingDescMap.get(row.source_id)
-      if (existingDesc && existingDesc.trim().length > 0) {
-        return { ...row, description: existingDesc }
-      }
-      const aiDescription = await generateEventDescription(
-        row.title,
-        row.artist_or_drama,
-        row.type
-      )
-      return { ...row, description: aiDescription ?? _tmdb_overview }
+      const descriptionPromise =
+        existingDesc && existingDesc.trim().length > 0
+          ? Promise.resolve(existingDesc)
+          : generateEventDescription(row.title, row.artist_or_drama, row.type).then(
+              (ai) => ai ?? _tmdb_overview
+            )
+
+      const [description, watchUrl] = await Promise.all([
+        descriptionPromise,
+        watchUrlPromise,
+      ])
+      return { ...row, description, url: watchUrl }
     })
   )
   const { data, error } = await supabase

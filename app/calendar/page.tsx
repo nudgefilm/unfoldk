@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronLeft, ChevronRight, Calendar, X, Lock, Plus, Ticket } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Calendar, X, Lock, Plus, Ticket, Play } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -33,6 +33,17 @@ interface CalendarEvent {
 // TODO: KOPIS 는 현재 캘린더 노출 차단 중. 재노출 시 Melon Ticket 외부 링크를 url 로 채우면 동일 조건 자동 적용.
 function shouldShowGetTickets(event: CalendarEvent): boolean {
   return event.sourceApi === "ticketmaster" && !!event.url
+}
+
+// TMDB 드라마 이벤트 + US watch providers 있을 때만 Watch Now 버튼.
+// url 컬럼을 Ticketmaster 와 공유하지만 sourceApi 가드로 격리 → 두 조건이 동시에 참이 될 수 없음.
+function shouldShowWatchNow(event: CalendarEvent): boolean {
+  return event.sourceApi === "tmdb" && !!event.url
+}
+
+// 이벤트 1차 CTA 가 외부 링크 (Get Tickets / Watch Now) 인지 — Add to GCal 강등 판정용.
+function hasExternalPrimaryCta(event: CalendarEvent): boolean {
+  return shouldShowGetTickets(event) || shouldShowWatchNow(event)
 }
 
 const tabs = ["All", "K-pop", "K-drama", "Concert", "Fan Meet"] as const
@@ -272,15 +283,32 @@ function EventDetailModal({
               </Button>
             </a>
           )}
+          {/* Watch Now — TMDB 드라마 + US OTT provider 있을 때만. TMDB 가 region 기반 리다이렉트. */}
+          {shouldShowWatchNow(event) && (
+            <a
+              href={event.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block"
+            >
+              <Button
+                className="w-full py-3 rounded-xl font-medium text-white"
+                style={{ backgroundColor: "#FF4B6E" }}
+              >
+                <Play className="w-4 h-4 mr-2" />
+                Watch Now
+              </Button>
+            </a>
+          )}
           <Button
-            variant={shouldShowGetTickets(event) ? "outline" : "default"}
+            variant={hasExternalPrimaryCta(event) ? "outline" : "default"}
             className={`w-full py-3 rounded-xl font-medium ${
-              shouldShowGetTickets(event)
+              hasExternalPrimaryCta(event)
                 ? "border-border/50 hover:bg-secondary/50"
                 : "text-white"
             }`}
             style={
-              shouldShowGetTickets(event)
+              hasExternalPrimaryCta(event)
                 ? undefined
                 : { backgroundColor: "#FF4B6E" }
             }
@@ -620,16 +648,34 @@ function UpcomingAccordionItem({
             </a>
           )}
 
+          {/* Watch Now — TMDB 드라마 + US OTT provider 있을 때만 1차 CTA. */}
+          {shouldShowWatchNow(event) && (
+            <a
+              href={event.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block"
+            >
+              <Button
+                className="w-full py-3 rounded-xl font-medium text-white"
+                style={{ backgroundColor: "#FF4B6E" }}
+              >
+                <Play className="w-4 h-4 mr-2" />
+                Watch Now
+              </Button>
+            </a>
+          )}
+
           <Button
             onClick={handleAddToGCal}
-            variant={shouldShowGetTickets(event) ? "outline" : "default"}
+            variant={hasExternalPrimaryCta(event) ? "outline" : "default"}
             className={`w-full py-3 rounded-xl font-medium ${
-              shouldShowGetTickets(event)
+              hasExternalPrimaryCta(event)
                 ? "border-border/50 hover:bg-secondary/50"
                 : "text-white"
             }`}
             style={
-              shouldShowGetTickets(event)
+              hasExternalPrimaryCta(event)
                 ? undefined
                 : { backgroundColor: "#FF4B6E" }
             }
@@ -1183,6 +1229,26 @@ export default function HallyuCalendarPage() {
                 </div>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* TMDB attribution — ToS 의무 표기.
+            "This product uses the TMDB API but is not endorsed or certified by TMDB."
+            드라마 이벤트가 source_api='tmdb' 로 캘린더에 노출되므로 페이지 단위 박제. */}
+        <section className="mb-8 pt-8 border-t border-border/30">
+          <div className="text-center text-xs text-muted-foreground leading-relaxed">
+            <p className="mb-1">
+              This product uses the{" "}
+              <a
+                href="https://www.themoviedb.org"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground transition-colors"
+              >
+                TMDB
+              </a>{" "}
+              API but is not endorsed or certified by TMDB.
+            </p>
           </div>
         </section>
 

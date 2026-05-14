@@ -148,6 +148,50 @@ export async function fetchTvDetail(tmdbId: number): Promise<TmdbTvDetail | null
   return (await res.json()) as TmdbTvDetail
 }
 
+// ============================================================
+// HallyuCalendar — drama 이벤트 'Watch Now' 외부 링크
+// ============================================================
+
+interface TmdbWatchProvidersResponse {
+  id: number
+  results?: Record<
+    string,
+    {
+      link?: string // TMDB 제공 region 별 dispatcher URL — 클릭 시 TMDB 가 사용자 region 기반 리다이렉트
+      flatrate?: Array<{ provider_id: number; provider_name: string }>
+      buy?: Array<{ provider_id: number; provider_name: string }>
+      rent?: Array<{ provider_id: number; provider_name: string }>
+    }
+  >
+}
+
+// TMDB tv/{id}/watch/providers — US region 의 flatrate/buy/rent 중 하나라도 있으면 link 반환.
+// 비어 있으면 null → UI 에서 Watch Now 버튼 미노출.
+// 404·기타 에러는 null 로 swallow (cron 전체 실패 방지).
+// TMDB ToS: 출처 표기 의무 — UI 푸터에 박제.
+export async function fetchWatchProvidersUs(tmdbId: number): Promise<string | null> {
+  const url = `${TMDB_BASE}/tv/${tmdbId}/watch/providers`
+  try {
+    const res = await fetch(url, {
+      headers: tmdbHeaders(),
+      next: { revalidate: 86400 }, // 24h — provider 목록은 자주 변하지 않음
+    })
+    if (!res.ok) return null
+    const data: TmdbWatchProvidersResponse = await res.json()
+    const us = data.results?.US
+    if (!us) return null
+    const hasAnyProvider =
+      (us.flatrate?.length ?? 0) > 0 ||
+      (us.buy?.length ?? 0) > 0 ||
+      (us.rent?.length ?? 0) > 0
+    if (!hasAnyProvider) return null
+    return us.link ?? null
+  } catch (err) {
+    console.error(`[tmdb] watch/providers ${tmdbId} 실패:`, err)
+    return null
+  }
+}
+
 // TMDB status → 우리 status 'ongoing' | 'completed' 매핑
 export function mapTmdbStatus(tmdbStatus: string | undefined): "ongoing" | "completed" | null {
   if (!tmdbStatus) return null
