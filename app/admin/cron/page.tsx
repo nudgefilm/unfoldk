@@ -75,16 +75,18 @@ async function load(): Promise<LoadResult> {
     // 라우트별로 result_json 안에서 핵심 메트릭 추출
     let metric = "—"
     if (route === "ingest-all" && data.result_json) {
-      // tmdb/youtube/lastfm 각 단계의 inserted/updated 합산 — 정확한 키는 ingest 결과에 따라 다르므로 대략치
-      const total = Object.values(data.result_json as Record<string, unknown>).reduce<number>((acc, v) => {
-        if (typeof v === "object" && v !== null) {
-          const obj = v as Record<string, unknown>
-          const ins = typeof obj.inserted === "number" ? obj.inserted : 0
-          const upd = typeof obj.updated === "number" ? obj.updated : 0
-          return acc + ins + upd
-        }
-        return acc
-      }, 0)
+      // ingest-all 라우트가 payload 에 직접 total_upserted 를 박제 (단일 진실원).
+      // 과거 로그는 total_upserted 없음 → 각 단계의 upserted 합산 fallback.
+      // (기존 inserted/updated 키 합산 로직은 실제 ingest 결과에 그 키가 없어 항상 0 이던 버그.)
+      const rj = data.result_json as Record<string, unknown>
+      const direct = typeof rj.total_upserted === "number" ? rj.total_upserted : null
+      const total =
+        direct ??
+        Object.values(rj).reduce<number>((acc, v) => {
+          if (typeof v !== "object" || v === null) return acc
+          const u = (v as { upserted?: unknown }).upserted
+          return acc + (typeof u === "number" ? u : 0)
+        }, 0)
       metric = total.toLocaleString()
     } else if (route === "ingest-kopis" && data.result_json) {
       const r = data.result_json as { upserted?: number }

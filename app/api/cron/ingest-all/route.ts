@@ -49,8 +49,18 @@ export async function GET(request: Request) {
     }
   }
 
+  // 각 단계 결과의 upserted 합산 — 어드민 cron 카드의 "수집 이벤트" 메트릭.
+  // 단계 결과 객체에 'error' 키가 있으면 upserted 가 없거나 0 (실패 단계는 자연스럽게 0 합산).
+  // 새 단계 추가 시 별도 변경 불필요 — Object.values 자동 순회.
+  const totalUpserted = Object.values(results).reduce<number>((acc, v) => {
+    if (typeof v !== "object" || v === null) return acc
+    const u = (v as { upserted?: unknown }).upserted
+    return acc + (typeof u === "number" ? u : 0)
+  }, 0)
+
   const payload = {
     elapsedMs: Date.now() - t0,
+    total_upserted: totalUpserted,
     ...results,
   }
 
