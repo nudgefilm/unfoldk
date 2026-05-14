@@ -5,7 +5,7 @@
 // 비회원 Top 5, 로그인 Top 10, 유료(monthly/annual) Top 20+
 // Artist Comparison 섹션은 v0 그대로 (Pro 잠금)
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Search, TrendingUp, TrendingDown, Minus, Lock, Flame } from "lucide-react"
@@ -77,11 +77,7 @@ export default function KpopStatsPage() {
   const [chartLoading, setChartLoading] = useState(true)
   const [trending, setTrending] = useState<TrendingItem[]>([])
   const [trendingLoading, setTrendingLoading] = useState(true)
-  // Artist Spotlight 섹션 ref — 차트 행/Trending 카드 클릭 시 스크롤 타겟.
-  // 상세 페이지 구현 전까지 임시 동작: 같은 페이지 Spotlight 로 부드럽게 이동.
-  const spotlightSectionRef = useRef<HTMLElement>(null)
-  // 클릭에 의한 setSpotlightId 만 스크롤 트리거 — 페이지 첫 로드 자동 selection 은 스크롤 안 함.
-  const pendingScrollRef = useRef(false)
+  // Spotlight 는 차트 #1 자동 표시용 preview. 차트 행/Trending 클릭은 /kpop/[id] 로 navigation.
   const [spotlightId, setSpotlightId] = useState<string | null>(null)
   const [spotlight, setSpotlight] = useState<{
     artist: ArtistDetail
@@ -168,25 +164,6 @@ export default function KpopStatsPage() {
         setSpotlight(null)
       })
   }, [spotlightId])
-
-  // spotlight 데이터 도착 후 클릭에 의한 selection 이면 섹션으로 스크롤.
-  // 페이지 첫 로드 시 자동 선택(chart[0])은 pendingScrollRef=false 라 스크롤 X.
-  useEffect(() => {
-    if (!spotlight || !pendingScrollRef.current) return
-    spotlightSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-    pendingScrollRef.current = false
-  }, [spotlight])
-
-  // 차트 행 / Trending 카드 클릭 핸들러 — 같은 아티스트면 즉시 스크롤만, 다른 아티스트면
-  // setSpotlightId → fetch → useEffect 에서 스크롤. 임시 동작 (상세 페이지 구현 전까지).
-  const handleSpotlightSelect = (artistId: string) => {
-    if (spotlightId === artistId && spotlight) {
-      spotlightSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-      return
-    }
-    pendingScrollRef.current = true
-    setSpotlightId(artistId)
-  }
 
   // 노출 개수 분기
   const visibleLimit = !authChecked
@@ -326,10 +303,9 @@ export default function KpopStatsPage() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {trending.map((item) => (
-                <button
+                <Link
                   key={item.artist_id}
-                  type="button"
-                  onClick={() => handleSpotlightSelect(item.artist_id)}
+                  href={`/kpop/${item.artist_id}`}
                   className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex flex-col items-center text-center cursor-pointer hover:bg-[#2a2a2c] hover:border-primary/40 transition-colors"
                 >
                   {/* Rank badge — 좌상단 absolute 대신 상단 inline */}
@@ -369,7 +345,7 @@ export default function KpopStatsPage() {
                       {formatBigNumber(item.total_views)} views
                     </p>
                   )}
-                </button>
+                </Link>
               ))}
             </div>
           )}
@@ -407,10 +383,9 @@ export default function KpopStatsPage() {
               </div>
             ) : (
               filteredChart.map((item) => (
-                <button
+                <Link
                   key={item.artist_id}
-                  type="button"
-                  onClick={() => handleSpotlightSelect(item.artist_id)}
+                  href={`/kpop/${item.artist_id}`}
                   className="w-full grid grid-cols-12 gap-4 px-6 py-4 border-b border-border/20 last:border-b-0 cursor-pointer hover:bg-[#2a2a2c] transition-colors text-left"
                 >
                   {/* Rank Badge */}
@@ -486,7 +461,7 @@ export default function KpopStatsPage() {
                       </>
                     )}
                   </div>
-                </button>
+                </Link>
               ))
             )}
           </div>
@@ -505,9 +480,9 @@ export default function KpopStatsPage() {
           )}
         </section>
 
-        {/* Artist Spotlight — ref 로 차트/Trending 클릭 시 스크롤 타겟. */}
+        {/* Artist Spotlight — 차트 #1 자동 preview. 클릭 navigation 은 /kpop/[id] 로 분리. */}
         {spotlight && (
-          <section ref={spotlightSectionRef} className="mb-12 scroll-mt-24">
+          <section className="mb-12">
             <h2 className="text-2xl font-semibold text-white mb-6">
               Artist Spotlight
             </h2>
