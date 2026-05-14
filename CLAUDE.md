@@ -95,6 +95,13 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 9. UI 수정 금지 — v0 완성. 로직·API 연동만 추가
 ```
 
+### YouTube 채널 자동 매핑 원칙
+- 검색 쿼리: `${artistName} official` 기본 적용 (`lib/api/youtube.ts:searchChannelByName`)
+- 검색 결과 1위 채널 `subscriberCount` 10만 이상 검증 후 매핑 (`channels.list` 1 unit 추가)
+- 채널명과 아티스트명 유사도 낮으면 NULL 유지 (오매핑 > NULL)
+- 어드민 수동 확인은 NULL 상태 아티스트 예외 케이스만
+- BTS·BLACKPINK 등 대형 아티스트는 채널ID 하드코딩 우선 (migration `0019_fix_bts_blackpink_channel.sql` 패턴)
+
 ---
 
 ## 7. 자주 하는 실수 (하지 말 것)

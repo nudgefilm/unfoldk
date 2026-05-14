@@ -5,8 +5,9 @@
 //   - videos.list  :   1 unit
 //   - channels.list:   1 unit (50개/call, KpopStats 인제스트 — 25명 = 1 unit, 매우 저렴)
 //
-// channel_id 자동 매핑(searchChannelByName) 은 첫 cron 1회만 100 unit/명 사용
-// — 매핑 후 채널 ID 가 DB 에 박혀서 다음 cron 부터는 channels.list 만 호출.
+// channel_id 자동 매핑(searchChannelByName) 은 첫 cron 1회만 101 unit/명 사용
+// (search.list 100 + 검증용 channels.list 1) — 매핑 후 다음 cron 부터는 channels.list 만 호출.
+// 자세한 매핑 게이트는 CLAUDE.md §6 "YouTube 채널 자동 매핑 원칙" 참조.
 
 import { google, youtube_v3 } from "googleapis"
 
@@ -107,31 +108,80 @@ export async function getChannelStats(
 // 채널 ID 자동 매핑 — KpopStats 시드의 youtube_channel_id NULL 자동 채움용
 // ============================================
 
-// 아티스트 이름으로 1위 채널 검색 → channelId 반환 (없으면 null)
-//   - search.list type=channel: 100 units / call
-//   - 검색 결과 0건이면 null (오매핑 방지)
-//   - 호출 측에서 멱등 보장 (이미 channel_id 있으면 호출 skip)
-export async function searchChannelByName(query: string): Promise<string | null> {
+// 정규화: lowercase + 알파넘만 — 채널명/아티스트명 유사도 게이트용
+function normalizeForMatch(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "")
+}
+
+// 채널명과 아티스트명이 충분히 유사한가? (정규화 후 한쪽이 다른 쪽 포함)
+// "BTS 방탄소년단" / "BTS" 매칭, "BTS Fan Channel" / "BTS" 도 통과 (보수적이지만 1차 게이트).
+function isNameSimilar(channelTitle: string, artistName: string): boolean {
+  const c = normalizeForMatch(channelTitle)
+  const a = normalizeForMatch(artistName)
+  if (c.length === 0 || a.length === 0) return false
+  return c.includes(a) || a.includes(c)
+}
+
+// 채널 자동 매핑 임계값
+const MIN_SUBSCRIBERS_FOR_AUTO_MAP = 100_000
+
+// CLAUDE.md §6 "YouTube 채널 자동 매핑 원칙" 구현:
+//   1. q = `${artistName} official` 로 검색 → search.list 1위 channelId
+//   2. 채널명 vs 아티스트명 유사도 낮으면 NULL (오매핑 > NULL)
+//   3. channels.list 로 subscriberCount 검증 — 10만 미만이면 NULL
+//   비용: search.list 100 + channels.list 1 = 101 units / call.
+//   호출 측에서 멱등 보장 (이미 channel_id 있으면 호출 skip).
+export async function searchChannelByName(artistName: string): Promise<string | null> {
   const youtube = getYoutubeClient()
+  const query = `${artistName} official`
   try {
-    const res = await youtube.search.list({
+    // 1) search.list 1위
+    const searchRes = await youtube.search.list({
       part: ["snippet"],
       q: query,
       type: ["channel"],
       maxResults: 1,
     })
-    const item = res.data.items?.[0]
-    // search.list type=channel 응답에서 channelId 는 id.channelId 또는 snippet.channelId
+    const item = searchRes.data.items?.[0]
     const channelId = item?.id?.channelId ?? item?.snippet?.channelId ?? null
-    if (channelId) {
-      console.log(`[youtube] searchChannelByName q="${query}" → ${channelId}`)
-    } else {
-      console.log(`[youtube] searchChannelByName q="${query}" → 매칭 없음`)
+    const channelTitle = item?.snippet?.channelTitle ?? item?.snippet?.title ?? ""
+    if (!channelId) {
+      console.log(`[youtube] searchChannelByName "${artistName}" → 검색 0건`)
+      return null
     }
+
+    // 2) 채널명 유사도 — 낮으면 즉시 NULL (오매핑 차단)
+    if (!isNameSimilar(channelTitle, artistName)) {
+      console.log(
+        `[youtube] searchChannelByName "${artistName}" → 채널명 불일치 ` +
+          `("${channelTitle}", id=${channelId}) → NULL 유지`
+      )
+      return null
+    }
+
+    // 3) subscriberCount 게이트 — channels.list 1 unit
+    const chanRes = await youtube.channels.list({
+      part: ["statistics"],
+      id: [channelId],
+    })
+    const stats = chanRes.data.items?.[0]?.statistics
+    const subs = stats?.subscriberCount ? Number(stats.subscriberCount) : 0
+    if (stats?.hiddenSubscriberCount || subs < MIN_SUBSCRIBERS_FOR_AUTO_MAP) {
+      console.log(
+        `[youtube] searchChannelByName "${artistName}" → subs=${subs} ` +
+          `(<${MIN_SUBSCRIBERS_FOR_AUTO_MAP} 또는 hidden, "${channelTitle}") → NULL 유지`
+      )
+      return null
+    }
+
+    console.log(
+      `[youtube] searchChannelByName "${artistName}" → ${channelId} ` +
+        `("${channelTitle}", ${subs} subs)`
+    )
     return channelId
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    console.error(`[youtube] searchChannelByName 실패 q="${query}":`, msg)
+    console.error(`[youtube] searchChannelByName 실패 "${artistName}":`, msg)
     return null
   }
 }
