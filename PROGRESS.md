@@ -4,6 +4,79 @@
 
 ---
 
+## 현재 상태 (2026-05-15 세션 13 / KpopStats 아티스트 확장 — 25 → 280명 + /kpop/[id] 상세 + 노출 인프라)
+
+### 완료
+
+#### A. 아티스트 상세 페이지 신설 (`21477a5`)
+- **`app/kpop/[id]/page.tsx`** — Server Component. 아티스트 헤더 (썸네일·이름·name_ko·K-pop 태그·Debut year), Stats 3박스 (YouTube Subscribers / Total Views / Last.fm Listeners), 30-Day Trend SVG (Spotlight 와 동일 알고리즘), Upcoming Events 카드 (HallyuCalendar `hallyu_calendar_events` 에서 `artist_or_drama ILIKE name(_ko)` 매칭, 최대 5건), `ReportButton(contentType="artist")`. `notFound()` + `generateMetadata` OG 태그.
+- `/kpop` 차트 행 / Trending 카드 클릭 → `<Link href="/kpop/[id]">` navigation. 기존 inline Spotlight scroll 로직 제거 (Spotlight 섹션은 차트 #1 자동 preview 로 유지).
+
+#### B. Last.fm Top 500 시드 → kpop_artists 25 → 280명
+- `tag.gettopartists` API 로 k-pop 태그 전체 카운트 (6,848명) + 상위 500 분포 조사: 1M+ 24명 / 500K~1M 54명 / 100K~500K 198명 / 10K~100K 146명 / <10K 78명.
+- 리스너 ≥ 100K 인 **277명 candidates** → `kpop_artists` 에 `ignore-duplicates` 로 upsert → **255명 신규 추가** (기존 25명 중 21명이 top500 매칭, 4명은 누락). 임시 PS 스크립트 (`$env:TEMP/lastfm-kpop-seed.ps1`).
+
+#### C. YouTube 채널 자동 매핑 cap + 정확도 게이트 (`2093555`, `846a27f`)
+- **`lib/ingest/kpop-stats.ts:MAX_CHANNEL_MAPPING_PER_RUN = 50`** — search.list 100 units/명 × 250명 = 25,000 units (>10,000 quota). 50명/일 분할 → 5일 자동 완결. 로그에 이연 카운트 노출.
+- **`lib/api/youtube.ts:searchChannelByName` 3중 게이트**:
+  1. `q = "${artistName} official"` (1위 박제만으론 오매핑 빈발)
+  2. 채널명 정규화 매칭 (한쪽이 다른 쪽 포함, 실패 → NULL)
+  3. `channels.list` 로 subscriberCount ≥ 100K (hidden 도 차단)
+  - 비용 100 → 101 units/명. "오매핑 > NULL" 원칙.
+- **오늘 50명 manual mapping 시도** → YouTube quota 이미 소진 (`quotaExceeded`) 으로 4명만 성공, 46명 실패. 나머지 ~250명은 cap 적용된 cron 으로 5일 분할 처리 예정.
+
+#### D. CLAUDE.md 정책 강화 — §6 추가 / §7 hazard 추가 / 🎯 현재 제거 (`3f99eb4`, `846a27f`, `531cda3`)
+- §6 신규 subsection 2건:
+  - **YouTube 채널 자동 매핑 원칙** — 위 C 의 게이트 명문화.
+  - **KpopStats 아티스트 노출 원칙** — Top 20 → "More Artists" → 전체 목록. YouTube NULL 은 "Coming soon". `member_count` NULL/1/2+ 의미.
+- §7 hazard 2건:
+  - search.list 1위 박제 = 공식 채널 미스 빈발 (BTS·BLACKPINK migration 0019 전례)
+  - search.list 대량 호출 quota 초과 위험 → cap 으로 분할
+- 상단 "🎯 현재" 섹션 제거 (PROGRESS.md 에 일원화).
+
+#### E. KpopStats 노출 확장 (`531cda3`)
+- **migration 0020_kpop_artists_member_count.sql** — `kpop_artists.member_count integer` (NULL/1/2+ check 제약). **사용자 SQL Editor 적용 완료**.
+- **`/api/kpop/artists` 재작성** — `q` (검색) + `type` (group/solo) + `sort` (listeners/name) + `page` + `pageSize`. items + total + page + pageSize 반환. 기존 미사용 코드라 호환성 우려 없음.
+- **`/kpop` 페이지**: 검색 input 을 DB 기반으로 (300ms debounce). 검색 활성 시 차트·Trending·Spotlight·Comparison hide. Top 20 차트 아래 **"More Artists" 섹션** (listeners 순 20명, chart 중복 제외). `ArtistCard` 공용 컴포넌트.
+- **`/kpop/artists` 신규 페이지** — 전체 카드 그리드 (30/page). Type 필터 (All/Group/Solo) + Sort (Listeners/Name) + 페이지네이션. YouTube NULL 카드 "YouTube coming soon".
+
+#### F. Claude Haiku 4.5 로 member_count 자동 분류 (PS 일회성 스크립트)
+- NULL `member_count` 280명 → 10명/batch × 28 batches → Anthropic API `claude-haiku-4-5-20251001`. JSON 배열 응답 파싱, Supabase PATCH.
+- **결과: 솔로 96 / 그룹 178 / 미분류 6 / 오류 0**. 미분류 6명은 어드민 수동 확인 필요. 비용 ~$0.01.
+
+#### G. 어드민 member_count 입력 (`dd03d84`)
+- CLAUDE.md §7 "6단계 동기화" 적용: `AdminKpopArtistRow.member_count` / `select` clause / zod POST·PATCH (1~50 nullable) / FormState + EMPTY_FORM + startEdit / 폼 JSX (데뷔 연도 옆 input) / handleSubmit / 테이블 **유형** 컬럼 (미분류 yellow / 솔로 / 그룹(N)).
+
+### 다음 세션 후보
+- carry-over (세션 12):
+  - 메인 페이지 hang 추적 (재부팅 후 결과 의존, 세션 12 G 블로커)
+  - TMDB 드라마 모달 장르·평점 표시 / OTT 이름 노출
+  - Curation K waitlist API + 지도 hover 모달
+  - Claude Haiku 분류 로직 fan_event_requests 이식
+  - fan_event_requests 제보 폼 / admin 검토 큐 UI 정비
+  - Cookie Policy 본문 법무 검토 / Vercel·Supabase 비용 점검
+- 이번 세션 신규:
+  - YouTube quota 리셋 (PT 자정) 후 채널 매핑 재시도 — 일별 50명 cron 자동 분할
+  - `/kpop/[id]` 의 latest stats null 케이스 — 폴백 (가장 최근 non-null history row 선택) 검토 필요
+  - 어드민에 미분류 6명 (Haiku unsure) 빠른 백필 UI — 현재는 일반 수정 다이얼로그로만 가능
+  - 새 아티스트 시드 정기화: Last.fm Top 500 monthly refresh + 신규만 add (이번 세션 일회성 스크립트의 cron 화)
+
+### 블로커
+- (세션 12 carry-over) 메인 페이지 hang + Ghost Globe 미작동. 재부팅 후 결과 의존.
+- YouTube 일일 quota 초과 — 오늘 search.list 5,000 units 시도 (4명 성공 / 46명 실패, 5,000 units 누적). PT 자정 리셋 후 cron 정상화.
+
+### 사용자 액션 필요
+- (세션 12 carry-over)
+  - `0018_event_external_url.sql` 미실행 시 `/admin/cron` 적용
+  - `0019_fix_bts_blackpink_channel.sql` 미실행 시 SQL Editor 실행
+  - 메인 페이지 hang 진단 (재부팅 후 hard refresh / incognito)
+- 이번 세션:
+  - **`0020_kpop_artists_member_count.sql` 적용 완료 (2026-05-15 확인)**
+  - 어드민 `/admin/kpop` 에서 Haiku 미분류 6명 백필 (시간 날 때)
+  - `/kpop/artists` 페이지 동작 확인 (Group/Solo 필터, pagination)
+
+---
+
 ## 현재 상태 (2026-05-14 세션 12 / KpopStats 전면 개선 + 캐싱 인프라 + 메인 hang 블로커)
 
 > 새 PROGRESS 정책 (세션 종료 시점 일괄, CLAUDE.md §8) 첫 적용. 오늘 세션 11 이후 누적 작업 한 묶음.

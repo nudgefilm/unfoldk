@@ -21,6 +21,71 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-15 kpop_artists.member_count 컬럼 추가 (DB 스키마)
+
+- 결정 내용:
+  - migration `0020_kpop_artists_member_count.sql` — `kpop_artists` 에 `member_count integer` 추가.
+  - 의미: NULL=미분류 / 1=솔로 / 2+=그룹 (인원 수).
+  - check 제약 `member_count IS NULL OR member_count >= 1`.
+  - `/kpop/artists` 의 Group/Solo 필터에서 사용.
+- 이유:
+  - Top 500 Last.fm 시드로 255명 신규 추가하면서 솔로/그룹 혼재. 노출 페이지에 필터가 필요해짐.
+  - boolean `is_group` 보다 정수 `member_count` 가 정보량 우위 (그룹 인원 수 동시 표현 가능).
+  - NULL 허용 — 어드민 수동 backfill + AI 분류 (Claude Haiku) 보조.
+- 대안:
+  - `artist_type` enum (group/solo/unknown): 표현력 부족 — 그룹 인원수 별도 필요.
+  - 분류 미구현 채로 노출: 사용자 요청 "그룹/솔로 필터" 만족 X.
+- 후속:
+  - Haiku 4.5 일회성 분류로 280명 중 96명 솔로 / 178명 그룹 / 6명 미분류로 backfill 완료.
+  - 어드민 `/admin/kpop` 에 입력 UI 반영 — 6단계 동기화 (zod ×2 / type / FormState / 폼 / 테이블 컬럼).
+
+## 2026-05-15 YouTube 채널 자동 매핑 정확도 게이트
+
+- 결정 내용:
+  - `lib/api/youtube.ts:searchChannelByName` 에 3중 게이트 추가:
+    1. 검색 쿼리 `${artistName} official`
+    2. 채널명 정규화 매칭 (한쪽이 다른 쪽 포함, 실패 → NULL)
+    3. `channels.list` 로 `subscriberCount ≥ 100,000` 검증 (hidden 도 차단)
+  - 비용: search.list 100 + channels.list 1 = **101 units/명**.
+  - CLAUDE.md §6 에 "YouTube 채널 자동 매핑 원칙" 으로 명문화.
+- 이유:
+  - search.list 1위 박제만으론 공식 채널 미스 빈발. BTS·BLACKPINK 초기 매핑 미스 → migration 0019 로 정정한 전례.
+  - 대량 시드 (255명 신규) 후 어드민 수동 정정 부담 최소화.
+  - "오매핑 > NULL" 원칙 (NULL 은 다음 cron 에서 재시도 가능, 잘못 박힌 ID 는 자동 매핑 단계에서 skip).
+- 대안:
+  - 자동 매핑 완전 폐기 + 어드민 수동만: 운영 부담 ↑.
+  - 화이트리스트 (verified channel ID 목록) 도입: 신규 아티스트 매번 수동 관리 필요.
+
+## 2026-05-15 YouTube channel 자동 매핑 일일 50명 cap
+
+- 결정 내용:
+  - `lib/ingest/kpop-stats.ts:MAX_CHANNEL_MAPPING_PER_RUN = 50`.
+  - cron 1회당 미매핑 아티스트 최대 50명만 search.list 호출. 나머지는 다음 cron 으로 이연.
+  - 로그에 `이연 N명` 카운트 노출.
+- 이유:
+  - YouTube daily quota 10,000 units. search.list 100 units/명 + channels.list 1 = 101.
+  - 250명 신규 매핑 시도 시 ~25,250 units 필요 → 매번 quota 초과 → 매핑 영구 실패.
+  - 50 × 101 = 5,050 units (다른 호출 여유 ~50% 확보). 5일에 250명 자동 완결.
+- 대안:
+  - quota 분리 GCP 프로젝트 추가: 운영 복잡도 ↑, tubewatch.kr 와 분리되어야 함 (CLAUDE.md §7).
+  - 매핑 시점만 별도 manual run: 운영 부담 ↑.
+
+## 2026-05-15 KpopStats 아티스트 노출 구조 (Top 20 → More Artists → 전체 목록)
+
+- 결정 내용:
+  - `/kpop` 페이지: Top 20 차트 + 검색 (DB 기반) + "More Artists" 섹션 (listeners 순 20명, chart 중복 제외).
+  - **신규 페이지** `/kpop/artists`: 전체 카드 그리드 (30/page), Type 필터 (All/Group/Solo), Sort (Listeners/Name), 페이지네이션.
+  - YouTube 채널 NULL 아티스트는 Last.fm 데이터만 표시, YouTube 영역은 "Coming soon".
+  - `/api/kpop/artists` 재작성 — `q`/`type`/`sort`/`page`/`pageSize`. 응답 `{ items, total, page, pageSize }`.
+  - CLAUDE.md §6 에 "KpopStats 아티스트 노출 원칙" 명문화.
+- 이유:
+  - 시드 25 → 280명 확장 후 Top 20 차트만으론 95% 아티스트가 검색·탐색 불가.
+  - Top 20 는 weekly_views 정렬 (실시간 인기), "More Artists" 는 listeners 정렬 (누적 영향력) — 다른 가치 표시.
+  - YouTube 매핑 5일 자동 분할 중이라 NULL 아티스트가 다수 — "Coming soon" 로 graceful degradation.
+- 대안:
+  - 차트 limit 만 20 → 100 으로 확장: 차트의 의미 (Top N "랭킹") 희석.
+  - 검색만 추가, 전체 목록 페이지 생략: 탐색 UX 부족 (어떤 아티스트가 있는지 알 길 없음).
+
 ## 2026-05-14 Eventbrite + Bandsintown 인제스트 자동화 폐기
 
 - 결정 내용:
