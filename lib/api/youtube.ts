@@ -51,17 +51,45 @@ export async function getChannelStats(
       maxResults: 50,
     })
     const items = res.data.items ?? []
+    // 응답에 누락된 ID 진단 — channels.list 가 존재하지 않는 채널 ID 는 그냥 안 반환.
+    const returnedIds = new Set(items.map((it) => it.id).filter((id): id is string => !!id))
+    const missing = chunk.filter((id) => !returnedIds.has(id))
+    if (missing.length > 0) {
+      console.warn(
+        `[youtube] channels.list 누락 ID — 요청 ${chunk.length}건 중 ${missing.length}건:`,
+        missing
+      )
+    }
     for (const ch of items) {
       if (!ch.id) continue
       const stats = ch.statistics
       // thumbnails.default 가 가장 작고 안정적 (high 는 채널별로 누락 가능).
       // URL 만 저장 — 이미지 자체는 저장 금지 (CLAUDE.md §10 저작권).
-      const thumb = ch.snippet?.thumbnails
+      // googleapis SDK 일부 버전은 `default` 키워드 충돌로 `default_` 사용 가능 → 둘 다 fallback.
+      const thumb = ch.snippet?.thumbnails as
+        | {
+            default?: { url?: string }
+            default_?: { url?: string }
+            medium?: { url?: string }
+            high?: { url?: string }
+          }
+        | undefined
+      const thumbnailUrl =
+        thumb?.default?.url ??
+        thumb?.default_?.url ??
+        thumb?.medium?.url ??
+        thumb?.high?.url ??
+        null
+      if (!thumbnailUrl) {
+        console.warn(
+          `[youtube] channels.list ${ch.id} thumbnails 추출 실패 — raw:`,
+          JSON.stringify(thumb)
+        )
+      }
       results.push({
         channelId: ch.id,
         title: ch.snippet?.title ?? null,
-        thumbnailUrl:
-          thumb?.default?.url ?? thumb?.medium?.url ?? thumb?.high?.url ?? null,
+        thumbnailUrl,
         subscribers:
           stats?.hiddenSubscriberCount || !stats?.subscriberCount
             ? null

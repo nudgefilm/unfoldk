@@ -34,6 +34,24 @@ export interface KpopStatsIngestResult {
   ytThumbnailsAvailable: number    // getChannelStats 응답에 thumbnail 있던 채널 수
   thumbnailsAlreadySet: number     // 이미 채워져 있어 skip
   thumbnailsBackfilled: number     // 이번 실행에서 새로 채운 수
+  // 추가 진단 — "왜 특정 아티스트 (BTS 등) 가 안 채워지는지" 추적용
+  channelsRequested: number        // getChannelStats 에 보낸 채널 ID 수
+  channelsReturned: number         // YouTube 가 반환한 채널 수
+  missingChannelIds: string[]      // 요청했는데 응답에 없는 ID (=잘못된 ID 또는 비공개 채널)
+  thumbnailDebug: Array<{
+    artist: string
+    channelId: string | null
+    ytFound: boolean              // ytStatsMap.has(channelId)
+    ytThumb: string | null
+    action:
+      | "skipped_already_set"
+      | "skipped_no_channel_id"
+      | "skipped_channel_missing"
+      | "skipped_no_yt_thumb"
+      | "updated"
+      | "update_zero_rows"
+      | "update_error"
+  }>
   upserted: number
   errors: string[]
   note?: string
@@ -76,6 +94,10 @@ export async function runKpopStatsIngest(
       ytThumbnailsAvailable: 0,
       thumbnailsAlreadySet: 0,
       thumbnailsBackfilled: 0,
+      channelsRequested: 0,
+      channelsReturned: 0,
+      missingChannelIds: [],
+      thumbnailDebug: [],
       upserted: 0,
       errors: [`artists fetch 실패: ${artistsErr.message}`],
     }
@@ -92,6 +114,10 @@ export async function runKpopStatsIngest(
       ytThumbnailsAvailable: 0,
       thumbnailsAlreadySet: 0,
       thumbnailsBackfilled: 0,
+      channelsRequested: 0,
+      channelsReturned: 0,
+      missingChannelIds: [],
+      thumbnailDebug: [],
       upserted: 0,
       errors: [],
       note: "대상 아티스트 없음",
@@ -178,40 +204,117 @@ export async function runKpopStatsIngest(
   for (const yt of ytStatsMap.values()) {
     if (yt.thumbnailUrl) ytThumbnailsAvailable++
   }
+
+  // channels.list 응답에 없는 채널 ID 진단 — 잘못된 ID 인지 즉시 판정.
+  // YouTube 는 존재 안 하는 channel ID 에 대해 그냥 빈 응답 (404 X) → 우리가 직접 검출.
+  const channelsRequested = ytChannelIds.length
+  const channelsReturned = ytStatsMap.size
+  const missingChannelIds = ytChannelIds.filter((id) => !ytStatsMap.has(id))
+  if (missingChannelIds.length > 0) {
+    console.warn(
+      `[ingest-kpop-stats] channels.list 응답 누락 ${missingChannelIds.length}건 — ` +
+        `존재하지 않거나 비공개 채널: ${missingChannelIds.join(", ")}`
+    )
+  }
+
   console.log(
     `[ingest-kpop-stats] thumbnail backfill 시작 — ${artists.length}명 중 ` +
       `${ytThumbnailsAvailable}개 채널이 YouTube thumbnail 보유`
   )
+
+  const thumbnailDebug: KpopStatsIngestResult["thumbnailDebug"] = []
   for (const a of artists) {
     if (a.thumbnail_url && a.thumbnail_url.trim().length > 0) {
       thumbnailsAlreadySet++
+      thumbnailDebug.push({
+        artist: a.name,
+        channelId: a.youtube_channel_id,
+        ytFound: a.youtube_channel_id ? ytStatsMap.has(a.youtube_channel_id) : false,
+        ytThumb: a.youtube_channel_id ? ytStatsMap.get(a.youtube_channel_id)?.thumbnailUrl ?? null : null,
+        action: "skipped_already_set",
+      })
       continue
     }
-    const yt = a.youtube_channel_id ? ytStatsMap.get(a.youtube_channel_id) : null
-    if (!yt?.thumbnailUrl) {
-      // 진단 — 어떤 이유로 skip 됐는지 추적
-      console.log(
-        `[ingest-kpop-stats] thumbnail skip (${a.name}): ` +
-          `channelId=${a.youtube_channel_id ?? "null"}, ` +
-          `ytMapHit=${!!yt}, ytThumb=${yt?.thumbnailUrl ?? "null"}`
+    if (!a.youtube_channel_id) {
+      thumbnailDebug.push({
+        artist: a.name,
+        channelId: null,
+        ytFound: false,
+        ytThumb: null,
+        action: "skipped_no_channel_id",
+      })
+      continue
+    }
+    const yt = ytStatsMap.get(a.youtube_channel_id)
+    if (!yt) {
+      // 채널 ID 가 응답에 없음 — 가장 흔한 BTS 류 실패. 잘못된 channel_id.
+      console.warn(
+        `[ingest-kpop-stats] thumbnail skip (${a.name}): channelId=${a.youtube_channel_id} ` +
+          `→ channels.list 응답에 없음 (ID 가 잘못됐을 가능성)`
       )
+      thumbnailDebug.push({
+        artist: a.name,
+        channelId: a.youtube_channel_id,
+        ytFound: false,
+        ytThumb: null,
+        action: "skipped_channel_missing",
+      })
       continue
     }
-    const { error: thumbErr } = await supabase
+    if (!yt.thumbnailUrl) {
+      console.warn(
+        `[ingest-kpop-stats] thumbnail skip (${a.name}): channelId=${a.youtube_channel_id} ` +
+          `→ 응답에는 있으나 thumbnail 추출 실패`
+      )
+      thumbnailDebug.push({
+        artist: a.name,
+        channelId: a.youtube_channel_id,
+        ytFound: true,
+        ytThumb: null,
+        action: "skipped_no_yt_thumb",
+      })
+      continue
+    }
+    // .select("id") 로 0행 update 도 감지 (RLS·id mismatch silent fail 방지)
+    const { data: updData, error: thumbErr } = await supabase
       .from("kpop_artists")
       .update({ thumbnail_url: yt.thumbnailUrl })
       .eq("id", a.id)
+      .select("id")
     if (thumbErr) {
       errors.push(`thumbnail backfill 실패 (${a.name}): ${thumbErr.message}`)
+      thumbnailDebug.push({
+        artist: a.name,
+        channelId: a.youtube_channel_id,
+        ytFound: true,
+        ytThumb: yt.thumbnailUrl,
+        action: "update_error",
+      })
+    } else if (!updData || updData.length === 0) {
+      errors.push(`thumbnail backfill 0행 (${a.name}): RLS 또는 id 매칭 실패`)
+      thumbnailDebug.push({
+        artist: a.name,
+        channelId: a.youtube_channel_id,
+        ytFound: true,
+        ytThumb: yt.thumbnailUrl,
+        action: "update_zero_rows",
+      })
     } else {
       a.thumbnail_url = yt.thumbnailUrl
       thumbnailsBackfilled++
+      thumbnailDebug.push({
+        artist: a.name,
+        channelId: a.youtube_channel_id,
+        ytFound: true,
+        ytThumb: yt.thumbnailUrl,
+        action: "updated",
+      })
     }
   }
   console.log(
     `[ingest-kpop-stats] thumbnail backfill 결과 — ` +
       `backfilled=${thumbnailsBackfilled}, alreadySet=${thumbnailsAlreadySet}, ` +
-      `ytAvailable=${ytThumbnailsAvailable}`
+      `ytAvailable=${ytThumbnailsAvailable}, missingChannels=${missingChannelIds.length}`
   )
 
   // 3. Last.fm 아티스트 info — chunk 5개씩 병렬 (rate limit 보호)
