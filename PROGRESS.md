@@ -4,6 +4,104 @@
 
 ---
 
+## 현재 상태 (2026-05-14 세션 11 / TMDB 수집 조건 완화 — 방영 중 드라마 포함)
+
+> 세션 10 진단 결과: tmdb 행 0건 + ingest 로그 "future first_air_date 매칭 없음" 반복. 원인은 필터가 `first_air_date >= today` 라 미래 premiere 만 잡음. TMDB discover/tv?sort_by=popularity 인기 한국 드라마는 대부분 이미 방영 시작 상태라 거의 매칭 안 됨.
+
+### 수정
+- **`lib/ingest/tmdb.ts`** 필터 윈도우: `first_air_date >= today` → `today-90d ≤ first_air_date ≤ today+30d`.
+  - 과거 90d: 한국 드라마 표준 시즌 16~24화 ≒ 2~3개월. 인기순이라 이 구간 대부분 "방영 중" 인기작.
+  - 미래 30d: 곧 방영 예정 (premiere).
+- title 분기: `firstAir >= today` → `${name} — Premiere`, 과거 → `${name} — Now Airing`.
+- event_date 는 그대로 first_air_date (KST 21시) — 캘린더에 방영 시작일 흔적으로 노출. "현재 보이는 월" 에 들어오면 표시됨.
+- baseRows 빈 분기 note 메시지도 업데이트.
+
+### 향후 정확도 개선 (TODO 주석 박제)
+- 정확한 "방영 중" 판정은 `tv/{id}` detail 의 next_episode_to_air 필드 필요. 60건 detail call 추가 부담이라 휴리스틱 채택. 추후 append_to_response 로 watch/providers + detail 동시 호출 최적화 가능.
+
+### 사용자 액션 필요
+1. **`/admin/cron` 에서 ingest-tmdb manual run 1회** — 윈도우 확장된 새 조건으로 즉시 backfill.
+2. 결과 JSON 의 `upserted` / `with_watch_url` / `without_watch_url` 카운트 확인 — 정상 흐름 검증.
+3. `/calendar` 에서 K-drama 탭으로 이동, 최근 월 둘러보며 드라마 이벤트 노출 확인.
+
+### 다음 세션 후보
+- carry-over 그대로 (세션 5~10):
+  - Ticketmaster 실데이터 인제스트 재검증
+  - KOPIS 캘린더 재노출 정책 + Melon Ticket url
+  - Curation K waitlist API
+  - Curation K 지도 hover 모달
+  - Claude Haiku 분류 로직 fan_event_requests 이식
+  - fan_event_requests 제보 폼 / admin 검토 큐 UI 정비
+  - Cookie Policy 본문 법무 검토 / Vercel·Supabase 비용 점검
+  - TMDB 드라마 모달에 장르·평점 표시
+  - TMDB watch providers 구체 OTT 이름 노출
+- 이번 세션 신규 후보:
+  - tv/{id} detail next_episode_to_air 기반 정확한 "방영 중" 판정 + 다음 화 날짜 event_date 사용
+  - append_to_response 로 detail + watch/providers 통합 호출 최적화
+
+### 블로커
+- 없음
+
+---
+
+## 현재 상태 (2026-05-14 세션 10 / TMDB Watch Now 디버깅 도구 + cron 라벨 fix)
+
+> 세션 8 의 TMDB Watch Now 가 실제 캘린더에서 미노출 — 코드는 정상이라 데이터 측 원인 추적용 도구 추가. 동시에 세션 9 박제한 metricLabel 버그 fix.
+
+### A. 코드 점검 결과 (정상)
+- `lib/api/tmdb.ts:fetchWatchProvidersUs` — US flatrate/buy/rent 어느 하나라도 있으면 `results.US.link` 반환, 비면 null. try/catch 로 에러 swallow.
+- `lib/ingest/tmdb.ts` — Promise.all 로 description 과 동시 fetch, `url: watchUrl` 로 upsert.
+- `app/calendar/page.tsx:shouldShowWatchNow` — `sourceApi==='tmdb' && !!url`.
+
+코드는 이상 없음 → 데이터 측 원인 가능성: (1) manual run 미실행 → 기존 행 url=null 그대로, (2) 한국 드라마 신작이 US OTT 미정 (정상), (3) TMDB_READ_ACCESS_TOKEN 누락·만료 시 fetch 가 throw → catch 로 일괄 null.
+
+### B. 진단 메트릭 박제
+- `TmdbIngestResult` 에 `with_watch_url` / `without_watch_url` 필드 추가. 다음 ingest-tmdb manual run 후 결과 JSON 에서 확인 가능.
+  - `with_watch_url: 0` + `without_watch_url: N` → fetchWatchProvidersUs 가 전체 null (토큰 또는 API 문제)
+  - `with_watch_url: M > 0` → 정상, 일부 드라마만 US provider 있음 → 캘린더에서 그 드라마들 모달엔 버튼 노출
+
+### C. 사용자 직접 진단 SQL (Supabase Dashboard SQL Editor)
+```sql
+-- TMDB 행 url 분포
+select count(*) filter (where url is not null) as with_url,
+       count(*) filter (where url is null) as without_url
+from public.hallyu_calendar_events
+where source_api = 'tmdb';
+
+-- 샘플 5건
+select id, title, event_date, url
+from public.hallyu_calendar_events
+where source_api = 'tmdb'
+order by event_date asc
+limit 5;
+```
+
+### D. admin/cron metricLabel 버그 fix (세션 9 박제 후속)
+- 기존: `route === "ingest-all" ? "수집 이벤트" : "발송 수"` → ingest-kopis·ingest-ticketmaster 도 "발송 수" 로 표시되던 오류.
+- 수정: `route === "send-reminders" ? "발송 수" : "수집 이벤트"` — send-reminders 만 발송, 나머지 ingest-* 는 전부 수집. 두 분기 위치 (no-data 분기 + 일반 분기) 모두 동일 헬퍼 변수로 통일.
+
+### 사용자 액션 필요
+1. `/admin/cron` 에서 ingest-tmdb manual run 1회 → 결과 JSON 의 `with_watch_url` 카운트 확인.
+2. 위 SQL 실행으로 DB 현재 상태 직접 확인.
+3. with_watch_url=0 이면 환경변수 TMDB_READ_ACCESS_TOKEN 점검 (Vercel env / .env.local).
+
+### 다음 세션 후보
+- carry-over 그대로 (세션 5~9):
+  - Ticketmaster 실데이터 인제스트 재검증
+  - KOPIS 캘린더 재노출 정책 + Melon Ticket url
+  - Curation K waitlist API
+  - Curation K 지도 hover 모달
+  - Claude Haiku 분류 로직 fan_event_requests 이식
+  - fan_event_requests 제보 폼 / admin 검토 큐 UI 정비
+  - Cookie Policy 본문 법무 검토 / Vercel·Supabase 비용 점검
+  - TMDB 드라마 모달에 장르·평점 표시
+  - TMDB watch providers 구체 OTT 이름 노출
+
+### 블로커
+- 없음
+
+---
+
 ## 현재 상태 (2026-05-14 세션 9 / ingest-all 수집 이벤트 카운트 fix)
 
 > 어드민 Cron 모니터의 ingest-all 카드 "수집 이벤트" 메트릭이 항상 0 으로 표시되던 버그 fix.
