@@ -9,11 +9,6 @@
 
 ---
 
-## 🎯 현재
-**HallyuCalendar (M+0)** MVP 2~3주 내 출시. 다음: KpopStats (M+1).
-
----
-
 ## 1. 프로젝트 개요
 
 - **UnfoldK** / unfoldk.com / 운영사 **UNFOLD LAB** (unfoldlab.net · tubewatch.kr)
@@ -131,6 +126,16 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 
 ❌ 데이터 오염 증상을 SQL UPDATE 로 즉시 봉합 → 임시방편
    진짜 원인은 write path 코드 추적. SQL 백필은 코드 fix 와 함께만 가치.
+
+❌ kpop_artists.youtube_channel_id 자동 매핑 = search.list 1위 박제
+   공식 채널 미스 빈발 (팬 채널·라벨·동명이인). BTS·BLACKPINK 초기 매핑 미스
+   → migration 0019_fix_bts_blackpink_channel.sql 로 정정한 전례.
+   대량 시드 후 어드민에서 채널 확인·정정 필수.
+
+❌ YouTube search.list 대량 호출 (신규 아티스트 N명 매핑) → 일일 quota 초과
+   search.list = 100 units/명. 250명 = 25,000 units > 10,000 daily.
+   lib/ingest/kpop-stats.ts MAX_CHANNEL_MAPPING_PER_RUN=50 cap 으로 분할 처리
+   (5일 자동 완결). cap 변경 시 quota 영향 재계산 필수.
 
 ❌ Header / 공통 chrome 페이지마다 import → unmount/remount 반복 + 인증 fetch
    반복 + 깜빡임. root layout 단일 마운트 + usePathname 가드 (HIDE_HEADER_PREFIXES).
