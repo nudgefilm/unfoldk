@@ -5,14 +5,14 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 // /api/kpop/charts/trending — 오늘의 급상승 Top 5
 //
-// 산정: today.youtube_total_views - yesterday.youtube_total_views (per artist).
-// "today" 는 가장 최근 ingest 한 날짜 (UTC 기준). "yesterday" 는 그 직전 날짜.
-//   - 매일 cron(/api/cron/ingest-kpop-stats) 이 새 row 를 채워주는 전제.
-//   - 같은 날짜 두 row 가 들어올 수는 없음 (artist_id, date unique).
+// 산정 (3단계 fallback):
+//   1. 2일치 있음 → today.total_views - yesterday.total_views > 0 인 행 desc Top N (정확한 급상승)
+//   2. 1일치만 있음 → today.total_views desc Top N, views_delta:null (비교 데이터 없음, 현재 조회수 기준)
+//   3. 0일치 → trending:[] (UI "Coming soon")
 //
-// 데이터 부족 처리:
-//   - kpop_stats_daily 에 today row 가 한 건도 없거나, today/yesterday 모두 있는 아티스트가
-//     0명이면 trending: [] 반환. UI 가 "Coming soon" 표시.
+// "today" = 가장 최근 ingest 날짜 (UTC). "yesterday" = today 직전 날짜.
+//   - 매일 cron(/api/cron/ingest-kpop-stats) 이 새 row 를 채워주는 전제.
+//   - 같은 날짜 두 row 는 없음 (artist_id, date unique).
 //
 // limit: 기본 5, max 10.
 
@@ -95,8 +95,9 @@ export async function GET(request: Request) {
     }
   }
 
-  // 4) delta 계산 + 활성 아티스트 정보 매핑
-  const deltas: Array<{ artist_id: string; views_delta: number; total_views: number }> = []
+  // 4) delta 계산 + 1일치 fallback 결정
+  type Candidate = { artist_id: string; views_delta: number | null; total_views: number }
+  const deltas: Candidate[] = []
   for (const [artistId, today] of todayMap.entries()) {
     const yesterday = yesterdayMap.get(artistId)
     if (yesterday === undefined) continue
@@ -105,7 +106,22 @@ export async function GET(request: Request) {
     deltas.push({ artist_id: artistId, views_delta: delta, total_views: today })
   }
 
-  if (deltas.length === 0) {
+  // 3단계 fallback — 사용자 요청 (1일치만 있어도 노출).
+  let candidates: Candidate[]
+  if (deltas.length > 0) {
+    // 2일치 있음 — delta desc
+    candidates = deltas.sort((a, b) => (b.views_delta ?? 0) - (a.views_delta ?? 0))
+  } else if (todayMap.size > 0) {
+    // 1일치만 — total_views desc, delta 는 null 로 비교 부재 표시
+    candidates = Array.from(todayMap.entries())
+      .map(([artist_id, total_views]) => ({
+        artist_id,
+        views_delta: null,
+        total_views,
+      }))
+      .sort((a, b) => b.total_views - a.total_views)
+  } else {
+    // 0일치 — UI 에서 Coming soon
     return NextResponse.json(
       { trending: [], generated_at: new Date().toISOString() },
       { headers: TRENDING_CACHE_HEADERS }
@@ -113,7 +129,7 @@ export async function GET(request: Request) {
   }
 
   // 5) 활성 아티스트 메타
-  const artistIds = deltas.map((d) => d.artist_id)
+  const artistIds = candidates.map((c) => c.artist_id)
   const { data: artistsData, error: artistsErr } = await supabase
     .from("kpop_artists")
     .select("id, name, name_ko, thumbnail_url")
@@ -127,21 +143,20 @@ export async function GET(request: Request) {
     ((artistsData ?? []) as ArtistRow[]).map((a) => [a.id, a])
   )
 
-  // 6) Top N 구성 — delta desc
-  const trending = deltas
-    .filter((d) => artistMap.has(d.artist_id))
-    .sort((a, b) => b.views_delta - a.views_delta)
+  // 6) Top N 구성 — candidates 이미 정렬됨
+  const trending = candidates
+    .filter((c) => artistMap.has(c.artist_id))
     .slice(0, limit)
-    .map((d, i) => {
-      const a = artistMap.get(d.artist_id)!
+    .map((c, i) => {
+      const a = artistMap.get(c.artist_id)!
       return {
         rank: i + 1,
         artist_id: a.id,
         name: a.name,
         name_ko: a.name_ko,
         thumbnail_url: a.thumbnail_url,
-        views_delta: d.views_delta,
-        total_views: d.total_views,
+        views_delta: c.views_delta,
+        total_views: c.total_views,
       }
     })
 

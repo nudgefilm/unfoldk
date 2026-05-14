@@ -45,7 +45,8 @@ interface TrendingItem {
   name: string
   name_ko: string | null
   thumbnail_url: string | null
-  views_delta: number
+  // null = 1일치 fallback (어제 데이터 없음, total_views 기준 정렬). number = 어제 대비 증가량.
+  views_delta: number | null
   total_views: number
 }
 
@@ -354,10 +355,20 @@ export default function KpopStatsPage() {
                   <p className="text-foreground font-medium text-sm truncate w-full">
                     {item.name}
                   </p>
-                  <p className="text-xs mt-1 flex items-center gap-1" style={{ color: "#22c55e" }}>
-                    <TrendingUp className="w-3 h-3" />
-                    +{formatBigNumber(item.views_delta)}
-                  </p>
+                  {/* 2일치 있으면 +delta 초록색, 1일치만 있으면 현재 누적 조회수 회색 표시 */}
+                  {item.views_delta !== null ? (
+                    <p
+                      className="text-xs mt-1 flex items-center gap-1"
+                      style={{ color: "#22c55e" }}
+                    >
+                      <TrendingUp className="w-3 h-3" />
+                      +{formatBigNumber(item.views_delta)}
+                    </p>
+                  ) : (
+                    <p className="text-xs mt-1 text-muted-foreground">
+                      {formatBigNumber(item.total_views)} views
+                    </p>
+                  )}
                 </button>
               ))}
             </div>
@@ -366,9 +377,14 @@ export default function KpopStatsPage() {
 
         {/* Global Chart */}
         <section className="mb-12">
-          <h2 className="text-2xl font-semibold text-white mb-6">
-            Global Chart — Top {visibleLimit} this week
-          </h2>
+          <div className="mb-6">
+            <h2 className="text-2xl font-semibold text-white">
+              Global Chart — Top {visibleLimit} this week
+            </h2>
+            <p className="text-muted-foreground text-sm mt-1">
+              Ranked by weekly YouTube view growth
+            </p>
+          </div>
 
           <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden">
             {/* Table Header */}
