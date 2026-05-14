@@ -102,6 +102,13 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 - 어드민 수동 확인은 NULL 상태 아티스트 예외 케이스만
 - BTS·BLACKPINK 등 대형 아티스트는 채널ID 하드코딩 우선 (migration `0019_fix_bts_blackpink_channel.sql` 패턴)
 
+### KpopStats 아티스트 노출 원칙
+- Top 20 차트 외 아티스트도 검색·탐색 가능해야 함
+- YouTube 채널 NULL 아티스트는 Last.fm 데이터만 표시 (YouTube 영역은 "Coming soon")
+- 노출 구조: Top 20 → "More Artists" 섹션 → 전체 목록 페이지 (`/kpop/artists`)
+- 아티스트 전체 브라우징: `/kpop/artists` (리스너순 정렬, 그룹/솔로 필터, 페이지네이션)
+- `kpop_artists.member_count`: NULL=미분류 / 1=솔로 / 2+=그룹. 어드민에서 backfill.
+
 ---
 
 ## 7. 자주 하는 실수 (하지 말 것)

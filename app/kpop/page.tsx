@@ -69,6 +69,19 @@ interface DailyStats {
   lastfm_playcount: number | null
 }
 
+// /api/kpop/artists 의 item 응답 (검색·More Artists 공용)
+interface ArtistListItem {
+  id: string
+  name: string
+  name_ko: string | null
+  thumbnail_url: string | null
+  member_count: number | null
+  has_youtube: boolean
+  latest_subscribers: number | null
+  latest_total_views: number | null
+  latest_listeners: number | null
+}
+
 type PlanType = "free" | "monthly" | "annual"
 
 export default function KpopStatsPage() {
@@ -88,6 +101,12 @@ export default function KpopStatsPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [planType, setPlanType] = useState<PlanType>("free")
   const [isPro, setIsPro] = useState(false)                 // monthly/annual/admin 통합 판별
+
+  // 검색·More Artists 상태 — /api/kpop/artists 로 DB 기반 데이터 (Top 20 외 아티스트 노출용)
+  // searchResults === null → 검색 비활성. null 이외이면 검색 결과 모드.
+  const [searchResults, setSearchResults] = useState<ArtistListItem[] | null>(null)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [moreArtists, setMoreArtists] = useState<ArtistListItem[]>([])
 
   // 인증 + plan_type + is_admin 로드 — 노출 개수 분기용
   useEffect(() => {
@@ -165,6 +184,47 @@ export default function KpopStatsPage() {
       })
   }, [spotlightId])
 
+  // 검색 — 300ms debounce. 빈 쿼리면 결과 초기화 (= 차트 모드 복귀).
+  useEffect(() => {
+    const q = searchQuery.trim()
+    if (q.length === 0) {
+      setSearchResults(null)
+      setSearchLoading(false)
+      return
+    }
+    setSearchLoading(true)
+    const handle = setTimeout(() => {
+      fetch(`/api/kpop/artists?q=${encodeURIComponent(q)}&pageSize=30`)
+        .then((r) => (r.ok ? r.json() : { items: [] }))
+        .then((data: { items?: ArtistListItem[] }) => {
+          setSearchResults(data.items ?? [])
+        })
+        .catch((err) => {
+          console.error("[kpop] artist search 실패:", err)
+          setSearchResults([])
+        })
+        .finally(() => setSearchLoading(false))
+    }, 300)
+    return () => clearTimeout(handle)
+  }, [searchQuery])
+
+  // More Artists 섹션 데이터 — 차트 로드 후 chart top 외 아티스트를 listeners 순으로.
+  // pageSize 50 받아 chart artist_id 제외하고 20명까지.
+  useEffect(() => {
+    if (chart.length === 0) return
+    fetch("/api/kpop/artists?sort=listeners&pageSize=50")
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((data: { items?: ArtistListItem[] }) => {
+        const chartIds = new Set(chart.map((c) => c.artist_id))
+        const rest = (data.items ?? []).filter((a) => !chartIds.has(a.id)).slice(0, 20)
+        setMoreArtists(rest)
+      })
+      .catch((err) => {
+        console.error("[kpop] more artists fetch 실패:", err)
+        setMoreArtists([])
+      })
+  }, [chart])
+
   // 노출 개수 분기
   const visibleLimit = !authChecked
     ? 5
@@ -184,17 +244,12 @@ export default function KpopStatsPage() {
     [chart]
   )
 
-  const filteredChart = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    const list = q
-      ? chart.filter(
-          (c) =>
-            c.name.toLowerCase().includes(q) ||
-            (c.name_ko ?? "").toLowerCase().includes(q)
-        )
-      : chart
-    return list.slice(0, visibleLimit)
-  }, [chart, searchQuery, visibleLimit])
+  // 차트 노출 행 — 로컬 검색 필터 제거 (검색은 /api/kpop/artists DB 기반으로 이동).
+  // 검색 활성 시엔 아예 차트 섹션 자체를 hide.
+  const filteredChart = useMemo(
+    () => chart.slice(0, visibleLimit),
+    [chart, visibleLimit]
+  )
 
   // 트렌드 그래프용 좌표 — youtube_weekly_views 시계열
   const trendPath = useMemo(() => {
@@ -282,6 +337,37 @@ export default function KpopStatsPage() {
           </div>
         </section>
 
+        {/* 검색 모드 — searchResults !== null 일 때 차트/Trending 대신 검색 결과만 노출.
+            CLAUDE.md §6 KpopStats 노출 원칙: Top 20 외 아티스트 검색 가능해야 함. */}
+        {searchResults !== null && (
+          <section className="mb-12">
+            <h2 className="text-2xl font-semibold text-white mb-6">
+              Search results
+              <span className="text-muted-foreground text-base font-normal ml-2">
+                ({searchResults.length})
+              </span>
+            </h2>
+            {searchLoading ? (
+              <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl px-6 py-10 text-center text-muted-foreground text-sm">
+                Searching...
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl px-6 py-10 text-center text-muted-foreground text-sm">
+                No artists match &ldquo;{searchQuery}&rdquo;.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {searchResults.map((a) => (
+                  <ArtistCard key={a.id} item={a} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* 검색 비활성 — 기본 모드 (Trending / Chart / More Artists / Spotlight / Comparison) */}
+        {searchResults === null && (
+        <>
         {/* Today's Trending Top 5 — kpop_stats_daily today vs yesterday delta.
             데이터 부족 (2일치 미만) 시 "Coming soon" placeholder. */}
         <section className="mb-12">
@@ -479,6 +565,27 @@ export default function KpopStatsPage() {
             </div>
           )}
         </section>
+
+        {/* More Artists — Top 20 외 아티스트. listeners 순으로 20명. CLAUDE.md §6 노출 원칙. */}
+        {moreArtists.length > 0 && (
+          <section className="mb-12">
+            <div className="flex items-end justify-between mb-6">
+              <h2 className="text-2xl font-semibold text-white">More Artists</h2>
+              <Link
+                href="/kpop/artists"
+                className="text-sm font-medium hover:underline"
+                style={{ color: "#FF4B6E" }}
+              >
+                View all artists →
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {moreArtists.map((a) => (
+                <ArtistCard key={a.id} item={a} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Artist Spotlight — 차트 #1 자동 preview. 클릭 navigation 은 /kpop/[id] 로 분리. */}
         {spotlight && (
@@ -707,6 +814,8 @@ export default function KpopStatsPage() {
             )}
           </div>
         </section>
+        </>
+        )}
       </main>
 
       {/* 토스트 컨테이너 — root layout 에 미마운트라 페이지 레벨에서 로컬 마운트.
@@ -715,5 +824,50 @@ export default function KpopStatsPage() {
 
       <FooterSection />
     </div>
+  )
+}
+
+// ============================================
+// ArtistCard — 검색·More Artists 공용 카드
+// Last.fm listeners + YouTube subscribers 표시. YouTube 채널 없으면 "Coming soon".
+// CLAUDE.md §6 KpopStats 노출 원칙: YouTube NULL 아티스트는 Last.fm 만 표시.
+// ============================================
+function ArtistCard({ item }: { item: ArtistListItem }) {
+  return (
+    <Link
+      href={`/kpop/${item.id}`}
+      className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex items-center gap-3 hover:bg-[#2a2a2c] hover:border-primary/40 transition-colors"
+    >
+      {item.thumbnail_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={item.thumbnail_url}
+          alt={item.name}
+          className="w-12 h-12 rounded-full object-cover flex-shrink-0 bg-[#252525]"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <div className="w-12 h-12 rounded-full bg-[#252525] flex-shrink-0" />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="text-foreground font-medium truncate">{item.name}</p>
+        {item.name_ko && (
+          <p className="text-muted-foreground text-xs truncate">{item.name_ko}</p>
+        )}
+        <div className="flex items-center gap-3 mt-1 text-xs">
+          <span className="text-muted-foreground">
+            <span className="text-foreground">{formatBigNumber(item.latest_listeners)}</span> listeners
+          </span>
+          {item.has_youtube ? (
+            <span className="text-muted-foreground">
+              <span className="text-foreground">{formatBigNumber(item.latest_subscribers)}</span> subs
+            </span>
+          ) : (
+            <span className="text-muted-foreground italic">YouTube coming soon</span>
+          )}
+        </div>
+      </div>
+    </Link>
   )
 }
