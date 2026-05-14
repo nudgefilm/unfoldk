@@ -173,6 +173,9 @@ export async function runTicketmasterIngest(): Promise<TicketmasterIngestResult>
         source_api: "ticketmaster" as const,
         source_id: ev.id,
         thumbnail_url: pickBestImage(ev.images),
+        // ev.url = Ticketmaster 공식 이벤트·티켓 페이지. UI 'Get Tickets' 버튼 링크.
+        // upsert ignoreDuplicates:false 라서 기존 행도 다음 cron 에서 backfill 됨.
+        url: ev.url ?? null,
         is_premium: false,
       }
     })

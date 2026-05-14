@@ -62,7 +62,7 @@ export async function GET(request: Request) {
   // source_api 는 Featured 섹션의 Ticketmaster 우선 정렬에 사용
   const { data, error } = await queryClient
     .from("hallyu_calendar_events")
-    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium, thumbnail_url, source_api, created_at")
+    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium, thumbnail_url, source_api, url, created_at")
     .neq("source_api", "kopis")
     .gte("event_date", startOfMonth.toISOString())
     .lt("event_date", startOfNextMonth.toISOString())
@@ -86,6 +86,9 @@ export async function GET(request: Request) {
       isPremium: row.is_premium,
       thumbnailUrl: row.thumbnail_url ?? undefined,
       sourceApi: row.source_api ?? undefined,
+      // 외부 티켓 예매 페이지 — Ticketmaster ev.url. UI 'Get Tickets' 버튼 표시 조건.
+      // KOPIS 는 현재 노출 차단 + url 미수집 (Melon Ticket 링크 향후 검토). source_api='ticketmaster' 일 때만 의미 있음.
+      url: row.url ?? undefined,
       createdAt: row.created_at,
     }
   })

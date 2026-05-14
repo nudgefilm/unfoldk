@@ -85,6 +85,8 @@ export async function runKopisIngest(): Promise<KopisIngestResult> {
         source_api: "kopis" as const,
         source_id: it.mt20id,
         thumbnail_url: it.poster || null,
+        // TODO: KOPIS 캘린더 재노출 시 Melon Ticket 외부 링크를 url 에 채울 것.
+        // 현재 events API 가 .neq("source_api","kopis") 로 노출 차단 중이라 우선순위 낮음.
         is_premium: false,
       }
     })

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronLeft, ChevronRight, Calendar, X, Lock, Plus } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Calendar, X, Lock, Plus, Ticket } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -25,7 +25,14 @@ interface CalendarEvent {
   isPremium?: boolean
   thumbnailUrl?: string                  // DB hallyu_calendar_events.thumbnail_url
   sourceApi?: string                     // 'ticketmaster' | 'tmdb' | 'youtube' | 'lastfm' — Featured 우선순위
+  url?: string                           // 외부 티켓 예매 페이지 (Ticketmaster). sourceApi='ticketmaster' 일 때만 의미.
   createdAt?: string                     // ISO string — Featured 정렬 키 (등록순)
+}
+
+// Ticketmaster 이벤트에서만 Get Tickets 버튼 노출 — 다른 소스는 url 없거나 의미 다름.
+// TODO: KOPIS 는 현재 캘린더 노출 차단 중. 재노출 시 Melon Ticket 외부 링크를 url 로 채우면 동일 조건 자동 적용.
+function shouldShowGetTickets(event: CalendarEvent): boolean {
+  return event.sourceApi === "ticketmaster" && !!event.url
 }
 
 const tabs = ["All", "K-pop", "K-drama", "Concert", "Fan Meet"] as const
@@ -248,9 +255,35 @@ function EventDetailModal({
 
         {/* Action Buttons */}
         <div className="space-y-3 mb-6">
+          {/* Get Tickets — Ticketmaster 이벤트 + url 있을 때만. 외부 티켓 페이지 새 탭. */}
+          {shouldShowGetTickets(event) && (
+            <a
+              href={event.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block"
+            >
+              <Button
+                className="w-full py-3 rounded-xl font-medium text-white"
+                style={{ backgroundColor: "#FF4B6E" }}
+              >
+                <Ticket className="w-4 h-4 mr-2" />
+                Get Tickets
+              </Button>
+            </a>
+          )}
           <Button
-            className="w-full py-3 rounded-xl font-medium text-white"
-            style={{ backgroundColor: "#FF4B6E" }}
+            variant={shouldShowGetTickets(event) ? "outline" : "default"}
+            className={`w-full py-3 rounded-xl font-medium ${
+              shouldShowGetTickets(event)
+                ? "border-border/50 hover:bg-secondary/50"
+                : "text-white"
+            }`}
+            style={
+              shouldShowGetTickets(event)
+                ? undefined
+                : { backgroundColor: "#FF4B6E" }
+            }
             onClick={handleAddToGoogleCalendar}
           >
             <Calendar className="w-4 h-4 mr-2" />
@@ -569,10 +602,37 @@ function UpcomingAccordionItem({
             <p className="text-muted-foreground text-sm leading-relaxed">{event.description}</p>
           )}
 
+          {/* Get Tickets — Ticketmaster 이벤트 + url 있을 때만 1차 CTA. */}
+          {shouldShowGetTickets(event) && (
+            <a
+              href={event.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block"
+            >
+              <Button
+                className="w-full py-3 rounded-xl font-medium text-white"
+                style={{ backgroundColor: "#FF4B6E" }}
+              >
+                <Ticket className="w-4 h-4 mr-2" />
+                Get Tickets
+              </Button>
+            </a>
+          )}
+
           <Button
             onClick={handleAddToGCal}
-            className="w-full py-3 rounded-xl font-medium text-white"
-            style={{ backgroundColor: "#FF4B6E" }}
+            variant={shouldShowGetTickets(event) ? "outline" : "default"}
+            className={`w-full py-3 rounded-xl font-medium ${
+              shouldShowGetTickets(event)
+                ? "border-border/50 hover:bg-secondary/50"
+                : "text-white"
+            }`}
+            style={
+              shouldShowGetTickets(event)
+                ? undefined
+                : { backgroundColor: "#FF4B6E" }
+            }
           >
             <Calendar className="w-4 h-4 mr-2" />
             Add to Google Calendar
