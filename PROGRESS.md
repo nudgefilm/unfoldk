@@ -4,6 +4,48 @@
 
 ---
 
+## 현재 상태 (2026-05-14 세션 8 / 캘린더 TMDB Watch Now + 출처 표기)
+
+> TMDB 드라마 이벤트에 Watch Now 외부 링크 + ToS 출처 표기. url 컬럼 (세션 7 0018 도입) 을 Ticketmaster·TMDB 양쪽이 source_api 가드로 격리 공유. 마이그레이션 신규 없음.
+
+### A. TMDB watch/providers API 래퍼
+- `lib/api/tmdb.ts` `fetchWatchProvidersUs(tmdbId)` 추가. US region flatrate/buy/rent 중 하나라도 있어야 link 반환, 비면 null. 404·기타 에러는 swallow (cron 전체 실패 방지). 24h revalidate.
+- TMDB 응답의 `results.US.link` = TMDB 가 제공하는 region dispatcher URL. 클릭 시 TMDB 측에서 사용자 region 기반 리다이렉트. 우리는 단일 URL 만 저장하면 됨.
+
+### B. TMDB ingest 확장
+- `lib/ingest/tmdb.ts` 행 생성 시 watch providers 동시 fetch. description (Claude or overview fallback) 과 Promise.all 로 묶음.
+- url 비어 있으면 null → UI 에서 Watch Now 버튼 미노출. 다음 cron 부터 자동 backfill (upsert ignoreDuplicates:false).
+
+### C. 캘린더 페이지 — Watch Now 버튼 + 1차 CTA 통합
+- `shouldShowWatchNow(event) = sourceApi==='tmdb' && !!url` 헬퍼.
+- `hasExternalPrimaryCta(event) = Tickets OR Watch` 통합 — Add to GCal 강등 조건 일원화. 두 source 가 동시에 참이 될 수 없어 안전.
+- EventDetailModal·UpcomingAccordionItem 양쪽에 Play 아이콘 Watch Now 버튼 (Ticketmaster Get Tickets 와 동일 패턴, target=_blank).
+
+### D. TMDB attribution
+- `/calendar` main 하단 (FooterSection 위) 에 ToS 의무 문구 박제: "This product uses the TMDB API but is not endorsed or certified by TMDB." TMDB 단어가 https://www.themoviedb.org 링크.
+
+### 사용자 액션 필요
+- `/admin/cron` 에서 TMDB ingest manual run 1회 — 기존 행 url backfill (upsert 라 자동).
+- 이번 세션은 신규 마이그레이션 **없음**. 세션 7 의 0018 컬럼 재활용.
+
+### 다음 세션 후보
+- carry-over 그대로:
+  - Ticketmaster 실데이터 인제스트 재검증
+  - KOPIS 캘린더 재노출 정책 + Melon Ticket url
+  - Curation K waitlist API
+  - Curation K 지도 hover 모달
+  - Claude Haiku 분류 로직 fan_event_requests 이식
+  - fan_event_requests 제보 폼 / admin 검토 큐 UI 정비
+  - Cookie Policy 본문 법무 검토 / Vercel·Supabase 비용 점검
+- 이번 세션 신규 후보:
+  - TMDB 드라마 모달에 장르·평점 표시 (현재 description 만)
+  - TMDB watch providers 의 구체 OTT 이름 (Netflix/Disney+/Viki) UI 노출 — 현재는 단일 dispatcher 링크만
+
+### 블로커
+- 없음
+
+---
+
 ## 현재 상태 (2026-05-14 세션 7 / 캘린더 이벤트 Get Tickets 링크)
 
 > 기획안 v1.2 캘린더 메뉴 개선 — Ticketmaster 이벤트 상세·아코디언에 외부 티켓 예매 페이지 링크 추가. 사용자가 "이미 수집된 url" 이라고 했으나 실제 ingest·DB 양쪽 모두 누락 상태였음. 구조적 fix 로 진행.
