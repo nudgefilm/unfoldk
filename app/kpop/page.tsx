@@ -196,6 +196,16 @@ export default function KpopStatsPage() {
     ? 10
     : 5
 
+  // Artist Comparison 카드 BTS·BLACKPINK 프로필 이미지 — chart 응답에서 추출 (별도 fetch X).
+  // chart limit=20 이라 둘 다 거의 항상 포함됨. 누락 시 회색 placeholder fallback.
+  const comparisonAvatars = useMemo(
+    () => ({
+      BTS: chart.find((c) => c.name === "BTS")?.thumbnail_url ?? null,
+      BLACKPINK: chart.find((c) => c.name === "BLACKPINK")?.thumbnail_url ?? null,
+    }),
+    [chart]
+  )
+
   const filteredChart = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     const list = q
@@ -617,7 +627,17 @@ export default function KpopStatsPage() {
               {/* Card 1 */}
               <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-[#252525]" />
+                  {comparisonAvatars.BTS ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={comparisonAvatars.BTS}
+                      alt="BTS"
+                      className="w-12 h-12 rounded-full object-cover bg-[#252525]"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-[#252525]" />
+                  )}
                   <div>
                     <h4 className="text-white font-medium">BTS</h4>
                     <p className="text-muted-foreground text-sm">75M subscribers</p>
@@ -638,7 +658,17 @@ export default function KpopStatsPage() {
               {/* Card 2 */}
               <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-[#252525]" />
+                  {comparisonAvatars.BLACKPINK ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={comparisonAvatars.BLACKPINK}
+                      alt="BLACKPINK"
+                      className="w-12 h-12 rounded-full object-cover bg-[#252525]"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-[#252525]" />
+                  )}
                   <div>
                     <h4 className="text-white font-medium">BLACKPINK</h4>
                     <p className="text-muted-foreground text-sm">92M subscribers</p>
