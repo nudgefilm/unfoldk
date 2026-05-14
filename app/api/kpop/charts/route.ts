@@ -3,10 +3,11 @@ import { z } from "zod"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 // 공개 데이터 (kpop_stats_daily) — auth 분기 없음. 응답에 Cache-Control 헤더 박제 (아래).
-// revalidate = 300 — Next.js Route Segment Config 로 명시적 ISR.
+// revalidate = 86400 (24h) — Next.js Route Segment Config 로 명시적 ISR.
 // Cache-Control 헤더만으론 request.url+searchParams 접근 시 Next.js 가 dynamic 처리해
 // Vercel CDN 캐시 활성 안 됨 (x-vercel-cache: MISS). revalidate 명시로 강제 캐시.
-export const revalidate = 300
+// 일별 cron 갱신 → 24h 캐시. ingest-kpop-stats / ingest-all 완료 시 revalidatePath 로 즉시 무효화.
+export const revalidate = 86400
 
 // /api/kpop/charts — 글로벌 주간 순위
 //
@@ -156,10 +157,10 @@ export async function GET(request: Request) {
   return NextResponse.json(
     { chart, generated_at: new Date().toISOString() },
     {
-      // 공개 데이터, 일별 갱신 → edge 5분 + 10분 stale-while-revalidate.
-      // 콜드 트래픽 비용·지연 감소. 새 데이터는 cron 다음 실행 후 5분 내 자연 전파.
+      // 공개 데이터, 일별 갱신 → 24h 캐시 + 1h stale-while-revalidate.
+      // 즉시 반영은 ingest 직후 revalidatePath('/api/kpop/charts') 가 담당.
       headers: {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=3600",
       },
     }
   )

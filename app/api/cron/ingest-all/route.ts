@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { verifyCronAuth } from "@/lib/cron/auth"
 import { recordCronLog } from "@/lib/cron/log"
 import { runTmdbIngest } from "@/lib/ingest/tmdb"
@@ -55,6 +56,11 @@ export async function GET(request: Request) {
   // KpopStats — 일별 통계 + thumbnail backfill (별도 카드 X, ingest-all 합산에만 노출)
   try {
     results.kpopStats = await runKpopStatsIngest()
+    // /kpop 페이지 + API ISR 캐시 즉시 무효화 — 새 데이터 즉시 반영.
+    // /kpop 은 "use client" CSR 페이지라 API route 도 함께 revalidate 해야 함.
+    revalidatePath("/kpop")
+    revalidatePath("/api/kpop/charts")
+    revalidatePath("/api/kpop/charts/trending")
   } catch (err) {
     results.kpopStats = {
       source: "kpop-stats",

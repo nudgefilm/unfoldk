@@ -16,10 +16,16 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 //
 // limit: 기본 5, max 10.
 
-// 공개 데이터 + 일별 갱신 → edge 5분 + 10분 stale-while-revalidate.
+// 공개 데이터 + 일별 갱신 (cron 1회/일) → 24시간 캐시.
+// revalidate 짧으면 캐시 만료 시 재계산되어 일시적 빈 결과로 데이터가 "사라지는" 듯 보임.
+// 당일 ingest 된 데이터를 다음 날 새 cron 까지 유지하려면 86400(24h) 가 안전.
+// Route Segment Config 의 revalidate 도 함께 박제 (Cache-Control 헤더만으론 request.url 사용 시 dynamic 처리됨).
+// 후속: cron 종료 시 revalidateTag/revalidatePath 로 즉시 무효화하면 새 데이터 지연 0 가능.
 // error 응답에는 적용 X (캐시 폭주 방지).
+export const revalidate = 86400
+
 const TRENDING_CACHE_HEADERS = {
-  "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+  "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=3600",
 } as const
 
 interface ArtistRow {

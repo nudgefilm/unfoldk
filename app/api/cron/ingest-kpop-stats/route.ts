@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { verifyCronAuth } from "@/lib/cron/auth"
 import { runKpopStatsIngest } from "@/lib/ingest/kpop-stats"
 
@@ -16,6 +17,14 @@ export async function GET(request: Request) {
 
   try {
     const result = await runKpopStatsIngest()
+
+    // ingest 후 /kpop 페이지 + API ISR 캐시 즉시 무효화 — 새 데이터 즉시 반영.
+    // 86400(24h) revalidate 만 두면 캐시 expire 시점까지 stale data 노출.
+    // /kpop 은 "use client" CSR 페이지라 API route 도 함께 revalidate 해야 실제 데이터 갱신.
+    revalidatePath("/kpop")
+    revalidatePath("/api/kpop/charts")
+    revalidatePath("/api/kpop/charts/trending")
+
     const status = result.errors.length > 0 ? 207 : 200    // 부분 실패는 207 Multi-Status
     return NextResponse.json(result, { status })
   } catch (err) {
