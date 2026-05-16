@@ -47,6 +47,8 @@ export interface FilmingSpotsIngestResult {
   spotsInserted: number
   spotsConfirmed: number
   spotsPending: number
+  pendingRetried: number   // 이번 run 에서 재시도한 pending row 수
+  pendingPromoted: number  // 그 중 confirmed 승격 성공 수
   errors: string[]
   details: Array<{
     drama: string
@@ -159,20 +161,122 @@ async function extractSpotsForDrama(
   return out
 }
 
-// TourAPI 키워드 검색 → 1순위 결과 normalize. 0건 시 null.
-async function mapToTourAPI(spotName: string) {
+// ─── 한국어 장소명 변환 캐시 ─────────────────────────────────
+// TourAPI 가 영어 키워드로 못 찾는 경우 (e.g. "Goblin Café (Jaein House)" → 한국어
+// 등록명 다름) 대비 — Claude Haiku 로 한국어 변환 후 재검색.
+//
+// 캐시: 모듈 스코프 Map. Vercel 함수 인스턴스 재사용 시 cross-run 재활용 (best-effort).
+// CAP 500 도달 시 절반 비움 (단순 FIFO-ish). 정확도 < 비용 절감 우선.
+const translationCache = new Map<string, string | null>()
+const TRANSLATION_CACHE_CAP = 500
+
+function cacheKey(spotName: string): string {
+  return spotName.trim().toLowerCase()
+}
+
+// 한국어 (Hangul) 문자가 충분히 포함됐는지 검증 — LLM 이 영어로 답하거나 거부 응답 거름.
+function hasEnoughHangul(s: string): boolean {
+  const hangul = s.match(/[가-힯]/g)
+  return hangul !== null && hangul.length >= 2
+}
+
+const TRANSLATE_SYSTEM_PROMPT = `You are a Korean drama location translator for TourAPI (Korea Tourism Organization) keyword search.
+
+Given an English filming location name from a K-drama, output its most common KOREAN (Hangul) name.
+
+Strict rules:
+- Output the Korean name in Hangul only. No English. No romanization. No parentheses.
+- No explanation, preamble, or quotes. Just the name.
+- If the input is already Korean or you don't know the Korean equivalent, output the single character: 모름
+- Prefer the official place name TourAPI is likely to have indexed (e.g., real café name, station name, neighborhood) over fan-given nicknames.
+- Max 40 characters.`
+
+async function translateToKorean(spotName: string): Promise<string | null> {
+  const key = cacheKey(spotName)
+  if (translationCache.has(key)) {
+    return translationCache.get(key) ?? null
+  }
+
+  // 캐시 cap — 가장 오래된 절반 제거 (Map.entries() 순서 = 삽입 순)
+  if (translationCache.size >= TRANSLATION_CACHE_CAP) {
+    const half = Math.floor(TRANSLATION_CACHE_CAP / 2)
+    const iter = translationCache.keys()
+    for (let i = 0; i < half; i++) {
+      const k = iter.next().value
+      if (k === undefined) break
+      translationCache.delete(k)
+    }
+  }
+
+  let translated: string | null = null
+  try {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 64,
+      system: [
+        {
+          type: "text",
+          text: TRANSLATE_SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      messages: [{ role: "user", content: spotName }],
+    })
+    const textBlock = response.content.find(
+      (b): b is Anthropic.TextBlock => b.type === "text"
+    )
+    const raw = textBlock?.text?.trim() ?? ""
+    if (raw.length > 0 && raw !== "모름" && hasEnoughHangul(raw)) {
+      translated = raw.slice(0, 40)
+    }
+  } catch (err) {
+    console.warn(`[filming-spots] translateToKorean 실패 "${spotName}":`, err)
+  }
+
+  translationCache.set(key, translated)
+  return translated
+}
+
+// TourAPI 키워드 검색 단발 호출. 0건/예외 시 null.
+async function searchOneTourSpot(keyword: string) {
   try {
     const { items } = await searchKeyword({
-      keyword: spotName,
+      keyword,
       // 음식점·문화시설·관광지 모두 후보로 — contentTypeId 미지정 (전체 검색)
       numOfRows: 1,
     })
     if (items.length === 0) return null
     return normalizeSpot(items[0])
   } catch (err) {
-    console.warn(`[filming-spots] TourAPI map 실패 "${spotName}":`, err)
+    console.warn(`[filming-spots] TourAPI search 실패 "${keyword}":`, err)
     return null
   }
+}
+
+// TourAPI GPS 매핑 — 3-tier fallback.
+//   Tier 1: 영문 spotName 그대로 검색
+//   Tier 2: Claude Haiku 한국어 변환 후 재검색 (TourAPI 가 영문 인덱싱 약함 대응)
+//   Tier 3: region 키워드로 검색 (최후 — 도시/지역 단위 부정확하지만 lat/lng 확보)
+// 0건이면 null → 호출자는 GPS 없는 pending 상태로 저장.
+async function mapToTourAPI(spotName: string, region: string | null) {
+  // Tier 1
+  const tier1 = await searchOneTourSpot(spotName)
+  if (tier1) return tier1
+
+  // Tier 2 — 한국어 변환 후 재시도
+  const koreanName = await translateToKorean(spotName)
+  if (koreanName) {
+    const tier2 = await searchOneTourSpot(koreanName)
+    if (tier2) return tier2
+  }
+
+  // Tier 3 — 지역명만으로 (있을 때만). 부정확하지만 그래도 시/도 GPS 라도 확보 의도.
+  if (region && region.trim().length > 0) {
+    const tier3 = await searchOneTourSpot(region.trim())
+    if (tier3) return tier3
+  }
+
+  return null
 }
 
 export async function runFilmingSpotsIngest(): Promise<FilmingSpotsIngestResult> {
@@ -183,6 +287,8 @@ export async function runFilmingSpotsIngest(): Promise<FilmingSpotsIngestResult>
     spotsInserted: 0,
     spotsConfirmed: 0,
     spotsPending: 0,
+    pendingRetried: 0,
+    pendingPromoted: 0,
     errors: [],
     details: [],
   }
@@ -269,7 +375,7 @@ export async function runFilmingSpotsIngest(): Promise<FilmingSpotsIngestResult>
       }
 
       for (const spot of extracted) {
-        const tourSpot = await mapToTourAPI(spot.spotName)
+        const tourSpot = await mapToTourAPI(spot.spotName, spot.region)
         const hasGps = !!(tourSpot && tourSpot.latitude !== null && tourSpot.longitude !== null)
         const status =
           spot.confidence >= CONFIDENCE_PENDING_THRESHOLD && hasGps ? "confirmed" : "pending"
@@ -308,6 +414,68 @@ export async function runFilmingSpotsIngest(): Promise<FilmingSpotsIngestResult>
 
     result.details.push({ drama: dramaTitle, spots_found: spotsFound, spots_mapped: spotsMapped })
     result.dramasProcessed++
+  }
+
+  // ─── pending 재시도 — status='pending' + latitude NULL 인 기존 행 재매핑 ─────
+  // 이번 run 에서 신규 처리 후 잉여 시간/cost 로 과거 미매핑 row 를 보충 시도.
+  // 비용 통제: 최대 10건/run cap (TourAPI 3-tier × 10 = 최대 30 호출 + 한국어 변환 10).
+  // 더미 row (__no_spots_found__) 는 명시 제외.
+  const PENDING_RETRY_CAP = 10
+  try {
+    const { data: pendingRows, error: pendingErr } = await supabase
+      .from("filming_spots")
+      .select("id, spot_name, region")
+      .eq("status", "pending")
+      .is("latitude", null)
+      .neq("spot_name", "__no_spots_found__")
+      .order("created_at", { ascending: true })
+      .limit(PENDING_RETRY_CAP)
+
+    if (pendingErr) {
+      result.errors.push(`pending 조회 실패: ${pendingErr.message}`)
+    } else {
+      type PendingRow = { id: string; spot_name: string; region: string | null }
+      const rows = (pendingRows ?? []) as PendingRow[]
+
+      for (const row of rows) {
+        result.pendingRetried++
+        try {
+          const tourSpot = await mapToTourAPI(row.spot_name, row.region)
+          const hasGps = !!(
+            tourSpot &&
+            tourSpot.latitude !== null &&
+            tourSpot.longitude !== null
+          )
+          if (!hasGps) continue
+
+          const { error: upErr } = await supabase
+            .from("filming_spots")
+            .update({
+              latitude: tourSpot.latitude,
+              longitude: tourSpot.longitude,
+              address: tourSpot.address,
+              tour_content_id: tourSpot.contentId,
+              image_url: tourSpot.imageUrl,
+              status: "confirmed",
+            })
+            .eq("id", row.id)
+
+          if (upErr) {
+            result.errors.push(`pending 승격 실패 ${row.spot_name}: ${upErr.message}`)
+            continue
+          }
+          result.pendingPromoted++
+        } catch (err) {
+          result.errors.push(
+            `pending 처리 예외 ${row.spot_name}: ${err instanceof Error ? err.message : String(err)}`
+          )
+        }
+      }
+    }
+  } catch (err) {
+    result.errors.push(
+      `pending 재시도 블록 예외: ${err instanceof Error ? err.message : String(err)}`
+    )
   }
 
   return result

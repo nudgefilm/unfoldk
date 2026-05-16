@@ -167,9 +167,13 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
     const inserted = num(r.spotsInserted)
     const confirmed = num(r.spotsConfirmed)
     const pending = num(r.spotsPending)
+    const retried = num(r.pendingRetried)
+    const promoted = num(r.pendingPromoted)
     const errors = Array.isArray(r.errors) ? r.errors.length : 0
+    const retryPart =
+      retried > 0 ? ` · pending 재시도 ${retried}/${promoted} 승격` : ""
     const errPart = errors > 0 ? ` · errors ${errors}` : ""
-    return `신규 ${inserted}건 (confirmed ${confirmed} / pending ${pending})${errPart} · ${time}`
+    return `신규 ${inserted}건 (confirmed ${confirmed} / pending ${pending})${retryPart}${errPart} · ${time}`
   }
 
   if (route === "ingest-ticketmaster") {

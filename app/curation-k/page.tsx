@@ -17,7 +17,7 @@
 // 다크테마 유지 (#0d0d0f bg, #FF4B6E brand, glass cards).
 // 지도 인프라 (TopoJSON + projection + 도시·도서 마커) 는 기존 패턴 보존.
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { feature } from "topojson-client"
 import { FooterSection } from "@/components/footer-section"
@@ -133,8 +133,6 @@ const CATEGORY_COLOR_MAP: Record<Category, string> = Object.fromEntries(
 ) as Record<Category, string>
 
 // ─── API 응답 타입 ───────────────────────────────────────────
-// (MapPin interface 는 지도 핀 오버레이 제거로 미사용 — 동결된 지도 컴포넌트.
-//  /api/curation-k/map 라우트는 향후 별도 시각화에서 재사용 가능하도록 보존.)
 
 interface FilmingSpotItem {
   id: string
@@ -155,7 +153,33 @@ interface KpopSpotItem {
   spot_type: "agency" | "mv_location" | "cafe" | "concert_venue"
   region: string | null
   address: string | null
+  // /api/curation-k/kpop-spots 응답이 numeric → JSON 으로 string 가능성 있음 (Postgres numeric 직렬화)
+  latitude: number | string | null
+  longitude: number | string | null
   image_url: string | null
+}
+
+// /api/curation-k/map 의 filming 핀 (kpop 부분은 별도 endpoint 에서 가져옴)
+interface MapFilmingPin {
+  id: string
+  category: "filming" | "kpop"
+  name: string         // spot_name
+  subtitle: string     // drama_title
+  region: string | null
+  lat: number
+  lng: number
+}
+
+// 4개 카테고리 공통 오버레이 핀 — SVG sibling overlay 에서 렌더.
+// food/stay 는 contentId 가 별도 prefix 로 충돌 방지.
+interface OverlayPin {
+  id: string
+  category: Category
+  name: string
+  subtitle: string       // 드라마명 / 아티스트명 / 카테고리 라벨
+  address: string | null
+  lat: number
+  lng: number
 }
 
 interface TourSpotItem {
@@ -215,11 +239,16 @@ export default function CurationKPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [isPro, setIsPro] = useState(false)
 
-  // 카테고리 필터 — 7 섹션 구성 요소. 지도와의 시각 바인딩은 분리 (지도 컴포넌트 동결, CLAUDE.md §6).
-  // 향후 콘텐츠 섹션 스코프 / 지도 외 위치에서 활용 예정.
+  // 카테고리 필터 — 핀 오버레이 표시 카테고리 + (향후) 콘텐츠 섹션 스코프.
+  // CLAUDE.md §6: 지도 SVG 자체는 동결. 본 토글은 SVG 외부의 absolute overlay 레이어를 제어.
   const [activeCats, setActiveCats] = useState<Set<Category>>(
     () => new Set(CATEGORIES.map((c) => c.key))
   )
+
+  // 지도 핀 — filming 은 /api/curation-k/map (confirmed only) 에서 받음.
+  // kpop/food/stay 는 아래 섹션 fetch 결과를 재사용.
+  const [filmingMapPins, setFilmingMapPins] = useState<MapFilmingPin[]>([])
+  const [selectedPin, setSelectedPin] = useState<OverlayPin | null>(null)
 
   // 섹션 데이터
   const [filmingSpots, setFilmingSpots] = useState<FilmingSpotItem[]>([])
@@ -279,8 +308,21 @@ export default function CurationKPage() {
     })
   }, [])
 
-  // (3. 지도 핀 fetch 제거 — 지도 컴포넌트 동결, 핀 오버레이 미사용. CLAUDE.md §6)
-  // /api/curation-k/map 라우트는 향후 별도 시각화에서 재사용 가능하도록 보존.
+  // ─── 3. 지도 핀 — filming spots (confirmed only, GPS 보유) ───
+  // SVG 내부에 그리지 않고, sibling absolute overlay 레이어에 HTML 핀으로 렌더 (CLAUDE.md §6).
+  useEffect(() => {
+    fetch("/api/curation-k/map")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body: { pins: MapFilmingPin[] }) => {
+        // /map 응답은 filming + kpop 양쪽 포함 — 본 페이지는 filming 만 사용. kpop 은 /kpop-spots 에서.
+        const filming = (body.pins ?? []).filter((p) => p.category === "filming")
+        setFilmingMapPins(filming)
+      })
+      .catch((err) => {
+        console.warn("[curation-k] map filming pins fetch 실패:", err)
+        setFilmingMapPins([])
+      })
+  }, [])
 
   // ─── 4. 촬영지 카드 ────────────────────────────────────────
   useEffect(() => {
@@ -331,8 +373,7 @@ export default function CurationKPage() {
       .finally(() => setGeoLoading(false))
   }, [geoCountry])
 
-  // 카테고리 토글 — UI 상태만 보유. 지도 핀 바인딩 제거 (지도 동결).
-  // 향후 콘텐츠 섹션 스코프 필터로 재활용 가능.
+  // 카테고리 토글 — 핀 오버레이 표시 분기 + (향후) 콘텐츠 섹션 스코프 필터.
   const toggleCategory = (key: Category) => {
     setActiveCats((prev) => {
       const next = new Set(prev)
@@ -340,6 +381,87 @@ export default function CurationKPage() {
       else next.add(key)
       return next
     })
+  }
+
+  // ─── 오버레이 핀 컴퓨티드 ──────────────────────────────────
+  // 4개 카테고리를 통합 OverlayPin[] 으로. activeCats 에 따라 필터링.
+  // 지도 bbox 밖 좌표는 자동 제외 (proj() 결과가 SVG 영역 밖이면 표시 안 함).
+  const overlayPins = useMemo<OverlayPin[]>(() => {
+    const out: OverlayPin[] = []
+
+    if (activeCats.has("filming")) {
+      for (const p of filmingMapPins) {
+        out.push({
+          id: `f-${p.id}`,
+          category: "filming",
+          name: p.name,
+          subtitle: p.subtitle,
+          address: null,
+          lat: p.lat,
+          lng: p.lng,
+        })
+      }
+    }
+
+    if (activeCats.has("kpop")) {
+      for (const k of kpopSpots) {
+        const lat = typeof k.latitude === "string" ? Number(k.latitude) : k.latitude
+        const lng = typeof k.longitude === "string" ? Number(k.longitude) : k.longitude
+        if (lat === null || lng === null || !Number.isFinite(lat) || !Number.isFinite(lng)) continue
+        if (lat === 0 || lng === 0) continue
+        out.push({
+          id: `k-${k.id}`,
+          category: "kpop",
+          name: k.spot_name,
+          subtitle: k.artist_name,
+          address: k.address,
+          lat,
+          lng,
+        })
+      }
+    }
+
+    if (activeCats.has("food")) {
+      for (const f of foodItems) {
+        if (f.latitude === null || f.longitude === null) continue
+        out.push({
+          id: `food-${f.contentId}`,
+          category: "food",
+          name: f.title,
+          subtitle: "Restaurant",
+          address: f.address,
+          lat: f.latitude,
+          lng: f.longitude,
+        })
+      }
+    }
+
+    if (activeCats.has("stays")) {
+      for (const s of stayItems) {
+        if (s.latitude === null || s.longitude === null) continue
+        out.push({
+          id: `stay-${s.contentId}`,
+          category: "stays",
+          name: s.title,
+          subtitle: "Stay",
+          address: s.address,
+          lat: s.latitude,
+          lng: s.longitude,
+        })
+      }
+    }
+
+    return out
+  }, [activeCats, filmingMapPins, kpopSpots, foodItems, stayItems])
+
+  // SVG 좌표 → wrapper 내 % 좌표 (proj() 그대로, SVG_W/H 로 나눠 percent 변환).
+  // Korea bbox 밖이면 픽셀이 음수·overflow 라 보이지 않음 — 추가 필터링 불필요.
+  function pinPosition(lat: number, lng: number): { left: string; top: string } {
+    const [x, y] = proj(lng, lat)
+    return {
+      left: `${(x / SVG_W) * 100}%`,
+      top: `${(y / SVG_H) * 100}%`,
+    }
   }
 
   return (
@@ -493,6 +615,77 @@ export default function CurationKPage() {
                     )
                   })}
                 </svg>
+
+                {/* ─── 핀 오버레이 ─────────────────────────────────────────
+                    ⚠️ 위 SVG 는 동결 (CLAUDE.md §6). 핀은 sibling absolute <div> 로
+                    렌더링 — SVG 내부 element 추가 금지 원칙 유지하면서 동일 좌표계 사용.
+                    pointer-events 분리: layer none / 핀 auto → SVG 자체는 클릭 X. */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {overlayPins.map((pin) => {
+                    const pos = pinPosition(pin.lat, pin.lng)
+                    const color = CATEGORY_COLOR_MAP[pin.category]
+                    const isSelected = selectedPin?.id === pin.id
+                    return (
+                      <button
+                        key={pin.id}
+                        type="button"
+                        onClick={() => setSelectedPin(pin)}
+                        aria-label={`${pin.name} (${pin.category})`}
+                        className="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-full shadow-md hover:scale-110 focus:outline-none focus:ring-2 focus:ring-white/40 transition-transform"
+                        style={{
+                          left: pos.left,
+                          top: pos.top,
+                          width: isSelected ? 14 : 10,
+                          height: isSelected ? 14 : 10,
+                          backgroundColor: color,
+                          border: `2px solid ${isSelected ? "#ffffff" : "rgba(255,255,255,0.7)"}`,
+                          zIndex: isSelected ? 20 : 10,
+                        }}
+                      />
+                    )
+                  })}
+                </div>
+
+                {/* 핀 클릭 팝업 — 카드 우상단 고정. 닫기 버튼 + 외부 클릭 차단 없음 (다른 핀 클릭 시
+                    selectedPin 만 갈아끼움). */}
+                {selectedPin && (
+                  <div className="absolute top-2 right-2 max-w-[260px] bg-[#1a1a1a] border border-border/40 rounded-xl p-3 shadow-xl z-30">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span
+                            className="inline-block w-2 h-2 rounded-full"
+                            style={{ backgroundColor: CATEGORY_COLOR_MAP[selectedPin.category] }}
+                          />
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            {selectedPin.category}
+                          </span>
+                        </div>
+                        <p className="text-foreground font-medium text-sm leading-tight break-words">
+                          {selectedPin.name}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPin(null)}
+                        aria-label="Close popup"
+                        className="text-muted-foreground hover:text-foreground -mr-1 -mt-1 p-1 flex-shrink-0"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    {selectedPin.subtitle && (
+                      <p className="text-muted-foreground text-xs mt-1 truncate">
+                        {selectedPin.subtitle}
+                      </p>
+                    )}
+                    {selectedPin.address && (
+                      <p className="text-muted-foreground/70 text-[11px] mt-1.5 leading-snug">
+                        {selectedPin.address}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* 우측 — 카피 + 카테고리 토글 */}

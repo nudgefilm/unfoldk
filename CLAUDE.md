@@ -143,7 +143,8 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 - 변경 사유:
   - 독도·마라도·울릉·백령도 4 부속 도서 + 6 도시 (Seoul/Chuncheon/Gyeongju/Busan/Gwangju/Jeju) 시각 구성이 사용자 검토 후 확정됨.
   - 50m TopoJSON 누락분 보완 + 한국 공식 지도 관용 (독도 inset) 반영된 결과물.
-- **수정 금지 범위**: 지도 SVG 자체 (path·ellipse·circle·text·grid 라인 모두). 핀 오버레이 추가·도시 추가/삭제·좌표 조정 등 모든 변형 금지.
+- **수정 금지 범위 (SVG 내부)**: `<svg>` 안의 path·ellipse·circle·text·grid 라인 + `KOREA_CITIES`/`KOREA_ISLANDS`/`proj()`/polygon 스타일·펄스 애니메이션. SVG 자체에 새 element 추가 금지.
+- **허용 (SVG 외부 sibling overlay)**: `relative` wrapper 의 sibling 으로 absolute positioned HTML element 추가 가능. 예: 카테고리 핀 (2026-05-17 사용자 명시 승인), 영역 라벨, 인터랙티브 컨트롤. `proj()` 를 그대로 import 해 동일 좌표계 사용. `pointer-events` 분리 (layer:none / 핀:auto) 로 SVG 자체 무클릭 유지.
 - 변경 필요 시 별도 PR + 사용자 사전 승인 후 진행. 코드에 `// ⚠️ 수정 금지 (CLAUDE.md §6)` 주석 박제됨 — grep 으로 위치 확인 가능.
 
 ### Curation K (HallyuMap) 데이터 원칙
