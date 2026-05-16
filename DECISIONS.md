@@ -21,6 +21,54 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-16 KOPIS API 비활성화 — 글로벌 유저 부적합
+
+- 결정 내용:
+  - **vercel.json** 에서 `/api/cron/ingest-kopis` 스케줄 제거.
+  - **삭제** — `app/api/cron/ingest-kopis/route.ts`, `lib/ingest/kopis.ts`, `lib/api/kopis.ts`.
+  - **참조 정리** — `app/admin/cron/page.tsx` (ROUTES 배열·result_json 분기), `app/api/admin/cron/run/route.ts` (zod enum), `lib/ingest/ticketmaster.ts` / `lib/api/ticketmaster.ts` / `app/api/cron/ingest-ticketmaster/route.ts` (KOPIS 언급 주석), `app/api/calendar/events/route.ts` · `app/api/mypage/calendar/route.ts` · `app/calendar/page.tsx` (필터 주석).
+  - **유지** — `.neq("source_api", "kopis")` 필터는 캘린더 라우트들에 잔존 데이터 보호용으로 유지. DB 행 자체는 보존 (필요 시 SQL 로 삭제).
+  - **유지** — `lib/ingest/ticketmaster.ts` 의 한국(KR) 제외 정책. KOPIS 와의 중복 회피 목적이었으나, 글로벌 유저 대상 서비스라는 정책 자체로도 합당.
+  - CLAUDE.md §7 hazard 추가 — 재가동 방지 영구 박제.
+- 이유:
+  - KOPIS 는 국내 공연 데이터(prfnm, fcltynm, 한국 venue·티켓처 등) 만 제공. UnfoldK 는 영어권 + 동남아 글로벌 유저 대상 (CLAUDE.md §1) → 콘텐츠-사용자 mismatch.
+  - Melon Ticket 외부 링크 보강 검토 carry-over 도 동일 mismatch 해결 못 함 (Melon 도 국내 결제·약관).
+  - 글로벌 K팝 공연은 Ticketmaster 가 영어권 venue·티켓 페이지·다국가 통화 모두 커버.
+- 대안으로 고려했던 것:
+  - Soft disable (cron 만 제거 + lib 보존) → dead code. 1년 후 재가동 안 할 거면 의미 없음.
+  - KOPIS 한국어 메타를 영어 자동 번역 → 운영 비용 + 정확도 리스크. 근본적으로 venue/티켓이 한국 전용이라 번역해도 글로벌 유저 활용 불가.
+
+## 2026-05-16 KdramaMatch Phase 1 — 시청 목록 평점·리뷰 + 지금 인기 + /drama 개편
+
+- 결정 내용:
+  - migration `0022_watchlist_rating_review.sql` — **`user_watchlist` 에 `rating numeric(2,1)` + `review text` 컬럼 추가** (스펙은 새 `drama_watchlist (tmdb_id)` 테이블이었으나 기존 0014 호환 우선).
+    - 0~5 별점 0.5 단위 (DB check + zod multipleOf 이중 가드), review ≤500자.
+    - 인덱스 `idx_watchlist_created_drama` 신설 — trending 핫패스.
+  - `/api/dramas/watchlist` PATCH 확장: `rating` / `review` 필드. 빈 review → null 정규화. POST 는 status·current_episode 만 upsert (rating·review 보존).
+  - `/api/dramas` 필터 확장: `status[]` / `min_rating` / `min_episodes` / `max_episodes` / `sort=rating|year|episode_count`. 기존 `genre`/`platform`/`year`/`q` 유지.
+  - `/api/dramas/trending` 신규 — service_role 로 user_watchlist 집계. 최근 7일 신규 등록 Top 5 + 완주율 (status='completed' / 전체 행, sample_size≥5 일 때만). 5분 SWR 캐시.
+  - `/mypage/dramas` 전면 구현 — Coming Soon → 탭 (Want/Watching/Completed) + 에피소드 진행 바 + 별점 0.5 단위 (반쪽 클릭) + 한줄평 ≤500자 + 상태 빠른 전환 + 마지막 화 도달 시 completed 자동 전환.
+  - `/drama` Phase 1 개편:
+    - Hero 카피 "AI-powered K-drama recommendations, just for you" + 게이팅 안내 (anon 3 / Free 5 / Pro 무제한).
+    - **Trending now** 섹션 신규 (가로 스크롤 Top 5, 완주율 표시).
+    - Browse 필터 확장 (Genre / Status / Year 칩), 카드에 status pill 좌상단, episode 수 표시.
+    - AI Drama Summary — Pro 잠금 유지 + "Similar dramas" 카드 추가 (3-up 그리드).
+    - 인라인 watchlist 섹션 제거 → "Manage my dramas →" CTA 로 `/mypage/dramas` 유도.
+- 이유:
+  - 기존 0014 의 `user_watchlist (drama_id uuid → dramas.id)` 가 `/api/dramas/watchlist` 와 동작 중 → 스펙 신규 테이블 채택 시 마이그레이션·재작성 부담 대비 효용 적음. ALTER 가 정직한 단순 해결 (CLAUDE.md §9).
+  - Trending 은 service_role 집계 — `user_watchlist` RLS 가 본인 행만 노출하므로 글로벌 집계 불가. 응답은 drama 메타 + 카운트만 (개인 식별 정보 없음).
+  - 0.5 단위 별점은 UI 가 한 별을 좌/우 반쪽으로 분할해 클릭 위치별 다른 값 전송 (요구 사양 충족, 단순).
+- 대안으로 고려했던 것:
+  - 스펙대로 `drama_watchlist (tmdb_id)` 신설 → 기존 데이터 마이그레이션 + API/UI 동시 교체 부담. 같은 도메인 두 테이블 장기 혼란.
+  - Trending 을 RPC 함수로 → PostgREST 호출 단순화 가능. 현재 5건 규모라 in-memory 집계 충분.
+  - 별점 0.1 단위 → UX 과잉.
+- **Phase 2 carry-over (별도 인제스트 인프라 필요)**:
+  - TMDB `networks` (방송사 — tvN/Netflix/KBS) 컬럼 + ingest 보강
+  - TMDB `on_the_air` 리스트 + `tv/{id}` detail.next_episode_to_air → "방영 중 D-Day" 섹션 + 캘린더 추가 버튼
+  - 드라마-캘린더 매핑 정책 결정 (어떤 단위로 hallyu_calendar_events 로 push)
+  - OST 아티스트 데이터셋 (KpopStats 연결)
+  - UnfoldK 유저 평점 집계 노출 (rating 누적 후 의미 있음)
+
 ## 2026-05-16 블로그 댓글 시스템 — blog_comments 테이블 + RLS
 
 - 결정 내용:

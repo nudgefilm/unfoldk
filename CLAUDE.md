@@ -117,6 +117,9 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 ❌ YouTube API 를 tubewatch.kr 와 같은 GCP 프로젝트 → 쿼터 초과 시 양쪽 중단
 ❌ Spotify API → 2025.05 부터 법인 전용. Last.fm 대체
 ❌ TossPayments → 해외 유저 경험 불량. Lemon Squeezy 확정
+❌ KOPIS API 재가동 → 국내 공연만 제공, 글로벌 유저 대상 서비스 부적합 (2026-05-16 폐기)
+   글로벌 공연은 Ticketmaster 가 담당. cron + lib/api/kopis + lib/ingest/kopis 모두 제거.
+   DB 잔존 행도 SQL `DELETE FROM hallyu_calendar_events WHERE source_api='kopis'` 로 정리됨.
 ❌ 서비스별 별도 users 테이블 → Hallyu Pass 통합 불가
 ❌ ElevenLabs TTS 실시간 호출 → 비용 폭증. 사전 생성 + CDN 캐싱 필수
 ❌ RLS 나중에 추가 → 전체 보안 재작업

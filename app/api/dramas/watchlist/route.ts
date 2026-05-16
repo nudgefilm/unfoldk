@@ -7,8 +7,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 // 모두 로그인 필수. RLS "watchlist_all_own" 정책으로 본인 행만 read/write.
 //
 // GET ?status=watching|want_to_watch|completed       — 본인 시청 목록 (status 필터 옵셔널)
-// POST  body: { drama_id, status, current_episode? } — 등록 (이미 있으면 status 갱신)
-// PATCH body: { drama_id, status?, current_episode? } — 수정
+// POST  body: { drama_id, status, current_episode? } — 등록 (이미 있으면 status 갱신, rating/review 보존)
+// PATCH body: { drama_id, status?, current_episode?, rating?, review? } — 부분 수정 (0022 컬럼 추가)
 // DELETE ?drama_id=...                                — 삭제
 
 export const dynamic = "force-dynamic"
@@ -16,6 +16,8 @@ export const dynamic = "force-dynamic"
 const STATUS_VALUES = ["watching", "want_to_watch", "completed"] as const
 type WatchStatus = (typeof STATUS_VALUES)[number]
 
+// rating 0~5 / 0.5 단위는 numeric(2,1) check 제약과 zod step 으로 이중 가드.
+// review null 허용 — 빈 문자열은 클라가 trim 후 null 변환 (DB check char_length≤500).
 const PostSchema = z.object({
   drama_id: z.string().uuid(),
   status: z.enum(STATUS_VALUES),
@@ -26,6 +28,8 @@ const PatchSchema = z.object({
   drama_id: z.string().uuid(),
   status: z.enum(STATUS_VALUES).optional(),
   current_episode: z.number().int().min(0).max(9999).optional(),
+  rating: z.number().min(0).max(5).multipleOf(0.5).nullable().optional(),
+  review: z.string().max(500).nullable().optional(),
 })
 
 async function requireUser() {
@@ -54,10 +58,10 @@ export async function GET(request: Request) {
   let query = supabase
     .from("user_watchlist")
     .select(
-      "id, status, current_episode, created_at, drama:dramas(id, title, title_ko, genre, year, platform, poster_url, rating, episode_count, status)"
+      "id, status, current_episode, rating, review, created_at, updated_at, drama:dramas(id, tmdb_id, title, title_ko, genre, year, platform, poster_url, rating, episode_count, status)"
     )
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
+    .order("updated_at", { ascending: false })
 
   if (status) query = query.eq("status", status)
 
@@ -95,7 +99,8 @@ export async function POST(request: Request) {
     )
   }
 
-  // upsert (user_id, drama_id) unique → 동일 드라마 재등록 시 status 만 갱신
+  // upsert (user_id, drama_id) unique → 동일 드라마 재등록 시 status·current_episode 만 갱신
+  // rating·review 는 명시적으로 건드리지 않음 (기존 값 보존) — onConflict + 명시 컬럼만 update
   const { data, error } = await supabase
     .from("user_watchlist")
     .upsert(
@@ -107,7 +112,7 @@ export async function POST(request: Request) {
       },
       { onConflict: "user_id,drama_id" }
     )
-    .select("id, status, current_episode")
+    .select("id, status, current_episode, rating, review")
     .single()
 
   if (error) {
@@ -142,22 +147,29 @@ export async function PATCH(request: Request) {
     )
   }
 
-  // status / current_episode 둘 다 미지정 시 에러
-  if (parsed.data.status === undefined && parsed.data.current_episode === undefined) {
+  // 변경 필드 화이트리스트 — drama_id 외 최소 1개 필요
+  const { drama_id, ...rest } = parsed.data
+  const fields = Object.entries(rest).filter(([, v]) => v !== undefined)
+  if (fields.length === 0) {
     return NextResponse.json({ error: "no_fields_to_update" }, { status: 400 })
   }
 
   const update: Record<string, unknown> = {}
-  if (parsed.data.status !== undefined) update.status = parsed.data.status
-  if (parsed.data.current_episode !== undefined)
-    update.current_episode = parsed.data.current_episode
+  for (const [k, v] of fields) {
+    // review 빈 문자열 → null 정규화 (DB 는 char_length null 무관)
+    if (k === "review" && typeof v === "string" && v.trim().length === 0) {
+      update[k] = null
+    } else {
+      update[k] = v
+    }
+  }
 
   const { data, error } = await supabase
     .from("user_watchlist")
     .update(update)
     .eq("user_id", user.id)
-    .eq("drama_id", parsed.data.drama_id)
-    .select("id, status, current_episode")
+    .eq("drama_id", drama_id)
+    .select("id, status, current_episode, rating, review")
     .maybeSingle()
 
   if (error) {

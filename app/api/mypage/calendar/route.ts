@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic"
 //
 // 분기:
 //   - user_calendar_subscriptions 에 행이 있으면 mode = "subscribed", 본인 구독 이벤트만 (날짜 ASC)
-//   - 없으면 mode = "fallback", 이번 달 (UTC) 전체 이벤트 (KOPIS 제외, 날짜 ASC)
+//   - 없으면 mode = "fallback", 이번 달 (UTC) 전체 이벤트 (날짜 ASC)
 //
 // RLS:
 //   - user_calendar_subscriptions 본인 행만 RLS 통과 (0001 정책 user_calsubs_all_own)
@@ -85,7 +85,6 @@ export async function GET() {
         "id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium, thumbnail_url, url"
       )
       .in("id", eventIds)
-      .neq("source_api", "kopis")
       .order("event_date", { ascending: true })
 
     if (error) {
@@ -116,7 +115,6 @@ export async function GET() {
     .select(
       "id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium, thumbnail_url, url"
     )
-    .neq("source_api", "kopis")
     .gte("event_date", startOfMonth.toISOString())
     .lt("event_date", startOfNextMonth.toISOString())
     .order("event_date", { ascending: true })

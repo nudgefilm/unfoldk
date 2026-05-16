@@ -21,7 +21,9 @@ interface RouteSummary {
   metricLabel: string
 }
 
-const ROUTES = ["ingest-all", "ingest-kopis", "ingest-ticketmaster", "send-reminders"] as const
+// KOPIS 는 2026-05-16 폐기 (글로벌 유저 부적합). 과거 cron_logs 의 'ingest-kopis' 행은
+// 화면에 노출 안 됨 — 필요 시 SQL 로 정리.
+const ROUTES = ["ingest-all", "ingest-ticketmaster", "send-reminders"] as const
 
 type LoadResult =
   | { ok: true; summaries: RouteSummary[]; logs: CronLogRow[] }
@@ -91,9 +93,6 @@ async function load(): Promise<LoadResult> {
           return acc + (typeof u === "number" ? u : 0)
         }, 0)
       metric = total.toLocaleString()
-    } else if (route === "ingest-kopis" && data.result_json) {
-      const r = data.result_json as { upserted?: number }
-      metric = (r.upserted ?? 0).toLocaleString()
     } else if (route === "ingest-ticketmaster" && data.result_json) {
       const r = data.result_json as { upserted?: number }
       metric = (r.upserted ?? 0).toLocaleString()

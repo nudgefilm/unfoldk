@@ -1,5 +1,5 @@
 // Ticketmaster 글로벌 K팝 공연 → 'concert'/'fanmeet' 이벤트 인제스트
-// classification=K-Pop OR keyword=K-pop 두 전략 병합 + 한국(KR) 제외 (KOPIS 와 중복 방지)
+// classification=K-Pop OR keyword=K-pop 두 전략 병합 + 한국(KR) 제외 (글로벌 유저 대상 정책)
 // 응답 메트릭에 단계별 카운트 포함 — 0건 시 어느 단계에서 사라졌는지 추적
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
@@ -33,7 +33,7 @@ export interface TicketmasterIngestResult {
   note?: string
 }
 
-// 공연명 키워드 기반 fanmeet 판정 — KOPIS 와 동일 패턴
+// 공연명 키워드 기반 fanmeet 판정
 function classifyType(name: string): "concert" | "fanmeet" {
   const lower = name.toLowerCase()
   const fanmeetKeywords = [
@@ -136,7 +136,7 @@ export async function runTicketmasterIngest(): Promise<TicketmasterIngestResult>
     else withoutKpopClassification++
   }
 
-  // KR 제외 — KOPIS 에서 이미 수집
+  // KR 제외 — UnfoldK 는 글로벌 유저 대상, 국내 전용 공연 (Melon Ticket 등) 은 노출 안 함
   let filteredKr = 0
   const filtered = dedupedEvents.filter((ev) => {
     const country = ev._embedded?.venues?.[0]?.country?.countryCode

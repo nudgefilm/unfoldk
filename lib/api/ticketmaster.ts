@@ -1,6 +1,6 @@
 // Ticketmaster Discovery API v2 래퍼
 // 공식 문서: https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/
-// 응답 형식: JSON (KOPIS 와 달리 별도 파서 불필요)
+// 응답 형식: JSON (별도 파서 불필요)
 // ⚠️ API 키는 절대 하드코딩 금지 — process.env.TICKETMASTER_API_KEY 만 참조
 
 const TM_BASE = "https://app.ticketmaster.com/discovery/v2/events.json"

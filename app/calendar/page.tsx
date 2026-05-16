@@ -30,7 +30,6 @@ interface CalendarEvent {
 }
 
 // Ticketmaster 이벤트에서만 Get Tickets 버튼 노출 — 다른 소스는 url 없거나 의미 다름.
-// TODO: KOPIS 는 현재 캘린더 노출 차단 중. 재노출 시 Melon Ticket 외부 링크를 url 로 채우면 동일 조건 자동 적용.
 function shouldShowGetTickets(event: CalendarEvent): boolean {
   return event.sourceApi === "ticketmaster" && !!event.url
 }
