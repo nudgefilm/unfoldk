@@ -235,6 +235,64 @@ const COUNTRY_OPTIONS = [
 
 type PlanType = "free" | "monthly" | "annual"
 
+// 모달 카테고리 영문 라벨 — 모달 카드 헤더 통일.
+const CATEGORY_LABEL_EN: Record<Category, string> = {
+  filming: "Filming Spot",
+  kpop: "K-Pop Site",
+  food: "Food Hotspot",
+  stays: "Stay",
+}
+
+// 한글 → 영문 동기 매핑 — 광역시도 + 자주 등장하는 자치구·번화가.
+// 매핑 안 된 한글은 translateAddress 가 strip. Haiku 호출 없이 즉시 변환.
+const REGION_MAP: Record<string, string> = {
+  "서울특별시": "Seoul", "서울": "Seoul",
+  "부산광역시": "Busan", "부산": "Busan",
+  "제주특별자치도": "Jeju", "제주": "Jeju",
+  "인천광역시": "Incheon", "인천": "Incheon",
+  "대구광역시": "Daegu", "대구": "Daegu",
+  "대전광역시": "Daejeon", "대전": "Daejeon",
+  "광주광역시": "Gwangju", "광주": "Gwangju",
+  "울산광역시": "Ulsan", "울산": "Ulsan",
+  "세종특별자치시": "Sejong", "세종": "Sejong",
+  "경기도": "Gyeonggi", "강원도": "Gangwon",
+  "충청북도": "Chungbuk", "충청남도": "Chungnam",
+  "전라북도": "Jeonbuk", "전라남도": "Jeonnam",
+  "경상북도": "Gyeongbuk", "경상남도": "Gyeongnam",
+  "강남구": "Gangnam", "홍대": "Hongdae",
+  "이태원": "Itaewon", "명동": "Myeongdong",
+  "해운대구": "Haeundae", "종로구": "Jongno",
+  "마포구": "Mapo", "송파구": "Songpa",
+  "중구": "Jung-gu", "용산구": "Yongsan",
+  "성동구": "Seongdong", "영등포구": "Yeongdeungpo",
+}
+
+// 한글 주소를 영문으로 best-effort 변환. REGION_MAP 매칭 후 나머지 한글 strip.
+function translateAddress(addr: string | null | undefined): string {
+  if (!addr) return ""
+  let result = addr
+  for (const [ko, en] of Object.entries(REGION_MAP)) {
+    if (result.includes(ko)) {
+      result = result.split(ko).join(en)
+    }
+  }
+  // 나머지 한글 제거 + whitespace 정리. 영문·숫자·문장부호만 유지.
+  return result
+    .replace(/[ㄱ-ㆎ가-힣]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+// 장소명에 한글 포함 시 partial 영문 변환. 매칭 없으면 원본 그대로 (영문 spotName 대다수).
+function translatePlaceName(name: string): string {
+  if (!name) return ""
+  // 한글 글자 없으면 그대로 (대부분 영문 spot_name)
+  if (!/[가-힣]/.test(name)) return name
+  const t = translateAddress(name)
+  // 변환 후 빈 문자열이면 원본 유지 (정보 손실 방지)
+  return t.length > 0 ? t : name
+}
+
 export default function CurationKPage() {
   const [koreaPath, setKoreaPath] = useState<string | null>(null)
 
@@ -258,10 +316,7 @@ export default function CurationKPage() {
     | { type: "pin"; pin: OverlayPin }
     | null
   const [viewState, setViewState] = useState<ViewState>(null)
-
-  // 주소 영문 변환 캐시 (페이지 세션 단위). lazy fetch on modal open.
-  const [translatedAddress, setTranslatedAddress] = useState<string | null>(null)
-  const [translating, setTranslating] = useState(false)
+  // 주소 변환은 REGION_MAP 동기 변환으로 전환 — Haiku lazy fetch 제거 (즉시 표시, 비용 0).
 
   // 섹션 데이터
   const [filmingSpots, setFilmingSpots] = useState<FilmingSpotItem[]>([])
@@ -385,36 +440,6 @@ export default function CurationKPage() {
       .catch((err) => console.warn("[curation-k] geo fetch 실패:", err))
       .finally(() => setGeoLoading(false))
   }, [geoCountry])
-
-  // 핀 모달 진입 시 영문 주소 lazy fetch. 캐시는 서버 측 (CDN s-maxage 7일).
-  useEffect(() => {
-    if (viewState?.type !== "pin") {
-      setTranslatedAddress(null)
-      setTranslating(false)
-      return
-    }
-    const addr = viewState.pin.address
-    if (!addr) {
-      setTranslatedAddress(null)
-      return
-    }
-    const ctrl = new AbortController()
-    setTranslating(true)
-    fetch(`/api/curation-k/translate-address?text=${encodeURIComponent(addr)}`, {
-      signal: ctrl.signal,
-    })
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { english?: string }) => {
-        setTranslatedAddress(body.english ?? addr)
-      })
-      .catch((err) => {
-        if (err instanceof Error && err.name === "AbortError") return
-        console.warn("[curation-k] address translate 실패:", err)
-        setTranslatedAddress(addr)
-      })
-      .finally(() => setTranslating(false))
-    return () => ctrl.abort()
-  }, [viewState])
 
   // 카테고리 토글 — 핀 오버레이 표시 분기 + (향후) 콘텐츠 섹션 스코프 필터.
   const toggleCategory = (key: Category) => {
@@ -1127,8 +1152,6 @@ export default function CurationKPage() {
           닫기: × 버튼 또는 backdrop 클릭. */}
       <PinModal
         view={viewState}
-        translatedAddress={translatedAddress}
-        translating={translating}
         onClose={() => setViewState(null)}
         onSelectPin={(pin) => setViewState({ type: "pin", pin })}
       />
@@ -1144,8 +1167,6 @@ export default function CurationKPage() {
 // CLAUDE.md §6 동결 원칙 — 지도 SVG 외부 component 라 자유 수정 가능.
 function PinModal({
   view,
-  translatedAddress,
-  translating,
   onClose,
   onSelectPin,
 }: {
@@ -1153,8 +1174,6 @@ function PinModal({
     | { type: "cluster"; pins: OverlayPin[] }
     | { type: "pin"; pin: OverlayPin }
     | null
-  translatedAddress: string | null
-  translating: boolean
   onClose: () => void
   onSelectPin: (pin: OverlayPin) => void
 }) {
@@ -1208,107 +1227,111 @@ function PinModal({
               </button>
             </div>
             <ul className="max-h-[60vh] overflow-y-auto divide-y divide-border/20">
-              {view.pins.map((pin) => (
-                <li key={pin.id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelectPin(pin)}
-                    className="w-full text-left px-5 py-3 hover:bg-[#1a1a1a] transition-colors flex items-start gap-3"
-                  >
-                    <span
-                      className="inline-block w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
-                      style={{ backgroundColor: CATEGORY_COLOR_MAP[pin.category] }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-foreground text-sm font-medium truncate">
-                        {pin.name}
-                      </p>
-                      <p className="text-muted-foreground text-xs mt-0.5 truncate">
-                        <span className="uppercase tracking-wider mr-1.5">
-                          {pin.category}
-                        </span>
-                        · {pin.subtitle}
-                      </p>
-                      {pin.address && (
-                        <p className="text-muted-foreground/60 text-[11px] mt-1 truncate">
-                          {pin.address}
+              {view.pins.map((pin) => {
+                const enName = translatePlaceName(pin.name)
+                const enAddr = translateAddress(pin.address)
+                return (
+                  <li key={pin.id}>
+                    <button
+                      type="button"
+                      onClick={() => onSelectPin(pin)}
+                      className="w-full text-left px-5 py-3 hover:bg-[#1a1a1a] transition-colors flex items-start gap-3"
+                    >
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
+                        style={{ backgroundColor: CATEGORY_COLOR_MAP[pin.category] }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-foreground text-sm font-medium truncate">
+                          {enName}
                         </p>
-                      )}
-                    </div>
-                  </button>
-                </li>
-              ))}
+                        <p className="text-muted-foreground text-xs mt-0.5 truncate">
+                          <span className="uppercase tracking-wider mr-1.5">
+                            {CATEGORY_LABEL_EN[pin.category]}
+                          </span>
+                          · {pin.subtitle}
+                        </p>
+                        {enAddr && (
+                          <p className="text-muted-foreground/60 text-[11px] mt-1 truncate">
+                            {enAddr}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           </>
         )}
 
         {/* ─── Pin detail ──────────────────────────────────── */}
-        {view.type === "pin" && (
-          <>
-            {view.pin.image && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={view.pin.image}
-                alt={view.pin.name}
-                referrerPolicy="no-referrer"
-                className="w-full aspect-[16/9] object-cover bg-[#252525]"
-              />
-            )}
-            <div className="p-5">
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <span
-                      className="inline-block w-2 h-2 rounded-full"
-                      style={{ backgroundColor: CATEGORY_COLOR_MAP[view.pin.category] }}
-                    />
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {view.pin.category}
-                    </span>
+        {view.type === "pin" && (() => {
+          const enName = translatePlaceName(view.pin.name)
+          const enAddr = translateAddress(view.pin.address)
+          return (
+            <>
+              {view.pin.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={view.pin.image}
+                  alt={enName}
+                  referrerPolicy="no-referrer"
+                  className="w-full aspect-[16/9] object-cover bg-[#252525]"
+                />
+              )}
+              <div className="p-5">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span
+                        className="inline-block w-2 h-2 rounded-full"
+                        style={{ backgroundColor: CATEGORY_COLOR_MAP[view.pin.category] }}
+                      />
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {CATEGORY_LABEL_EN[view.pin.category]}
+                      </span>
+                    </div>
+                    <h3 className="text-foreground font-semibold text-lg leading-tight">
+                      {enName}
+                    </h3>
                   </div>
-                  <h3 className="text-foreground font-semibold text-lg leading-tight">
-                    {view.pin.name}
-                  </h3>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Close"
+                    className="text-muted-foreground hover:text-foreground -mr-2 -mt-2 p-2 flex-shrink-0"
+                  >
+                    ×
+                  </button>
                 </div>
+
+                {view.pin.subtitle && (
+                  <p className="text-muted-foreground text-sm mb-3">{view.pin.subtitle}</p>
+                )}
+
+                {enAddr && (
+                  <div className="bg-[#1a1a1a] rounded-lg p-3 mb-4 text-sm">
+                    <p className="text-muted-foreground/70 text-[10px] uppercase tracking-wider mb-1">
+                      Address
+                    </p>
+                    <p className="text-foreground/90 leading-snug">{enAddr}</p>
+                  </div>
+                )}
+
                 <button
                   type="button"
-                  onClick={onClose}
-                  aria-label="Close"
-                  className="text-muted-foreground hover:text-foreground -mr-2 -mt-2 p-2 flex-shrink-0"
+                  onClick={() => handleScrollTo(view.pin.category)}
+                  className="w-full inline-flex items-center justify-center gap-1.5 h-10 rounded-full text-sm font-medium text-white"
+                  style={{ backgroundColor: CATEGORY_COLOR_MAP[view.pin.category] }}
                 >
-                  ×
+                  View in section
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
-
-              {view.pin.subtitle && (
-                <p className="text-muted-foreground text-sm mb-3">{view.pin.subtitle}</p>
-              )}
-
-              {view.pin.address && (
-                <div className="bg-[#1a1a1a] rounded-lg p-3 mb-4 text-sm">
-                  <p className="text-muted-foreground/70 text-[10px] uppercase tracking-wider mb-1">
-                    Address
-                  </p>
-                  <p className="text-foreground/90 leading-snug">
-                    {translating
-                      ? view.pin.address
-                      : translatedAddress ?? view.pin.address}
-                  </p>
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => handleScrollTo(view.pin.category)}
-                className="w-full inline-flex items-center justify-center gap-1.5 h-10 rounded-full text-sm font-medium text-white"
-                style={{ backgroundColor: CATEGORY_COLOR_MAP[view.pin.category] }}
-              >
-                View in section
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </>
-        )}
+            </>
+          )
+        })()}
       </div>
     </div>
   )

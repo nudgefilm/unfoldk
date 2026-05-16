@@ -20,7 +20,7 @@
 
 import Anthropic from "@anthropic-ai/sdk"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
-import { searchKeyword, normalizeSpot, CONTENT_TYPE } from "@/lib/api/tourapi"
+import { searchKeyword, normalizeSpot, AREA_CODE } from "@/lib/api/tourapi"
 
 const client = new Anthropic()
 
@@ -237,44 +237,82 @@ async function translateToKorean(spotName: string): Promise<string | null> {
   return translated
 }
 
-// TourAPI 키워드 검색 단발 호출. 0건/예외 시 null.
-async function searchOneTourSpot(keyword: string) {
+// Claude 가 추출한 region 라벨 → TourAPI areaCode 매핑.
+// 라벨은 영문 (Claude 시스템 프롬프트에서 영문 region 명시 — Seoul/Gyeonggi 등).
+// 매칭 안 되면 undefined → 전국 검색.
+const REGION_TO_AREA_CODE: Record<string, number> = {
+  "Seoul": AREA_CODE.SEOUL,
+  "Incheon": AREA_CODE.INCHEON,
+  "Daejeon": AREA_CODE.DAEJEON,
+  "Daegu": AREA_CODE.DAEGU,
+  "Gwangju": AREA_CODE.GWANGJU,
+  "Busan": AREA_CODE.BUSAN,
+  "Ulsan": AREA_CODE.ULSAN,
+  "Sejong": AREA_CODE.SEJONG,
+  "Gyeonggi": AREA_CODE.GYEONGGI,
+  "Gangwon": AREA_CODE.GANGWON,
+  // Claude 가 약식 (Chungcheong / Jeolla / Gyeongsang) 으로 답할 수도 있어 polite alias.
+  // 정확한 도 구분 불가 시 북도를 우선 — 명확한 정보 부족 시 사용자 검증으로.
+  "Chungbuk": AREA_CODE.CHUNGCHEONGBUK,
+  "Chungnam": AREA_CODE.CHUNGCHEONGNAM,
+  "Chungcheong": AREA_CODE.CHUNGCHEONGNAM,
+  "Gyeongbuk": AREA_CODE.GYEONGSANGBUK,
+  "Gyeongnam": AREA_CODE.GYEONGSANGNAM,
+  "Gyeongsang": AREA_CODE.GYEONGSANGNAM,
+  "Jeonbuk": AREA_CODE.JEOLLABUK,
+  "Jeonnam": AREA_CODE.JEOLLANAM,
+  "Jeolla": AREA_CODE.JEOLLANAM,
+  "Jeju": AREA_CODE.JEJU,
+}
+
+function regionToAreaCode(region: string | null): number | undefined {
+  if (!region) return undefined
+  return REGION_TO_AREA_CODE[region.trim()]
+}
+
+// TourAPI 키워드 검색 단발 호출. 0건/예외 시 null. areaCode 옵션으로 지역 제한.
+async function searchOneTourSpot(keyword: string, areaCode?: number) {
   try {
     const { items } = await searchKeyword({
       keyword,
       // 음식점·문화시설·관광지 모두 후보로 — contentTypeId 미지정 (전체 검색)
       numOfRows: 1,
+      ...(areaCode ? { areaCode } : {}),
     })
     if (items.length === 0) return null
     return normalizeSpot(items[0])
   } catch (err) {
-    console.warn(`[filming-spots] TourAPI search 실패 "${keyword}":`, err)
+    console.warn(
+      `[filming-spots] TourAPI search 실패 "${keyword}" (area=${areaCode ?? "nat"}):`,
+      err
+    )
     return null
   }
 }
 
 // TourAPI GPS 매핑 — 3-tier fallback.
-//   Tier 1: 영문 spotName 그대로 검색
-//   Tier 2: Claude Haiku 한국어 변환 후 재검색 (TourAPI 가 영문 인덱싱 약함 대응)
-//   Tier 3: region 키워드로 검색 (최후 — 도시/지역 단위 부정확하지만 lat/lng 확보)
+//   Tier 1: 영문 keyword + areaCode (region 있을 때) → 가장 정확
+//   Tier 2: Claude Haiku 한국어 변환 + areaCode (TourAPI 영문 인덱싱 약함 대응)
+//   Tier 3: areaCode 없이 전국 검색 (region 매핑 실패·매칭 0건 fallback)
 // 0건이면 null → 호출자는 GPS 없는 pending 상태로 저장.
 async function mapToTourAPI(spotName: string, region: string | null) {
-  // Tier 1
-  const tier1 = await searchOneTourSpot(spotName)
+  const areaCode = regionToAreaCode(region)
+
+  // Tier 1 — 영문 spotName + areaCode 필터
+  const tier1 = await searchOneTourSpot(spotName, areaCode)
   if (tier1) return tier1
 
-  // Tier 2 — 한국어 변환 후 재시도
+  // Tier 2 — 한국어 변환 + areaCode 필터
   const koreanName = await translateToKorean(spotName)
   if (koreanName) {
-    const tier2 = await searchOneTourSpot(koreanName)
+    const tier2 = await searchOneTourSpot(koreanName, areaCode)
     if (tier2) return tier2
   }
 
-  // Tier 3 — 지역명만으로 (있을 때만). 부정확하지만 그래도 시/도 GPS 라도 확보 의도.
-  if (region && region.trim().length > 0) {
-    const tier3 = await searchOneTourSpot(region.trim())
-    if (tier3) return tier3
-  }
+  // Tier 3 — 전국 검색 (areaCode 제거). 한국어 이름 우선, 없으면 영문.
+  const nationKeyword = koreanName ?? spotName
+  const tier3 = await searchOneTourSpot(nationKeyword)
+  if (tier3) return tier3
 
   return null
 }
