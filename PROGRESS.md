@@ -4,6 +4,67 @@
 
 ---
 
+## 현재 상태 (2026-05-18 세션 15 / HallyuBot Discord 봇 풀 스택 + top.gg 제출)
+
+> 단일 영역 집중 세션. Discord 봇을 lib · API 라우트 · cron · migration · CLI 등록 스크립트까지 일괄 구축. 운영 사용자 액션(채널 연결·top.gg 제출)까지 같은 세션에 완료.
+
+### 완료
+
+#### A. HallyuBot 봇 신규 구현 (`fea9305`)
+- **lib/discord/* 7 모듈** —
+  - `bot.ts` Discord REST v10 클라이언트 (`postChannelMessage` / `resolveChannelIdByName` 10분 TTL multi-guild Map 캐시 / `registerGuildCommands` PUT)
+  - `verify.ts` Ed25519 서명 검증 — 외부 패키지 0. Node 내장 `crypto.verify` + SPKI prefix 12바이트 wrapping (RFC 8410 §4).
+  - `embeds.ts` Embed 빌더 9종 — 4 채널 자동 포스팅 (daily-schedule / kpop-charts / drama-updates / korean-phrase) + 5 슬래시 명령. 모두 `EARLY_ACCESS_NOTE` 하단 + `0xff4b6e` 브랜드 컬러.
+  - `commands.ts` 슬래시 명령 6 정의 (`comeback` / `chart` / `drama` / `korean` / `about` / `setup`). `/setup` 만 `default_member_permissions="32"` (MANAGE_GUILD) + `dm_permission=false` + 4 채널 옵션 (CHANNEL type=7, channel_types=[0,5]).
+  - `data.ts` cron + 슬래시 공유 데이터 fetch (`fetchTodaySchedule` / `fetchWeeklyComebacks` / `fetchTop10Chart` / `fetchAiringDramas` / `fetchTodayKoreanPhrase`).
+  - `settings.ts` `getServerSettings` / `listAllServerSettings` / `upsertServerSettings` (read-then-merge partial upsert) / `resolveChannelForKey` (NULL → announcements → general fallback).
+  - `korean-phrases.ts` 35개 정적 표현 + `dayOfYear % length` 결정적 회전. HangeulGo 백엔드 미구현 우회 — 추후 DB 조회로 1함수만 교체.
+- **API 라우트 3** —
+  - `app/api/cron/discord-daily/route.ts` — KST 18:00 (UTC 09:00) cron. Embed 한 번 빌드 후 multi-server 순회. enrolled 서버 = settings 기반 + NULL fallback, env-only 서버 = legacy 채널명 매핑 (backward compat). 한 서버·한 채널 실패 격리.
+  - `app/api/discord/interactions/route.ts` — Webhook. PING/Pong → APPLICATION_COMMAND 분기. `/setup` 은 MANAGE_GUILD BigInt 비트 검증 + ephemeral 응답. tsconfig target=ES6 환경이라 BigInt 리터럴 대신 `BigInt(32)` 사용.
+  - `app/api/discord/register-commands/route.ts` — CRON_SECRET 인증 일회성 트리거 (운영용).
+- **migration 0024** — `discord_server_settings` (guild_id PK + 4 channel ID + updated_at 트리거 재사용). RLS 활성 + 정책 부재 → public 자동 차단. `service_role` 만 GRANT.
+- **lib/api/tmdb.ts** — `fetchCurrentlyAiringKoreanDramas` 추가 (`air_date.lte=today` + popularity desc).
+- **vercel.json** — `0 9 * * *` discord-daily cron 슬롯 추가.
+
+#### B. scripts/register-commands.ts + tsx CLI 등록 (`fea9305` 외)
+- 1회성 PUT 등록 스크립트. `SLASH_COMMANDS` 를 `lib/discord/commands.ts` 에서 import → 단일 정의 출처. PowerShell `.env.local` 1-liner loader 또는 `dotenv-cli` 사용 방법 헤더 주석에 박제.
+- `package.json scripts."discord:register"` 추가. devDep `tsx@^4.22.0` + `dotenv-cli@^11.0.0` 신규 추가.
+
+#### C. DECISIONS.md 결정 기록 박제
+- 2026-05-17 항목 — discord.js 미사용 사유 (serverless 부적합) / Node 내장 crypto Ed25519 / multi-server enrollment / cron fallback 2층 / HangeulGo 우회. 사용자 액션 5단계 박제.
+
+#### D. 운영 사용자 액션 — 본 세션 중 완료
+- ✅ `.env.local` `DISCORD_GUILD_ID` 등록 (Discord 서버 ID, 주석 가이드 포함)
+- ✅ Vercel env Discord 4종 등록 (`DISCORD_BOT_TOKEN` / `DISCORD_CLIENT_ID` / `DISCORD_PUBLIC_KEY` / `DISCORD_GUILD_ID`)
+- ✅ `0024_discord_server_settings.sql` Supabase SQL Editor 적용
+- ✅ Discord Developer Portal — INTERACTIONS ENDPOINT URL 등록 (Discord PING 검증 통과)
+- ✅ Bot OAuth invite → 서버 초대
+- ✅ 슬래시 명령 6개 등록 (`pnpm discord:register` 또는 운영 endpoint)
+- ✅ `/setup` 실행 — 4 채널 매핑 완료
+- ✅ Cron 수동 테스트 — `ingest-all` / `ingest-filming-spots` 정상
+- ✅ **top.gg 제출 완료** — 심사 대기 (예상 1~2주)
+
+### 신규 의존성 (devDependencies)
+- `tsx@^4.22.0` — TS 스크립트 직접 실행
+- `dotenv-cli@^11.0.0` — `.env.local` 셸 로드 (스크립트 실행용)
+
+### 다음 세션 후보 (carry-over)
+- **top.gg 심사 통과 후** — 봇 페이지 운영 (배지·문서·tags·support server invite 갱신). 심사 결과 통보 후.
+- **/calendar / /today / /notify 슬래시 명령 추가** (요청 들어왔지만 본 세션에서 의도 확인 후 제외) — interactions 라우트 분기 + Embed 빌더 + `/notify` 의 경우 사용자별 알림 구독 DB 필요. 추후 별도 세션.
+- **세션 14 carry-over 전체 유지**:
+  - **KdramaMatch Phase 2** — TMDB networks ingest / on_the_air D-Day / 드라마-캘린더 매핑 / OST 아티스트 연결
+  - **Curation K Phase 2** — AI 1-Day Course 생성 파이프라인 / 개인화 / 숙박 자동 큐레이션 / 고캠핑 / K팝 성지 시드 UI / pending 검토 큐
+  - **결제 가동 시 복원** — CLAUDE.md §6 표 grep `// 2026-05-16 임시 정책`
+  - **세션 13 carry-over 유지** — 메인 페이지 hang + Ghost Globe 미작동, TMDB 모달 장르·평점·OTT, fan_event_requests 제보 폼·검토 큐, Cookie Policy, Vercel·Supabase 비용 점검, YouTube quota 일별 cron 자동 분할, /kpop/[id] latest stats null 폴백, 어드민 Haiku 미분류 6명 백필 UI, Last.fm Top 500 monthly refresh cron 화
+- **블로그 cron 운영 안정화** — 카테고리·태그 다양화 / 자동 SEO meta 보강 / image credit 정책 재검토
+
+### 블로커
+- **top.gg 심사 1~2주 대기** — 외부 의존, 컨트롤 불가. 심사 통과 전까지 봇 검색 노출 제한.
+- 세션 13 carry-over — 메인 페이지 hang + Ghost Globe 미작동 (재부팅 후 결과 의존, 본 세션 미확인)
+
+---
+
 ## 현재 상태 (2026-05-16~17 세션 14 / 마이페이지·블로그·KdramaMatch·Curation K·Early Access — 6개 메이저 영역 + 3 migrations)
 
 > 단일 세션이지만 작업량은 평소 3~4 세션 분량. 메이저 영역 6개로 묶어 정리. commit 흐름은 `git log --oneline -25` 참조.
