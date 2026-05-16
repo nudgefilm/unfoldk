@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "discord:register": "tsx scripts/register-commands.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
@@ -82,10 +83,12 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.184.1",
     "@types/topojson-client": "^3.1.5",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^8.57.1",
     "eslint-config-next": "15.2.6",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.22.0",
     "typescript": "^5"
   }
 }
