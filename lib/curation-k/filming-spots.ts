@@ -28,6 +28,18 @@ const MAX_DRAMAS_PER_RUN = 5
 const MAX_SPOTS_PER_DRAMA = 5
 const CONFIDENCE_PENDING_THRESHOLD = 0.5
 
+// 잘 알려진 K드라마 TMDB ID — 촬영지 데이터 시드 품질을 보장하기 위해 우선 처리.
+// Claude 학습 지식이 풍부한 작품들 (글로벌 인지도 + 촬영지 fan documentation 다수).
+// 순서대로 처리 — 앞쪽이 더 우선.
+const PRIORITY_TMDB_IDS: number[] = [
+  94796,  // Crash Landing on You
+  67809,  // Goblin (Guardian: The Lonely and Great God)
+  117709, // Vincenzo
+  93405,  // Squid Game
+  75573,  // My Mister
+  95503,  // Itaewon Class
+]
+
 export interface FilmingSpotsIngestResult {
   source: "filming-spots"
   dramasScanned: number
@@ -178,11 +190,13 @@ export async function runFilmingSpotsIngest(): Promise<FilmingSpotsIngestResult>
   const supabase = createSupabaseAdminClient()
 
   // 후보: 인기 K드라마 중 filming_spots 에 아직 한 건도 없는 것 우선.
-  // 단순한 길 — popularity 대신 dramas.rating desc 로 정렬 (이미 인덱스 있음).
+  // 정렬: year desc → rating desc (최신작 우선, 동률 시 평점 높은 쪽).
+  // 잘 알려진 작품 (PRIORITY_TMDB_IDS) 은 fetch 후 in-memory 로 앞쪽으로 끌어올림.
   const { data: dramas, error: dramaErr } = await supabase
     .from("dramas")
-    .select("id, title, title_ko")
+    .select("id, tmdb_id, title, title_ko")
     .eq("is_active", true)
+    .order("year", { ascending: false, nullsFirst: false })
     .order("rating", { ascending: false, nullsFirst: false })
     .limit(50) // 후보 풀
 
@@ -205,13 +219,26 @@ export async function runFilmingSpotsIngest(): Promise<FilmingSpotsIngestResult>
     ((existing ?? []) as Array<{ drama_title: string }>).map((e) => e.drama_title)
   )
 
-  const candidates = dramas.filter((d) => !existingTitles.has(d.title)).slice(0, MAX_DRAMAS_PER_RUN)
+  // 우선순위 partition — PRIORITY_TMDB_IDS 순서대로 먼저, 나머지는 year·rating 정렬 유지.
+  // 둘 다 existingTitles 필터 통과한 것만. 50개 풀 내에 우선순위 작품 없으면 자연스럽게 normal 로 채워짐.
+  type DramaRow = { id: string; tmdb_id: number | null; title: string; title_ko: string | null }
+  const remaining = (dramas as DramaRow[]).filter((d) => !existingTitles.has(d.title))
+
+  const priorityBucket: DramaRow[] = []
+  for (const targetId of PRIORITY_TMDB_IDS) {
+    const found = remaining.find((d) => d.tmdb_id === targetId)
+    if (found) priorityBucket.push(found)
+  }
+  const priorityIds = new Set(priorityBucket.map((d) => d.id))
+  const normalBucket = remaining.filter((d) => !priorityIds.has(d.id))
+
+  const candidates = [...priorityBucket, ...normalBucket].slice(0, MAX_DRAMAS_PER_RUN)
   if (candidates.length === 0) return result
 
   for (const drama of candidates) {
-    const dramaTitle = drama.title as string
-    const dramaTitleKo = (drama as { title_ko: string | null }).title_ko ?? null
-    const dramaId = (drama as { id: string }).id
+    const dramaTitle = drama.title
+    const dramaTitleKo = drama.title_ko
+    const dramaId = drama.id
 
     let spotsFound = 0
     let spotsMapped = 0
