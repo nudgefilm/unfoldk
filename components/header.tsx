@@ -9,6 +9,7 @@ import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { StartModal } from "@/components/start-modal"
+import { EarlyAccessBanner } from "@/components/early-access/early-access-banner"
 
 // Header 를 노출하지 않는 경로들 — 자체 레이아웃이 있거나 풀스크린 인증/결제 페이지.
 // root layout 에서 Header 를 단일 마운트하므로 여기서 prefix 매칭으로 가드.
@@ -23,14 +24,27 @@ const HIDE_HEADER_PREFIXES = [
   "/payment",          // /payment/success, /payment/fail
 ]
 
-const services = [
-  { icon: Calendar, name: "HallyuCalendar", description: "Never miss a comeback or premiere", href: "/calendar" },
-  { icon: Music, name: "KpopStats", description: "Global charts & streaming stats", href: "/kpop" },
-  { icon: Film, name: "KdramaMatch", description: "AI-powered drama recommendations", href: "/drama" },
-  { icon: Languages, name: "HangeulGo", description: "Learn Korean from K-dramas", href: "/korean" },
-  { icon: UtensilsCrossed, name: "KfoodKit", description: "Cook your favorite K-drama dishes", href: "/food" },
-  { icon: Map, name: "Curation K", description: "Explore Korea like a Hallyu fan", href: "/curation-k" },
+// status: 'live' = 출시됨 (뱃지 없음) / 'soon' = 출시 예정 (Coming Soon 뱃지).
+// phase 는 로드맵 모달에서 사용. Curation K 는 M+5 로드맵이었지만 Phase 1 출시 후 live.
+const services: Array<{
+  icon: typeof Calendar
+  name: string
+  description: string
+  href: string
+  status: "live" | "soon"
+  phase: string
+}> = [
+  { icon: Calendar, name: "HallyuCalendar", description: "Never miss a comeback or premiere", href: "/calendar", status: "live", phase: "M+0" },
+  { icon: Music, name: "KpopStats", description: "Global charts & streaming stats", href: "/kpop", status: "live", phase: "M+1" },
+  { icon: Film, name: "KdramaMatch", description: "AI-powered drama recommendations", href: "/drama", status: "soon", phase: "M+2" },
+  { icon: Languages, name: "HangeulGo", description: "Learn Korean from K-dramas", href: "/korean", status: "soon", phase: "M+3" },
+  { icon: UtensilsCrossed, name: "KfoodKit", description: "Cook your favorite K-drama dishes", href: "/food", status: "soon", phase: "M+4" },
+  { icon: Map, name: "Curation K", description: "Explore Korea like a Hallyu fan", href: "/curation-k", status: "live", phase: "M+5" },
 ]
+
+// 서비스 목록 export — RoadmapModal 등 외부 컴포넌트 재사용
+export type ServiceMeta = (typeof services)[number]
+export const SERVICES_META = services
 
 export function Header() {
   const router = useRouter()
@@ -169,8 +183,14 @@ export function Header() {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 w-full py-4 px-6 bg-background">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full bg-background">
+      {/* Early Access 공지 배너 — Header 내부 위쪽. session 1회 dismiss 후 미노출.
+          fixed Header 의 첫 children 으로 마운트 → 같은 fixed 영역에 포함 + Header 의
+          HIDE_PREFIXES 가드 자동 적용 (admin/login 등에서는 Header 자체가 null). */}
+      <EarlyAccessBanner />
+
+      <div className="py-4 px-6">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Left: Brand */}
         <Link href="/" className="flex items-center">
           <span className="text-foreground text-xl font-semibold">UnfoldK</span>
@@ -205,14 +225,17 @@ export function Header() {
                       className="flex items-start gap-3 p-3 rounded-lg hover:bg-[#252525] transition-colors"
                     >
                       <service.icon className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                      <div>
-                        <div className="text-foreground font-medium text-sm">{service.name}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-foreground font-medium text-sm">{service.name}</span>
+                          {service.status === "soon" && <ComingSoonBadge />}
+                        </div>
                         <div className="text-muted-foreground text-xs mt-0.5">{service.description}</div>
                       </div>
                     </Link>
                   ))}
                 </div>
-                
+
                 {/* Full-width 카드 — 5번째부터 (KfoodKit, Curation K …) */}
                 {services.slice(4).map((service) => (
                   <Link
@@ -221,8 +244,11 @@ export function Header() {
                     className="flex items-start gap-3 p-3 rounded-lg hover:bg-[#252525] transition-colors mt-2"
                   >
                     <service.icon className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                    <div>
-                      <div className="text-foreground font-medium text-sm">{service.name}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-foreground font-medium text-sm">{service.name}</span>
+                        {service.status === "soon" && <ComingSoonBadge />}
+                      </div>
                       <div className="text-muted-foreground text-xs mt-0.5">{service.description}</div>
                     </div>
                   </Link>
@@ -353,8 +379,11 @@ export function Header() {
                   className="flex items-center gap-3 px-2 py-3 rounded-lg hover:bg-[#252525] transition-colors"
                 >
                   <service.icon className="w-5 h-5 text-primary flex-shrink-0" />
-                  <div>
-                    <div className="text-foreground font-medium text-sm">{service.name}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-foreground font-medium text-sm">{service.name}</span>
+                      {service.status === "soon" && <ComingSoonBadge />}
+                    </div>
                     <div className="text-muted-foreground text-xs">{service.description}</div>
                   </div>
                 </Link>
@@ -407,6 +436,7 @@ export function Header() {
             </nav>
           </SheetContent>
         </Sheet>
+        </div>
       </div>
 
       {/* My Page (비로그인) 클릭 시 인플레이스 OAuth 모달.
@@ -417,5 +447,17 @@ export function Header() {
         next="/mypage"
       />
     </header>
+  )
+}
+
+// 미출시 서비스용 작은 뱃지. brand 컬러 알파, uppercase, tight padding.
+function ComingSoonBadge() {
+  return (
+    <span
+      className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full whitespace-nowrap"
+      style={{ backgroundColor: "rgba(255, 75, 110, 0.18)", color: "#FF4B6E" }}
+    >
+      Soon
+    </span>
   )
 }

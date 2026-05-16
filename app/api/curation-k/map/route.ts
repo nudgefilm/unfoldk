@@ -19,6 +19,8 @@ interface FilmingRow {
   region: string | null
   latitude: number | string | null
   longitude: number | string | null
+  address: string | null
+  image_url: string | null
 }
 
 interface KpopRow {
@@ -29,6 +31,8 @@ interface KpopRow {
   region: string | null
   latitude: number | string | null
   longitude: number | string | null
+  address: string | null
+  image_url: string | null
 }
 
 export interface MapPin {
@@ -37,6 +41,8 @@ export interface MapPin {
   name: string                  // 표시 라벨
   subtitle: string              // 부제 (드라마명 / 아티스트명 + 유형)
   region: string | null
+  address: string | null
+  image_url: string | null
   lat: number
   lng: number
   spot_type?: string            // kpop 만
@@ -54,11 +60,11 @@ export async function GET() {
   const [filmingRes, kpopRes] = await Promise.all([
     supabase
       .from("filming_spots")
-      .select("id, drama_title, spot_name, region, latitude, longitude")
+      .select("id, drama_title, spot_name, region, latitude, longitude, address, image_url")
       .neq("spot_name", "__no_spots_found__"),
     supabase
       .from("kpop_spots")
-      .select("id, artist_name, spot_name, spot_type, region, latitude, longitude"),
+      .select("id, artist_name, spot_name, spot_type, region, latitude, longitude, address, image_url"),
   ])
 
   if (filmingRes.error) {
@@ -80,6 +86,8 @@ export async function GET() {
       name: r.spot_name,
       subtitle: r.drama_title,
       region: r.region,
+      address: r.address,
+      image_url: r.image_url,
       lat,
       lng,
     })
@@ -106,6 +114,8 @@ export async function GET() {
       name: r.spot_name,
       subtitle: `${subtitlePrefix} · ${typeLabel}`,
       region: r.region,
+      address: r.address,
+      image_url: r.image_url,
       lat,
       lng,
       spot_type: r.spot_type,

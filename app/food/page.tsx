@@ -8,6 +8,7 @@ import { Search, Trophy, ChevronRight, Lock, Bot, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
+import { ServiceComingSoonBanner } from "@/components/early-access/service-coming-soon-banner"
 
 // AI Ingredient Finder — 한류 팬 밀집 20개국. 지역별 <optgroup> 그룹화.
 // 이모지 + ISO alpha-2 코드. /api/food/ingredient-finder 에 country 로 전송.
@@ -149,6 +150,11 @@ export default function KfoodKitPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0d0d0f" }}>
+      <ServiceComingSoonBanner
+        serviceName="KfoodKit"
+        serviceLabel="KfoodKit"
+        source="food-page"
+      />
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
         {/* Page Header */}
         <section className="text-center mb-12">

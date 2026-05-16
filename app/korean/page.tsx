@@ -7,6 +7,7 @@ import { Volume2, Check, RotateCcw, Lock } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
+import { ServiceComingSoonBanner } from "@/components/early-access/service-coming-soon-banner"
 
 const dramaPacks = [
   { title: "Crash Landing on You", phrases: 24, difficulty: "Beginner", progress: 75 },
@@ -44,6 +45,11 @@ export default function HangeulGoPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }}>
+      <ServiceComingSoonBanner
+        serviceName="HangeulGo"
+        serviceLabel="HangeulGo"
+        source="korean-page"
+      />
       <main className="max-w-[1320px] mx-auto px-5 py-12">
         {/* Page Header */}
         <section className="text-center mb-12">

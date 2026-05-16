@@ -20,6 +20,7 @@ import { Star, Plus, Play, Lock, TrendingUp, Sparkles, ListChecks } from "lucide
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
+import { ServiceComingSoonBanner } from "@/components/early-access/service-coming-soon-banner"
 
 // 필터 칩 옵션 (Hero 설문) — 정적 큐레이션
 const GENRES = ["Romance", "Thriller", "Comedy", "Fantasy", "Historical"]
@@ -396,6 +397,11 @@ export default function KdramaMatchPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <ServiceComingSoonBanner
+        serviceName="KdramaMatch"
+        serviceLabel="KdramaMatch"
+        source="drama-page"
+      />
       <main className="max-w-[1320px] mx-auto px-6 py-12">
         {/* ─── 1. Hero ────────────────────────────────────────── */}
         <section className="text-center mb-10">

@@ -166,6 +166,8 @@ interface MapFilmingPin {
   name: string         // spot_name
   subtitle: string     // drama_title
   region: string | null
+  address: string | null
+  image_url: string | null
   lat: number
   lng: number
 }
@@ -178,6 +180,7 @@ interface OverlayPin {
   name: string
   subtitle: string       // 드라마명 / 아티스트명 / 카테고리 라벨
   address: string | null
+  image: string | null
   lat: number
   lng: number
 }
@@ -248,7 +251,17 @@ export default function CurationKPage() {
   // 지도 핀 — filming 은 /api/curation-k/map (confirmed only) 에서 받음.
   // kpop/food/stay 는 아래 섹션 fetch 결과를 재사용.
   const [filmingMapPins, setFilmingMapPins] = useState<MapFilmingPin[]>([])
-  const [selectedPin, setSelectedPin] = useState<OverlayPin | null>(null)
+
+  // 클러스터/개별 핀 모달 view state — null = 닫힘.
+  type ViewState =
+    | { type: "cluster"; pins: OverlayPin[] }
+    | { type: "pin"; pin: OverlayPin }
+    | null
+  const [viewState, setViewState] = useState<ViewState>(null)
+
+  // 주소 영문 변환 캐시 (페이지 세션 단위). lazy fetch on modal open.
+  const [translatedAddress, setTranslatedAddress] = useState<string | null>(null)
+  const [translating, setTranslating] = useState(false)
 
   // 섹션 데이터
   const [filmingSpots, setFilmingSpots] = useState<FilmingSpotItem[]>([])
@@ -373,6 +386,36 @@ export default function CurationKPage() {
       .finally(() => setGeoLoading(false))
   }, [geoCountry])
 
+  // 핀 모달 진입 시 영문 주소 lazy fetch. 캐시는 서버 측 (CDN s-maxage 7일).
+  useEffect(() => {
+    if (viewState?.type !== "pin") {
+      setTranslatedAddress(null)
+      setTranslating(false)
+      return
+    }
+    const addr = viewState.pin.address
+    if (!addr) {
+      setTranslatedAddress(null)
+      return
+    }
+    const ctrl = new AbortController()
+    setTranslating(true)
+    fetch(`/api/curation-k/translate-address?text=${encodeURIComponent(addr)}`, {
+      signal: ctrl.signal,
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body: { english?: string }) => {
+        setTranslatedAddress(body.english ?? addr)
+      })
+      .catch((err) => {
+        if (err instanceof Error && err.name === "AbortError") return
+        console.warn("[curation-k] address translate 실패:", err)
+        setTranslatedAddress(addr)
+      })
+      .finally(() => setTranslating(false))
+    return () => ctrl.abort()
+  }, [viewState])
+
   // 카테고리 토글 — 핀 오버레이 표시 분기 + (향후) 콘텐츠 섹션 스코프 필터.
   const toggleCategory = (key: Category) => {
     setActiveCats((prev) => {
@@ -396,7 +439,8 @@ export default function CurationKPage() {
           category: "filming",
           name: p.name,
           subtitle: p.subtitle,
-          address: null,
+          address: p.address,
+          image: p.image_url,
           lat: p.lat,
           lng: p.lng,
         })
@@ -415,6 +459,7 @@ export default function CurationKPage() {
           name: k.spot_name,
           subtitle: k.artist_name,
           address: k.address,
+          image: k.image_url,
           lat,
           lng,
         })
@@ -430,6 +475,7 @@ export default function CurationKPage() {
           name: f.title,
           subtitle: "Restaurant",
           address: f.address,
+          image: f.imageUrl,
           lat: f.latitude,
           lng: f.longitude,
         })
@@ -445,6 +491,7 @@ export default function CurationKPage() {
           name: s.title,
           subtitle: "Stay",
           address: s.address,
+          image: s.imageUrl,
           lat: s.latitude,
           lng: s.longitude,
         })
@@ -454,15 +501,51 @@ export default function CurationKPage() {
     return out
   }, [activeCats, filmingMapPins, kpopSpots, foodItems, stayItems])
 
-  // SVG 좌표 → wrapper 내 % 좌표 (proj() 그대로, SVG_W/H 로 나눠 percent 변환).
-  // Korea bbox 밖이면 픽셀이 음수·overflow 라 보이지 않음 — 추가 필터링 불필요.
-  function pinPosition(lat: number, lng: number): { left: string; top: string } {
-    const [x, y] = proj(lng, lat)
+  // ─── 클러스터링 — 5% SVG 거리 그리디 ────────────────────────
+  // SVG 좌표계에서 두 핀 간 유클리드 거리가 SVG_W * 0.05 이내면 한 클러스터.
+  // 단순 그리디 (O(n²)) — 핀 수 60건 미만 가정으로 충분.
+  // 단일 핀은 cluster.size===1, 다중 핀은 cluster.size>=2.
+  const clusters = useMemo(() => {
+    const CLUSTER_THRESHOLD_PX = SVG_W * 0.05 // SVG 단위 거리
+    type Cluster = { x: number; y: number; pins: OverlayPin[] }
+
+    const projected: Array<{ pin: OverlayPin; x: number; y: number }> = overlayPins.map((p) => {
+      const [x, y] = proj(p.lng, p.lat)
+      return { pin: p, x, y }
+    })
+
+    const used = new Set<number>()
+    const out: Cluster[] = []
+    for (let i = 0; i < projected.length; i++) {
+      if (used.has(i)) continue
+      const seed = projected[i]
+      const bucket: OverlayPin[] = [seed.pin]
+      used.add(i)
+
+      for (let j = i + 1; j < projected.length; j++) {
+        if (used.has(j)) continue
+        const other = projected[j]
+        const dx = other.x - seed.x
+        const dy = other.y - seed.y
+        if (dx * dx + dy * dy <= CLUSTER_THRESHOLD_PX * CLUSTER_THRESHOLD_PX) {
+          bucket.push(other.pin)
+          used.add(j)
+        }
+      }
+      out.push({ x: seed.x, y: seed.y, pins: bucket })
+    }
+    return out
+  }, [overlayPins])
+
+  // SVG 좌표 → wrapper 내 % 좌표 (재사용).
+  function pctPosition(x: number, y: number): { left: string; top: string } {
     return {
       left: `${(x / SVG_W) * 100}%`,
       top: `${(y / SVG_H) * 100}%`,
     }
   }
+
+  // (pinPosition 은 pctPosition 으로 통합 — 위 clusters useMemo 직후 정의)
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0d0d0f" }}>
@@ -616,76 +699,73 @@ export default function CurationKPage() {
                   })}
                 </svg>
 
-                {/* ─── 핀 오버레이 ─────────────────────────────────────────
+                {/* ─── 핀 오버레이 (클러스터링) ────────────────────────────
                     ⚠️ 위 SVG 는 동결 (CLAUDE.md §6). 핀은 sibling absolute <div> 로
                     렌더링 — SVG 내부 element 추가 금지 원칙 유지하면서 동일 좌표계 사용.
-                    pointer-events 분리: layer none / 핀 auto → SVG 자체는 클릭 X. */}
+                    pointer-events 분리: layer none / 핀 auto → SVG 자체는 클릭 X.
+                    클러스터링: 5% SVG 거리 그리디. size 1 = 단일 핀, size 2+ = 배지. */}
                 <div className="absolute inset-0 pointer-events-none">
-                  {overlayPins.map((pin) => {
-                    const pos = pinPosition(pin.lat, pin.lng)
-                    const color = CATEGORY_COLOR_MAP[pin.category]
-                    const isSelected = selectedPin?.id === pin.id
+                  {clusters.map((cluster, idx) => {
+                    const pos = pctPosition(cluster.x, cluster.y)
+                    const size = cluster.pins.length
+
+                    // 단일 핀 — 카테고리 색상 원
+                    if (size === 1) {
+                      const pin = cluster.pins[0]
+                      const color = CATEGORY_COLOR_MAP[pin.category]
+                      const isSelected =
+                        viewState?.type === "pin" && viewState.pin.id === pin.id
+                      return (
+                        <button
+                          key={`p-${pin.id}`}
+                          type="button"
+                          onClick={() => setViewState({ type: "pin", pin })}
+                          aria-label={`${pin.name} (${pin.category})`}
+                          className="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-full shadow-md hover:scale-[1.4] focus:outline-none focus:ring-2 focus:ring-white/40 transition-transform"
+                          style={{
+                            left: pos.left,
+                            top: pos.top,
+                            width: isSelected ? 28 : 20,
+                            height: isSelected ? 28 : 20,
+                            backgroundColor: color,
+                            border: `${isSelected ? 3 : 2}px solid ${isSelected ? "#ffffff" : "rgba(255,255,255,0.8)"}`,
+                            zIndex: isSelected ? 20 : 10,
+                          }}
+                        />
+                      )
+                    }
+
+                    // 클러스터 배지 — 카테고리 단일이면 그 색, 혼합이면 흰색+검정 글자
+                    const cats = new Set(cluster.pins.map((p) => p.category))
+                    const isMixed = cats.size > 1
+                    const onlyCat = isMixed ? null : (cluster.pins[0].category as Category)
+                    const bg = isMixed ? "#ffffff" : CATEGORY_COLOR_MAP[onlyCat as Category]
+                    const fg = isMixed ? "#0d0d0f" : "#ffffff"
+
                     return (
                       <button
-                        key={pin.id}
+                        key={`c-${idx}`}
                         type="button"
-                        onClick={() => setSelectedPin(pin)}
-                        aria-label={`${pin.name} (${pin.category})`}
-                        className="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-full shadow-md hover:scale-110 focus:outline-none focus:ring-2 focus:ring-white/40 transition-transform"
+                        onClick={() => setViewState({ type: "cluster", pins: cluster.pins })}
+                        aria-label={`Cluster of ${size} spots`}
+                        className="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-full shadow-md hover:scale-110 focus:outline-none focus:ring-2 focus:ring-white/40 transition-transform flex items-center justify-center font-bold"
                         style={{
                           left: pos.left,
                           top: pos.top,
-                          width: isSelected ? 14 : 10,
-                          height: isSelected ? 14 : 10,
-                          backgroundColor: color,
-                          border: `2px solid ${isSelected ? "#ffffff" : "rgba(255,255,255,0.7)"}`,
-                          zIndex: isSelected ? 20 : 10,
+                          width: 32,
+                          height: 32,
+                          backgroundColor: bg,
+                          color: fg,
+                          border: "2px solid rgba(255,255,255,0.9)",
+                          fontSize: 13,
+                          zIndex: 15,
                         }}
-                      />
+                      >
+                        {size}
+                      </button>
                     )
                   })}
                 </div>
-
-                {/* 핀 클릭 팝업 — 카드 우상단 고정. 닫기 버튼 + 외부 클릭 차단 없음 (다른 핀 클릭 시
-                    selectedPin 만 갈아끼움). */}
-                {selectedPin && (
-                  <div className="absolute top-2 right-2 max-w-[260px] bg-[#1a1a1a] border border-border/40 rounded-xl p-3 shadow-xl z-30">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <span
-                            className="inline-block w-2 h-2 rounded-full"
-                            style={{ backgroundColor: CATEGORY_COLOR_MAP[selectedPin.category] }}
-                          />
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                            {selectedPin.category}
-                          </span>
-                        </div>
-                        <p className="text-foreground font-medium text-sm leading-tight break-words">
-                          {selectedPin.name}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPin(null)}
-                        aria-label="Close popup"
-                        className="text-muted-foreground hover:text-foreground -mr-1 -mt-1 p-1 flex-shrink-0"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    {selectedPin.subtitle && (
-                      <p className="text-muted-foreground text-xs mt-1 truncate">
-                        {selectedPin.subtitle}
-                      </p>
-                    )}
-                    {selectedPin.address && (
-                      <p className="text-muted-foreground/70 text-[11px] mt-1.5 leading-snug">
-                        {selectedPin.address}
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* 우측 — 카피 + 카테고리 토글 */}
@@ -752,6 +832,7 @@ export default function CurationKPage() {
           title="K-Drama Filming Spots"
           subtitle="Walk the cafés, stairs, and streets from the dramas you love."
           color={CATEGORY_COLOR_MAP.filming}
+          id="filming-section"
         />
         <div className="max-w-[1320px] mx-auto px-6 mb-16">
           {filmingLoading ? (
@@ -787,6 +868,7 @@ export default function CurationKPage() {
           title="K-Pop Pilgrimage Sites"
           subtitle="Agencies, MV locations, idol-favorite cafés, concert venues."
           color={CATEGORY_COLOR_MAP.kpop}
+          id="kpop-section"
         />
         <div className="max-w-[1320px] mx-auto px-6 mb-16">
           {kpopLoading ? (
@@ -820,6 +902,7 @@ export default function CurationKPage() {
           title="Korean Food Hotspots"
           subtitle="Drama-famous restaurants + regional dishes, by neighborhood."
           color={CATEGORY_COLOR_MAP.food}
+          id="food-section"
         />
         <div className="max-w-[1320px] mx-auto px-6 mb-16">
           <RegionPicker
@@ -865,6 +948,7 @@ export default function CurationKPage() {
           title="Themed Stays"
           subtitle="Hotels, guesthouses, and hanok stays curated for fan trips."
           color={CATEGORY_COLOR_MAP.stays}
+          id="stays-section"
         />
         <div className="max-w-[1320px] mx-auto px-6 mb-16">
           <RegionPicker
@@ -1038,7 +1122,194 @@ export default function CurationKPage() {
         </div>
       </main>
 
+      {/* ─── 핀 모달 (cluster list / pin detail) ─────────────────
+          중앙 모달. 클러스터 → 목록, 항목 클릭 → pin detail 전환.
+          닫기: × 버튼 또는 backdrop 클릭. */}
+      <PinModal
+        view={viewState}
+        translatedAddress={translatedAddress}
+        translating={translating}
+        onClose={() => setViewState(null)}
+        onSelectPin={(pin) => setViewState({ type: "pin", pin })}
+      />
+
       <FooterSection />
+    </div>
+  )
+}
+
+// ─── PinModal ──────────────────────────────────────────────────
+// cluster 모드: 핀 목록 표시 → 클릭 시 pin detail 로 전환.
+// pin 모드: 이미지 + 상세 + "View in section" 스크롤 버튼.
+// CLAUDE.md §6 동결 원칙 — 지도 SVG 외부 component 라 자유 수정 가능.
+function PinModal({
+  view,
+  translatedAddress,
+  translating,
+  onClose,
+  onSelectPin,
+}: {
+  view:
+    | { type: "cluster"; pins: OverlayPin[] }
+    | { type: "pin"; pin: OverlayPin }
+    | null
+  translatedAddress: string | null
+  translating: boolean
+  onClose: () => void
+  onSelectPin: (pin: OverlayPin) => void
+}) {
+  if (!view) return null
+
+  // 카테고리 → 섹션 id 매핑
+  const SECTION_ID: Record<Category, string> = {
+    filming: "filming-section",
+    kpop: "kpop-section",
+    food: "food-section",
+    stays: "stays-section",
+  }
+
+  const handleScrollTo = (cat: Category) => {
+    if (typeof document === "undefined") return
+    const el = document.getElementById(SECTION_ID[cat])
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+    onClose()
+  }
+
+  const stop = (e: React.MouseEvent) => e.stopPropagation()
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md bg-[#141416] border border-border/40 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+        onClick={stop}
+      >
+        {/* ─── Cluster 목록 ──────────────────────────────────── */}
+        {view.type === "cluster" && (
+          <>
+            <div className="flex items-start justify-between gap-2 p-5 border-b border-border/30">
+              <div>
+                <p className="text-foreground font-semibold text-base">
+                  {view.pins.length} spots here
+                </p>
+                <p className="text-muted-foreground text-xs mt-0.5">
+                  Tap an item to view details
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="text-muted-foreground hover:text-foreground -mr-2 -mt-2 p-2"
+              >
+                ×
+              </button>
+            </div>
+            <ul className="max-h-[60vh] overflow-y-auto divide-y divide-border/20">
+              {view.pins.map((pin) => (
+                <li key={pin.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectPin(pin)}
+                    className="w-full text-left px-5 py-3 hover:bg-[#1a1a1a] transition-colors flex items-start gap-3"
+                  >
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
+                      style={{ backgroundColor: CATEGORY_COLOR_MAP[pin.category] }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-foreground text-sm font-medium truncate">
+                        {pin.name}
+                      </p>
+                      <p className="text-muted-foreground text-xs mt-0.5 truncate">
+                        <span className="uppercase tracking-wider mr-1.5">
+                          {pin.category}
+                        </span>
+                        · {pin.subtitle}
+                      </p>
+                      {pin.address && (
+                        <p className="text-muted-foreground/60 text-[11px] mt-1 truncate">
+                          {pin.address}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {/* ─── Pin detail ──────────────────────────────────── */}
+        {view.type === "pin" && (
+          <>
+            {view.pin.image && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={view.pin.image}
+                alt={view.pin.name}
+                referrerPolicy="no-referrer"
+                className="w-full aspect-[16/9] object-cover bg-[#252525]"
+              />
+            )}
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span
+                      className="inline-block w-2 h-2 rounded-full"
+                      style={{ backgroundColor: CATEGORY_COLOR_MAP[view.pin.category] }}
+                    />
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {view.pin.category}
+                    </span>
+                  </div>
+                  <h3 className="text-foreground font-semibold text-lg leading-tight">
+                    {view.pin.name}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close"
+                  className="text-muted-foreground hover:text-foreground -mr-2 -mt-2 p-2 flex-shrink-0"
+                >
+                  ×
+                </button>
+              </div>
+
+              {view.pin.subtitle && (
+                <p className="text-muted-foreground text-sm mb-3">{view.pin.subtitle}</p>
+              )}
+
+              {view.pin.address && (
+                <div className="bg-[#1a1a1a] rounded-lg p-3 mb-4 text-sm">
+                  <p className="text-muted-foreground/70 text-[10px] uppercase tracking-wider mb-1">
+                    Address
+                  </p>
+                  <p className="text-foreground/90 leading-snug">
+                    {translating
+                      ? view.pin.address
+                      : translatedAddress ?? view.pin.address}
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => handleScrollTo(view.pin.category)}
+                className="w-full inline-flex items-center justify-center gap-1.5 h-10 rounded-full text-sm font-medium text-white"
+                style={{ backgroundColor: CATEGORY_COLOR_MAP[view.pin.category] }}
+              >
+                View in section
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -1051,15 +1322,17 @@ function SectionHeader({
   subtitle,
   color,
   badge,
+  id,
 }: {
   Icon: typeof Video
   title: string
   subtitle: string
   color: string
   badge?: string
+  id?: string
 }) {
   return (
-    <div className="max-w-[1320px] mx-auto px-6 mb-5 mt-2">
+    <div id={id} className="max-w-[1320px] mx-auto px-6 mb-5 mt-2 scroll-mt-20">
       <div className="flex items-center gap-3 mb-1">
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center"
