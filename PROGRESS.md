@@ -4,6 +4,81 @@
 
 ---
 
+## 현재 상태 (2026-05-16~17 세션 14 / 마이페이지·블로그·KdramaMatch·Curation K·Early Access — 6개 메이저 영역 + 3 migrations)
+
+> 단일 세션이지만 작업량은 평소 3~4 세션 분량. 메이저 영역 6개로 묶어 정리. commit 흐름은 `git log --oneline -25` 참조.
+
+### 완료
+
+#### A. 마이페이지 미연동 메뉴 실데이터 연동 + Coming Soon + 푸터 (`3f7e835`)
+- **/mypage/artists** — `/api/kpop/artists?sort=listeners` 활용. 그룹/솔로 필터·페이지네이션·SoloGroup 뱃지.
+- **/mypage/calendar** — `/api/mypage/calendar` 신규. `user_calendar_subscriptions` 있으면 subscribed (upcoming+past), 없으면 이번 달 fallback. RLS 본인·premium 게이팅 자동.
+- **/mypage/dramas|learning|recipes** — Coming Soon (MypageShell 공용 컴포넌트 신설). **/mypage/settings** — name 편집 + email 읽기전용 + 알림 안내 + Privacy/Terms/GDPR 링크.
+- **푸터 법무 4종** — `/gdpr` (EN/KO 8 섹션), `/blog`/`/careers` Coming Soon, `/contact` 폼 + `/api/contact` Resend dual-send + honeypot.
+- **layout.tsx** OG title 정합.
+
+#### B. 블로그 MDX 인프라 + 자동 cron + 댓글 시스템 (`3f7e835`, `ba9494c`, `6fc9cf0`, `49e0ea4`)
+- **MDX 인프라** — `next-mdx-remote` + `gray-matter` 설치. `lib/blog.ts` (frontmatter reader, image/imageCredit/readingTime override), `app/blog/page.tsx` 목록, `app/blog/[slug]/page.tsx` 상세 (figcaption credit), 다크 prose mdx-components. 샘플 포스트 1편.
+- **자동 cron** — `/api/cron/generate-blog-post` 08:00 UTC. Claude Haiku tool_use (`publish_blog_post`) → Unsplash search → GitHub Contents PUT. `lib/blog-gen/{topics,anthropic,unsplash,github,run}.ts`. 첫 가동에서 cron 이 직접 commit + 자동 배포 (`ba9494c`).
+- **외부 링크 차단 정책** — 본문 모든 마크다운 링크·bare URL 차단. 코드 측 정규식 2중 검증. `run.ts` 의 Unsplash credit footer 자동 추가 제거 (figcaption 으로 대체).
+- **migration 0021** — `blog_comments` (slug text + public.users FK + RLS 5 정책 + updated_at 트리거).
+- **API + UI** — `/api/blog/[slug]/comments` GET/POST/DELETE + `components/blog/blog-comments.tsx` (StartModal 비로그인 분기, formatDistanceToNow, 본인 삭제).
+
+#### C. KdramaMatch Phase 1 + KOPIS 폐기 (`49e0ea4`)
+- **migration 0022** — `user_watchlist` 에 `rating numeric(2,1)` + `review text(≤500)` 컬럼 + trending 인덱스.
+- **/api/dramas/watchlist** PATCH 에 rating·review. **/api/dramas** 필터 확장 (status·min_rating·min/max_episodes·sort). **/api/dramas/trending** 신규 (최근 7일 추가 Top 5 + 완주율, service_role 집계).
+- **/mypage/dramas** 전면 구현 — Coming Soon → 탭(Want/Watching/Completed) + 진행 바 + 별점 0.5단위 (반쪽 클릭) + 한줄평 + 마지막 화 자동 completed.
+- **/drama Phase 1** — Hero 카피·게이팅, Trending 섹션, Browse 필터 확장, AI Summary Pro 잠금 (Similar dramas 카드), 인라인 watchlist 제거 → /mypage/dramas CTA.
+- **KOPIS 폐기** — cron + `lib/api/kopis.ts` + `lib/ingest/kopis.ts` 삭제. 13곳 참조 정리. `.neq("source_api","kopis")` 필터 3곳 (이후 사용자 SQL `DELETE FROM hallyu_calendar_events WHERE source_api='kopis'` 실행 후 코드도 제거).
+
+#### D. Curation K (HallyuMap) Phase 1 + 동결·복원 + 클러스터링 (`1054363`, `764d7a9`, `fc19c7b`, `c222cb0`, `cc52068`)
+- **migration 0023** — `filming_spots` / `kpop_spots` / `hallyu_courses` + RLS (drama_id·artist_id 모두 uuid 로 정정).
+- **lib/api/tourapi.ts** — KorService2 6 메서드 (locationBasedList2 / searchKeyword2 / areaBasedList2 / detailImage2 / searchFestival2 + 음식점·숙박 wrapper) + `items.item` 4 케이스 정규화 + `mapx`/`mapy` 문자열 변환. **Decoding 키** 사용 명시. `AREA_CODE` 17개 광역시도 상수.
+- **lib/curation-k/filming-spots.ts** — Claude Haiku tool_use 촬영지 추출 + TourAPI 3-tier (영문+area / 한국어+area / 전국 fallback) + 한국어 번역 캐시 (cap 500) + pending 재시도 (cap 10, status='pending' + lat NULL → confirmed 승격).
+- **lib/api/lastfm.ts** `getGeoTopArtists` 신규. **PRIORITY_TMDB_IDS** 6작품 우선 처리.
+- **cron** `/api/cron/ingest-filming-spots` 03:00 UTC + `recordCronLog` + 어드민 카드 등록 (`ROUTE_DISPLAY_NAMES`, displayName, summarizeRunResult 토스트 강화).
+- **6 API**: `/api/curation-k/{map,filming-spots,kpop-spots,food,stays,geo-artists}` + `/api/curation-k/translate-address` (Haiku 한국어 주소→영문, 캐시 7일. 모달은 sync REGION_MAP 사용으로 전환 후 endpoint 는 보존).
+- **/curation-k** Coming Soon → 본격 7 섹션 페이지. **지도 SVG 동결** (CLAUDE.md §6, 사용자 검토 후 6 도시 + 4 부속도서 Dokdo 포함). 핀 오버레이는 SVG sibling absolute div 로 분리 (proj() 좌표계 재사용).
+- **클러스터링 + 모달** — 5% SVG 거리 그리디. 단일 핀 20px / 클러스터 32px 배지 (혼합 카테고리 = 흰 bg + 검정 글자). 팝업 → 중앙 모달 (cluster list / pin detail 두 모드). `REGION_MAP` 32 항목 + `translateAddress`/`translatePlaceName` 동기 변환 (Haiku 호출 0). `CATEGORY_LABEL_EN` 카테고리 영문 라벨. "View in section" 스크롤 매핑 (filming-section/kpop-section/food-section/stays-section).
+
+#### E. 결제 연동 전 Free 확대 + Pro 잠금 UI 통일 (`764d7a9`)
+- **HallyuCalendar**: 3-event blur 게이트 `!isPro` → `!isLoggedIn` (Free 무제한). Artist tracking banner 비로그인만 노출.
+- **KpopStats**: visibleLimit Free Top 10 → Top 20 (Pro 와 동일).
+- **Pro 잠금 카피 통일** — calendar/kpop/drama/korean/curation-k/food (×2) 모두 "Coming with Hallyu Pass" + "Notify me at launch" 패턴.
+- 각 변경 위치에 `// 2026-05-16 임시 정책` 주석 박제 (grep 으로 일괄 복원 가능). CLAUDE.md §6 테이블 + 복원 가이드 박제.
+
+#### F. KfoodKit AI Ingredient Finder + Early Access UI + Discord 템플릿 (`4e25e1e`, `c222cb0`)
+- **lib/claude/ingredient-finder.ts** — Haiku tool_use, 20개국 store 화이트리스트, 코드 측 재검증. **/api/food/ingredient-finder** Pro 전용 POST.
+- **/food UI** — 4 region optgroup (Americas/AP/Europe/ME) + 식재료 검색 input + 결과 카드 (Substitutes/Where to buy/Tip).
+- **EarlyAccessBanner** — Header 내부 fixed 영역 첫 child. session 1회 dismiss. "See what's coming" → **RoadmapModal** (6 서비스 타임라인 + 이메일 폼).
+- **EmailSignupForm** — 재사용 (sm/md, success state). **/api/early-access/notify** Resend dual-send (admin 알림 + user 환영).
+- **ServiceComingSoonBanner** — /drama·/korean·/food 상단 인라인.
+- **Header services 메타 status+phase** 추가 → KdramaMatch/HangeulGo/KfoodKit "Soon" 뱃지 (desktop dropdown + mobile sheet 양쪽).
+- **lib/discord/templates.ts** — BRAND_INTRO / EARLY_ACCESS_NOTE / SERVICE_BLURBS × 6 / WEEKLY_PROMO / WELCOME_MESSAGE / ERROR_FALLBACK. 봇 런타임 별도 패키지, 본 파일은 데이터 only.
+
+### 신규 의존성
+- `next-mdx-remote@^6.0.0` + `gray-matter@^4.0.3` (블로그 인프라)
+
+### 사용자 액션 — 본 세션 중 완료
+- ✅ `0021_blog_comments.sql` Supabase SQL Editor 적용
+- ✅ `0022_watchlist_rating_review.sql` 적용
+- ✅ `0023_curation_k.sql` 적용
+- ✅ `DELETE FROM hallyu_calendar_events WHERE source_api='kopis'` 실행
+- ✅ Vercel env 등록: `UNSPLASH_ACCESS_KEY` / `GITHUB_TOKEN` / `GITHUB_REPO` / `TOUR_API_KEY`
+- ✅ Resend 도메인 verify (`noreply@unfoldk.com` 발송 가능)
+
+### 다음 세션 후보 (carry-over)
+- **KdramaMatch Phase 2** — TMDB networks (방송사 tvN/Netflix/KBS) ingest 보강 / on_the_air + next_episode_to_air "방영 중 D-Day" 섹션 + 캘린더 추가 버튼 / 드라마-캘린더 매핑 정책 / OST 아티스트 → KpopStats 연결 / UnfoldK 유저 평점 집계
+- **Curation K Phase 2** — AI 1-Day Course Claude 생성 파이프라인 (Pro 라우트 + `hallyu_courses` 저장/조회 UI) / KdramaMatch 시청 이력 기반 개인화 / 촬영지 근처 숙박 자동 큐레이션 (haversine) / 고캠핑 API 통합 / 어드민 K팝 성지 시드 UI / filming_spots pending 검토 큐 UI / 지도 광역시도 hover·핀 클러스터 줌
+- **결제 가동 시 복원** — CLAUDE.md §6 "결제 연동 전 임시 Free 확대 정책" 표의 "복원 후" 컬럼대로 일괄. grep `// 2026-05-16 임시 정책` 으로 위치 일괄.
+- **세션 13 carry-over 유지** — TMDB 모달 장르·평점·OTT 표시, fan_event_requests 제보 폼·검토 큐, Cookie Policy 법무 검토, Vercel·Supabase 비용 점검, YouTube 채널 매핑 일별 cron 자동 분할, /kpop/[id] latest stats null 폴백, 어드민 Haiku 미분류 6명 백필 UI, Last.fm Top 500 monthly refresh cron 화, 메인 페이지 hang Ghost Globe 미작동 (재부팅 후 결과 의존)
+- **블로그 cron 운영 안정화** — 카테고리·태그 다양화 / 자동 SEO meta 보강 / image credit 정책 재검토
+
+### 블로커
+- **세션 13 carry-over** — 메인 페이지 hang + Ghost Globe 미작동 (재부팅 후 결과 의존, 본 세션 미확인)
+
+---
+
 ## 현재 상태 (2026-05-15 세션 13 / KpopStats 아티스트 확장 — 25 → 280명 + /kpop/[id] 상세 + 노출 인프라)
 
 ### 완료
