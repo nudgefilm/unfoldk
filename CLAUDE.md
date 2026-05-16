@@ -162,13 +162,21 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 
 ### AI 처리 원칙
 - **모든 AI 처리는 Claude API (Haiku / Sonnet) 우선 적용**. 타사 AI (OpenAI · Gemini · Mistral 등) 도입 전 Claude 로 구현 가능한지 먼저 검토.
-- **Haiku 4.5** (`claude-haiku-4-5-20251001`) — 콘텐츠 생성·분류·추출 등 경량 작업. 현재 사용처: `lib/claude/generate-event-description.ts` · `lib/claude/recommend-dramas.ts` · `lib/blog-gen/anthropic.ts`.
+- **Haiku 4.5** (`claude-haiku-4-5-20251001`) — 콘텐츠 생성·분류·추출 등 경량 작업. 현재 사용처: `lib/claude/generate-event-description.ts` · `lib/claude/recommend-dramas.ts` · `lib/claude/ingredient-finder.ts` · `lib/blog-gen/anthropic.ts` · `lib/curation-k/filming-spots.ts`.
 - **Sonnet 4.6** (`claude-sonnet-4-6`) — 고품질 추천·복잡한 추론 등 고도화 작업. Haiku 출력 품질이 정성적 임계값 미달 시 같은 프롬프트로 모델만 교체.
 - **비용 최적화**:
   - **프롬프트 캐싱** 우선 — `system` 블록에 `cache_control: { type: "ephemeral" }` (기존 패턴 `lib/claude/generate-event-description.ts`). Haiku cache prefix 최소 4096 토큰 — 미달 시 silent no-op 이라 무해.
   - **배치 API** 50% 할인 — 시간 민감하지 않은 대량 작업 (예: 신규 아티스트 분류·기존 데이터 backfill) 은 messages.create 대신 messages.batches.create.
   - 응답 결과 Supabase / Next.js cache 저장 (§6 #5 와 동일 원칙).
 - 사용자 facing 실시간 처리 (예: 채팅·추천 클릭 시 응답) 는 정확도·지연 trade-off 검토 후 결정. 기본은 Haiku, 품질 부족 시 Sonnet.
+
+### KfoodKit 제휴 수익 로드맵
+- **Phase 1 (현재)**: Claude AI 텍스트 기반 대체재료 + 현지 마트 안내 (`lib/claude/ingredient-finder.ts`). 추천만 노출, 외부 링크 없음.
+- **Phase 2 (MAU 1,000명+)**: Amazon Associates 제휴 링크 연동
+  - 미국·영국·캐나다·일본·호주 Amazon 각국 제휴 프로그램 신청 (지역별 별도 승인 필요)
+  - 한국 식재료 검색 → 실제 상품 링크 + 수수료 수익
+- **Phase 3 (MAU 5,000명+)**: 동남아 Shopee·Lazada 제휴 연동
+  - 태국·필리핀·베트남·인도네시아·말레이시아
 
 ---
 

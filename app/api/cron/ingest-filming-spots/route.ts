@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { verifyCronAuth } from "@/lib/cron/auth"
+import { recordCronLog } from "@/lib/cron/log"
 import { runFilmingSpotsIngest } from "@/lib/curation-k/filming-spots"
 
 export const maxDuration = 120
@@ -23,12 +24,17 @@ export async function GET(request: Request) {
     revalidatePath("/api/curation-k/map")
     revalidatePath("/api/curation-k/filming-spots")
 
-    const status = result.errors.length > 0 ? 207 : 200
+    // 어드민 모니터에서 조회 가능하도록 로그 기록 (실패는 swallow — cron 본 작업과 분리)
+    const anyFailed = result.errors.length > 0
+    await recordCronLog("ingest-filming-spots", anyFailed ? "failed" : "success", result)
+
+    const status = anyFailed ? 207 : 200
     return NextResponse.json(result, { status })
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown"
     const stack = err instanceof Error ? err.stack : undefined
     console.error("[cron/ingest-filming-spots] 최상위 에러:", msg, stack)
+    await recordCronLog("ingest-filming-spots", "failed", { error: msg })
     return NextResponse.json(
       { source: "filming-spots", error: msg, stack },
       { status: 500 }

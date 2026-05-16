@@ -15,6 +15,7 @@ export interface CronLogRow {
 
 interface RouteSummary {
   route: string
+  displayName: string                                // UI 카드 제목 (route 식별자와 분리)
   lastExecutedAt: string | null
   lastStatus: "success" | "failed" | null
   metric: string                                     // 수집 이벤트 수 or 발송 수 — 라우트별 의미 다름
@@ -23,7 +24,20 @@ interface RouteSummary {
 
 // KOPIS 는 2026-05-16 폐기 (글로벌 유저 부적합). 과거 cron_logs 의 'ingest-kopis' 행은
 // 화면에 노출 안 됨 — 필요 시 SQL 로 정리.
-const ROUTES = ["ingest-all", "ingest-ticketmaster", "send-reminders"] as const
+const ROUTES = [
+  "ingest-all",
+  "ingest-ticketmaster",
+  "ingest-filming-spots",
+  "send-reminders",
+] as const
+
+// 라우트별 한국어 표시명 — 카드 제목에 노출. 식별자는 그대로 두고 라벨만 매핑.
+const ROUTE_DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
+  "ingest-all": "ingest-all",
+  "ingest-ticketmaster": "ingest-ticketmaster",
+  "ingest-filming-spots": "Curation K — Filming Spots 수집",
+  "send-reminders": "send-reminders",
+}
 
 type LoadResult =
   | { ok: true; summaries: RouteSummary[]; logs: CronLogRow[] }
@@ -63,12 +77,20 @@ async function load(): Promise<LoadResult> {
       return { ok: false, error: formatPostgrestError(sumError) }
     }
 
-    // send-reminders 만 "발송 수", 나머지 ingest-* 는 전부 "수집 이벤트".
-    const metricLabel = route === "send-reminders" ? "발송 수" : "수집 이벤트"
+    // send-reminders 만 "발송 수", filming-spots 는 "촬영지 수집", 나머지 ingest-* 는 "수집 이벤트".
+    const metricLabel =
+      route === "send-reminders"
+        ? "발송 수"
+        : route === "ingest-filming-spots"
+          ? "촬영지 수집"
+          : "수집 이벤트"
+
+    const displayName = ROUTE_DISPLAY_NAMES[route]
 
     if (!data) {
       summaries.push({
         route,
+        displayName,
         lastExecutedAt: null,
         lastStatus: null,
         metric: "—",
@@ -96,6 +118,11 @@ async function load(): Promise<LoadResult> {
     } else if (route === "ingest-ticketmaster" && data.result_json) {
       const r = data.result_json as { upserted?: number }
       metric = (r.upserted ?? 0).toLocaleString()
+    } else if (route === "ingest-filming-spots" && data.result_json) {
+      // FilmingSpotsIngestResult — spotsInserted = 이번 실행 신규 row.
+      // confirmed/pending 분포는 toast 로만 별도 노출 (카드는 단일 숫자).
+      const r = data.result_json as { spotsInserted?: number }
+      metric = (r.spotsInserted ?? 0).toLocaleString()
     } else if (route === "send-reminders" && data.result_json) {
       const summary = (data.result_json as { summary?: { sent?: number } }).summary
       metric = (summary?.sent ?? 0).toLocaleString()
@@ -103,6 +130,7 @@ async function load(): Promise<LoadResult> {
 
     summaries.push({
       route,
+      displayName,
       lastExecutedAt: data.executed_at,
       lastStatus: data.status,
       metric,

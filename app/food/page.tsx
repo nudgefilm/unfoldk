@@ -4,10 +4,69 @@ import { useEffect, useState } from "react"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Trophy, ChevronRight, Lock, Bot } from "lucide-react"
+import { Search, Trophy, ChevronRight, Lock, Bot, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
+
+// AI Ingredient Finder — 한류 팬 밀집 20개국. 지역별 <optgroup> 그룹화.
+// 이모지 + ISO alpha-2 코드. /api/food/ingredient-finder 에 country 로 전송.
+const COUNTRY_GROUPS: Array<{
+  region: string
+  options: Array<{ value: string; label: string }>
+}> = [
+  {
+    region: "Americas",
+    options: [
+      { value: "US", label: "🇺🇸 United States" },
+      { value: "CA", label: "🇨🇦 Canada" },
+      { value: "BR", label: "🇧🇷 Brazil" },
+      { value: "MX", label: "🇲🇽 Mexico" },
+    ],
+  },
+  {
+    region: "Asia Pacific",
+    options: [
+      { value: "AU", label: "🇦🇺 Australia" },
+      { value: "JP", label: "🇯🇵 Japan" },
+      { value: "TH", label: "🇹🇭 Thailand" },
+      { value: "PH", label: "🇵🇭 Philippines" },
+      { value: "VN", label: "🇻🇳 Vietnam" },
+      { value: "ID", label: "🇮🇩 Indonesia" },
+      { value: "MY", label: "🇲🇾 Malaysia" },
+      { value: "SG", label: "🇸🇬 Singapore" },
+    ],
+  },
+  {
+    region: "Europe",
+    options: [
+      { value: "GB", label: "🇬🇧 United Kingdom" },
+      { value: "FR", label: "🇫🇷 France" },
+      { value: "DE", label: "🇩🇪 Germany" },
+      { value: "ES", label: "🇪🇸 Spain" },
+      { value: "NL", label: "🇳🇱 Netherlands" },
+      { value: "PL", label: "🇵🇱 Poland" },
+    ],
+  },
+  {
+    region: "Middle East",
+    options: [
+      { value: "SA", label: "🇸🇦 Saudi Arabia" },
+      { value: "AE", label: "🇦🇪 UAE" },
+    ],
+  },
+]
+
+interface FinderSubstitute {
+  name: string
+  note: string
+}
+
+interface FinderResult {
+  substitutes: FinderSubstitute[]
+  stores: string[]
+  tip: string
+}
 
 const foodCards = [
   { drama: "Squid Game", dish: "Dalgona", difficulty: "Easy", image: "/placeholder-food.jpg" },
@@ -28,6 +87,13 @@ export default function KfoodKitPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isPro, setIsPro] = useState(false)                         // monthly/annual/admin 통합 판별
 
+  // AI Ingredient Finder 상태
+  const [finderCountry, setFinderCountry] = useState("US")
+  const [finderIngredient, setFinderIngredient] = useState("")
+  const [finderLoading, setFinderLoading] = useState(false)
+  const [finderResult, setFinderResult] = useState<FinderResult | null>(null)
+  const [finderError, setFinderError] = useState<string | null>(null)
+
   // 마운트 시 plan 권한 확인 — Pro 잠금 가드용
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
@@ -42,6 +108,44 @@ export default function KfoodKitPage() {
       setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
     })
   }, [])
+
+  // Ingredient Finder — POST /api/food/ingredient-finder
+  // Pro 가드는 라우트 측에서 403 으로 반환. UI 는 blur overlay 로 미리 막아 401/403 조우 최소화.
+  const handleFinderSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const trimmed = finderIngredient.trim()
+    if (!trimmed) return
+
+    setFinderLoading(true)
+    setFinderError(null)
+    setFinderResult(null)
+    try {
+      const res = await fetch("/api/food/ingredient-finder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ingredient: trimmed, country: finderCountry }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg =
+          typeof json.error === "string"
+            ? json.error
+            : "Could not find substitutes — try again."
+        setFinderError(msg)
+        return
+      }
+      setFinderResult({
+        substitutes: json.substitutes ?? [],
+        stores: json.stores ?? [],
+        tip: json.tip ?? "",
+      })
+    } catch (err) {
+      console.error("[food/finder] 요청 실패:", err)
+      setFinderError("Network error. Please try again.")
+    } finally {
+      setFinderLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0d0d0f" }}>
@@ -159,29 +263,130 @@ export default function KfoodKitPage() {
         <section className="mb-12">
           <h2 className="text-2xl font-semibold text-white mb-6">AI Ingredient Finder</h2>
           <div className="relative">
-            <div className={`bg-[#1a1a1a] border border-border/30 rounded-xl p-6 ${isPro ? "" : "blur-[4px]"}`}>
+            <div
+              className={`bg-[#1a1a1a] border border-border/30 rounded-xl p-6 ${
+                isPro ? "" : "blur-[4px] pointer-events-none"
+              }`}
+            >
               <div className="flex items-center gap-3 mb-6">
                 <Bot className="w-6 h-6" style={{ color: "#FF4B6E" }} />
                 <h3 className="text-lg font-semibold text-white">Local Ingredient Finder</h3>
               </div>
 
-              {/* Country Selector */}
-              <div className="mb-6">
-                <label className="text-sm text-muted-foreground mb-2 block">Select your country</label>
-                <select className="w-full md:w-64 bg-[#252525] border border-border/30 rounded-lg px-4 py-2 text-foreground">
-                  <option>United States</option>
-                  <option>United Kingdom</option>
-                  <option>Germany</option>
-                </select>
-              </div>
+              <form
+                onSubmit={handleFinderSubmit}
+                className="grid grid-cols-1 md:grid-cols-[1fr_240px_auto] gap-3 mb-6"
+              >
+                {/* 식재료 검색 */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">
+                    Korean ingredient
+                  </label>
+                  <Input
+                    value={finderIngredient}
+                    onChange={(e) => setFinderIngredient(e.target.value)}
+                    placeholder="e.g. Gochugaru, Doenjang, Tteok"
+                    maxLength={80}
+                    className="bg-[#0d0d0f] border-[#2a2a2a] rounded-lg text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
 
-              {/* Sample Output */}
-              <div className="bg-[#252525] rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-1">You searched: Gochugaru</p>
-                <p className="text-foreground">
-                  Try: Korean chili flakes or Aleppo pepper (found at Whole Foods, Amazon)
+                {/* 국가 선택 — 지역별 optgroup */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">
+                    Your country
+                  </label>
+                  <select
+                    value={finderCountry}
+                    onChange={(e) => setFinderCountry(e.target.value)}
+                    className="w-full h-10 bg-[#0d0d0f] border border-[#2a2a2a] rounded-lg px-3 text-foreground focus:outline-none focus:ring-1 focus:ring-[#FF4B6E]"
+                  >
+                    {COUNTRY_GROUPS.map((grp) => (
+                      <optgroup key={grp.region} label={grp.region}>
+                        {grp.options.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 제출 */}
+                <div className="md:self-end">
+                  <Button
+                    type="submit"
+                    disabled={finderLoading || finderIngredient.trim().length === 0}
+                    className="h-10 rounded-full font-medium text-white px-5 w-full md:w-auto"
+                    style={{ backgroundColor: "#FF4B6E" }}
+                  >
+                    <Sparkles className="w-4 h-4 mr-1.5" />
+                    {finderLoading ? "Finding..." : "Find"}
+                  </Button>
+                </div>
+              </form>
+
+              {/* 결과 / 에러 / 빈 상태 */}
+              {finderError ? (
+                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 text-sm text-red-400">
+                  {finderError}
+                </div>
+              ) : finderResult ? (
+                <div className="space-y-4">
+                  {/* 대체 재료 */}
+                  <div className="bg-[#252525] rounded-lg p-4">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                      Substitutes
+                    </p>
+                    <ul className="space-y-2">
+                      {finderResult.substitutes.map((s, i) => (
+                        <li key={i} className="text-sm">
+                          <span className="text-foreground font-medium">{s.name}</span>
+                          {s.note && (
+                            <span className="text-muted-foreground"> — {s.note}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* 현지 스토어 */}
+                  {finderResult.stores.length > 0 && (
+                    <div className="bg-[#252525] rounded-lg p-4">
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                        Where to buy
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {finderResult.stores.map((store) => (
+                          <span
+                            key={store}
+                            className="text-xs font-medium px-2.5 py-1 rounded-full"
+                            style={{
+                              backgroundColor: "rgba(255, 75, 110, 0.15)",
+                              color: "#FF4B6E",
+                            }}
+                          >
+                            {store}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tip */}
+                  {finderResult.tip && (
+                    <div className="bg-[#141416] border border-border/30 rounded-lg p-3 text-sm text-muted-foreground">
+                      💡 {finderResult.tip}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  Search for any Korean ingredient — we&apos;ll find substitutes and local stores in
+                  your country.
                 </p>
-              </div>
+              )}
             </div>
 
             {/* Upgrade Overlay */}

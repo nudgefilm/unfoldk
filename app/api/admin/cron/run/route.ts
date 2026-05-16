@@ -8,7 +8,12 @@ export const maxDuration = 300
 // 어드민 모니터에서 cron 라우트를 수동 실행할 수 있게 프록시
 // 이유: 클라이언트는 CRON_SECRET을 알 수 없으므로 서버 측에서 헤더 주입
 const PostSchema = z.object({
-  route: z.enum(["ingest-all", "ingest-ticketmaster", "send-reminders"]),
+  route: z.enum([
+    "ingest-all",
+    "ingest-ticketmaster",
+    "ingest-filming-spots",
+    "send-reminders",
+  ]),
 })
 
 export async function POST(request: Request) {

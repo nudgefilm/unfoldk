@@ -7,7 +7,8 @@ import { useToast } from "@/hooks/use-toast"
 import { Play } from "lucide-react"
 
 interface RouteSummary {
-  route: string
+  route: string                                      // API 식별자 (e.g. "ingest-filming-spots")
+  displayName?: string                               // UI 표시명 (옵션 — 없으면 route 그대로)
   lastExecutedAt: string | null
   lastStatus: "success" | "failed" | null
   metric: string
@@ -40,7 +41,10 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
       if (!res.ok || !json.ok) {
         toast({ title: "실행 실패", description: json.error?.toString?.() ?? `HTTP ${res.status}` })
       } else {
-        toast({ title: "실행 완료", description: `${route} (${json.elapsedMs}ms)` })
+        toast({
+          title: "실행 완료",
+          description: summarizeRunResult(route, json.result, json.elapsedMs),
+        })
       }
     } catch (err) {
       toast({ title: "실행 오류", description: err instanceof Error ? err.message : "알 수 없는 오류" })
@@ -58,7 +62,7 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
           <div key={s.route} className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <h3 className="text-foreground font-medium">{s.route}</h3>
+                <h3 className="text-foreground font-medium">{s.displayName ?? s.route}</h3>
                 <p className="text-muted-foreground text-xs mt-0.5">
                   {s.lastExecutedAt
                     ? `마지막: ${new Date(s.lastExecutedAt).toLocaleString("ko-KR")}`
@@ -149,4 +153,42 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
       </section>
     </div>
   )
+}
+
+// 수동 실행 응답 → 사용자에게 보여줄 한 줄 요약.
+// 라우트별로 result_json 핵심 필드를 추출. 형식 변경 시 신규 라우트 분기 추가.
+function summarizeRunResult(route: string, result: unknown, elapsedMs: number): string {
+  const time = `${elapsedMs}ms`
+  if (typeof result !== "object" || result === null) return time
+
+  const r = result as Record<string, unknown>
+
+  if (route === "ingest-filming-spots") {
+    const inserted = num(r.spotsInserted)
+    const confirmed = num(r.spotsConfirmed)
+    const pending = num(r.spotsPending)
+    const errors = Array.isArray(r.errors) ? r.errors.length : 0
+    const errPart = errors > 0 ? ` · errors ${errors}` : ""
+    return `신규 ${inserted}건 (confirmed ${confirmed} / pending ${pending})${errPart} · ${time}`
+  }
+
+  if (route === "ingest-ticketmaster") {
+    return `수집 ${num(r.upserted)}건 · ${time}`
+  }
+
+  if (route === "ingest-all") {
+    const total = typeof r.total_upserted === "number" ? r.total_upserted : null
+    return total !== null ? `수집 ${total.toLocaleString()}건 · ${time}` : `${route} · ${time}`
+  }
+
+  if (route === "send-reminders") {
+    const summary = r.summary as { sent?: unknown } | undefined
+    return `발송 ${num(summary?.sent)}건 · ${time}`
+  }
+
+  return `${route} · ${time}`
+}
+
+function num(v: unknown): number {
+  return typeof v === "number" ? v : 0
 }
