@@ -21,6 +21,37 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-17 HallyuBot Discord 봇 — REST + multi-server enrollment
+
+- 결정 내용:
+  - **Discord 봇 신규 구현** — 일일 자동 포스팅 4채널 + 슬래시 명령 6종 (`/comeback /chart /drama /korean /about /setup`).
+  - **`discord.js` 미사용** — Vercel serverless 환경에 WebSocket gateway 부적합. REST API (fetch) + Node 내장 `crypto.verify` (Ed25519 native, SPKI prefix wrapping) 으로 충분. 외부 패키지 0 추가.
+  - **Multi-server enrollment** — `discord_server_settings` 테이블 (`migration 0024`, guild_id PK + 4 채널 ID, RLS service_role only). `/setup` 슬래시로 enrollment.
+  - **`/setup` 권한** — `default_member_permissions: "32"` (MANAGE_GUILD) Discord 클라이언트 단 숨김 + interaction body `member.permissions` bitmask BigInt 검증 이중 가드.
+  - **부분 upsert** — `/setup` 이 옵션 일부만 지정해도 기존 settings 유지 (read-then-merge). Supabase `.upsert()` 가 전체 행 덮어쓰기라 수동 merge.
+  - **Cron fallback 2층** —
+    - settings 있는 서버: NULL 키 → `announcements` → `general` 순서 채널명 fetch
+    - env `DISCORD_GUILD_ID` 만 있고 enrolled 안 된 서버: legacy 채널명(`daily-schedule` 등) 매핑
+  - **HangeulGo 백엔드 미구현 우회** — `lib/discord/korean-phrases.ts` 35개 정적 표현 + `dayOfYear % length` 결정적 회전. HangeulGo 구축 시 `getDailyKoreanPhrase` 한 함수만 DB 조회로 교체.
+  - **vercel.json cron** — `0 9 * * *` (UTC 09:00 = KST 18:00). 사용자가 한국 저녁 시간대 노출 의도.
+- 이유:
+  - Discord 커뮤니티는 출시 전 Early Access 단계의 핵심 채널. 일일 자동 포스팅으로 활성 유지 + 슬래시 명령으로 supplemental 기능 제공.
+  - serverless 환경 + 단순 요구사항 (REST 4-5 호출) → discord.js 의 gateway·캐시 인프라 불필요. CLAUDE.md §9 "가장 단순한 방법".
+  - Multi-server enrollment 은 봇이 외부 서버에 초대될 가능성 대비 (현재는 본인 서버 1개지만 구조만 미리). DB 미존재 서버는 env fallback 으로 backward compat.
+- 대안으로 고려했던 것:
+  - `discord.js` — gateway·event 추상화 좋지만 serverless 와 안 맞고 번들 400KB+. 매 cron 호출마다 client 초기화 비용.
+  - `discord-interactions` npm — Ed25519 검증 헬퍼지만 Node 19+ 의 내장 `crypto.verify` + SPKI prefix 12바이트로 동일 효과. 외부 의존 불필요.
+  - Single-tenant cron (env DISCORD_GUILD_ID 하드코딩만) — multi-server 확장 시 재설계 부담. enrollment 패턴 미리 적용해 future-proof.
+  - HangeulGo 표현을 Claude Haiku 매일 생성 — 정해진 표현 회전이 cron + `/korean` 일관성 + 비용 0 + 결정적. Phase 1 단순함 승.
+- 사용자 액션 (배포 후):
+  1. Supabase SQL Editor 에서 `supabase/migrations/0024_discord_server_settings.sql` 실행
+  2. Discord Developer Portal → INTERACTIONS ENDPOINT URL = `https://unfoldk.com/api/discord/interactions` 등록 (PING 자동 검증)
+  3. Bot OAuth invite — `bot` + `applications.commands` 스코프, `Send Messages` + `Embed Links` + (선택) `View Channels` 권한
+  4. 슬래시 명령 등록: `curl.exe -H "Authorization: Bearer $env:CRON_SECRET" https://unfoldk.com/api/discord/register-commands`
+  5. 서버에서 관리자로 `/setup schedule:#... charts:#... drama:#... korean:#...`
+
+---
+
 ## 2026-05-16 결제 연동 전 임시 Free 확대 정책
 
 - 결정 내용:
