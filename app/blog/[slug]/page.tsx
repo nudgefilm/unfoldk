@@ -8,6 +8,7 @@ import { MDXRemote } from "next-mdx-remote/rsc"
 import { ChevronLeft } from "lucide-react"
 import { FooterSection } from "@/components/footer-section"
 import { mdxComponents } from "@/components/blog/mdx-components"
+import { BlogComments } from "@/components/blog/blog-comments"
 import { getAllSlugs, getPostBySlug, formatBlogDate } from "@/lib/blog"
 
 interface Params {
@@ -122,6 +123,9 @@ export default async function BlogPostPage({
             <MDXRemote source={post.content} components={mdxComponents} />
           </div>
         </article>
+
+        {/* 댓글 — slug 별 독립. 로그인/비로그인 분기는 컴포넌트 내부에서 처리. */}
+        <BlogComments slug={post.slug} />
 
         <div className="mt-16 pt-8 border-t border-border/30">
           <Link

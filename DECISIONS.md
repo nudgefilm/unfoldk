@@ -21,6 +21,28 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-16 블로그 댓글 시스템 — blog_comments 테이블 + RLS
+
+- 결정 내용:
+  - migration `0021_blog_comments.sql` — `public.blog_comments` 테이블 신설.
+  - 컬럼: id uuid PK / slug text NOT NULL / user_id uuid (public.users FK ON DELETE CASCADE) / content text CHECK (1~1000자) / created_at / updated_at + updated_at 자동 갱신 트리거.
+  - 인덱스 2개: (slug, created_at desc) 핫패스, (user_id, created_at desc) 향후 "내 댓글" 대비.
+  - RLS 5개 정책: select 전체 공개 / insert 본인 / update 본인 / delete 본인 + 관리자 `public.is_admin(auth.uid())`.
+  - GRANT: 0013/0015 패턴 — anon/authenticated select, authenticated CRUD, service_role full.
+  - **slug 는 외래키 없는 text** — 블로그 포스트는 `content/blog/*.mdx` 파일 시스템에 있어 DB 참조 불가. 잘못된 slug 로 작성돼도 단순 고아 row, 무결성 영향 없음. API zod regex `^[a-z0-9-]+$` 로 1차 차단.
+  - **user_id 는 `public.users(id)` 참조** (스펙은 auth.users 였으나 프로젝트 단일 users 정책 + UI 가 name/avatar_url join 필요).
+  - API `/api/blog/[slug]/comments`: GET (목록 + service_role 프로필 batch join, 민감 필드 제외) / POST (RLS 본인 강제, 응답에 프로필 동봉) / DELETE `?id=uuid` (본인+관리자 RLS, 0 row 삭제 시 403).
+  - UI `components/blog/blog-comments.tsx`: 로그인 분기 — 로그인 시 textarea+post, 비로그인 시 StartModal 트리거 (next = 현재 URL `#comments` fragment). 본인 댓글 카드만 휴지통 버튼. 상대 시각은 date-fns `formatDistanceToNow`.
+  - `app/blog/[slug]/page.tsx` 하단에 `<BlogComments slug={post.slug} />` 마운트.
+- 이유:
+  - 자체 댓글로 외부 의존 (Disqus 등) 제거 + 다크테마·브랜드 일관성 + GDPR/저작권 단순화 (자체 DB 만 관리).
+  - slug 외래키 미설정 으로 마이그레이션 의존성 0 — 블로그가 파일 기반이라 자연스러운 결정.
+  - RLS 본인 가드 + service_role 프로필 join 분리는 0015 (content_reports) 패턴과 동일 — 일관성.
+- 대안으로 고려했던 것:
+  - Disqus/Giscus 임베드 → 외부 도메인 의존·다크테마 커스터마이즈 부담. 자체 구현이 단순.
+  - blog_posts 테이블로 포스트도 DB 화 후 FK → blog 운영을 파일/DB 이중 관리. 콘텐츠 cron 도 두 곳에 push 필요.
+  - user_id auth.users 직접 참조 (스펙대로) → users join 위해 추가 fetch 필요 + CLAUDE.md §5 단일 users 위배.
+
 ## 2026-05-16 블로그 자동 포스팅 cron — Anthropic + Unsplash + GitHub Contents API
 
 - 결정 내용:

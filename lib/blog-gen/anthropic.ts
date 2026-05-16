@@ -32,7 +32,9 @@ Critical rules:
 - It's fine to reference universally known artists / dramas (BTS, BLACKPINK, NewJeans, Squid Game, Crash Landing on You, Parasite) — they are public knowledge.
 - Markdown is MDX-safe. Headings, lists, blockquotes, bold/italic only. No HTML tags. No raw JSX. No code fences for content (only for actual code).
 - No emojis.
-- End the body with a final paragraph that gently links the topic back to UnfoldK using one of: [HallyuCalendar](/calendar), [KpopStats](/kpop), [KdramaMatch](/drama), [HangeulGo](/korean), [KfoodKit](/food). Pick the one most relevant to the topic.
+- NO external URLs anywhere in bodyMdx. Do not write http://, https://, or www. — not as plain text, not in markdown link syntax, not in image src, not in footnotes. No bare URLs at all.
+- The ONLY markdown link syntax [text](url) allowed is relative internal links to UnfoldK service pages, where url MUST start with "/" and point to one of: /calendar, /kpop, /drama, /korean, /food, /blog. Anything else (external sites, social handles, news articles, Wikipedia, YouTube) is forbidden — refer to them in plain prose without linking.
+- End the body with a final paragraph that gently links the topic back to UnfoldK using one of: [HallyuCalendar](/calendar), [KpopStats](/kpop), [KdramaMatch](/drama), [HangeulGo](/korean), [KfoodKit](/food). Pick the one most relevant to the topic. This is the only required link in the post.
 - DO NOT include a frontmatter block, title heading (# Title), image, or "Photo by ... on Unsplash" credit in bodyMdx. Those are added by the system.
 - Length: 600–1200 words of MDX body. Aim for ~800.`
 
@@ -200,6 +202,31 @@ export async function generateBlogPost(todayIso: string): Promise<GeneratedPost>
   }
   if (/^#\s/.test(input.bodyMdx.trim())) {
     throw new BlogGenerationError("bodyMdx 상단에 H1(#) 사용됨 — 시스템이 title 자동 렌더")
+  }
+
+  // 외부 URL 차단 — http(s):// 또는 www. 으로 시작하는 토큰 어디에도 금지.
+  // 본문 footer 의 Unsplash credit 은 run.ts 가 별도로 append 하므로 본 검증 통과 시점엔 없음.
+  const externalUrlRe = /(?:https?:\/\/|\bwww\.)\S+/i
+  const extMatch = input.bodyMdx.match(externalUrlRe)
+  if (extMatch) {
+    throw new BlogGenerationError(
+      `bodyMdx 에 외부 URL 포함 (정책 위반): ${extMatch[0].slice(0, 60)}`
+    )
+  }
+
+  // 마크다운 링크는 내부 화이트리스트 (/calendar, /kpop, /drama, /korean, /food, /blog) 만 허용.
+  // mailto:, tel:, #anchor, 기타 절대 URL 모두 차단.
+  const ALLOWED_INTERNAL = new Set(["/calendar", "/kpop", "/drama", "/korean", "/food", "/blog"])
+  const linkRe = /\[([^\]]+)\]\(([^)]+)\)/g
+  for (const match of input.bodyMdx.matchAll(linkRe)) {
+    const url = match[2].trim()
+    // 쿼리·해시 분리 후 path 만 비교
+    const pathOnly = url.split(/[?#]/)[0]
+    if (!ALLOWED_INTERNAL.has(pathOnly)) {
+      throw new BlogGenerationError(
+        `bodyMdx 에 허용되지 않은 링크 (정책 위반): ${url.slice(0, 80)}`
+      )
+    }
   }
 
   return {
