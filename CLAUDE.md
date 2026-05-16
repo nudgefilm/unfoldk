@@ -109,6 +109,30 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 - 아티스트 전체 브라우징: `/kpop/artists` (리스너순 정렬, 그룹/솔로 필터, 페이지네이션)
 - `kpop_artists.member_count`: NULL=미분류 / 1=솔로 / 2+=그룹. 어드민에서 backfill.
 
+### Curation K (HallyuMap) 데이터 원칙
+- **TourAPI 4.0** (`lib/api/tourapi.ts`) — KorService2 영문 엔드포인트 + JSON. `TOUR_API_KEY` **Decoding 키** 사용 (URL-encoded 형식 그대로 쓰면 fetch 가 한 번 더 인코딩해 깨짐).
+- TourAPI 응답 캐싱: 지점 데이터 6h / 행사 1h / 이미지 24h (CLAUDE.md §6 #5).
+- `items.item` 응답 형태 3 케이스 (`undefined` / 단일 객체 / 배열 / 빈 문자열 `""`) — `normalizeItems` 가 모두 배열로 정규화. 직접 접근 금지.
+- `mapx` (경도) / `mapy` (위도) 는 문자열 — Number 변환 + 0/NaN 가드 (`normalizeSpot`).
+
+### filming_spots 신뢰도 정책
+- Claude Haiku (`lib/curation-k/filming-spots.ts`) 가 드라마별 촬영지 1~5개 + `confidence` 0~1 추정.
+- `confidence ≥ 0.5` 이고 TourAPI GPS 매핑 성공 → `status='confirmed'` (공개 노출).
+- 그 외 → `status='pending'` (어드민 검토 필요, 일반 사용자 미노출).
+- Claude 가 모르는 드라마는 `__no_spots_found__` 더미 row 1건 삽입해 cron 재시도 차단. `(drama_title, spot_name)` unique 로 멱등.
+- cron 일 cap: 드라마 5편 × 촬영지 5개 = 신규 25/일 (비용·품질 둘 다 통제).
+- 어드민 수동 확정·삭제는 `filming_spots` 직접 UPDATE (어드민 UI 별도 — Phase 2).
+
+### AI 처리 원칙
+- **모든 AI 처리는 Claude API (Haiku / Sonnet) 우선 적용**. 타사 AI (OpenAI · Gemini · Mistral 등) 도입 전 Claude 로 구현 가능한지 먼저 검토.
+- **Haiku 4.5** (`claude-haiku-4-5-20251001`) — 콘텐츠 생성·분류·추출 등 경량 작업. 현재 사용처: `lib/claude/generate-event-description.ts` · `lib/claude/recommend-dramas.ts` · `lib/blog-gen/anthropic.ts`.
+- **Sonnet 4.6** (`claude-sonnet-4-6`) — 고품질 추천·복잡한 추론 등 고도화 작업. Haiku 출력 품질이 정성적 임계값 미달 시 같은 프롬프트로 모델만 교체.
+- **비용 최적화**:
+  - **프롬프트 캐싱** 우선 — `system` 블록에 `cache_control: { type: "ephemeral" }` (기존 패턴 `lib/claude/generate-event-description.ts`). Haiku cache prefix 최소 4096 토큰 — 미달 시 silent no-op 이라 무해.
+  - **배치 API** 50% 할인 — 시간 민감하지 않은 대량 작업 (예: 신규 아티스트 분류·기존 데이터 backfill) 은 messages.create 대신 messages.batches.create.
+  - 응답 결과 Supabase / Next.js cache 저장 (§6 #5 와 동일 원칙).
+- 사용자 facing 실시간 처리 (예: 채팅·추천 클릭 시 응답) 는 정확도·지연 trade-off 검토 후 결정. 기본은 Haiku, 품질 부족 시 Sonnet.
+
 ---
 
 ## 7. 자주 하는 실수 (하지 말 것)

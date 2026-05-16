@@ -21,6 +21,35 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-16 Curation K Phase 1 — TourAPI + Claude 촬영지 추출 + 7 섹션 페이지
+
+- 결정 내용:
+  - migration `0023_curation_k.sql` — `filming_spots`, `kpop_spots`, `hallyu_courses` 3 테이블 + RLS + `updated_at` 트리거. drama_id / artist_id / user_id 는 모두 **uuid** (스펙은 integer / auth.users 였으나 프로젝트 컨벤션 따라 정정 — `dramas.id` / `kpop_artists.id` 가 uuid, CLAUDE.md §5 단일 users).
+  - `lib/api/tourapi.ts` — KorService2 6 메서드 (locationBasedList2 / searchKeyword2 / areaBasedList2 / detailImage2 / searchFestival2 + 음식점·숙박 wrapper). **Decoding 키** 사용 명시. `items.item` 4 케이스 정규화. `mapx`/`mapy` 문자열 → number 가드.
+  - `lib/curation-k/filming-spots.ts` — Claude Haiku `tool_use` (`report_filming_spots`) 로 드라마별 1~5개 촬영지 + 신뢰도 추출. TourAPI `searchKeyword` 매핑. `confidence ≥ 0.5` + GPS 매핑 성공 → `confirmed`, 그 외 `pending`. `__no_spots_found__` 더미 row 로 미지 드라마 재시도 차단. 일 cap 5 dramas × 5 spots = 25 신규/일.
+  - `lib/api/lastfm.ts` 확장 — `getGeoTopArtists(country, limit)` 추가. geo widget 용.
+  - cron `/api/cron/ingest-filming-spots` 매일 03:00 UTC. `vercel.json` 등록.
+  - 새 API 6개: `/api/curation-k/{map,filming-spots,kpop-spots,food,stays,geo-artists}`. Food/Stays 는 TourAPI 라이브 호출, Map/Filming/Kpop 은 DB read, Geo 는 Last.fm + kpop_artists 매칭 join.
+  - `/curation-k` 페이지 — Coming Soon 마케팅 페이지에서 본격 7 섹션 페이지로 전면 교체. 기존 SVG 한국 polygon + projection 인프라 보존. 카테고리 4종 토글 (`Video`/`MicVocal`/`UtensilsCrossed`/`Hotel`) + 색상 분리 (filming `#FF4B6E` / kpop `#a855f7` / food `#f59e0b` / stays `#22c55e`). AI 1-Day Course = Pro 잠금 UI (Phase 2 에서 Claude 생성 결합).
+  - CLAUDE.md §6 새 subsection 2건 (Curation K TourAPI 원칙 / filming_spots 신뢰도 정책) — `feedback_deprecated_warnings` 패턴.
+- 이유:
+  - TourAPI 는 한국관광공사 공식 데이터 — 음식점·숙박·관광지·이미지 GPS 메타 무료 라이선스로 글로벌 한류 팬에게 정확한 정보 제공 가능.
+  - 촬영지는 공개 데이터셋 부재 → Claude Haiku 가 학습 지식으로 추출 + TourAPI 로 GPS 검증 하이브리드. confidence 분기로 할루시네이션 격리.
+  - 페이지 전면 교체 결정 — Curation K 가 더 이상 Coming Soon 이 아니라 실데이터를 가진 서비스. 사전등록 폼 제거 (실데이터로 직접 가치 전달).
+- 대안으로 고려했던 것:
+  - 스펙대로 `drama_id integer` → `dramas.id` 가 uuid 라 type mismatch → 정정 불가피.
+  - 촬영지를 수동 큐레이션만 → 초기 시드 N개 부족. Claude 자동 추출 + 사람 검토(pending → confirmed) 가 운영 부담 적음.
+  - TourAPI 클라이언트에 SDK 도입 → 의존성 무게 대비 6 메서드 fetch wrapper 가 충분.
+  - 페이지 라이브 데이터 없이 Coming Soon 유지 → 사용자 명시 "본격 구현" 요청 정면 위배.
+- **Phase 2 carry-over**:
+  - AI 1-Day Course Claude 생성 파이프라인 (Pro 라우트 + `hallyu_courses` 저장 UI + 코스 조회 페이지)
+  - KdramaMatch 시청 이력 기반 개인화 코스
+  - "촬영지 근처 숙박" 자동 큐레이션 (haversine + filming_spots GPS join)
+  - 고캠핑 API 통합 (별도 API 키 + 약관 검토 필요)
+  - 어드민 K팝 성지 시드 UI (현재 kpop_spots 는 어드민 직접 INSERT 만)
+  - 어드민 filming_spots pending 검토 큐 UI
+  - 한국 SVG 지도 고도화 (광역시도 폴리곤 hover, 핀 클러스터링)
+
 ## 2026-05-16 KOPIS API 비활성화 — 글로벌 유저 부적합
 
 - 결정 내용:

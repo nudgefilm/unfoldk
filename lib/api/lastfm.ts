@@ -69,6 +69,63 @@ interface LastfmArtistGetInfoResponse {
   }
 }
 
+// ============================================
+// 국가별 인기 아티스트 — Curation K geo 위젯용
+// ============================================
+
+export interface LastfmGeoArtist {
+  name: string
+  mbid?: string
+  url: string
+  listeners: number | null
+}
+
+interface LastfmGeoTopArtistsResponse {
+  topartists?: {
+    artist?: Array<{
+      name?: string
+      mbid?: string
+      url?: string
+      listeners?: string
+    }>
+  }
+}
+
+// geo.getTopArtists — ISO country name (예 "South Korea", "Japan", "United States").
+// K팝 한정 필터는 API 측에 없음 — 호출자가 결과를 kpop_artists 와 join 해 K팝만 추리는 패턴.
+export async function getGeoTopArtists(
+  country: string,
+  limit = 50
+): Promise<LastfmGeoArtist[]> {
+  const params = new URLSearchParams({
+    method: "geo.gettopartists",
+    country,
+    api_key: lastfmApiKey(),
+    format: "json",
+    limit: String(Math.min(1000, Math.max(1, limit))),
+  })
+
+  const res = await fetch(`${LASTFM_BASE}?${params}`, {
+    next: { revalidate: 86400 }, // 24h
+  })
+  if (!res.ok) {
+    console.warn(`[lastfm] geo.gettopartists "${country}" ${res.status}`)
+    return []
+  }
+
+  const data: LastfmGeoTopArtistsResponse = await res.json()
+  const artists = data.topartists?.artist ?? []
+  return artists
+    .filter((a): a is { name: string; mbid?: string; url?: string; listeners?: string } => !!a.name)
+    .map((a) => ({
+      name: a.name,
+      mbid: a.mbid,
+      url: a.url ?? "",
+      listeners: a.listeners ? Number(a.listeners) : null,
+    }))
+}
+
+
 // 단일 아티스트 정보 (listeners + playcount). 24h Next.js fetch cache —
 // cron 1회/일 운영이라 cache hit 빈도는 낮지만 rate limit 안전판 (재시도·중복 호출 흡수).
 export async function getArtistInfo(
