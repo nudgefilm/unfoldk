@@ -1,0 +1,284 @@
+// 블로그 자동 포스팅 오케스트레이터
+//
+// 시퀀스 (실패 fail-fast — 부분 산출물 push 금지):
+//   1. 오늘 날짜 파일이 이미 GitHub 에 있으면 short-circuit
+//   2. Claude Haiku 로 본문·메타 생성 (구조화 출력)
+//   3. Unsplash 로 cover 이미지 검색
+//   4. MDX (frontmatter + 본문 + credit footer) 조립
+//   5. GitHub Contents API 로 신규 파일 push (멱등 — 동일 path 존재 시 409 dup)
+//
+// 호출자: app/api/cron/generate-blog-post (Vercel Cron 08:00 UTC)
+// 모든 시크릿은 환경변수. 본 모듈은 외부 호출 결과를 그대로 cron 응답에 노출 (구조화).
+
+import { generateBlogPost, BlogGenerationError, type GeneratedPost } from "./anthropic"
+import { searchUnsplashImage, UnsplashError, type UnsplashImage } from "./unsplash"
+import { putFile, getFileSha, GitHubError, type PutFileResult } from "./github"
+
+export type RunStage =
+  | "idempotency-check"
+  | "haiku-generation"
+  | "unsplash-image"
+  | "github-push"
+  | "complete"
+
+export interface RunResult {
+  ok: boolean
+  stage: RunStage
+  filePath?: string
+  slug?: string
+  date?: string
+  topicId?: string
+  title?: string
+  unsplashImageUrl?: string
+  unsplashAuthor?: string
+  githubCommitSha?: string
+  githubHtmlUrl?: string
+  duplicate?: boolean
+  error?: string
+}
+
+// YAML frontmatter 직렬화 — gray-matter 의 stringify 가 있긴 하지만 사이드이펙트 최소화 위해 직접 작성.
+// 모든 값은 우리가 통제 (Haiku 출력은 schema 검증 후) → 인용 escape 만 처리.
+function yamlString(s: string): string {
+  return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+}
+
+function buildFrontmatter(args: {
+  title: string
+  description: string
+  date: string
+  author: string
+  tags: string[]
+  image: string
+  imageCredit: string
+  readingTimeMinutes: number
+}): string {
+  const tagsLine = args.tags.map(yamlString).join(", ")
+  return [
+    "---",
+    `title: ${yamlString(args.title)}`,
+    `description: ${yamlString(args.description)}`,
+    `date: ${yamlString(args.date)}`,
+    `author: ${yamlString(args.author)}`,
+    `tags: [${tagsLine}]`,
+    `image: ${yamlString(args.image)}`,
+    `imageCredit: ${yamlString(args.imageCredit)}`,
+    `readingTime: ${args.readingTimeMinutes}`,
+    "draft: false",
+    "---",
+    "",
+  ].join("\n")
+}
+
+// 본문 하단 자동 credit footer — Unsplash 가이드라인 (이름·사진 페이지·Unsplash 링크) 만족.
+// UTM 파라미터는 unsplash.ts 의 URL 에 이미 포함.
+function buildCreditFooter(img: UnsplashImage): string {
+  return [
+    "",
+    "---",
+    "",
+    `*Cover photo by [${img.authorName}](${img.authorProfileUrl}) on [Unsplash](https://unsplash.com/?utm_source=unfoldk&utm_medium=referral) — [view original](${img.photoPageUrl}).*`,
+    "",
+  ].join("\n")
+}
+
+// 단어 수 기반 분 단위 추정 (lib/blog.ts 와 동일 공식 — 200 wpm)
+function estimateReadingMinutes(text: string): number {
+  const words = text.trim().split(/\s+/).length
+  return Math.max(1, Math.round(words / 200))
+}
+
+// 파일명 패턴: YYYY-MM-DD-{slug}.mdx — 같은 날 재실행 시 멱등 (path 충돌)
+function buildFilePath(dateIso: string, slug: string): string {
+  return `content/blog/${dateIso}-${slug}.mdx`
+}
+
+export async function runBlogGenerationCron(): Promise<RunResult> {
+  // 오늘 날짜 (UTC) — cron 이 UTC 기준이라 KST 자정 경계 회피
+  const now = new Date()
+  const todayIso = now.toISOString().slice(0, 10) // YYYY-MM-DD
+
+  // 1. 멱등성 — 오늘 날짜 prefix 파일이 이미 있으면 skip.
+  //    slug 가 다를 수 있어 putFile 의 path-level 중복만으로는 부족 → 디렉토리 listing 필요.
+  //    GitHub /contents/{dir} 으로 listing 후 prefix 매칭.
+  let existingForToday: string | null = null
+  try {
+    existingForToday = await findTodayPost(todayIso)
+  } catch (err) {
+    return {
+      ok: false,
+      stage: "idempotency-check",
+      date: todayIso,
+      error: `idempotency listing 실패: ${err instanceof Error ? err.message : String(err)}`,
+    }
+  }
+  if (existingForToday) {
+    return {
+      ok: true,
+      stage: "idempotency-check",
+      date: todayIso,
+      duplicate: true,
+      filePath: existingForToday,
+      error: "오늘 날짜 포스트가 이미 존재 — skip",
+    }
+  }
+
+  // 2. Haiku 본문 생성
+  let post: GeneratedPost
+  try {
+    post = await generateBlogPost(todayIso)
+  } catch (err) {
+    const msg =
+      err instanceof BlogGenerationError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : String(err)
+    return { ok: false, stage: "haiku-generation", date: todayIso, error: msg }
+  }
+
+  const filePath = buildFilePath(todayIso, post.slug)
+
+  // 같은 slug 가 우연히 다른 날짜로 존재할 수 있어 별도 확인은 불필요 (date prefix 가 path 보장).
+
+  // 3. Unsplash 이미지
+  let image: UnsplashImage
+  try {
+    image = await searchUnsplashImage(post.unsplashQuery)
+  } catch (err) {
+    const msg =
+      err instanceof UnsplashError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : String(err)
+    return {
+      ok: false,
+      stage: "unsplash-image",
+      date: todayIso,
+      topicId: post.topicId,
+      title: post.title,
+      slug: post.slug,
+      error: msg,
+    }
+  }
+
+  // 4. MDX 조립
+  const readingTimeMinutes = estimateReadingMinutes(post.bodyMdx)
+  const frontmatter = buildFrontmatter({
+    title: post.title,
+    description: post.description,
+    date: todayIso,
+    author: "UnfoldK",
+    tags: post.tags,
+    image: image.imageUrl,
+    imageCredit: image.imageCredit,
+    readingTimeMinutes,
+  })
+  const footer = buildCreditFooter(image)
+  const mdxContent = `${frontmatter}${post.bodyMdx}\n${footer}`
+
+  // 5. GitHub push
+  const commitMessage = `feat(blog): auto-post ${todayIso} — ${post.title.slice(0, 60)}\n\nTopic: ${post.topicId}\nGenerated by /api/cron/generate-blog-post`
+  let push: PutFileResult
+  try {
+    push = await putFile(filePath, mdxContent, commitMessage)
+  } catch (err) {
+    const msg =
+      err instanceof GitHubError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : String(err)
+    return {
+      ok: false,
+      stage: "github-push",
+      date: todayIso,
+      topicId: post.topicId,
+      title: post.title,
+      slug: post.slug,
+      filePath,
+      unsplashImageUrl: image.imageUrl,
+      unsplashAuthor: image.authorName,
+      error: msg,
+    }
+  }
+
+  if (!push.ok) {
+    return {
+      ok: false,
+      stage: "github-push",
+      date: todayIso,
+      topicId: post.topicId,
+      title: post.title,
+      slug: post.slug,
+      filePath,
+      unsplashImageUrl: image.imageUrl,
+      unsplashAuthor: image.authorName,
+      duplicate: push.duplicate,
+      error: push.error,
+    }
+  }
+
+  return {
+    ok: true,
+    stage: "complete",
+    date: todayIso,
+    topicId: post.topicId,
+    title: post.title,
+    slug: post.slug,
+    filePath,
+    unsplashImageUrl: image.imageUrl,
+    unsplashAuthor: image.authorName,
+    githubCommitSha: push.commitSha,
+    githubHtmlUrl: push.htmlUrl,
+  }
+}
+
+// ─── 멱등성 헬퍼 ────────────────────────────────────────────────
+//
+// GitHub /repos/{repo}/contents/content/blog 디렉토리 listing 후
+// "YYYY-MM-DD-..." prefix 매칭. 디렉토리가 없으면 null (첫 cron 실행 케이스).
+
+interface GitHubDirItem {
+  name: string
+  type: "file" | "dir" | "symlink" | "submodule"
+}
+
+async function findTodayPost(todayIso: string): Promise<string | null> {
+  const token = process.env.GITHUB_TOKEN
+  const repo = process.env.GITHUB_REPO
+  const branch = process.env.GITHUB_BRANCH ?? "main"
+  if (!token || !repo) {
+    // 환경변수 누락 — 검증은 putFile 측에서 throw. 여기서는 listing 우회.
+    return null
+  }
+
+  const url = `https://api.github.com/repos/${repo}/contents/content/blog?ref=${encodeURIComponent(branch)}`
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "unfoldk-blog-cron",
+    },
+    cache: "no-store",
+  })
+
+  if (res.status === 404) return null // 첫 호출 — 디렉토리 미존재
+  if (!res.ok) {
+    const body = await res.text().catch(() => "")
+    throw new GitHubError(`dir listing HTTP ${res.status}: ${body.slice(0, 200)}`, res.status)
+  }
+
+  const json = (await res.json()) as GitHubDirItem[]
+  const todayPrefix = `${todayIso}-`
+  const match = json.find((item) => item.type === "file" && item.name.startsWith(todayPrefix))
+  if (!match) return null
+
+  // 단일 파일 존재 확인 후 sha 까지 fetch 할 필요 없음 — 파일명만 반환
+  return `content/blog/${match.name}`
+}
+
+// 테스트·로컬 호출을 위한 export
+export { findTodayPost }

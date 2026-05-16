@@ -8,7 +8,7 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Unfold K',
+  title: 'UnfoldK',
   description: 'Your Pass to Korean Culture',
   generator: 'v0.app',
   metadataBase: new URL('https://www.unfoldk.com'),
@@ -17,23 +17,23 @@ export const metadata: Metadata = {
     apple: '/favicon.png',
   },
   openGraph: {
-    title: 'Unfold K',
+    title: 'UnfoldK',
     description: 'Your Pass to Korean Culture',
     url: 'https://www.unfoldk.com',
-    siteName: 'Unfold K',
+    siteName: 'UnfoldK',
     images: [
       {
         url: 'https://www.unfoldk.com/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'Unfold K — Your Pass to Korean Culture',
+        alt: 'UnfoldK — Your Pass to Korean Culture',
       },
     ],
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Unfold K',
+    title: 'UnfoldK',
     description: 'Your Pass to Korean Culture',
     images: ['https://www.unfoldk.com/og-image.png'],
   },

@@ -21,6 +21,30 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-16 블로그 자동 포스팅 cron — Anthropic + Unsplash + GitHub Contents API
+
+- 결정 내용:
+  - 신규 cron `/api/cron/generate-blog-post` 매일 08:00 UTC (vercel.json 추가).
+  - 시퀀스: ① GitHub `/contents/content/blog` listing 으로 오늘 날짜 prefix 파일 존재 시 멱등 skip → ② Claude Haiku 4.5 `claude-haiku-4-5-20251001` tool_use (`publish_blog_post`) 로 토픽 선택 + 본문 (600~1200 단어) + 메타 구조화 출력 → ③ Unsplash `/search/photos?orientation=landscape&content_filter=high` 1위 결과 사용 + download beacon fire-and-forget → ④ GitHub Contents API PUT 으로 `content/blog/YYYY-MM-DD-{slug}.mdx` 신규 생성.
+  - 토픽 풀 5종 (`lib/blog-gen/topics.ts`): 이번 주 K팝 컴백 / 신작 K드라마 / 차트 분석 / 한국어 표현 / K푸드 레시피. Haiku 가 매일 1개 선택. 확장은 reviewer 검토 후.
+  - Haiku 출력 schema 코드 측 재검증: topicId enum / title 10–100자 / slug kebab-case 80자 / description ≥30자 / tags 1–6개 / bodyMdx 800–8000자 + frontmatter·H1 혼입 차단.
+  - frontmatter 확장 (`lib/blog.ts`): `image` (cover alias 우선) / `imageCredit` / `readingTime` (override) — 기존 `cover` 는 하위 호환.
+  - Unsplash credit 노출: ① 본문 footer 자동 추가 (`---` 구분 후 author·photoPageUrl·Unsplash 링크), ② frontmatter `imageCredit` 도 상세 페이지 cover 하단 figcaption 으로 표시.
+  - 멱등성: GitHub 디렉토리 listing 으로 오늘 prefix 검사. 같은 path 추가 충돌 시 `putFile` 도 409 dup 처리. 200 응답 + `duplicate:true`.
+  - 인증: 기존 `verifyCronAuth` (CRON_SECRET Bearer) 재사용.
+  - 신규 환경변수: `UNSPLASH_ACCESS_KEY` / `GITHUB_TOKEN` (contents:write) / `GITHUB_REPO` (`owner/repo`) / `GITHUB_BRANCH` (옵션, 기본 `main`).
+  - 신규 의존성: `next-mdx-remote@^6.0.0`, `gray-matter@^4.0.3` (블로그 인프라). Anthropic SDK 는 기존.
+- 이유:
+  - 일일 콘텐츠 발행 자동화로 SEO·신선도 확보. 운영 비용은 Haiku 1포스트 ≈ $0.0075/day (연 $2.7).
+  - GitHub push → Vercel auto-deploy 흐름으로 별도 CMS·DB 불필요. 콘텐츠도 코드와 함께 버전 관리 (PR·revert 자유).
+  - Haiku tool_use 로 JSON.parse 실패 위험 0. enum + 코드 측 재검증 2중 방어로 정책 위반 출력 방지.
+  - Unsplash 무료 (free tier 50 req/h, 일 1회 = 여유). 가이드라인 (이름·UTM·download beacon) 준수.
+- 대안으로 고려했던 것:
+  - draft:true 발행 후 어드민 승인 큐 → 운영 부담. 스펙은 자동 발행 (draft:false) 요구.
+  - Notion/Sanity 등 외부 CMS → 인프라 추가. GitHub 만으로 충분.
+  - 토픽 자동 확장 (검색 트렌드 기반) → 품질 검증 부담. 5개 풀로 시작.
+  - `@octokit/rest` SDK → 단일 엔드포인트라 fetch 직접 사용으로 의존성 절감.
+
 ## 2026-05-15 kpop_artists.member_count 컬럼 추가 (DB 스키마)
 
 - 결정 내용:
