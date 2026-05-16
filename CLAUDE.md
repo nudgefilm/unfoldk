@@ -109,6 +109,43 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 - 아티스트 전체 브라우징: `/kpop/artists` (리스너순 정렬, 그룹/솔로 필터, 페이지네이션)
 - `kpop_artists.member_count`: NULL=미분류 / 1=솔로 / 2+=그룹. 어드민에서 backfill.
 
+### 결제 연동 전 임시 Free 확대 정책 (2026-05-16~ / 결제 연동 시 복원)
+**배경**: Lemon Squeezy 결제 연동 전까지 Free 유저도 핵심 기능을 충분히 체험할 수 있도록 게이팅 완화. 결제 연동 시 아래 표의 "복원 후" 상태로 되돌리는 commit 필요.
+
+| 기능 | 현재 (임시) | 복원 후 (결제 가동 시) | 비고 |
+|------|------------|---------------------|------|
+| HallyuCalendar — Upcoming events blur | 비로그인 3개, **Free 무제한** | 비로그인 3개, Free 3개, Pro 무제한 | `app/calendar/page.tsx` `isBlurred = !isLoggedIn && index >= 3` → `!isPro && index >= 3` |
+| HallyuCalendar — 아티스트 트래킹 | 비로그인 안내, **Free 무제한** | 비로그인+Free 3건 cap, Pro 무제한 | tracking banner `!isLoggedIn` → `!isPro` |
+| HallyuCalendar — iCal / Google Calendar 구독 | Free 가능 (이미 현 상태) | 동일 (gate 추가 검토) | 변경 없음 |
+| HallyuCalendar — Concert / Fan Meet 이벤트 | Pro 유지 (RLS `is_premium`) | 동일 | RLS 레벨, 코드만으론 불가 |
+| KpopStats — Top 차트 | 비로그인 5건, **Free Top 20** | 비로그인 5건, Free Top 10, Pro Top 20 | `app/kpop/page.tsx` `visibleLimit` |
+| KpopStats — Spotlight (성장 추이) | Free 가능 (이미 현 상태) | 동일 | 변경 없음 |
+| KpopStats — Artist Comparison | Pro 유지 | 동일 | Pro 잠금 |
+| KdramaMatch — AI 추천 한도 | 비로그인 3 / Free 5 / Pro 30 | 동일 | `/api/dramas/recommend` 상수 (이미 spec 일치) |
+| KdramaMatch — 시청 목록 / 별점·한줄평 | 로그인 필수 (Free 가능) | 동일 | 변경 없음 |
+| KdramaMatch — AI Drama Summary | Pro 유지 (잠금 UI) | 동일 | copy 만 변경 |
+| HangeulGo — 오늘의 표현 | Free 가능 | Free 가능 (rate-limit 인프라 향후) | 현재 백엔드 미구현 |
+| HangeulGo — 드라마별 학습팩 미리보기 | Free 가능 (이미 현 상태) | 동일 | 변경 없음 |
+| HangeulGo — AI Grammar Explanation | Pro 유지 | 동일 | copy 만 변경 |
+| KfoodKit — 추천·쇼핑 리스트 | Pro 유지 (잠금 UI) | 동일 | copy 만 변경 |
+| Curation K — 지도 핀 / 카드 / 국가별 위젯 | Free 가능 (이미 현 상태) | 동일 | 변경 없음 |
+| Curation K — AI 1-Day Course | Pro 유지 | 동일 | copy 만 변경 |
+
+**Pro 잠금 UI copy 통일**: 모든 Pro 잠금 카드는 "Coming with Hallyu Pass" + "Notify me at launch" 패턴 사용. "Upgrade — $15/month" 직접 결제 유도 카피는 결제 연동 후 부활.
+
+**복원 가이드** (결제 연동 시):
+1. 본 표의 "복원 후" 컬럼 코드 한 줄씩 되돌림 (각 위치에 `// 2026-05-16 임시 정책` 주석 박제됨, grep 으로 일괄 찾기 가능).
+2. Pro 잠금 카피 "Coming with Hallyu Pass" → "Upgrade — $15/month" 등 결제 유도 카피로 회귀.
+3. DECISIONS.md "결제 연동 전 임시 Free 확대 정책" 항목 closed 표시.
+
+### curation-k 지도 컴포넌트 수정 금지 (동결)
+- `app/curation-k/page.tsx` 상단의 SVG 한국 지도 영역 — `KOREA_CITIES`, `KOREA_ISLANDS`, `proj()`, polygon 스타일, 펄스 애니메이션 — **모두 동결**.
+- 변경 사유:
+  - 독도·마라도·울릉·백령도 4 부속 도서 + 6 도시 (Seoul/Chuncheon/Gyeongju/Busan/Gwangju/Jeju) 시각 구성이 사용자 검토 후 확정됨.
+  - 50m TopoJSON 누락분 보완 + 한국 공식 지도 관용 (독도 inset) 반영된 결과물.
+- **수정 금지 범위**: 지도 SVG 자체 (path·ellipse·circle·text·grid 라인 모두). 핀 오버레이 추가·도시 추가/삭제·좌표 조정 등 모든 변형 금지.
+- 변경 필요 시 별도 PR + 사용자 사전 승인 후 진행. 코드에 `// ⚠️ 수정 금지 (CLAUDE.md §6)` 주석 박제됨 — grep 으로 위치 확인 가능.
+
 ### Curation K (HallyuMap) 데이터 원칙
 - **TourAPI 4.0** (`lib/api/tourapi.ts`) — KorService2 영문 엔드포인트 + JSON. `TOUR_API_KEY` **Decoding 키** 사용 (URL-encoded 형식 그대로 쓰면 fetch 가 한 번 더 인코딩해 깨짐).
 - TourAPI 응답 캐싱: 지점 데이터 6h / 행사 1h / 이미지 24h (CLAUDE.md §6 #5).

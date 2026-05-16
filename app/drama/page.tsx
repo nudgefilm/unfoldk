@@ -406,14 +406,8 @@ export default function KdramaMatchPage() {
           {/* 게이팅 안내 — anon 3 / free 5 / paid 30 (recommend route 기준) */}
           <p className="text-muted-foreground/70 text-xs mt-3">
             {isAuthenticated === false
-              ? "Guests: 3 picks per request"
-              : isPro
-                ? "Hallyu Pass · unlimited picks"
-                : "Free plan: 5 picks per request"}
-            {" · "}
-            <Link href="/signup" className="hover:underline" style={{ color: "#FF4B6E" }}>
-              {isPro ? "Manage plan" : "Upgrade for unlimited"}
-            </Link>
+              ? "Guests: 3 picks per request · sign in for 5"
+              : "5 AI picks per request — free during preview"}
           </p>
         </section>
 
@@ -646,17 +640,17 @@ export default function KdramaMatchPage() {
                     <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
                   </div>
                   <p className="text-foreground font-medium mb-2">
-                    AI Drama Summaries are a Pro feature
+                    Coming with Hallyu Pass
                   </p>
                   <p className="text-muted-foreground text-xs mb-4">
-                    Episode breakdowns, relationship maps, and similar-drama matches.
+                    Episode breakdowns, relationship maps, and similar-drama matches arrive at launch.
                   </p>
                   <Link href="/signup">
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
                     >
-                      Upgrade — $15/month
+                      Notify me at launch
                     </Button>
                   </Link>
                 </div>

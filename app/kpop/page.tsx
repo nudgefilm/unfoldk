@@ -226,13 +226,14 @@ export default function KpopStatsPage() {
   }, [chart])
 
   // 노출 개수 분기
+  // 2026-05-16 임시 정책 (DECISIONS.md) — Free 도 Pro 와 동일 Top 20. 비로그인만 5건 미리보기.
+  // 결제 연동 후 Free=10 으로 복원 예정.
   const visibleLimit = !authChecked
     ? 5
-    : isPro
-    ? 20
     : isLoggedIn
-    ? 10
+    ? 20
     : 5
+  void isPro
 
   // Artist Comparison 카드 BTS·BLACKPINK 프로필 이미지 — chart 응답에서 추출 (별도 fetch X).
   // chart limit=20 이라 둘 다 거의 항상 포함됨. 누락 시 회색 placeholder fallback.
@@ -798,15 +799,18 @@ export default function KpopStatsPage() {
                   >
                     <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
                   </div>
-                  <p className="text-foreground font-medium mb-4">
-                    Unlock comparisons with Hallyu Pass
+                  <p className="text-foreground font-medium mb-2">
+                    Coming with Hallyu Pass
+                  </p>
+                  <p className="text-muted-foreground text-xs mb-4">
+                    Artist comparison arrives at launch.
                   </p>
                   <Link href={isLoggedIn ? "/mypage/subscription" : "/"}>
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
                     >
-                      Upgrade — $15/month
+                      Notify me
                     </Button>
                   </Link>
                 </div>

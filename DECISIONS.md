@@ -21,6 +21,27 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-16 결제 연동 전 임시 Free 확대 정책
+
+- 결정 내용:
+  - Lemon Squeezy 결제 연동 전까지 Free 유저 게이팅 완화. 결제 가동 시 복원 예정.
+  - **HallyuCalendar**: Upcoming events 3개 blur 게이트 `!isPro` → `!isLoggedIn` (Free 무제한). Artist tracking banner 도 비로그인만 노출. (`app/calendar/page.tsx`)
+  - **KpopStats**: `visibleLimit` 분기에서 Free Top 10 → Top 20 (Pro 와 동일). (`app/kpop/page.tsx`)
+  - **KdramaMatch**: ANON=3, FREE=5, PAID=30 — 이미 spec 일치. 변경 없음. (`app/api/dramas/recommend/route.ts`)
+  - **Pro 잠금 UI copy 통일**: 모든 Pro 잠금 카드 "Coming with Hallyu Pass" + "Notify me at launch" 패턴. 영향 파일 5개 — calendar (UpgradeModal), kpop (Artist Comparison), drama (AI Summary), korean (AI Grammar), curation-k (AI 1-Day Course), food (gochugaru / shopping list × 2). 기존 "Upgrade — $15/month" 직접 결제 카피는 결제 연동 후 복원.
+  - **Concert / Fan Meet 이벤트 (RLS `is_premium`)**: 코드만으론 못 풀고 DB 정책 변경 필요 → Pro 유지 (변경 시 RLS 추가 결정 필요).
+  - **CLAUDE.md §6** 에 임시 정책 테이블 + 복원 가이드 박제. 결제 연동 시 grep 으로 `// 2026-05-16 임시 정책` 일괄 검색 가능.
+- 이유:
+  - 결제 인프라 미준비 상태에서 Pro 잠금만 강하게 노출하면 "사용 못하는 서비스" 인상. Free 체험 폭을 넓혀 데모 단계 가입·유지율 확보.
+  - Pro 잠금 UI 자체는 유지 — Pro 가치 시그널은 보여주되 결제 압박은 제거 ("Notify me at launch" 톤).
+- 대안으로 고려했던 것:
+  - 모든 Pro 잠금 제거 → Pro 가치 시그널 사라져 출시 후 전환 어려움.
+  - 잠금 유지하고 Pro 무료 부여 → 결제 인프라 부재 시 임시 코드 분기 필요. 더 복잡.
+  - DB 레벨 RLS 까지 풀기 → Concert/Fan Meet 노출되지만 결제 연동 시 데이터 노출 정책 재검토 부담.
+- **복원 방법** (결제 연동 시 별도 commit):
+  - 각 변경 위치에 `// 2026-05-16 임시 정책` 주석 박제됨 — grep 으로 일괄 찾기.
+  - CLAUDE.md §6 의 "복원 후" 컬럼이 정확한 회귀 상태.
+
 ## 2026-05-16 Curation K Phase 1 — TourAPI + Claude 촬영지 추출 + 7 섹션 페이지
 
 - 결정 내용:

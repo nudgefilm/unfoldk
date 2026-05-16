@@ -440,12 +440,12 @@ function UpgradeModal({
 
         {/* Title */}
         <h2 className="text-xl font-bold text-white mb-2">
-          {lockedFeature} is a Pro Feature
+          {lockedFeature} — Coming with Hallyu Pass
         </h2>
 
         {/* Description */}
         <p className="text-muted-foreground text-sm mb-6">
-          Upgrade to Hallyu Pass to unlock {lockedFeature} events and get unlimited access to all calendar features.
+          {lockedFeature} events arrive with Hallyu Pass at launch. Sign up now to be first in line.
         </p>
 
         {/* Features List */}
@@ -474,7 +474,7 @@ function UpgradeModal({
               className="w-full py-3 rounded-xl font-medium text-white"
               style={{ backgroundColor: "#FF4B6E" }}
             >
-              Upgrade to Hallyu Pass — $15/mo
+              Notify me when Hallyu Pass launches
             </Button>
           </Link>
           <button
@@ -515,7 +515,10 @@ function UpcomingAccordionItem({
   onToggle: () => void
   onLoginNeeded: () => void
 }) {
-  const isBlurred = !isPro && index >= 3
+  // 결제 연동 전 임시 정책 (2026-05-16, DECISIONS.md) — 비로그인만 3개 blur.
+  // 로그인 (Free 포함) 은 전체 노출. 결제 연동 후 isPro 기준으로 복원.
+  const isBlurred = !isLoggedIn && index >= 3
+  void isPro
 
   // 리마인더 — 확장 시 처음 1회 fetch, 토글 시 300ms debounce save
   const [reminders, setReminders] = useState({ d7: false, d1: true, dayOf: true })
@@ -981,19 +984,20 @@ export default function HallyuCalendarPage() {
           </div>
         </section>
 
-        {/* Artist Tracking Limit Banner — isPro 면 미노출 (무제한 트래킹) */}
-        {!isPro && (
+        {/* Artist Tracking Banner — 비로그인만 노출 (2026-05-16 임시 정책, DECISIONS.md).
+            Free 가 무제한 트래킹 (결제 연동 후 isPro 기준으로 복원). */}
+        {!isLoggedIn && (
           <section className="mb-6">
             <div className="bg-[#1a1a1a] border border-border/30 rounded-xl px-4 py-3 flex items-center justify-between">
               <span className="text-muted-foreground text-sm">
-                You are tracking <span className="text-foreground font-medium">3/3 artists</span> on Free plan
+                Sign in to track unlimited artists — free during preview.
               </span>
               <Link
-                href="/signup"
+                href="/"
                 className="text-sm font-medium hover:underline"
                 style={{ color: "#FF4B6E" }}
               >
-                Upgrade to track unlimited artists
+                Sign in
               </Link>
             </div>
           </section>
@@ -1204,25 +1208,26 @@ export default function HallyuCalendarPage() {
               />
             ))}
 
-            {/* Blur Upsell Overlay - positioned over 4th and 5th events. Pro 면 미노출 */}
-            {!isPro && upcomingEvents.length > 3 && (
-              <div 
+            {/* Blur Upsell Overlay — 비로그인만 노출 (2026-05-16 임시 정책, DECISIONS.md).
+                결제 연동 후 isPro 기준 복원. */}
+            {!isLoggedIn && upcomingEvents.length > 3 && (
+              <div
                 className="absolute bottom-0 left-0 right-0 flex items-center justify-center pointer-events-auto"
-                style={{ 
+                style={{
                   height: `${Math.min(upcomingEvents.length - 3, 2) * 82 + 16}px`,
                   background: "linear-gradient(to bottom, transparent, rgba(13, 13, 15, 0.8) 30%)"
                 }}
               >
                 <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
                   <p className="text-foreground font-medium mb-4">
-                    Unlock all events with Hallyu Pass
+                    Sign in to see all events
                   </p>
-                  <Link href="/#pricing-section">
+                  <Link href="/">
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
                     >
-                      Upgrade — $15/month
+                      Sign in — free
                     </Button>
                   </Link>
                 </div>

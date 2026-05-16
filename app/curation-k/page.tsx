@@ -17,7 +17,7 @@
 // 다크테마 유지 (#0d0d0f bg, #FF4B6E brand, glass cards).
 // 지도 인프라 (TopoJSON + projection + 도시·도서 마커) 는 기존 패턴 보존.
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { feature } from "topojson-client"
 import { FooterSection } from "@/components/footer-section"
@@ -67,6 +67,8 @@ function geometryToPath(geom: GeoJSON.Geometry): string {
   return ""
 }
 
+// ⚠️ 지도 컴포넌트 수정 금지 (CLAUDE.md §6 / 2026-05-16). 도시·도서·polygon 스타일·
+//    proj() 모두 동결 — 변경 필요 시 별도 PR + 사용자 사전 승인.
 const KOREA_CITIES: Array<{
   name: string
   lng: number
@@ -75,8 +77,32 @@ const KOREA_CITIES: Array<{
   labelOffset?: [number, number]
 }> = [
   { name: "Seoul", lng: 126.978, lat: 37.5665, tier: "primary" },
+  { name: "Chuncheon", lng: 127.7298, lat: 37.8813, tier: "secondary" },
+  { name: "Gyeongju", lng: 129.2247, lat: 35.8562, tier: "secondary" },
   { name: "Busan", lng: 129.0756, lat: 35.1796, tier: "primary" },
+  { name: "Gwangju", lng: 126.8526, lat: 35.1595, tier: "secondary", labelOffset: [-62, 4] },
   { name: "Jeju", lng: 126.5312, lat: 33.4996, tier: "primary", labelOffset: [-30, 18] },
+]
+
+// 50m TopoJSON 에 누락되는 부속 도서 — 영토 주권 표기 (독도·마라도) 포함 명시 마커.
+// 독도·울릉은 실제 위경도면 화면상 본토에서 너무 멀어 한국 공식 지도 관용 (학교 교과서·우표·
+// 뉴스 그래픽 등) 따라 displayLng/displayLat 로 본토 가까이 inset. 실제 좌표(lng/lat)는 그대로 보존.
+// ⚠️ 수정 금지 (CLAUDE.md §6).
+const KOREA_ISLANDS: Array<{
+  name: string
+  lng: number          // 실제 위경도
+  lat: number
+  displayLng?: number  // 시각 표기용 (생략 시 lng)
+  displayLat?: number
+  rx?: number
+  ry?: number
+  labelOnly?: boolean
+  labelOffset: [number, number]
+}> = [
+  { name: "Baengnyeong", lng: 124.7, lat: 37.97, displayLng: 125.4, rx: 5, ry: 3, labelOffset: [9, -4] },
+  { name: "Ulleung", lng: 130.85, lat: 37.5, labelOnly: true, labelOffset: [-55, 4] },
+  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 131.0, displayLat: 37.33, rx: 2.6, ry: 1.4, labelOffset: [8, 4] },
+  { name: "Marado", lng: 126.27, lat: 33.11, rx: 3.4, ry: 2, labelOffset: [-46, 12] },
 ]
 
 interface CountriesAtlas {
@@ -107,16 +133,8 @@ const CATEGORY_COLOR_MAP: Record<Category, string> = Object.fromEntries(
 ) as Record<Category, string>
 
 // ─── API 응답 타입 ───────────────────────────────────────────
-interface MapPin {
-  id: string
-  category: "filming" | "kpop"
-  name: string
-  subtitle: string
-  region: string | null
-  lat: number
-  lng: number
-  spot_type?: string
-}
+// (MapPin interface 는 지도 핀 오버레이 제거로 미사용 — 동결된 지도 컴포넌트.
+//  /api/curation-k/map 라우트는 향후 별도 시각화에서 재사용 가능하도록 보존.)
 
 interface FilmingSpotItem {
   id: string
@@ -197,12 +215,11 @@ export default function CurationKPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [isPro, setIsPro] = useState(false)
 
-  // 지도 핀 + 카테고리 필터
-  const [pins, setPins] = useState<MapPin[]>([])
+  // 카테고리 필터 — 7 섹션 구성 요소. 지도와의 시각 바인딩은 분리 (지도 컴포넌트 동결, CLAUDE.md §6).
+  // 향후 콘텐츠 섹션 스코프 / 지도 외 위치에서 활용 예정.
   const [activeCats, setActiveCats] = useState<Set<Category>>(
     () => new Set(CATEGORIES.map((c) => c.key))
   )
-  const [hoveredPin, setHoveredPin] = useState<MapPin | null>(null)
 
   // 섹션 데이터
   const [filmingSpots, setFilmingSpots] = useState<FilmingSpotItem[]>([])
@@ -262,13 +279,8 @@ export default function CurationKPage() {
     })
   }, [])
 
-  // ─── 3. 지도 핀 (filming + kpop) ───────────────────────────
-  useEffect(() => {
-    fetch("/api/curation-k/map")
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { pins: MapPin[] }) => setPins(body.pins ?? []))
-      .catch((err) => console.warn("[curation-k] pins fetch 실패:", err))
-  }, [])
+  // (3. 지도 핀 fetch 제거 — 지도 컴포넌트 동결, 핀 오버레이 미사용. CLAUDE.md §6)
+  // /api/curation-k/map 라우트는 향후 별도 시각화에서 재사용 가능하도록 보존.
 
   // ─── 4. 촬영지 카드 ────────────────────────────────────────
   useEffect(() => {
@@ -319,7 +331,8 @@ export default function CurationKPage() {
       .finally(() => setGeoLoading(false))
   }, [geoCountry])
 
-  // 카테고리 토글
+  // 카테고리 토글 — UI 상태만 보유. 지도 핀 바인딩 제거 (지도 동결).
+  // 향후 콘텐츠 섹션 스코프 필터로 재활용 가능.
   const toggleCategory = (key: Category) => {
     setActiveCats((prev) => {
       const next = new Set(prev)
@@ -329,11 +342,6 @@ export default function CurationKPage() {
     })
   }
 
-  // 지도에 노출할 핀 — filming/kpop 만 (food/stays 는 region 단위라 GPS 핀 제외)
-  const visiblePins = useMemo(() => {
-    return pins.filter((p) => activeCats.has(p.category))
-  }, [pins, activeCats])
-
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0d0d0f" }}>
       <main className="flex-1 w-full">
@@ -341,15 +349,18 @@ export default function CurationKPage() {
         <section className="relative w-full overflow-hidden">
           <div className="max-w-[1320px] mx-auto px-6 pt-10 pb-12 md:pt-14 md:pb-16">
             <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-8 items-start">
-              {/* 지도 */}
+              {/* 지도 — ⚠️ 동결 컴포넌트 (CLAUDE.md §6 "curation-k 지도 컴포넌트 수정 금지").
+                  Korea polygon + 6 도시 (펄스) + 부속 도서 4종 (Baengnyeong/Ulleung/Dokdo/Marado).
+                  변경 필요 시 별도 PR + 사용자 사전 승인 후 진행. */}
               <div className="relative w-full max-w-[640px] mx-auto lg:mx-0 aspect-square">
                 <svg
                   viewBox={`0 0 ${SVG_W} ${SVG_H}`}
                   className="w-full h-full"
-                  aria-label="Map of South Korea with category pins"
+                  aria-label="Map of South Korea"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
                 >
+                  {/* 위도·경도 hint 그리드 — 매우 절제 */}
                   {[0.2, 0.4, 0.6, 0.8].map((p) => (
                     <line
                       key={`lat-${p}`}
@@ -375,14 +386,15 @@ export default function CurationKPage() {
                     />
                   ))}
 
+                  {/* 실사 South Korea polygon — 깔끔한 outline only */}
                   {koreaPath && (
                     <>
                       <path
                         d={koreaPath}
                         fillRule="evenodd"
-                        fill="rgba(255, 75, 110, 0.04)"
+                        fill="none"
                         stroke="#FF4B6E"
-                        strokeOpacity="0.1"
+                        strokeOpacity="0.08"
                         strokeWidth="1.5"
                         strokeLinejoin="round"
                       />
@@ -391,74 +403,96 @@ export default function CurationKPage() {
                         fillRule="evenodd"
                         fill="none"
                         stroke="#ffffff"
-                        strokeOpacity="0.5"
+                        strokeOpacity="0.55"
                         strokeWidth="0.8"
                         strokeLinejoin="round"
                       />
                     </>
                   )}
 
-                  {/* 주요 도시 라벨 (희미) */}
+                  {/* 부속 도서 — 50m TopoJSON 누락 보완. 본토와 동일한 outline 스타일.
+                      독도·울릉은 displayLng/displayLat inset 으로 본토 가까이 시각화. */}
+                  {KOREA_ISLANDS.map((island) => {
+                    const [cx, cy] = proj(island.displayLng ?? island.lng, island.displayLat ?? island.lat)
+                    const [lx, ly] = island.labelOffset
+                    return (
+                      <g key={island.name}>
+                        {!island.labelOnly && island.rx !== undefined && island.ry !== undefined && (
+                          <>
+                            <ellipse
+                              cx={cx}
+                              cy={cy}
+                              rx={island.rx}
+                              ry={island.ry}
+                              fill="none"
+                              stroke="#FF4B6E"
+                              strokeOpacity="0.08"
+                              strokeWidth="1.2"
+                            />
+                            <ellipse
+                              cx={cx}
+                              cy={cy}
+                              rx={island.rx}
+                              ry={island.ry}
+                              fill="none"
+                              stroke="#ffffff"
+                              strokeOpacity="0.55"
+                              strokeWidth="0.7"
+                            />
+                          </>
+                        )}
+                        <text
+                          x={cx + lx}
+                          y={cy + ly}
+                          fill="#ffffff"
+                          opacity="0.6"
+                          fontSize="10"
+                          fontStyle="italic"
+                          fontFamily="system-ui, sans-serif"
+                        >
+                          {island.name}
+                        </text>
+                      </g>
+                    )
+                  })}
+
+                  {/* 도시 마커 — primary 핑크 펄스, secondary 정지 점 */}
                   {KOREA_CITIES.map((city) => {
                     const [cx, cy] = proj(city.lng, city.lat)
                     const [lx, ly] = city.labelOffset ?? [10, 4]
                     return (
-                      <text
-                        key={city.name}
-                        x={cx + lx}
-                        y={cy + ly}
-                        fill="#ffffff"
-                        opacity="0.45"
-                        fontSize="11"
-                        fontFamily="system-ui, sans-serif"
-                      >
-                        {city.name}
-                      </text>
-                    )
-                  })}
-
-                  {/* 라이브 핀 — filming + kpop */}
-                  {visiblePins.map((pin) => {
-                    const [cx, cy] = proj(pin.lng, pin.lat)
-                    const color = CATEGORY_COLOR_MAP[pin.category]
-                    const isHovered = hoveredPin?.id === pin.id
-                    return (
-                      <g
-                        key={pin.id}
-                        onMouseEnter={() => setHoveredPin(pin)}
-                        onMouseLeave={() => setHoveredPin(null)}
-                        style={{ cursor: "pointer" }}
-                      >
+                      <g key={city.name}>
+                        {city.tier === "primary" && (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r="11"
+                            fill="#FF4B6E"
+                            opacity="0.28"
+                            className="animate-ping"
+                            style={{ transformOrigin: `${cx}px ${cy}px` }}
+                          />
+                        )}
                         <circle
                           cx={cx}
                           cy={cy}
-                          r={isHovered ? 7 : 4.5}
-                          fill={color}
-                          opacity={isHovered ? 1 : 0.9}
-                          style={{ transition: "r 120ms ease" }}
+                          r={city.tier === "primary" ? 5 : 3.5}
+                          fill="#FF4B6E"
                         />
-                        <circle cx={cx} cy={cy} r="2" fill="#ffffff" opacity="0.85" />
+                        <text
+                          x={cx + lx}
+                          y={cy + ly}
+                          fill="#ffffff"
+                          opacity="0.78"
+                          fontSize="12"
+                          fontFamily="system-ui, sans-serif"
+                        >
+                          {city.name}
+                        </text>
                       </g>
                     )
                   })}
                 </svg>
-
-                {/* 핀 hover 팝업 */}
-                {hoveredPin && (
-                  <div className="absolute top-2 right-2 bg-[#1a1a1a] border border-border/40 rounded-xl p-3 max-w-[220px] pointer-events-none shadow-xl">
-                    <p className="text-foreground font-medium text-sm truncate">
-                      {hoveredPin.name}
-                    </p>
-                    <p className="text-muted-foreground text-xs mt-0.5 truncate">
-                      {hoveredPin.subtitle}
-                    </p>
-                    {hoveredPin.region && (
-                      <p className="text-muted-foreground/70 text-[10px] mt-1">
-                        {hoveredPin.region}
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* 우측 — 카피 + 카테고리 토글 */}
@@ -716,18 +750,17 @@ export default function CurationKPage() {
                     <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
                   </div>
                   <p className="text-foreground font-medium mb-2">
-                    AI 1-Day Course is a Pro feature
+                    Coming with Hallyu Pass
                   </p>
                   <p className="text-muted-foreground text-xs mb-4">
-                    Personalized Hallyu day-trip routes generated from your
-                    drama taste.
+                    Personalized Hallyu day-trip routes generated from your drama taste — arriving at launch.
                   </p>
                   <Link href={isAuthenticated === false ? "/login?redirect=/curation-k" : "/signup"}>
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
                     >
-                      Upgrade — $15/month
+                      Notify me at launch
                     </Button>
                   </Link>
                 </div>

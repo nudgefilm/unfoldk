@@ -189,13 +189,14 @@ export default function KfoodKitPage() {
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
                   <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
-                  <p className="text-white font-medium mb-4">Unlock with Hallyu Pass</p>
+                  <p className="text-white font-medium mb-2">Coming with Hallyu Pass</p>
+                  <p className="text-muted-foreground text-xs mb-4">Available at launch.</p>
                   <Link href="/signup">
                     <Button
                       className="rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
                     >
-                      Upgrade — $15/month
+                      Notify me at launch
                     </Button>
                   </Link>
                 </div>
@@ -238,13 +239,14 @@ export default function KfoodKitPage() {
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
                   <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
-                  <p className="text-white font-medium mb-4">Unlock with Hallyu Pass</p>
+                  <p className="text-white font-medium mb-2">Coming with Hallyu Pass</p>
+                  <p className="text-muted-foreground text-xs mb-4">Available at launch.</p>
                   <Link href="/signup">
                     <Button
                       className="rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
                     >
-                      Upgrade — $15/month
+                      Notify me at launch
                     </Button>
                   </Link>
                 </div>

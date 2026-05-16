@@ -270,15 +270,18 @@ export default function HangeulGoPage() {
                   >
                     <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
                   </div>
-                  <p className="text-foreground font-medium mb-4">
-                    Unlock AI Grammar Explanations
+                  <p className="text-foreground font-medium mb-2">
+                    Coming with Hallyu Pass
+                  </p>
+                  <p className="text-muted-foreground text-xs mb-4">
+                    AI Grammar Explanations arrive at launch.
                   </p>
                   <Link href="/signup">
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
                     >
-                      Upgrade to Hallyu Pass
+                      Notify me at launch
                     </Button>
                   </Link>
                 </div>
