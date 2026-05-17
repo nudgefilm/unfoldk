@@ -109,6 +109,12 @@ function passesGenreFilter(
   return genres.some((g) => ALLOWED_GENRE_IDS.has(g.id))
 }
 
+// TMDB 응답 → 우리 row 변환 — 외부 모듈에서도 단일 드라마 강제 upsert 시 재사용
+// (예: ingest-korean-phrases 가 famous-dramas 누락분을 TMDB 검색으로 자동 보충).
+export function buildDramaUpsertRow(c: TmdbTvShow, detail: TmdbTvDetail | null): DramaUpsertRow {
+  return buildRow(c, detail)
+}
+
 // TMDB 응답 → 우리 row 변환
 function buildRow(c: TmdbTvShow, detail: TmdbTvDetail | null): DramaUpsertRow {
   // 장르 우선순위: 상세 응답의 첫 genre.name → null

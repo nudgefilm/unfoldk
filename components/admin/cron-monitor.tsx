@@ -208,10 +208,12 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
   }
 
   if (route === "ingest-korean-phrases") {
-    // KoreanPhrasesIngestResult — generated/skipped/unknown_dramas/errors.
+    // KoreanPhrasesIngestResult — generated/skipped/unknown_dramas/auto_added_dramas/errors.
     const errors = Array.isArray(r.errors) ? r.errors.length : 0
     const errPart = errors > 0 ? ` · errors ${errors}` : ""
-    return `생성 ${num(r.generated)}건 (스캔 ${num(r.scanned)} · skip ${num(r.skipped)} · unknown ${num(r.unknown_dramas)})${errPart} · ${time}`
+    const autoAdded = num(r.auto_added_dramas)
+    const autoPart = autoAdded > 0 ? ` · auto-added ${autoAdded}` : ""
+    return `생성 ${num(r.generated)}건 (스캔 ${num(r.scanned)} · skip ${num(r.skipped)} · unknown ${num(r.unknown_dramas)})${autoPart}${errPart} · ${time}`
   }
 
   if (route === "ingest-all") {

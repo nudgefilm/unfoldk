@@ -204,6 +204,23 @@ export async function fetchTopRatedKoreanDramas(page: number): Promise<TmdbTvSho
   )
 }
 
+// TMDB search/tv — 제목으로 TV 시리즈 검색.
+// 응답은 TMDB 가 인기·관련도순으로 정렬해 반환. KR origin 필터링은 호출부에서.
+// 사용처: famous-dramas 자동 보충 (ingest-korean-phrases) — 인기 페이지/top_rated 에 안 잡히는
+//        구작·니치 드라마 (Signal, SKY Castle 등) 를 제목으로 직접 찾아 dramas 테이블에 추가.
+export async function searchTv(query: string, language = "en-US"): Promise<TmdbTvShow[]> {
+  const url = `${TMDB_BASE}/search/tv?query=${encodeURIComponent(query)}&language=${language}&include_adult=false&page=1`
+  const res = await fetch(url, {
+    headers: tmdbHeaders(),
+    next: { revalidate: 86400 }, // 24h — 검색 결과는 자주 변하지 않음
+  })
+  if (!res.ok) {
+    throw new Error(`TMDB search/tv error ${res.status}: ${await res.text()}`)
+  }
+  const data = (await res.json()) as { results?: TmdbTvShow[] }
+  return data.results ?? []
+}
+
 // 단일 드라마 상세 — episode_count, status, genres + 옵션으로 credits/videos/watch/providers
 // expanded=true 시 append_to_response 로 한 번에 4종 데이터 묶어 가져옴 (쿼터 절약 — 4 req → 1 req)
 export async function fetchTvDetail(
