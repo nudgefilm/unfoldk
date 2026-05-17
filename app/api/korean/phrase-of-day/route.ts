@@ -12,13 +12,14 @@ import { buildFallbackKoreanPhrase } from "@/lib/korean/fallback-phrase"
 // 동작:
 //   1. Asia/Seoul 기준 오늘 날짜 + dayOfYear 계산
 //   2. korean_phrases.featured_date == 오늘 row 존재 시 즉시 반환 (DB 캐시 hit)
-//   3. miss → 오늘의 드라마 선택 → Claude Haiku 생성 → DB upsert → 반환
-//   4. Claude 호출 실패 / API 키 누락 시 fallback 표현으로 DB upsert (sentinel id 가 아닌
+//   3. miss → 오늘의 드라마 선택 → Claude Haiku 생성 → DB INSERT/UPDATE → 반환
+//   4. Claude 호출 실패 / API 키 누락 시 fallback 표현으로 DB write (sentinel id 가 아닌
 //      실제 UUID 반환) → grammar / quiz / streak 등 phrase_id 가 UUID 라고 가정하는 API
 //      가 정상 동작.
 //   5. dramas 테이블에서 영문/한글 제목 일치 row 찾으면 drama_id 매핑
 //
-// 멱등성: featured_date UNIQUE partial index 로 동시 요청 시 ON CONFLICT 처리.
+// 멱등성: 명시적 SELECT → INSERT/UPDATE 패턴 + race 시 UPDATE 재시도 (PostgREST upsert 는
+//        partial unique index 와 호환되지 않아 사용 불가 — 본 파일 §4 주석 참조).
 
 export const dynamic = "force-dynamic"
 
@@ -37,6 +38,21 @@ interface PhraseRowInsert {
 
 const PHRASE_SELECT =
   "id, drama_id, drama_name, korean, romanization, english, word_breakdown, synonyms, antonyms, difficulty, audio_url, featured_date, created_at"
+
+// PostgrestError 의 모든 필드를 단일 문자열로 압축 — 디버깅 정보 손실 없이
+// console + response detail 양쪽에 동일 포맷으로 노출.
+function formatPgError(
+  err: { code?: string; message?: string; details?: string | null; hint?: string | null }
+): string {
+  return [
+    `code=${err.code ?? "?"}`,
+    `message=${err.message ?? "?"}`,
+    err.details ? `details=${err.details}` : null,
+    err.hint ? `hint=${err.hint}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ")
+}
 
 export async function GET() {
   const supabase = await createSupabaseServerClient()
@@ -139,27 +155,96 @@ export async function GET() {
     }
   }
 
-  // 4. upsert — ON CONFLICT featured_date 시 기존 row 사용 (race condition 방어)
+  // 4. INSERT or UPDATE — 명시적 SELECT → INSERT/UPDATE 패턴 (service_role 로 RLS 우회).
+  //
+  // ⚠️ upsert(onConflict: "featured_date") 사용 금지:
+  //    featured_date 의 unique index 가 partial (WHERE featured_date IS NOT NULL) 인데,
+  //    PostgREST 의 on_conflict 는 WHERE 절을 spell out 못 함 → PG 가 매칭 index 못 찾아
+  //    42P10 "no unique or exclusion constraint matching the ON CONFLICT specification" 에러.
+  //    (첫 INSERT 는 충돌 없어 통과, 두 번째 이후만 실패하던 silent 버그)
   const admin = createSupabaseAdminClient()
-  const { data: inserted, error: insertErr } = await admin
+
+  const { data: existing, error: existingErr } = await admin
     .from("korean_phrases")
-    .upsert(insertRow, { onConflict: "featured_date", ignoreDuplicates: false })
-    .select(PHRASE_SELECT)
-    .single()
+    .select("id")
+    .eq("featured_date", today)
+    .maybeSingle()
+  if (existingErr) {
+    const errDetail = formatPgError(existingErr)
+    console.error(
+      `[/api/korean/phrase-of-day] existing row 조회 실패 ${errDetail} — sentinel fallback 응답`
+    )
+    return NextResponse.json({
+      phrase: buildFallbackKoreanPhrase(today),
+      cached: false,
+      fallback: true,
+      reason: "select_failed",
+      detail: errDetail,
+    })
+  }
+
+  let inserted: unknown = null
+  let insertErr: { code?: string; message?: string; details?: string | null; hint?: string | null } | null = null
+
+  if (existing) {
+    // 기존 row 있음 → UPDATE (콘텐츠 갱신)
+    const { data, error } = await admin
+      .from("korean_phrases")
+      .update(insertRow)
+      .eq("id", (existing as { id: string }).id)
+      .select(PHRASE_SELECT)
+      .single()
+    inserted = data
+    insertErr = error
+    if (!error) {
+      console.log(
+        `[/api/korean/phrase-of-day] UPDATE 경로 id=${(existing as { id: string }).id} korean=${insertRow.korean}`
+      )
+    }
+  } else {
+    // 신규 → INSERT
+    const insertResult = await admin
+      .from("korean_phrases")
+      .insert(insertRow)
+      .select(PHRASE_SELECT)
+      .single()
+    inserted = insertResult.data
+    insertErr = insertResult.error
+
+    // 동시 요청 race — 다른 트랜잭션이 이미 같은 featured_date 로 insert 한 경우 (23505).
+    // 이 경우 UPDATE 로 재시도해 최신 콘텐츠로 갱신.
+    if (insertErr && insertErr.code === "23505") {
+      console.warn(
+        `[/api/korean/phrase-of-day] INSERT race detected (23505) — UPDATE 재시도`
+      )
+      const retry = await admin
+        .from("korean_phrases")
+        .update(insertRow)
+        .eq("featured_date", today)
+        .select(PHRASE_SELECT)
+        .single()
+      inserted = retry.data
+      insertErr = retry.error
+    }
+
+    if (!insertErr) {
+      console.log(`[/api/korean/phrase-of-day] INSERT 경로 korean=${insertRow.korean}`)
+    }
+  }
 
   if (insertErr || !inserted) {
-    // DB upsert 마저 실패하면 마지막 안전망: sentinel id 로 응답 (grammar/quiz 는 sentinel
+    // DB write 마저 실패하면 마지막 안전망: sentinel id 로 응답 (grammar/quiz 는 sentinel
     // 가드로 skip 됨). 빈 화면만은 막는다.
+    const errDetail = insertErr ? formatPgError(insertErr) : "no row returned"
     console.error(
-      `[/api/korean/phrase-of-day] upsert 실패 code=${insertErr?.code ?? "?"} message=${
-        insertErr?.message ?? "unknown"
-      } — sentinel fallback 응답`
+      `[/api/korean/phrase-of-day] write 실패 ${errDetail} insertRow.featured_date=${insertRow.featured_date} — sentinel fallback 응답`
     )
     return NextResponse.json({
       phrase: buildFallbackKoreanPhrase(today),
       cached: false,
       fallback: true,
       reason: "upsert_failed",
+      detail: errDetail,
     })
   }
 
