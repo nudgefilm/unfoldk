@@ -21,6 +21,85 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-18 HangeulGo Phase 2 — Claude tool_use / fallback DB upsert / partial index 회피
+
+- 결정 내용:
+  - **Claude tool_use 구조화 출력 강제** — `generateKoreanPhrase` / `generateKoreanPack` 가 자유 텍스트 응답 거부. `tool_choice: { type: "tool", name: ... }` + input_schema 로 JSON 모양 강제. JSON parse 실패 / 마크다운 wrapping 등 silent 실패 차단.
+  - **Claude 함수 반환 타입 result tuple** — `{ ok: true; payload } | { ok: false; reason, detail }`. 호출부가 응답 메타 (`fallback`/`reason`/`detail`) 에 실패 사유 박제 → 브라우저 콘솔에서 즉시 진단.
+  - **phrase-of-day fallback 도 DB upsert** — Claude 실패 / API 키 누락 시에도 fallback content ("안녕하세요" 등) 를 실제 DB row 로 저장 → `phrase_id` 가 실제 UUID. grammar / quiz / streak / progress 등 phrase_id 가 UUID 라고 가정하는 API 가 자연 동작. DB upsert 마저 실패할 때만 sentinel id (`fallback-YYYY-MM-DD`) 응답.
+  - **partial unique index 와 PostgREST upsert 비호환** — `uniq_korean_phrases_featured_date` 가 `WHERE featured_date IS NOT NULL` partial index. PostgreSQL `INSERT ... ON CONFLICT (col) DO UPDATE` 는 partial index 매칭을 위해 WHERE 절을 spell out 해야 하지만, PostgREST `on_conflict` 파라미터는 컬럼명만 전달 → PG 가 매칭 index 못 찾아 42P10 에러. 첫 INSERT 만 통과, 두 번째 이후 silent 실패. **명시적 SELECT → INSERT or UPDATE** 패턴 + race 시 23505 UPDATE 재시도로 회피.
+  - **PostgrestError 상세 박제 헬퍼** — `formatPgError(err)` 가 `code` / `message` / `details` / `hint` 를 단일 문자열로 압축. console + response.detail 양쪽 동일 포맷.
+- 이유:
+  - tool_use 는 모델이 "JSON 출력해줘" 자유 텍스트 응답하다 마크다운 wrap·여백·코멘트 섞이는 silent 실패를 구조적으로 차단. filming-spots / drama-characters / korean-pack-generator 패턴 통일.
+  - fallback 을 sentinel id 로만 응답하면 후속 API 가 UUID FK 위반 → 학습 흐름 단절. DB upsert 로 실제 UUID 보장이 가장 단순한 해결.
+  - partial index ON CONFLICT 매칭은 PostgreSQL 자체 제약 (WHERE 절 필수). PostgREST 가 그걸 지원하지 않으므로 client-side 명시 분기가 유일.
+- 대안으로 고려했던 것:
+  - 자유 텍스트 + JSON parse 강화 — 모델 응답 형식 변화에 취약. 클리닝 로직 누적.
+  - UUID 가드를 호출 API 마다 — phrase-of-day 가 single source 로 항상 UUID 보장이 더 간결.
+  - partial index 제거 + 일반 unique 사용 — featured_date NULL 허용해야 학습용 phrase (non-featured) 저장 가능. partial index 가 의도된 제약.
+
+## 2026-05-18 HangeulGo — famous-dramas 가 학습 컨텐츠 canonical 시드, ingest 가 TMDB 자동 보충
+
+- 결정 내용:
+  - **`lib/korean/famous-dramas.ts` 20편이 학습 컨텐츠 시드의 단일 진실원**. ingest-korean-phrases cron 이 본 리스트만 iterate. dramas 테이블 popularity 순회는 아예 제거.
+  - **누락 드라마 자동 보충** — famous 항목이 dramas DB 에 없으면 `searchTv(famous.en)` → KR origin 필터 → 정확 매치 우선 (`name`/`original_name`) → popularity fallback → `fetchTvDetail(expanded=true)` → `buildDramaUpsertRow` → upsert. EN 0건이면 KO 재시도.
+  - **`lib/api/tmdb.ts` `searchTv`** 신규 — `/search/tv?query=...` 24h 캐시. 호출부에서 KR origin 필터.
+  - **`lib/ingest/dramas.ts` `buildDramaUpsertRow`** export — 내부 `buildRow` 를 외부에서도 단일 드라마 강제 upsert 시 재사용. **장르 필터 우회** — famous-dramas 는 신뢰 시드라 Reality/Talk 같은 변종 (예능) 도 그대로 통과.
+  - **결과 필드 `auto_added_dramas` / `auto_add_failures`** 추가 + 어드민 cron summary 분기 갱신.
+- 이유:
+  - dramas 테이블은 TMDB popularity 1~8p / top_rated 1~3p 기반이라 구작 (Signal 2016, SKY Castle, Mr. Sunshine) 누락 빈번. famous-dramas 와 분리 운영하면 학습 시드 매칭 실패 → phrase 생성 데드락.
+  - **famous-dramas.ts 만 유지보수하면 dramas DB 가 자동 따라오는 단방향 데이터 흐름** — 사용자 운영 부담 최소화. 예능 확장 시에도 한 줄 추가만으로 자동 dramas 등록 + 표현 생성.
+- 대안으로 고려했던 것:
+  - dramas ingest 에 PRIORITY_TMDB_IDS 추가 (filming-spots 패턴) — TMDB ID 박제 부담 + famous-dramas 와 dramas ingest 둘 다 관리 필요. 단일 진실원 원칙 위배.
+  - Claude 가 모르는 드라마는 자동 skip — Claude 가 드라마는 알아도 dramas DB 에 row 없으면 drama_id NULL → packs / 모달 연결 실패. DB row 확보가 우선.
+
+## 2026-05-18 Drama Learning Packs — phrase-having drama only (popularity filler 제거)
+
+- 결정 내용:
+  - `/api/korean/packs` 가 **`korean_phrases.drama_id` 가 존재하는 dramas 만** 응답. popularity 기반 placeholder filler 제거.
+  - 장르 필터 없음 — famous-dramas 가 학습 시드 단일 진실원이므로 예능 / 버라이어티도 시드에 들어가면 자연 노출.
+  - 포스터 없는 row 는 carousel UX 보호 위해 `.not("poster_url", "is", null)` 유지.
+  - 정렬: popularity desc → rating desc. limit 없음 (famous 시드 크기 ~20 으로 자연 bounded).
+- 이유:
+  - Learning Pack 의 정의는 "학습 표현이 있는 드라마". phrase 0건 placeholder 는 cosmetic 일 뿐 학습 의미 없음 + 클릭 시 빈 모달로 동선 끊김.
+  - 이전 정책 (PACK_LIMIT=20 + popularity desc 로 자른 뒤 phrase 카운트) 은 Signal 같은 popularity 낮은 famous drama 가 phrase 6개 있어도 응답 누락하는 버그의 원흉.
+- 대안으로 고려했던 것:
+  - Hybrid (phrase-having 우선 + placeholder filler) — placeholder 카드는 클릭 시 "Expressions coming soon" 빈 모달이라 학습 의미 0.
+  - Limit 늘리되 정렬은 그대로 — popularity cutoff 가 본질 문제라 limit 만 늘려도 한계.
+
+## 2026-05-18 HangeulGo — 오늘의 표현 Next expression 랜덤 회전 + 퀴즈 phrase 기반 sync
+
+- 결정 내용:
+  - `/api/korean/phrase-of-day?exclude_ids=uuid1,uuid2,...` opt-in 랜덤 모드. 파라미터 없으면 기존 featured 동작 그대로.
+  - 랜덤 모드: korean_phrases 에서 exclude_ids 제외 + limit 50 풀 → JS Math.random pick.
+  - 풀 소진 시 `{ phrase: null, exhausted: true }` 응답 — 프론트가 이력 리셋 + 빈 exclude_ids 재요청.
+  - UUID v4 정규식 sanitize — fallback sentinel ("fallback-...") 같은 비-UUID 자동 제거해 PostgREST 400 회피.
+  - 프론트: `seenPhraseIds` 세션 단위 이력 (in-memory). Got it → streak POST + 토스트 + 자동 `advanceToNext()`. Next expression 텍스트 버튼은 streak 영향 없이 다음으로만.
+  - **퀴즈 sync** — `/api/korean/quiz?phrase_id=<uuid>` 쿼리 파라미터 추가. 정답을 현재 phrase 로 일치 보장. Next 로 표현 바뀌면 useEffect 재호출 + selectedAnswer/quizResult 리셋. 우선순위: `phrase_id` 매칭 > 오늘 featured > HARDCODED_CORRECT.
+- 이유:
+  - 하루 1개 고정은 학습 의지 있어도 진도 제한. 단순한 Next 클릭 동선만 있어도 세션 깊이 ↑.
+  - 세션 이력은 클라이언트 in-memory 가 단순 — localStorage 도 불필요 (새 세션은 다시 시작이 직관적). 서버 stateless 유지.
+  - 퀴즈가 표현과 따로 노는 건 학습 일관성 깨짐 — phrase_id 기준 sync 가 자연.
+- 대안으로 고려했던 것:
+  - 서버 세션 이력 (Supabase user_learning_progress) — 비로그인 동작 불가, RLS 복잡도. 클라이언트 in-memory 가 단순.
+  - phrase-of-day 와 별도 라우트 (`/api/korean/phrase/random`) — 단일 라우트가 모드 분기로 더 응집. 호출처 1곳에서 두 endpoint 호출하는 복잡도 회피.
+
+## 2026-05-18 Curation K Phase 1 → Live (사이트 전체 Soon → Live 정리)
+
+- 결정 내용:
+  - Curation K (M+5) Phase 1 출시 완료 → 사이트 전체 노출 정리. **SERVICES_META 단일 source 라 status flag 만 바꾸면 헤더 드롭다운·로드맵 모달·footer SOON 배지가 일괄 정리**.
+  - `components/header.tsx` SERVICES_META — Curation K / HangeulGo / KdramaMatch 모두 `"live"`. KfoodKit 만 `"soon"`.
+  - **bento / about / pricing / faq** — Curation K 6번째 카드/항목 추가 + "5 → 6 services" 카피.
+  - **roadmap-modal** "Three live, three soon" → "Five live, one soon".
+  - **early-access-banner** "New services launching soon" → "KfoodKit launching soon" (대상 단수화).
+  - **mypage/learning** "HangeulGo launching soon" placeholder 제거 → "Start learning Korean today." + Open HangeulGo CTA.
+  - **오늘의 표현 드라마 태그 강화** — Film 아이콘 + "Today's drama ·" 라벨. **phrase.dramaId 일치 Pack 카드 "Today" 배지**.
+- 이유:
+  - KdramaMatch / HangeulGo / Curation K 모두 실제 서비스 중. Soon 표기 유지 시 사용자 혼란 + 신뢰도 손상.
+  - status flag 단일 source 라 maintenance 부담 0.
+- 대안으로 고려했던 것:
+  - "5 services" phrasing 그대로 두고 status flag 만 변경 — copy 불일치 (Curation K live 표기인데 "5 services" 라 비논리). 한 번에 정리가 청결.
+
 ## 2026-05-17 HallyuBot Discord 봇 — REST + multi-server enrollment
 
 - 결정 내용:

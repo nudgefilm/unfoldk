@@ -4,6 +4,69 @@
 
 ---
 
+## 현재 상태 (2026-05-18 세션 16 / HangeulGo Phase 2 안정화 + famous-dramas 시드 자동화 + Curation K Live 정리)
+
+> HangeulGo Phase 1 동작 안정화 (Claude 실패 다층 fallback, partial unique index 버그 fix) → Phase 2 학습 확장 (드라마별 표현 cron / Pack 모달 / Next expression 랜덤 회전 / 퀴즈 sync) → famous-dramas 가 학습 시드 단일 진실원으로 격상 + 누락 드라마 TMDB 자동 보충. 사이트 전체 Curation K Live 반영.
+>
+> commit 흐름은 `git log --oneline -10` 참조: `307a0d0` → `e4f7ef0` → `70f1a9e` → `ecaeecd` → `c0f249e` → `2b0c2a6` → `bfb8beb` → `e997c8a` → `6a6933f`.
+
+### 완료
+
+#### A. HangeulGo 오늘의 표현 안정화 다층 (`307a0d0` → `e4f7ef0` → `ecaeecd` → `c0f249e`)
+- **fallback 다층** — Claude 호출 실패 / API 키 누락 / DB upsert 실패 어느 단계든 fallback phrase ("안녕하세요") 로 빈 화면 차단. fallback 도 DB upsert 해서 phrase_id 실제 UUID 보장 (grammar / quiz / streak 연쇄 단절 방지).
+- **Claude tool_use 강제** — `generateKoreanPhrase` / `generateKoreanPack` 가 `tool_choice` + input_schema 로 자유 텍스트 응답 거부. JSON parse / 마크다운 wrap 실패 차단.
+- **반환 타입 result tuple** — `{ ok, payload }` / `{ ok: false, reason, detail }`. 응답 메타 (`fallback`/`reason`/`detail`) 에 실패 사유 박제 → 브라우저 콘솔 즉시 진단.
+- **partial unique index ON CONFLICT 비호환 fix** — PostgREST `upsert(on_conflict=featured_date)` 가 partial unique index 와 매칭 안 됨. 명시적 SELECT → INSERT/UPDATE 패턴 + race 시 23505 UPDATE 재시도. (DECISIONS 2026-05-18 항목 박제)
+- **PostgrestError 박제 헬퍼** — `formatPgError(err)` (code/message/details/hint 단일 문자열).
+
+#### B. HangeulGo Phase 2 — 드라마별 표현 cron + Pack 모달 + Got it 토스트 (`70f1a9e`)
+- **`lib/claude/korean-pack-generator.ts`** — 드라마당 표현 5개 일괄 생성 (tool_use, 난이도 mix). 모르는 드라마는 빈 배열.
+- **`/api/cron/ingest-korean-phrases`** — CRON_SECRET 인증 + drama_id+korean dedupe + `MAX_DRAMAS_PER_RUN=30` cap.
+- **`vercel.json` cron** — `0 8 * * *` (UTC 08:00 / KST 17:00). 어드민 모니터 4곳 동기화 (ROUTES / DISPLAY_NAMES / metric / summarizer).
+- **`/api/korean/pack/[dramaId]` + 카드 클릭 모달** — 드라마 포스터·한영 제목 헤더 + 표현 카드 그리드 + 난이도 배지. 표현 없으면 "Expressions coming soon".
+- **Got it 토스트** — shadcn useToast/Toaster. streak POST 실패해도 토스트 보장.
+
+#### C. famous-dramas 가 학습 시드 단일 진실원 + TMDB 자동 보충 (`e997c8a`)
+- **iteration source 전환** — ingest-korean-phrases 가 dramas 테이블 순회 → `FAMOUS_DRAMAS` (20편) 순회.
+- **누락 dramas 자동 보충** — famous 항목이 dramas DB 에 없으면 `searchTv(EN)` → KR origin 필터 → 정확 매치 우선 → `fetchTvDetail(expanded)` → `buildDramaUpsertRow` → upsert. EN 0건이면 KO 재시도.
+- **`lib/api/tmdb.ts` `searchTv`** 신규 (24h 캐시). **`lib/ingest/dramas.ts` `buildDramaUpsertRow`** export (장르 필터 우회 — famous 는 신뢰 시드).
+- **결과 필드 `auto_added_dramas` / `auto_add_failures`** 추가 + 어드민 cron summary 분기 갱신.
+
+#### D. HangeulGo Next expression — 세션 이력 제외 랜덤 회전 + 퀴즈 sync (`bfb8beb` + `6a6933f`)
+- **`/api/korean/phrase-of-day?exclude_ids=...`** opt-in 랜덤 모드. 풀 소진 시 `exhausted: true` → 프론트 이력 리셋. UUID 정규식 sanitize.
+- **프론트** — `seenPhraseIds` 세션 in-memory 이력. Got it auto-advance + Next expression 텍스트 버튼 (streak 영향 X).
+- **퀴즈 sync** — `/api/korean/quiz?phrase_id=<uuid>` 쿼리 추가. phrase 변경 시 useEffect 재호출 + selectedAnswer/quizResult 리셋.
+
+#### E. Drama Learning Packs — phrase-having drama only (`6a6933f`)
+- popularity filler 제거, `PACK_LIMIT` 상수 제거.
+- **phrase 1+ 보유 + 포스터 있는 드라마만** 응답. 장르 필터 없음 (예능도 famous 시드에 들어가면 자연 노출).
+- Signal 처럼 popularity 낮아도 phrase 있으면 무조건 노출 (이전 popularity LIMIT 20 cutoff 가 학습 컨텐츠 누락의 원흉).
+
+#### F. 사이트 전체 Curation K Live 반영 + Soon 정리 (`2b0c2a6`)
+- `components/header.tsx` SERVICES_META — HangeulGo / Curation K `"live"` (KfoodKit 만 `"soon"`).
+- **bento / about / pricing / faq** 에 Curation K 6번째 서비스 추가 + "5 → 6 services" 카피.
+- **roadmap-modal** "Three live, three soon" → "Five live, one soon".
+- **early-access-banner** "New services launching soon" → "KfoodKit launching soon".
+- **mypage/learning** "HangeulGo launching soon" placeholder 제거 → "Start learning Korean today." + Open HangeulGo CTA.
+- 오늘의 표현 **드라마 태그 강화** (Film 아이콘 + "Today's drama ·"). **Learning Packs 카드 "Today" 배지** (phrase.dramaId 일치 시).
+
+#### G. 가로 스크롤 화살표 UX 통일 (`307a0d0`)
+- korean Drama Learning Packs / drama Now Airing — calendar Featured 패턴 (`clientWidth scrollBy` + 호버 화살표 + 양끝 가드) 로 통일.
+
+### 다음 세션 후보 (carry-over)
+- **famous-dramas ↔ dramas 매칭 실측 검증** — 어드민 cron `HangeulGo — 드라마 표현 생성` 수동 실행 → `auto_added_dramas` 카운트로 Signal·SKY Castle·Mr. Sunshine 등 자동 추가 여부 확인. 누락분 발생 시 `searchTv` 매칭 로직 보강.
+- **세션 15 carry-over 전체 유지** —
+  - top.gg 심사 통과 후 봇 페이지 운영
+  - /calendar / /today / /notify 슬래시 명령 추가
+  - **세션 14 carry-over**: KdramaMatch Phase 2 잔여 / Curation K Phase 2 / 결제 가동 시 복원 / 세션 13 잔여
+  - 블로그 cron 운영 안정화
+
+### 블로커
+- **top.gg 심사 1~2주 대기** — 외부 의존 (세션 15 carry-over)
+- 세션 13 carry-over — 메인 페이지 hang + Ghost Globe 미작동
+
+---
+
 ## 현재 상태 (2026-05-18 세션 15 / HallyuBot Discord 봇 풀 스택 + top.gg 제출)
 
 > 단일 영역 집중 세션. Discord 봇을 lib · API 라우트 · cron · migration · CLI 등록 스크립트까지 일괄 구축. 운영 사용자 액션(채널 연결·top.gg 제출)까지 같은 세션에 완료.
