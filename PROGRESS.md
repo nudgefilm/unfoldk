@@ -4,6 +4,51 @@
 
 ---
 
+## 현재 상태 (2026-05-18 세션 17 / AI → UnfoldK 카피 리브랜딩 + HangeulGo Got it 영구화 + LMS 새 탭)
+
+> 사용자 노출 카피의 서비스 주체를 일관되게 "UnfoldK" 로 정렬 (벤더명·"AI" 단독 노출 제거 + CLAUDE.md 규칙 박제). HangeulGo "Got it" 후 페이지 재진입 시 같은 표현이 다시 나오던 UX 결함을 user_learning_progress 영구화로 해결. Lemon Squeezy 결제는 새 탭 오픈으로 전환해 UnfoldK 컨텍스트 이탈 방지.
+>
+> commit: `1b587b8` → `032b59d` → `300bee0`.
+
+### 완료
+
+#### A. AI → UnfoldK 카피 일괄 리브랜딩 (`1b587b8`)
+- **CLAUDE.md §6 신규 규칙 박제** — 사용자 노출 텍스트의 서비스 주체는 항상 "UnfoldK". 벤더명 (`Claude`/`Anthropic`/`Haiku`/`Sonnet`/`GPT`/`OpenAI`) 노출 금지. "AI" 단독 표기도 `AI picks` → `UnfoldK picks` / `AI-curated X` → `UnfoldK-curated X` 등 재라벨. 예외 명시 (코드 주석 / lib·app/api 내부 / admin UI / 법무 표기).
+- **JSX 카피 치환 (10개 파일)** — about / drama / food / korean / curation-k / mypage/dramas / terms / header / bento-section / pricing-section. "AI Drama Summary" → "UnfoldK Drama Summary" / "AI Grammar Explanation" → "UnfoldK Grammar Explanation" / "AI-powered drama recommendations" → "UnfoldK drama recommendations" 등.
+- **dead 컴포넌트 삭제** — `components/bento/ai-code-reviews.tsx` (어디서도 import 안 되는 v0 템플릿 잔존).
+- **검증** — 사용자 노출 영역의 `(AI|Claude|Anthropic|Haiku|Sonnet|GPT|OpenAI|ChatGPT)` grep 결과 모두 코드 주석 또는 admin UI (예외 범위). CLAUDE.md §6 의 자가 점검 grep 으로 회귀 방지.
+
+#### B. HangeulGo Got it 영구화 (`032b59d`)
+- **증상** — 페이지 진입 시 항상 같은 오늘의 표현 노출. Got it 후 새로고침해도 동일.
+- **원인** — `phrase-of-day` GET 이 항상 `featured_date` 캐시 hit 반환. `seenPhraseIds` 가 in-memory `useState` 라 새로고침 시 휘발.
+- **`/api/korean/learning-progress` (신규 POST)** — phrase_id + status='mastered' 영구 기록. user_learning_progress 테이블 활용 (0026 마이그레이션). 비-UUID (fallback sentinel) skip 응답 — idempotent.
+- **`/api/korean/phrase-of-day` GET 확장** —
+  - 로그인 유저의 mastered phrase id 목록을 모드 A·B 양쪽에서 자동 참조 (`getMasteredPhraseIds` 헬퍼).
+  - 모드 A (오늘의 featured): 캐시 hit row 가 mastered 면 자동으로 모드 B (mastered 제외 랜덤) 로 우회.
+  - 모드 B (랜덤): 클라이언트 `seenPhraseIds` + 본인 mastered 자동 머지 (`extraExcludeIds` 파라미터).
+- **`app/korean/page.tsx` `handleMarkLearned`** — streak POST 옆에 learning-progress POST 추가. Got it 클릭 → 영구 mastered → 다음 진입 시 다른 표현.
+- **비로그인 동작 무변경** — in-memory `seenPhraseIds` 그대로.
+
+#### C. Lemon Squeezy 결제 새 탭 오픈 (`300bee0`)
+- **증상** — 결제 버튼 클릭 시 현재 탭이 LMS 호스팅 페이지로 전환 (전체 페이지) → UnfoldK 컨텍스트 이탈.
+- **수정** — `app/start/page.tsx`: `window.location.href` → `window.open(url, "_blank", "noopener,noreferrer")` + 원래 탭은 `/mypage` 로 이동 (가입은 free 락인 완료 상태). `app/mypage/subscription/page.tsx`: Monthly/Annual `<a>` 2개에 `target="_blank" rel="noopener noreferrer"` 추가.
+- **서버 라우트 무변경** — `/api/lemonsqueezy/checkout` 은 그대로 302 redirect 유지. 새 탭이 라우트로 들어가서 LMS 로 이동. 결제 완료/실패와 무관하게 원래 탭은 UnfoldK 에 유지. webhook 이 결제 시 plan_type 업그레이드.
+- **검토했다가 폐기** — `lemon.js` 오버레이 통합 (`LemonSqueezy.Url.Open` + `?embed=1`). 새 탭 한 줄로 충분한데 과한 작업.
+
+### 다음 세션 후보 (carry-over)
+- **세션 16 carry-over 전체 유지** —
+  - famous-dramas ↔ dramas 매칭 실측 검증 (어드민 cron 수동 실행 → `auto_added_dramas` 카운트 확인)
+  - top.gg 심사 통과 후 봇 페이지 운영
+  - /calendar / /today / /notify 슬래시 명령 추가
+  - **세션 14 carry-over**: KdramaMatch Phase 2 잔여 / Curation K Phase 2 / 결제 가동 시 복원 / 세션 13 잔여
+  - 블로그 cron 운영 안정화
+
+### 블로커
+- **top.gg 심사 1~2주 대기** — 외부 의존 (세션 15 carry-over)
+- 세션 13 carry-over — 메인 페이지 hang + Ghost Globe 미작동
+
+---
+
 ## 현재 상태 (2026-05-18 세션 16 / HangeulGo Phase 2 안정화 + famous-dramas 시드 자동화 + Curation K Live 정리)
 
 > HangeulGo Phase 1 동작 안정화 (Claude 실패 다층 fallback, partial unique index 버그 fix) → Phase 2 학습 확장 (드라마별 표현 cron / Pack 모달 / Next expression 랜덤 회전 / 퀴즈 sync) → famous-dramas 가 학습 시드 단일 진실원으로 격상 + 누락 드라마 TMDB 자동 보충. 사이트 전체 Curation K Live 반영.

@@ -21,6 +21,52 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-18 UI 카피 — 서비스 주체는 항상 "UnfoldK", 벤더명·"AI" 단독 노출 금지
+
+- 결정 내용:
+  - **사용자 노출 텍스트** (`app/**/*.tsx` JSX / `components/**/*.tsx` JSX / `emails/**`) 에서 서비스·정보 제공의 주체는 항상 "UnfoldK" 로 표기. AI 벤더명 (`Claude`, `Anthropic`, `Haiku`, `Sonnet`, `GPT`, `OpenAI`, `ChatGPT`) 노출 금지.
+  - **"AI" 단독 표기도 재라벨** — `AI picks` → `UnfoldK picks` / `AI recommendations` → `UnfoldK recommendations` / `AI Grammar Explanation` → `UnfoldK Grammar Explanation` / `AI-powered X` → `UnfoldK X` / `AI-curated X` → `UnfoldK-curated X` / `powered by AI` → `powered by UnfoldK` 등.
+  - **예외 (그대로 둠)** — 코드 주석 / `lib/**` · `app/api/**` 내부 로직 (디버깅·운영 정확성) / 어드민 전용 UI (`/admin/*` · `components/admin/*`) / 외부 라이선스·법무 표기 의무.
+  - **자가 점검 grep** — 사용자 노출 영역에서 `\b(AI|Claude|Anthropic|Haiku|Sonnet|GPT|OpenAI|ChatGPT)\b` 검색 시 주석·내부 변수만 남아야 함. CLAUDE.md §6 박제.
+- 이유:
+  - "vendor lock-in" 인상 차단 — UnfoldK 가 자체 한류 큐레이션 브랜드인데 카피마다 "AI" 가 전면에 있으면 AI 도구처럼 보임. 한류 팬 타겟에 어울리지 않음.
+  - 모델 교체 (Haiku → Sonnet, 향후 다른 벤더) 시 카피 회귀 작업 0건. 내부 구현 디테일과 사용자 노출 카피 분리.
+- 대안으로 고려했던 것:
+  - "AI" 단어는 유지, 벤더명만 제거 — "AI" 자체가 사용자 인상에서 차별화에 마이너스. 한류 서비스의 정체성은 UnfoldK 의 큐레이션이지 AI 도구가 아님.
+  - 점진적 (페이지별) 치환 — 일관성 깨짐 + 회귀 위험. 한 번에 박제 + grep 규칙으로 회귀 방지가 정답.
+
+## 2026-05-18 HangeulGo Got it 영구화 — user_learning_progress.status='mastered' 활용 + phrase-of-day 자동 우회
+
+- 결정 내용:
+  - **`POST /api/korean/learning-progress` 신규** — body `{ phraseId, status? }`. 본인 user 의 `user_learning_progress` 행 upsert (`onConflict: 'user_id,phrase_id'`). status 기본값 `'mastered'`. 비-UUID phrase_id (fallback sentinel) 은 `{ skipped: true }` 응답 (idempotent).
+  - **`GET /api/korean/phrase-of-day` 확장** — 로그인 유저의 mastered phrase id 목록을 모드 A·B 진입 전 한 번 조회 (`getMasteredPhraseIds`). 모드 A (오늘의 featured) 캐시 hit row 가 mastered 면 자동으로 `pickRandomPhrase("", masteredIds)` 호출로 우회. 모드 B 는 클라이언트 `exclude_ids` 와 mastered 자동 머지 (`extraExcludeIds` 파라미터).
+  - **클라이언트 `handleMarkLearned`** — 기존 streak POST 옆에 learning-progress POST 추가. phrase.id 가 UUID 아니어도 서버가 skip 하므로 무조건 호출.
+  - **비로그인 동작 무변경** — in-memory `seenPhraseIds` 그대로 유지.
+- 이유:
+  - **근본 원인** — `phrase-of-day` 가 항상 `featured_date` 캐시 hit 반환, `seenPhraseIds` 가 in-memory `useState` 뿐이라 새로고침 시 휘발. 페이지 진입 시 같은 표현 재노출 = "학습 진도가 무의미" 인상.
+  - user_learning_progress 테이블이 0026 마이그레이션에 이미 존재 — `(user_id, phrase_id)` unique + `status` enum (`new`/`learning`/`mastered`). 새 테이블 없이 서버 권한 (RLS auth.uid=user_id) 으로 격리.
+  - 영구화 layer 를 서버 사이드에 두면 디바이스 간 동기화도 자동. 클라이언트는 단순 POST.
+- 대안으로 고려했던 것:
+  - localStorage 만 사용 — 디바이스/브라우저 격리, 데이터 클리어 시 사라짐. 가입 유저에게 부적합.
+  - streak POST 에 phraseId 같이 받기 — 책임 혼동 (streak 은 날짜 연속성, learning-progress 는 phrase 별 상태). 별도 endpoint 가 깔끔.
+  - mode A 에서 mastered 면 클라이언트가 advanceToNext 호출하는 클라이언트 사이드 방식 — 추가 round-trip + 깜빡임. 서버에서 바로 미학습 반환이 단순.
+
+## 2026-05-18 Lemon Squeezy 결제 — 새 탭 오픈으로 UnfoldK 컨텍스트 유지
+
+- 결정 내용:
+  - **클라이언트 trigger 3곳 모두 새 탭으로 전환** —
+    - `app/start/page.tsx`: `window.location.href = ...` → `window.open(url, "_blank", "noopener,noreferrer")` + 원래 탭은 `router.push(nextPath)` (가입은 free 락인 완료 상태).
+    - `app/mypage/subscription/page.tsx`: Monthly/Annual `<a>` 2개에 `target="_blank" rel="noopener noreferrer"`.
+  - **서버 라우트 무변경** — `/api/lemonsqueezy/checkout` 은 그대로 302 redirect 유지. 새 탭이 라우트로 들어가서 LMS 호스팅 결제 페이지로 이동.
+  - **검토했다가 폐기** — `lemon.js` 오버레이 통합 (`LemonSqueezy.Url.Open(url)` + URL 에 `?embed=1` + root layout 에 스크립트 로드 + 라우트 응답 모드 분기). 새 탭 한 줄로 충분한데 과한 작업.
+- 이유:
+  - 결제 페이지가 전체 탭을 차지하면 사용자가 결제 도중 이탈 시 UnfoldK 컨텍스트 (가입 직후 화면 / mypage 등) 가 사라짐. 새 탭이면 결제 탭만 닫고 원래 화면 복귀.
+  - 결제 완료 / 실패와 무관하게 webhook 이 plan_type 업그레이드를 처리하므로 원래 탭의 추가 동기화 불필요.
+  - 오버레이는 lemon.js 의존성 + URL 빌드 / 라우트 응답 형식 / 클라이언트 트리거 모두 손봐야 함. 새 탭 = 변경 라인 5줄 미만.
+- 대안으로 고려했던 것:
+  - 현재 탭 유지 + iframe 임베드 — Lemon Squeezy 가 iframe 임베드 차단 (CSP / X-Frame-Options).
+  - lemon.js 오버레이 — 정식 SDK 패턴이지만 위 비용 분석으로 폐기. 사용자 활성도 쌓인 후 UX 더 다듬을 때 재검토.
+
 ## 2026-05-18 HangeulGo Phase 2 — Claude tool_use / fallback DB upsert / partial index 회피
 
 - 결정 내용:
