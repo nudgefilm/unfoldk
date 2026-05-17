@@ -23,13 +23,22 @@ const QuerySchema = z.object({
   plan: z.enum(["monthly", "annual"]),
 })
 
+// 모든 응답에 Cache-Control: no-store 명시.
+// 이유: NextResponse.redirect() 의 기본 307 응답은 캐시 헤더 없음 → 브라우저가 같은 쿼리
+// (?plan=monthly) 로 재요청 시 캐시된 Location 을 그대로 따라갈 수 있음. 다른 계정으로
+// 갈아탄 뒤 결제 버튼 클릭 시 이전 세션의 checkoutUrl (이전 사용자 email 임베드) 로 직행하던
+// 버그 차단. 모든 redirect 경로에 일괄 적용 — auth 분기 응답도 캐시되면 의도치 않은 동작.
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" }
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const parsed = QuerySchema.safeParse({
     plan: searchParams.get("plan") ?? "",
   })
   if (!parsed.success) {
-    return NextResponse.redirect(`${origin}/start?error=invalid_plan`)
+    return NextResponse.redirect(`${origin}/start?error=invalid_plan`, {
+      headers: NO_STORE_HEADERS,
+    })
   }
 
   // 1. 인증 확인
@@ -38,7 +47,7 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user || !user.email) {
-    return NextResponse.redirect(`${origin}/?next=/start`)
+    return NextResponse.redirect(`${origin}/?next=/start`, { headers: NO_STORE_HEADERS })
   }
 
   // 2. 체크아웃 URL 빌드
@@ -51,9 +60,11 @@ export async function GET(request: Request) {
     })
   } catch (err) {
     console.error("[lms/checkout] URL 빌드 실패:", err instanceof Error ? err.message : err)
-    return NextResponse.redirect(`${origin}/start?error=checkout_unavailable`)
+    return NextResponse.redirect(`${origin}/start?error=checkout_unavailable`, {
+      headers: NO_STORE_HEADERS,
+    })
   }
 
-  // 3. LMS 호스팅 결제 페이지로 이동
-  return NextResponse.redirect(checkoutUrl)
+  // 3. LMS 호스팅 결제 페이지로 이동 — no-store 로 다른 계정 cross-contamination 차단
+  return NextResponse.redirect(checkoutUrl, { headers: NO_STORE_HEADERS })
 }
