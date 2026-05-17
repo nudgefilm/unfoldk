@@ -1008,7 +1008,7 @@ export default function CurationKPage() {
         <SectionHeader
           Icon={Sparkles}
           title="My Hallyu Course"
-          subtitle="Claude generates a Hallyu day-trip from your taste."
+          subtitle="UnfoldK generates a Hallyu day-trip from your taste."
           color="#FF4B6E"
           badge="Pro"
         />

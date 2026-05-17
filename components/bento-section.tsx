@@ -53,25 +53,25 @@ export function BentoSection() {
     {
       icon: "🎬",
       title: "KdramaMatch",
-      description: "AI-powered drama recommendations based on your taste, mood, and viewing history.",
+      description: "UnfoldK drama recommendations based on your taste, mood, and viewing history.",
       href: "/drama",
     },
     {
       icon: <Languages className="w-9 h-9 text-primary" />,
       title: "HangeulGo",
-      description: "Learn Korean through actual drama lines — with AI grammar explanations and native TTS pronunciation.",
+      description: "Learn Korean through actual drama lines — with UnfoldK grammar explanations and native TTS pronunciation.",
       href: "/korean",
     },
     {
       icon: "🍜",
       title: "KfoodKit",
-      description: "Cook the food from your favorite K-drama anywhere, with local ingredient substitutions powered by AI.",
+      description: "Cook the food from your favorite K-drama anywhere, with local ingredient substitutions powered by UnfoldK.",
       href: "/food",
     },
     {
       icon: "🗺️",
       title: "Curation K",
-      description: "Discover filming spots, hidden gems, and AI-curated 1-day trips across Korea — for fans heading to Seoul and beyond.",
+      description: "Discover filming spots, hidden gems, and UnfoldK-curated 1-day trips across Korea — for fans heading to Seoul and beyond.",
       href: "/curation-k",
     },
   ]

@@ -38,8 +38,8 @@ export function PricingSection() {
     "Google Calendar sync",
     "iCal share link",
     "Real-time push alerts",
-    "AI grammar explanations",
-    "Local ingredient AI suggestions",
+    "UnfoldK grammar explanations",
+    "UnfoldK local ingredient suggestions",
   ]
 
   return (

@@ -800,7 +800,7 @@ function DramaDetailModal({
                   <div>
                     <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2 flex items-center gap-2">
                       <Sparkles className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
-                      AI Episode Summary
+                      UnfoldK Episode Summary
                     </p>
                     {isPro && aiSummaryLoading ? (
                       <p className="text-muted-foreground text-sm">Generating...</p>
@@ -815,7 +815,7 @@ function DramaDetailModal({
                     ) : (
                       // 비-Pro placeholder — blur 처리되어 실제 내용 보이지 않음, 레이아웃 공간 확보용
                       <p className="text-foreground/90 text-sm leading-relaxed">
-                        Episode-by-episode AI summary highlighting key plot points, character
+                        Episode-by-episode UnfoldK summary highlighting key plot points, character
                         development, and emotional beats — generated from the synopsis.
                       </p>
                     )}
@@ -858,7 +858,7 @@ function DramaDetailModal({
                         Coming with Hallyu Pass
                       </p>
                       <p className="text-muted-foreground text-xs mb-4">
-                        AI episode summary + character map arrive at launch.
+                        UnfoldK episode summary + character map arrive at launch.
                       </p>
                       <Link
                         href="/signup"
@@ -1195,12 +1195,12 @@ function KdramaMatchPageInner() {
         <section className="text-center mb-10">
           <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">KdramaMatch</h1>
           <p className="text-muted-foreground text-lg">
-            AI-powered K-drama recommendations, curated just for you.
+            UnfoldK K-drama recommendations, curated just for you.
           </p>
           <p className="text-muted-foreground/70 text-xs mt-3">
             {isAuthenticated === false
               ? "Guests: 3 picks per request · sign in for 5"
-              : "5 AI picks per request — free during preview"}
+              : "5 UnfoldK picks per request — free during preview"}
           </p>
         </section>
 
@@ -1311,7 +1311,7 @@ function KdramaMatchPageInner() {
                 style={{ backgroundColor: "#FF4B6E" }}
               >
                 <Sparkles className="w-4 h-4 mr-2" />
-                {recommendLoading ? "Finding matches..." : "Get AI Recommendations"}
+                {recommendLoading ? "Finding matches..." : "Get UnfoldK Recommendations"}
               </Button>
             </div>
           </section>
@@ -1546,7 +1546,7 @@ function KdramaMatchPageInner() {
         {/* ─── 7. AI Drama Summary (Pro) ────────────── */}
         <section className="mb-16">
           <div className="flex items-center gap-2 mb-6">
-            <h2 className="text-2xl font-semibold text-foreground">AI Drama Summary</h2>
+            <h2 className="text-2xl font-semibold text-foreground">UnfoldK Drama Summary</h2>
             <span
               className="text-xs px-2 py-1 rounded-full font-medium"
               style={{ backgroundColor: "rgba(255, 75, 110, 0.15)", color: "#FF4B6E" }}
@@ -1564,7 +1564,7 @@ function KdramaMatchPageInner() {
               <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
                 <h3 className="text-foreground font-semibold mb-2">Episode Analysis</h3>
                 <p className="text-muted-foreground text-sm">
-                  AI-generated summaries of key plot points, character development, and emotional
+                  UnfoldK summaries of key plot points, character development, and emotional
                   moments — episode by episode.
                 </p>
               </div>
@@ -1578,7 +1578,7 @@ function KdramaMatchPageInner() {
               <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
                 <h3 className="text-foreground font-semibold mb-2">Similar dramas</h3>
                 <p className="text-muted-foreground text-sm">
-                  &ldquo;If you liked this, try…&rdquo; AI matches based on tone, themes, and
+                  &ldquo;If you liked this, try…&rdquo; UnfoldK matches based on tone, themes, and
                   pacing — not just genre tags.
                 </p>
               </div>

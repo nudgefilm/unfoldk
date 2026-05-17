@@ -267,7 +267,7 @@ export default function KfoodKitPage() {
 
         {/* AI Ingredient Substitution (Pro Feature) — isPro 면 블러·오버레이 해제 */}
         <section className="mb-12">
-          <h2 className="text-2xl font-semibold text-white mb-6">AI Ingredient Finder</h2>
+          <h2 className="text-2xl font-semibold text-white mb-6">UnfoldK Ingredient Finder</h2>
           <div className="relative">
             <div
               className={`bg-[#1a1a1a] border border-border/30 rounded-xl p-6 ${

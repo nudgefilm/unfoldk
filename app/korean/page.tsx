@@ -844,7 +844,7 @@ export default function HangeulGoPage() {
         {/* AI Grammar Explanation (Pro) */}
         <section className="mb-16">
           <h2 className="text-2xl font-semibold text-foreground mb-6 flex items-center gap-2">
-            AI Grammar Explanation
+            UnfoldK Grammar Explanation
             <span
               className="px-2 py-0.5 rounded text-xs font-medium"
               style={{ backgroundColor: "rgba(255, 75, 110, 0.15)", color: "#FF4B6E" }}
@@ -900,7 +900,7 @@ export default function HangeulGoPage() {
                   </div>
                   <p className="text-foreground font-medium mb-2">Coming with Hallyu Pass</p>
                   <p className="text-muted-foreground text-xs mb-4">
-                    AI Grammar Explanations arrive at launch.
+                    UnfoldK Grammar Explanations arrive at launch.
                   </p>
                   <Link href="/signup">
                     <Button

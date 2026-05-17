@@ -58,7 +58,7 @@ export default function TermsPage() {
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li>HallyuCalendar: K-pop and K-drama event calendar</li>
                   <li>KpopStats: Global artist statistics dashboard</li>
-                  <li>KdramaMatch: AI-powered K-drama recommendations</li>
+                  <li>KdramaMatch: UnfoldK K-drama recommendations</li>
                   <li>HangeulGo: Korean language learning via K-drama content</li>
                   <li>KfoodKit: K-drama recipe and local ingredient guide</li>
                 </ul>
@@ -154,7 +154,7 @@ export default function TermsPage() {
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li>HallyuCalendar: K팝·K드라마 이벤트 통합 캘린더</li>
                   <li>KpopStats: 글로벌 아티스트 통계 대시보드</li>
-                  <li>KdramaMatch: AI 기반 K드라마 추천 서비스</li>
+                  <li>KdramaMatch: UnfoldK K드라마 추천 서비스</li>
                   <li>HangeulGo: K드라마로 배우는 한국어 학습 플랫폼</li>
                   <li>KfoodKit: K드라마 한식 레시피 및 현지 재료 가이드</li>
                 </ul>

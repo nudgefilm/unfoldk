@@ -95,6 +95,19 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 9. UI 수정 금지 — v0 완성. 로직·API 연동만 추가
 ```
 
+### UI 카피 — 서비스 주체는 UnfoldK
+- **사용자 노출 텍스트 (UI · 카피 · 이메일 · 마케팅) 에서 서비스·정보 제공의 주체는 항상 "UnfoldK"** 로 표기. AI 벤더명 (`Claude`, `Anthropic`, `Haiku`, `Sonnet`, `OpenAI`, `GPT`) 노출 금지.
+- "AI" 단독 표기도 사용자 노출 영역에서는 "UnfoldK" 로 재라벨:
+  - `AI picks` → `UnfoldK picks` / `AI recommendations` → `UnfoldK recommendations` / `AI matches` → `UnfoldK matches`
+  - `AI Grammar Explanation` → `UnfoldK Grammar Explanation` / `AI Drama Summary` → `UnfoldK Drama Summary` / `AI Episode Summary` → `UnfoldK Episode Summary` / `AI Ingredient Finder` → `UnfoldK Ingredient Finder`
+  - 형용사형 `AI-powered X` → `UnfoldK X` / `AI-curated X` → `UnfoldK-curated X` / `AI-generated X` → `UnfoldK X` / `powered by AI` → `powered by UnfoldK`
+- **예외 (그대로 둠)**:
+  - 코드 주석 / `lib/**` · `app/api/**` 등 내부 로직 — 실제 모델명 (`Claude Haiku` 등) 기록은 디버깅·운영 정확성을 위해 유지.
+  - 어드민 전용 UI (`/admin/*` · `components/admin/*`) — 운영자가 실제 시스템 동작을 알아야 하므로 모델명 노출 허용.
+  - 외부 라이선스·법무 표기에서 명시 의무가 있는 경우 (현재 해당 없음).
+- 신규 사용자 노출 카피 작성 시 자가 점검: "이 문장의 주체가 누구인가?" → UnfoldK 가 아니면 재작성.
+- 검증: 사용자 노출 파일 (`app/**/*.tsx` 의 JSX 텍스트, `components/**/*.tsx` 의 JSX 텍스트, `emails/**`) 에서 `\b(AI|Claude|Anthropic|Haiku|Sonnet|GPT|OpenAI|ChatGPT)\b` grep 시 주석·내부 변수만 남아야 함.
+
 ### YouTube 채널 자동 매핑 원칙
 - 검색 쿼리: `${artistName} official` 기본 적용 (`lib/api/youtube.ts:searchChannelByName`)
 - 검색 결과 1위 채널 `subscriberCount` 10만 이상 검증 후 매핑 (`channels.list` 1 unit 추가)

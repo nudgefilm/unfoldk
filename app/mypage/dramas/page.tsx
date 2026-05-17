@@ -206,7 +206,7 @@ function MyDramasBody() {
           style={{ backgroundColor: "#FF4B6E" }}
         >
           <Sparkles className="w-4 h-4" />
-          AI recommendations
+          UnfoldK recommendations
         </Link>
       </div>
 
@@ -264,7 +264,7 @@ function MyDramasBody() {
           style={{ backgroundColor: "#FF4B6E" }}
         >
           <Sparkles className="w-4 h-4" />
-          AI recommendations
+          UnfoldK recommendations
         </Link>
       </div>
     </div>
@@ -283,7 +283,7 @@ function EmptyState({ tab }: { tab: WatchStatus }) {
             : "No completed dramas yet"}
       </p>
       <p className="text-muted-foreground text-sm mb-5 max-w-md mx-auto">
-        Browse our catalog or get AI recommendations to start filling this in.
+        Browse our catalog or get UnfoldK recommendations to start filling this in.
       </p>
       <Link
         href="/drama"
