@@ -4,11 +4,17 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 // GET /api/korean/packs — Drama Learning Packs 목록
 //
-// 동작:
-//   1. dramas 테이블에서 인기·평점 기준 상위 드라마 (포스터 있는 것 우선)
-//   2. 각 드라마의 korean_phrases 카운트 + 가장 흔한 difficulty
-//   3. 로그인 시 user_learning_progress join → mastered/total 비율
-//   4. 비로그인은 progress 0%
+// 동작 (2026-05-18 v2 — phrase-having 만 노출):
+//   1. korean_phrases 에서 drama_id 있는 row 의 distinct drama_id 추출
+//      → 학습 컨텐츠가 실제로 존재하는 드라마 (Learning Pack 의 정의)
+//   2. 해당 드라마를 popularity 순으로 fetch — limit 없음. 장르 필터 없음.
+//      (예능 / 버라이어티 — Running Man, Amazing Saturday 등 — 도 famous-dramas 시드에
+//       포함되어 dramas 로 자동 추가되면 자연 노출됨)
+//   3. 포스터 없는 row 는 carousel UX 보호 위해 제외
+//   4. 로그인 시 user_learning_progress join → mastered/total 비율
+//
+// 이전 정책: phrase-having + popular filler (PACK_LIMIT=20) — placeholder 카드까지
+// 강제 채움. 학습 컨텐츠가 충분히 쌓인 지금은 phrase 있는 드라마만 깔끔하게 노출.
 //
 // 응답: { packs: [{ id, title, posterUrl, phraseCount, difficulty, progressPercent }] }
 
@@ -24,40 +30,70 @@ interface PackApi {
   progressPercent: number
 }
 
-const PACK_LIMIT = 20
+interface DramaRow {
+  id: string
+  title: string
+  title_ko: string | null
+  poster_url: string | null
+}
+
+const DRAMA_SELECT = "id, title, title_ko, poster_url"
 
 export async function GET() {
   const supabase = await createSupabaseServerClient()
+  const admin = createSupabaseAdminClient()
 
   // 1. 로그인 유저 확인
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // 2. dramas 상위 — popularity desc, 포스터 있는 것 우선, is_active=true
+  // 2. phrase 가 있는 drama_id 추출 — Learning Pack 의 canonical 후보군
+  //    admin 으로 정확히 — anon RLS 는 그래도 public select 통과하지만 일관성 유지.
+  const { data: phraseDramaRows, error: phraseDramaErr } = await admin
+    .from("korean_phrases")
+    .select("drama_id")
+    .not("drama_id", "is", null)
+
+  if (phraseDramaErr) {
+    console.error("[/api/korean/packs] phrase drama_id 조회 실패:", phraseDramaErr)
+    return NextResponse.json(
+      { error: "query_failed", message: phraseDramaErr.message },
+      { status: 500 }
+    )
+  }
+
+  const phraseDramaIds = Array.from(
+    new Set(
+      ((phraseDramaRows ?? []) as Array<{ drama_id: string | null }>)
+        .map((r) => r.drama_id)
+        .filter((v): v is string => !!v)
+    )
+  )
+
+  if (phraseDramaIds.length === 0) {
+    return NextResponse.json({ packs: [] })
+  }
+
+  // 3. phrase-having dramas fetch — popularity 순. 포스터 없으면 carousel 에서 제외.
+  //    is_active=true 만 (soft delete 정책 — 어드민이 비활성화하면 학습팩에서도 빠짐).
+  //    장르 필터 없음 — variety / talk 도 famous-dramas 에 추가되어 phrase 가 생기면 자연 노출.
   const { data: dramaRows, error: dramaErr } = await supabase
     .from("dramas")
-    .select("id, title, title_ko, poster_url")
+    .select(DRAMA_SELECT)
     .eq("is_active", true)
     .not("poster_url", "is", null)
+    .in("id", phraseDramaIds)
     .order("popularity", { ascending: false, nullsFirst: false })
     .order("rating", { ascending: false, nullsFirst: false })
-    .limit(PACK_LIMIT)
-
   if (dramaErr) {
-    console.error("[/api/korean/packs] dramas 조회 실패:", dramaErr)
+    console.error("[/api/korean/packs] phrase-having dramas 조회 실패:", dramaErr)
     return NextResponse.json(
       { error: "query_failed", message: dramaErr.message },
       { status: 500 }
     )
   }
-
-  const dramas = (dramaRows ?? []) as Array<{
-    id: string
-    title: string
-    title_ko: string | null
-    poster_url: string | null
-  }>
+  const dramas = (dramaRows ?? []) as DramaRow[]
 
   if (dramas.length === 0) {
     return NextResponse.json({ packs: [] })
@@ -65,9 +101,7 @@ export async function GET() {
 
   const dramaIds = dramas.map((d) => d.id)
 
-  // 3. 드라마별 korean_phrases 카운트 + 대표 difficulty
-  // RLS 우회 — service_role admin client 로 정확한 통계 (count 정책 우회 없이 그냥 안정 쿼리)
-  const admin = createSupabaseAdminClient()
+  // 4. 드라마별 korean_phrases 카운트 + 대표 difficulty
   const { data: phraseRows } = await admin
     .from("korean_phrases")
     .select("id, drama_id, difficulty")
@@ -88,10 +122,9 @@ export async function GET() {
     phrasesByDrama.set(row.drama_id, entry)
   }
 
-  // 4. 로그인 시 user_learning_progress join → mastered 카운트
+  // 6. 로그인 시 user_learning_progress join → mastered 카운트
   const masteredByDrama = new Map<string, number>()
   if (user) {
-    // phrase_id → drama_id 매핑
     const phraseIdToDramaId = new Map<string, string>()
     for (const row of (phraseRows ?? []) as Array<{
       id: string
@@ -118,7 +151,7 @@ export async function GET() {
     }
   }
 
-  // 5. 응답 빌드
+  // 7. 응답 빌드
   const packs: PackApi[] = dramas.map((d) => {
     const stats = phrasesByDrama.get(d.id)
     const phraseCount = stats?.count ?? 0
@@ -130,7 +163,7 @@ export async function GET() {
     let difficulty: PackApi["difficulty"] = null
     if (stats && stats.difficulties.length > 0) {
       const counts: Record<string, number> = {}
-      for (const d of stats.difficulties) counts[d] = (counts[d] ?? 0) + 1
+      for (const x of stats.difficulties) counts[x] = (counts[x] ?? 0) + 1
       const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
       const v = top[0]
       if (v === "beginner" || v === "intermediate" || v === "advanced") {

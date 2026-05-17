@@ -3,13 +3,16 @@ import { z } from "zod"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { getSeoulDateString } from "@/lib/korean/day-helpers"
 
-// /api/korean/quiz — 오늘의 표현 기준 4지선다 퀴즈
+// /api/korean/quiz — 현재 보고 있는 표현 기준 4지선다 퀴즈
 //
 // GET:
-//   1. 오늘 featured phrase 조회 (정답)
+//   1. 정답 phrase 결정:
+//      a. ?phrase_id=<uuid> 가 있으면 그 phrase 사용 (프론트의 현재 표현 기준)
+//      b. 없으면 오늘 featured phrase fallback (backwards compat)
+//      c. 둘 다 실패 시 HARDCODED_CORRECT ("안녕하세요" / "Hello")
 //   2. korean_phrases 중 정답 외 3개 랜덤 선택 (오답)
 //   3. 4개 옵션 셔플 + 정답 인덱스 박제
-//   4. 응답: { question, phraseId, options: [{label, english}], correctLabel }
+//   4. 응답: { phraseId, korean, options: [{label, english}], correctLabel }
 // POST body: { phraseId, isCorrect }
 //   - 로그인 유저만 — user_quiz_results insert
 
@@ -47,26 +50,54 @@ const HARDCODED_CORRECT = {
   english: "Hello",
 }
 
-export async function GET() {
+// UUID v4 형식 검증 — fallback sentinel ("fallback-...") 같은 비-UUID 차단.
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient()
   const today = getSeoulDateString()
+  const url = new URL(request.url)
+  const phraseIdParam = url.searchParams.get("phrase_id")
 
-  // 1. 오늘 phrase — null / error 시 HARDCODED_CORRECT 로 fallback (404 응답 → "Loading quiz..." 박힘 방지)
-  const { data: featured, error: fErr } = await supabase
-    .from("korean_phrases")
-    .select("id, korean, english")
-    .eq("featured_date", today)
-    .maybeSingle()
+  // 1. 정답 phrase 결정 — 우선순위: phrase_id > 오늘 featured > HARDCODED_CORRECT
+  let correct: { id: string; korean: string; english: string } | null = null
 
-  if (fErr) {
-    console.warn(
-      `[/api/korean/quiz] featured 쿼리 실패 code=${fErr.code} message=${fErr.message} — hardcoded correct 로 응답`
-    )
+  if (phraseIdParam && UUID_REGEX.test(phraseIdParam)) {
+    const { data: byId, error: idErr } = await supabase
+      .from("korean_phrases")
+      .select("id, korean, english")
+      .eq("id", phraseIdParam)
+      .maybeSingle()
+    if (idErr) {
+      console.warn(
+        `[/api/korean/quiz] phrase_id 쿼리 실패 code=${idErr.code} message=${idErr.message} — featured fallback 시도`
+      )
+    }
+    if (byId) {
+      correct = byId as { id: string; korean: string; english: string }
+    }
   }
 
-  const correct: { id: string; korean: string; english: string } = featured
-    ? (featured as { id: string; korean: string; english: string })
-    : { id: `fallback-${today}`, ...HARDCODED_CORRECT }
+  if (!correct) {
+    // featured fallback — phrase_id 없거나 매칭 안 된 경우
+    const { data: featured, error: fErr } = await supabase
+      .from("korean_phrases")
+      .select("id, korean, english")
+      .eq("featured_date", today)
+      .maybeSingle()
+    if (fErr) {
+      console.warn(
+        `[/api/korean/quiz] featured 쿼리 실패 code=${fErr.code} message=${fErr.message} — hardcoded correct 로 응답`
+      )
+    }
+    if (featured) {
+      correct = featured as { id: string; korean: string; english: string }
+    }
+  }
+
+  if (!correct) {
+    correct = { id: `fallback-${today}`, ...HARDCODED_CORRECT }
+  }
 
   // 2. 오답 3개 — featured 와 다른 phrase 에서 랜덤 선택.
   //    correct.id 가 fallback sentinel 이면 UUID 컬럼 .neq 가 400 → 풀 쿼리 자체 스킵.

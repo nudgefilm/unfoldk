@@ -244,10 +244,15 @@ export default function HangeulGoPage() {
       .finally(() => setPacksLoading(false))
   }, [])
 
-  // ─── 퀴즈 fetch (오늘의 표현 로드 후)
+  // ─── 퀴즈 fetch — 현재 표현 (phrase.id) 기준. Next expression 으로 표현 바뀌면 자동 재호출.
+  //    이전 퀴즈 상태 (selectedAnswer, quizResult) 도 함께 리셋해 새 퀴즈에서 다시 풀 수 있게.
   useEffect(() => {
     if (!phrase) return
-    fetch("/api/korean/quiz")
+    setQuiz(null)
+    setSelectedAnswer(null)
+    setQuizResult(null)
+    const url = `/api/korean/quiz?phrase_id=${encodeURIComponent(phrase.id)}`
+    fetch(url)
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((body: QuizApi) => setQuiz(body))
       .catch((err) => {
