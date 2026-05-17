@@ -12,10 +12,10 @@
 //
 // 음성: audio_url 우선, 없으면 Web Speech API (lang=ko-KR) 폴백 — ElevenLabs 는 Phase 3.
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { Volume2, Check, RotateCcw, Lock, ChevronDown } from "lucide-react"
+import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -102,6 +102,41 @@ export default function HangeulGoPage() {
   // 5. AI Grammar (Pro)
   const [grammar, setGrammar] = useState<string | null>(null)
   const [grammarLoading, setGrammarLoading] = useState(false)
+
+  // Drama Learning Packs 가로 스크롤 — calendar Featured 패턴 + 양끝 가드.
+  // 한 번에 컨테이너 width 만큼 이동, 양끝 도달 시 해당 방향 화살표 자동 숨김.
+  const packsScrollRef = useRef<HTMLDivElement>(null)
+  const [packsCanLeft, setPacksCanLeft] = useState(false)
+  const [packsCanRight, setPacksCanRight] = useState(false)
+
+  const updatePacksScrollState = useCallback(() => {
+    const el = packsScrollRef.current
+    if (!el) return
+    setPacksCanLeft(el.scrollLeft > 0)
+    setPacksCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+
+  const scrollPacks = (dir: "left" | "right") => {
+    const el = packsScrollRef.current
+    if (!el) return
+    el.scrollBy({ left: dir === "left" ? -el.clientWidth : el.clientWidth, behavior: "smooth" })
+  }
+
+  // packs 변경·스크롤·리사이즈 모두에 화살표 노출 상태 동기화
+  useEffect(() => {
+    if (packs.length === 0) return
+    const raf = requestAnimationFrame(updatePacksScrollState)
+    const el = packsScrollRef.current
+    if (!el) return () => cancelAnimationFrame(raf)
+    el.addEventListener("scroll", updatePacksScrollState, { passive: true })
+    const ro = new ResizeObserver(updatePacksScrollState)
+    ro.observe(el)
+    return () => {
+      cancelAnimationFrame(raf)
+      el.removeEventListener("scroll", updatePacksScrollState)
+      ro.disconnect()
+    }
+  }, [packs, updatePacksScrollState])
 
   // ─── 인증 + Pro 권한
   useEffect(() => {
@@ -393,7 +428,7 @@ export default function HangeulGoPage() {
           </div>
         </section>
 
-        {/* Drama Learning Packs */}
+        {/* Drama Learning Packs — calendar Featured 패턴 (scrollBy clientWidth + 호버 화살표 + 양끝 가드) */}
         <section className="mb-16">
           <h2 className="text-2xl font-semibold text-foreground mb-6">Drama Learning Packs</h2>
           {packsLoading ? (
@@ -401,7 +436,12 @@ export default function HangeulGoPage() {
           ) : packs.length === 0 ? (
             <p className="text-muted-foreground text-sm">No learning packs yet.</p>
           ) : (
-            <div className="flex gap-4 overflow-x-auto pb-4 -mx-5 px-5 scrollbar-hide">
+            <div className="relative group">
+            <div
+              ref={packsScrollRef}
+              className="flex gap-4 overflow-x-auto pb-4 -mx-5 px-5 [&::-webkit-scrollbar]:hidden"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
               {packs.map((pack) => {
                 const dColor = difficultyColor(pack.difficulty)
                 return (
@@ -461,6 +501,28 @@ export default function HangeulGoPage() {
                   </Link>
                 )
               })}
+            </div>
+            {/* PC 전용 화살표 — group hover + 양끝 도달 시 해당 방향 숨김. 모바일은 터치 스와이프 유지. */}
+            {packsCanLeft && (
+              <button
+                type="button"
+                onClick={() => scrollPacks("left")}
+                aria-label="Scroll learning packs left"
+                className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-[#1a1a1a]/90 backdrop-blur-sm border border-border/30 items-center justify-center text-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#1a1a1a]"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            {packsCanRight && (
+              <button
+                type="button"
+                onClick={() => scrollPacks("right")}
+                aria-label="Scroll learning packs right"
+                className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-[#1a1a1a]/90 backdrop-blur-sm border border-border/30 items-center justify-center text-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#1a1a1a]"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
             </div>
           )}
         </section>

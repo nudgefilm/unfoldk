@@ -949,8 +949,8 @@ function KdramaMatchPageInner() {
   const [trending, setTrending] = useState<TrendingItem[]>([])
   const [nowAiring, setNowAiring] = useState<ApiDrama[]>([])
 
-  // Now Airing 가로 스크롤 — 카드 1개씩 이동 + 양끝 화살표 노출 제어
-  // HallyuCalendar Featured 패턴 변형 (전체 폭이 아닌 카드 단위 step)
+  // Now Airing 가로 스크롤 — calendar Featured 패턴 (clientWidth step) + 양끝 화살표 노출 제어
+  // 2026-05-19 카드 1개씩 step 에서 컨테이너 width step 으로 통일
   const nowAiringScrollRef = useRef<HTMLDivElement>(null)
   const [naCanScrollLeft, setNaCanScrollLeft] = useState(false)
   const [naCanScrollRight, setNaCanScrollRight] = useState(false)
@@ -966,10 +966,7 @@ function KdramaMatchPageInner() {
   const scrollNowAiring = (dir: "left" | "right") => {
     const el = nowAiringScrollRef.current
     if (!el) return
-    // 첫 카드 element 의 실제 width 측정 + gap-4 (16px) 보정 — 카드 width 변경에도 자동 대응
-    const firstCard = el.querySelector<HTMLElement>("[data-na-card]")
-    const step = firstCard ? firstCard.offsetWidth + 16 : 276
-    el.scrollBy({ left: dir === "left" ? -step : step, behavior: "smooth" })
+    el.scrollBy({ left: dir === "left" ? -el.clientWidth : el.clientWidth, behavior: "smooth" })
   }
 
   // Drama detail modal — 단일 modal 인스턴스 + 활성 drama_id

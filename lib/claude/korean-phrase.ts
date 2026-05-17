@@ -8,6 +8,13 @@
 
 import Anthropic from "@anthropic-ai/sdk"
 
+// ANTHROPIC_API_KEY 누락 시 SDK 가 런타임 throw 함. 모듈 로드 시점에 경고만 찍어 디버깅 단축.
+if (!process.env.ANTHROPIC_API_KEY) {
+  console.warn(
+    "[claude/korean-phrase] ANTHROPIC_API_KEY env 누락 — Claude 호출 시 실패 예정"
+  )
+}
+
 const client = new Anthropic()
 
 export interface KoreanPhrasePayload {
@@ -61,6 +68,13 @@ export interface GenerateKoreanPhraseInput {
 export async function generateKoreanPhrase(
   input: GenerateKoreanPhraseInput
 ): Promise<KoreanPhrasePayload | null> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error(
+      "[claude/korean-phrase] ANTHROPIC_API_KEY 누락 — generateKoreanPhrase abort"
+    )
+    return null
+  }
+
   const userMessage = `Drama (Korean): ${input.dramaKo}
 Drama (English): ${input.dramaEn}
 ${input.difficultyHint ? `Suggested difficulty: ${input.difficultyHint}` : ""}
@@ -145,13 +159,22 @@ Generate one short Korean phrase inspired by the show's tone (NOT a direct quote
       difficulty,
     }
   } catch (err) {
+    // status / type / message / 일부 body 까지 함께 찍어 디버깅 정보 보존.
+    // Anthropic.APIError 는 .status, .error?.error?.type, .error?.error?.message 를 가진다.
     if (err instanceof Anthropic.APIError) {
-      console.error(`[claude/korean-phrase] API error ${err.status}:`, err.message)
-    } else {
+      const apiBody = (err as unknown as { error?: { error?: { type?: string; message?: string } } })
+        .error?.error
       console.error(
-        "[claude/korean-phrase] 예외:",
-        err instanceof Error ? err.message : String(err)
+        `[claude/korean-phrase] APIError status=${err.status} name=${err.name} type=${
+          apiBody?.type ?? "?"
+        } message=${apiBody?.message ?? err.message} input=${JSON.stringify(input)}`
       )
+    } else if (err instanceof Error) {
+      console.error(
+        `[claude/korean-phrase] 예외 name=${err.name} message=${err.message} stack=${err.stack?.split("\n").slice(0, 3).join(" | ")}`
+      )
+    } else {
+      console.error("[claude/korean-phrase] 알 수 없는 예외:", String(err))
     }
     return null
   }

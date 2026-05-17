@@ -5,6 +5,7 @@ import { generateKoreanPhrase } from "@/lib/claude/korean-phrase"
 import { pickFamousDramaByDayOfYear } from "@/lib/korean/famous-dramas"
 import { getSeoulDateString, getSeoulDayOfYear } from "@/lib/korean/day-helpers"
 import { mapKoreanPhraseRow, type KoreanPhraseApi } from "@/lib/korean/mapper"
+import { buildFallbackKoreanPhrase } from "@/lib/korean/fallback-phrase"
 
 // GET /api/korean/phrase-of-day — 오늘의 학습 표현 (비로그인 허용)
 //
@@ -31,7 +32,9 @@ export async function GET() {
     .eq("featured_date", today)
     .maybeSingle()
   if (cacheErr) {
-    console.warn("[/api/korean/phrase-of-day] 캐시 조회 실패:", cacheErr.message)
+    console.warn(
+      `[/api/korean/phrase-of-day] 캐시 조회 실패 code=${cacheErr.code} message=${cacheErr.message}`
+    )
   }
   if (cached) {
     const phrase: KoreanPhraseApi = mapKoreanPhraseRow(cached)
@@ -42,15 +45,33 @@ export async function GET() {
   const dayOfYear = getSeoulDayOfYear()
   const drama = pickFamousDramaByDayOfYear(dayOfYear)
 
+  // ANTHROPIC_API_KEY 미설정 사전 가드 — Claude 호출 시도 전에 fallback 으로 직행
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error(
+      "[/api/korean/phrase-of-day] ANTHROPIC_API_KEY 누락 — fallback phrase 반환"
+    )
+    return NextResponse.json({
+      phrase: buildFallbackKoreanPhrase(today),
+      cached: false,
+      fallback: true,
+      reason: "missing_api_key",
+    })
+  }
+
   const generated = await generateKoreanPhrase({
     dramaKo: drama.ko,
     dramaEn: drama.en,
   })
   if (!generated) {
-    return NextResponse.json(
-      { error: "generation_failed", message: "Could not generate today's phrase." },
-      { status: 500 }
+    console.error(
+      `[/api/korean/phrase-of-day] generation_failed dramaKo=${drama.ko} dramaEn=${drama.en} — fallback phrase 반환`
     )
+    return NextResponse.json({
+      phrase: buildFallbackKoreanPhrase(today),
+      cached: false,
+      fallback: true,
+      reason: "generation_failed",
+    })
   }
 
   // 3. dramas 테이블에서 매칭 — title / title_ko / original_name 순차 ilike
@@ -92,11 +113,32 @@ export async function GET() {
     .single()
 
   if (insertErr || !inserted) {
-    console.error("[/api/korean/phrase-of-day] insert 실패:", insertErr)
-    return NextResponse.json(
-      { error: "insert_failed", message: insertErr?.message ?? "unknown" },
-      { status: 500 }
+    console.error(
+      `[/api/korean/phrase-of-day] insert 실패 code=${insertErr?.code ?? "?"} message=${
+        insertErr?.message ?? "unknown"
+      } — 생성된 표현으로 fallback 응답`
     )
+    // insert 실패해도 Claude 가 만들어준 표현은 활용 (DB id 만 sentinel 부여)
+    return NextResponse.json({
+      phrase: {
+        id: `fallback-${today}`,
+        dramaId,
+        dramaName: drama.en,
+        korean: generated.korean,
+        romanization: generated.romanization,
+        english: generated.english,
+        wordBreakdown: generated.word_breakdown,
+        synonyms: generated.synonyms,
+        antonyms: generated.antonyms,
+        difficulty: generated.difficulty,
+        audioUrl: null,
+        featuredDate: today,
+        createdAt: new Date().toISOString(),
+      } satisfies KoreanPhraseApi,
+      cached: false,
+      fallback: true,
+      reason: "insert_failed",
+    })
   }
 
   const phrase: KoreanPhraseApi = mapKoreanPhraseRow(inserted)
