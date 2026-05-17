@@ -347,7 +347,7 @@ Phase 3 — 차별화:
 
 Phase 1 — 드라마-음식 연계 콘텐츠:
 - 드라마 메타데이터 연계 (TMDB — KdramaMatch DB 공유, 추가 비용 없음)
-- 드라마-음식 연계 DB (Supabase 자체 큐레이션) — 핵심 콘텐츠 기반
+- 드라마-음식 연계 DB (Claude Haiku 자동 생성) — KdramaMatch dramas DB 기준으로 Claude가 드라마별 등장 음식 자동 추출 + DB 저장. 수동 큐레이션 없음. 어드민에서 검토·수정만 가능.
 - 드라마 등장 음식 설명 (Claude Haiku) — 팬 감성 기반 설명 생성
 - 해외 대체 재료 추천 (Claude Haiku) — 핵심 차별화 기능
 
