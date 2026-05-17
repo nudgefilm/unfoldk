@@ -38,19 +38,34 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
         body: JSON.stringify({ route }),
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok || !json.ok) {
-        // result_json 안에 error 가 박힌 경우(인제스트 함수가 실패 정상화 반환) 도 추출
-        const innerError = pickErrorString(json.result)
-        const outerError = pickErrorString(json.error)
-        const description = innerError ?? outerError ?? `HTTP ${res.status}`
-        // 콘솔에 원본 응답 박제 — 토스트만 보면 단서가 부족할 때 진단 위함
-        console.error(`[admin/cron] ${route} 수동 실행 실패:`, json)
+
+      // 성공 판별 정책 (모든 cron 통일):
+      //   - HTTP 200 (json.ok=true) = 함수 정상 종료 → "실행 완료" 라벨
+      //     data-level 오류는 result.error 로 description 에 노출
+      //   - HTTP 非200 또는 admin 프록시 실패 = "실행 실패" 라벨
+      // 주의: HTTP 200 이지만 cron 함수 내부에서 result.error 가 set 된 경우,
+      //       제목은 "실행 완료" 유지 + description 에 오류 사유 노출 (DB 로그도 "failed" 기록됨).
+      const httpFailed = !res.ok || !json.ok
+      const dataLevelError = pickErrorString(json.result)
+      const outerError = pickErrorString(json.error)
+
+      if (httpFailed) {
+        const description = dataLevelError ?? outerError ?? `HTTP ${res.status}`
+        console.error(`[admin/cron] ${route} 수동 실행 실패 (HTTP):`, json)
         toast({ title: "실행 실패", description })
-      } else {
+        return
+      }
+
+      const summary = summarizeRunResult(route, json.result, json.elapsedMs)
+      if (dataLevelError) {
+        // HTTP 200 + data-level error — 함수 자체는 동작했지만 인제스트 결과에 오류
+        console.warn(`[admin/cron] ${route} data-level 오류:`, json.result)
         toast({
-          title: "실행 완료",
-          description: summarizeRunResult(route, json.result, json.elapsedMs),
+          title: "실행 완료 (데이터 오류)",
+          description: `${dataLevelError} · ${summary}`,
         })
+      } else {
+        toast({ title: "실행 완료", description: summary })
       }
     } catch (err) {
       console.error(`[admin/cron] ${route} 수동 실행 예외:`, err)
@@ -188,9 +203,7 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
   }
 
   if (route === "ingest-tmdb-dramas") {
-    // DramaIngestResult — scanned/upserted/calendarLinked + (실패 시 error/details)
-    const errMsg = pickErrorString(r)
-    if (errMsg) return `실패: ${errMsg} · ${time}`
+    // DramaIngestResult — 메트릭만 반환. data-level 오류는 runManually 가 별도 처리.
     return `드라마 ${num(r.upserted)}건 (스캔 ${num(r.scanned)} · 캘린더 매핑 ${num(r.calendarLinked)}) · ${time}`
   }
 

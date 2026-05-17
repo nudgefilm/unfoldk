@@ -8,12 +8,17 @@ export const maxDuration = 300
 // 어드민 모니터에서 cron 라우트를 수동 실행할 수 있게 프록시
 // 이유: 클라이언트는 CRON_SECRET을 알 수 없으므로 서버 측에서 헤더 주입
 //
+// HTTP status 통일 정책:
+//   - 모든 cron 라우트는 정상 종료 시 HTTP 200 반환 (data-level 실패는 result.error 로 표현)
+//   - HTTP 500 은 cron 함수 자체의 uncaught exception 만 의미
+//   - 본 프록시도 inner res.ok 를 그대로 ok 필드로 전달 → 어드민 모니터가 HTTP 200 기준으로 판별
+//
 // ⚠️ 신규 cron 라우트 추가 시:
 //   1. vercel.json crons 배열
 //   2. app/admin/cron/page.tsx ROUTES + ROUTE_DISPLAY_NAMES
 //   3. 본 enum
 //   4. components/admin/cron-monitor.tsx summarizeRunResult
-//   네 곳을 함께 갱신해야 어드민 수동 실행이 정상 동작 (enum 누락 시 "Object Object" 에러).
+//   네 곳을 함께 갱신해야 어드민 수동 실행이 정상 동작 (enum 누락 시 zod 400 → "Object Object").
 const PostSchema = z.object({
   route: z.enum([
     "ingest-all",

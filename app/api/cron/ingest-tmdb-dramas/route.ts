@@ -47,13 +47,17 @@ export async function GET(request: Request) {
   try {
     const result = await runDramaIngest()
     const payload = { elapsedMs: Date.now() - t0, ...result }
-    // result.error 가 string 인 경우 (인제스트 함수가 실패를 정상화 반환) 도 failed 로 기록
-    const status = result.error ? "failed" : "success"
-    if (status === "failed") {
+    // HTTP status 정책 — 다른 cron 라우트와 통일 (ingest-all/send-reminders/ingest-ticketmaster 패턴):
+    //   · HTTP 200    = 함수가 정상 종료 (data-level 실패는 result.error 로 표현)
+    //   · HTTP 500    = 함수 자체가 throw (outer catch 발동)
+    //   · DB cron_logs.status = 실제 결과 (result.error 있으면 "failed", 없으면 "success")
+    // 어드민 모니터 팝업은 HTTP 200 기준으로 "실행 완료" 라벨링, 데이터 오류는 description 에 노출.
+    const dbStatus = result.error ? "failed" : "success"
+    if (dbStatus === "failed") {
       console.error("[ingest-tmdb-dramas] 인제스트 실패 (정상화 반환):", payload)
     }
-    await recordCronLog("ingest-tmdb-dramas", status, payload)
-    return NextResponse.json(payload, { status: status === "failed" ? 500 : 200 })
+    await recordCronLog("ingest-tmdb-dramas", dbStatus, payload)
+    return NextResponse.json(payload)
   } catch (err) {
     // throw 가 위까지 올라온 경우 — TMDB API 401/네트워크/genre fetch 등
     const errInfo = serializeError(err)
