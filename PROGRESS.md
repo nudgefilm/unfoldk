@@ -4,11 +4,11 @@
 
 ---
 
-## 현재 상태 (2026-05-18 세션 17 / AI → UnfoldK 카피 리브랜딩 + HangeulGo Got it 영구화 + LMS 새 탭)
+## 현재 상태 (2026-05-18 세션 17 / AI → UnfoldK 카피 리브랜딩 + HangeulGo Got it 영구화 + LMS 새 탭·no-store·Redeem 모달)
 
-> 사용자 노출 카피의 서비스 주체를 일관되게 "UnfoldK" 로 정렬 (벤더명·"AI" 단독 노출 제거 + CLAUDE.md 규칙 박제). HangeulGo "Got it" 후 페이지 재진입 시 같은 표현이 다시 나오던 UX 결함을 user_learning_progress 영구화로 해결. Lemon Squeezy 결제는 새 탭 오픈으로 전환해 UnfoldK 컨텍스트 이탈 방지.
+> 사용자 노출 카피의 서비스 주체를 일관되게 "UnfoldK" 로 정렬 (벤더명·"AI" 단독 노출 제거 + CLAUDE.md 규칙 박제). HangeulGo "Got it" 후 페이지 재진입 시 같은 표현이 다시 나오던 UX 결함을 user_learning_progress 영구화로 해결. Lemon Squeezy 결제는 새 탭 오픈 + redirect 응답 Cache-Control: no-store 로 다른 계정 이메일 cross-contamination 차단. Subscription 페이지 쿠폰 입력은 /redeem 페이지 전체 이동 → 모달로 전환 (폼 컴포넌트 재사용).
 >
-> commit: `1b587b8` → `032b59d` → `300bee0`.
+> commit: `1b587b8` → `032b59d` → `300bee0` → `8c4e746` → `41fc932`.
 
 ### 완료
 
@@ -34,6 +34,18 @@
 - **수정** — `app/start/page.tsx`: `window.location.href` → `window.open(url, "_blank", "noopener,noreferrer")` + 원래 탭은 `/mypage` 로 이동 (가입은 free 락인 완료 상태). `app/mypage/subscription/page.tsx`: Monthly/Annual `<a>` 2개에 `target="_blank" rel="noopener noreferrer"` 추가.
 - **서버 라우트 무변경** — `/api/lemonsqueezy/checkout` 은 그대로 302 redirect 유지. 새 탭이 라우트로 들어가서 LMS 로 이동. 결제 완료/실패와 무관하게 원래 탭은 UnfoldK 에 유지. webhook 이 결제 시 plan_type 업그레이드.
 - **검토했다가 폐기** — `lemon.js` 오버레이 통합 (`LemonSqueezy.Url.Open` + `?embed=1`). 새 탭 한 줄로 충분한데 과한 작업.
+
+#### D. LMS 체크아웃 redirect 응답 Cache-Control: no-store (`8c4e746`)
+- **증상** — 관리자 계정으로 결제 버튼 클릭했던 브라우저에서 일반 회원으로 갈아탄 뒤 같은 버튼 클릭 시 LMS 결제창에 관리자 이메일이 임베드되어 표시.
+- **원인** — `NextResponse.redirect()` 기본 307 응답이 Cache-Control 헤더 없음 → 브라우저가 같은 쿼리 (`?plan=monthly`) 로 재요청 시 캐시된 Location (이전 사용자 email 임베드) 을 그대로 따라감. 서버는 매번 `supabase.auth.getUser()` 로 새 이메일 가져오지만 브라우저가 서버까지 안 닿는 게 문제.
+- **수정** — `/api/lemonsqueezy/checkout` 의 4개 redirect 경로 (invalid_plan / no_user / checkout_unavailable / 정상 LMS URL) 에 일괄 `Cache-Control: no-store` 명시. `NO_STORE_HEADERS` 상수로 일관 적용.
+- **기존 캐시 잔재**는 코드 수정과 무관 — 시크릿 창 / 캐시 클리어로만 풀림. 앞으로 발생하는 요청부터 차단.
+
+#### E. Subscription 페이지 Redeem code 모달 + 폼 컴포넌트 재사용 (`41fc932`)
+- **`components/redeem-coupon-form.tsx` 신규** — 폼 + 결과 화면 재사용 컴포넌트. props: `onSuccess` / `hideOuterCard` / `hideGoToSubscription` 으로 페이지·모달 양쪽 컨텍스트에 맞춰 동작.
+- **`app/redeem/page.tsx`** — 기존 inline 폼 (180+ 줄) 제거, auth guard + 카드 wrapper 만 남기고 `<RedeemCouponForm />` 사용.
+- **`app/mypage/subscription/page.tsx` FreeUserView** — `<Link href="/redeem">` 제거. shadcn `<Dialog>` + `<DialogTrigger>` 로 모달 트리거. 쿠폰 성공 시 success view 1.8초 노출 후 모달 자동 닫기 + `router.refresh()` 로 plan_type 즉시 갱신.
+- 폼 로직·에러 메시지 매핑 (`ERROR_MESSAGES`) 은 컴포넌트 내부 단일 진실원 — 향후 카피 변경 시 한 곳만 수정.
 
 ### 다음 세션 후보 (carry-over)
 - **세션 16 carry-over 전체 유지** —

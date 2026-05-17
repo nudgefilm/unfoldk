@@ -21,6 +21,21 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-18 인증 임베디드 URL 의 redirect 응답에 Cache-Control: no-store 필수
+
+- 결정 내용:
+  - **사용자 식별자 (email / user_id) 가 임베디드된 URL 로의 redirect** 응답에는 반드시 `Cache-Control: no-store` 명시. `NextResponse.redirect()` 기본 응답은 캐시 헤더 없음 → 브라우저가 같은 요청 URL 로 재요청 시 캐시된 Location 을 그대로 따라가 다른 계정의 임베디드 값으로 직행하는 cross-contamination 버그 발생.
+  - **`/api/lemonsqueezy/checkout` 의 모든 redirect 경로에 일괄 적용** — 정상 LMS URL (유저 email 임베드) 뿐 아니라 error / no_user 분기 응답도 일관 적용. `NO_STORE_HEADERS = { "Cache-Control": "no-store" }` 상수로 박제.
+  - 향후 유저-바운드 redirect 응답을 작성할 때 (OAuth callback / 결제 진입 / 시뮬레이션 / 서명된 URL redirect 등) 동일 패턴 따르기.
+- 이유:
+  - 서버는 매 요청 supabase 세션 쿠키로 user 새로 읽지만, **브라우저가 서버까지 안 닿으면 의미 없음**. 307 redirect 는 브라우저가 캐시 가능한 응답 (특정 조건에서 발생 — 같은 URL·같은 method·캐시 정책 부재).
+  - `dynamic = "force-dynamic"` 은 Next.js 의 서버-side 정적 캐시 차단일 뿐, **브라우저 / CDN 캐시는 별개**. 응답 헤더로 명시 차단해야 안전.
+  - email 같은 PII 가 URL query 에 들어가는 통합 (LMS pre-built checkout URL 패턴) 에서는 cache leak 의 비용이 큼 — 회원이 다른 회원 이메일로 결제하는 사고 가능.
+- 대안으로 고려했던 것:
+  - **서버 측에서 email 임베드 제거** — LMS pre-built checkout URL 의 핵심 가치 (자동 email 채움 + custom_data 박제) 를 잃음. webhook 매핑 (`user_id` custom_data) 도 깨짐.
+  - **클라이언트가 매번 fresh 요청하도록 query 에 timestamp 추가** — server-side 에서 강제할 수 없고 클라이언트 트리거마다 동기화 부담. 응답 헤더가 정답.
+  - **redirect URL 만 응답하는 JSON API + 클라이언트 navigation** — 동작은 OK 지만 라우트 한 곳 더 만들고 클라이언트 코드 늘어남. 응답 헤더 1줄로 끝나는 fix 가 비용 최소.
+
 ## 2026-05-18 UI 카피 — 서비스 주체는 항상 "UnfoldK", 벤더명·"AI" 단독 노출 금지
 
 - 결정 내용:
