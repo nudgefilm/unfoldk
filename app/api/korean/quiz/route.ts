@@ -27,7 +27,8 @@ interface QuizApi {
   correctLabel: "A" | "B" | "C" | "D"
 }
 
-// 퀴즈 정답이 부족할 때 사용할 fallback 영문 의미 (DB 에 phrase 3개 미만일 때만)
+// 퀴즈 오답 fallback — korean_phrases DB 가 부족할 때 (1건뿐 / 0건) 사용.
+// phrase-of-day 가 fallback phrase 도 DB upsert 하지만, quiz 가 독립적으로 동작하도록 보강.
 const FALLBACK_DISTRACTORS = [
   "I love you",
   "Thank you",
@@ -39,11 +40,18 @@ const FALLBACK_DISTRACTORS = [
   "It's beautiful",
 ]
 
+// 오늘 phrase 조차 없을 때 사용할 정답 — buildFallbackKoreanPhrase 와 동일 내용 박제.
+// 별도 import 없이 self-contained 유지 (퀴즈가 phrase-of-day 와 무관하게 동작).
+const HARDCODED_CORRECT = {
+  korean: "안녕하세요",
+  english: "Hello",
+}
+
 export async function GET() {
   const supabase = await createSupabaseServerClient()
   const today = getSeoulDateString()
 
-  // 1. 오늘 phrase
+  // 1. 오늘 phrase — null / error 시 HARDCODED_CORRECT 로 fallback (404 응답 → "Loading quiz..." 박힘 방지)
   const { data: featured, error: fErr } = await supabase
     .from("korean_phrases")
     .select("id, korean, english")
@@ -51,30 +59,30 @@ export async function GET() {
     .maybeSingle()
 
   if (fErr) {
-    return NextResponse.json(
-      { error: "query_failed", message: fErr.message },
-      { status: 500 }
-    )
-  }
-  if (!featured) {
-    return NextResponse.json(
-      { error: "no_phrase_today", message: "Today's phrase not yet generated." },
-      { status: 404 }
+    console.warn(
+      `[/api/korean/quiz] featured 쿼리 실패 code=${fErr.code} message=${fErr.message} — hardcoded correct 로 응답`
     )
   }
 
-  const correct = featured as { id: string; korean: string; english: string }
+  const correct: { id: string; korean: string; english: string } = featured
+    ? (featured as { id: string; korean: string; english: string })
+    : { id: `fallback-${today}`, ...HARDCODED_CORRECT }
 
-  // 2. 오답 3개 — featured 와 다른 phrase 에서 랜덤 선택
-  //    `not.eq` 조건 + order rand() 흉내 — Supabase 의 rand() 직접 불가라 큰 풀에서 가져와 셔플
-  const { data: poolRows } = await supabase
-    .from("korean_phrases")
-    .select("english")
-    .neq("id", correct.id)
-    .limit(50)
-  const pool = ((poolRows ?? []) as Array<{ english: string }>)
-    .map((r) => r.english)
-    .filter((s, i, arr) => s && arr.indexOf(s) === i) // unique
+  // 2. 오답 3개 — featured 와 다른 phrase 에서 랜덤 선택.
+  //    correct.id 가 fallback sentinel 이면 UUID 컬럼 .neq 가 400 → 풀 쿼리 자체 스킵.
+  //    풀이 부족하면 FALLBACK_DISTRACTORS 에서 보충.
+  const isFallbackCorrect = correct.id.startsWith("fallback-")
+  let pool: string[] = []
+  if (!isFallbackCorrect) {
+    const { data: poolRows } = await supabase
+      .from("korean_phrases")
+      .select("english")
+      .neq("id", correct.id)
+      .limit(50)
+    pool = ((poolRows ?? []) as Array<{ english: string }>)
+      .map((r) => r.english)
+      .filter((s, i, arr) => s && arr.indexOf(s) === i) // unique
+  }
 
   const distractors: string[] = []
   // 풀에서 우선 3개 추출 (셔플 후 앞 3)
@@ -113,8 +121,10 @@ export async function GET() {
   return NextResponse.json(payload)
 }
 
+// phraseId 는 DB UUID 또는 "fallback-YYYY-MM-DD" sentinel 둘 다 허용.
+// sentinel 인 경우 user_quiz_results FK 위반을 피해 insert skip.
 const PostSchema = z.object({
-  phraseId: z.string().uuid(),
+  phraseId: z.string().min(1),
   isCorrect: z.boolean(),
 })
 
@@ -134,6 +144,10 @@ export async function POST(request: Request) {
       { error: "invalid_body", issues: parsed.error.issues },
       { status: 400 }
     )
+  }
+
+  if (parsed.data.phraseId.startsWith("fallback-")) {
+    return NextResponse.json({ ok: true, skipped: "fallback_phrase" })
   }
 
   const { error } = await supabase.from("user_quiz_results").insert({
