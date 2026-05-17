@@ -17,10 +17,19 @@
 //   - 카드 클릭 → 상세 모달 (backdrop, original_name, cast, OTT, networks, episode, trailer, OST)
 //   - API 응답 camelCase 적용
 
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import {
   Star,
   Plus,
@@ -31,12 +40,13 @@ import {
   ListChecks,
   X as CloseIcon,
   CalendarPlus,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
 } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
-import { ServiceComingSoonBanner } from "@/components/early-access/service-coming-soon-banner"
 import type { DramaApi } from "@/lib/dramas/mapper"
 
 // 필터 칩 옵션
@@ -44,10 +54,31 @@ const GENRES = ["Romance", "Thriller", "Comedy", "Fantasy", "Historical"]
 const MOODS = ["Heartwarming", "Intense", "Light", "Emotional"]
 const PLATFORMS = ["Netflix", "Viki", "Disney+"]
 
-const STATUS_FILTERS: { label: string; value: "ongoing" | "completed" }[] = [
+// Browse All 전용 필터 (Phase 2.1) — 모두 단일 선택형
+const BROWSE_STATUS_OPTIONS: { label: string; value: "all" | "ongoing" | "completed" }[] = [
+  { label: "All", value: "all" },
   { label: "On Air", value: "ongoing" },
   { label: "Ended", value: "completed" },
 ]
+
+const BROWSE_PLATFORM_OPTIONS: { label: string; value: string }[] = [
+  { label: "All", value: "all" },
+  { label: "Netflix", value: "Netflix" },
+  { label: "Viki", value: "Viki" },
+  { label: "Disney+", value: "Disney+" },
+  { label: "Amazon", value: "Amazon" },
+]
+
+type BrowseSort = "popularity" | "rating" | "latest" | "next_episode"
+const BROWSE_SORT_OPTIONS: { label: string; value: BrowseSort }[] = [
+  { label: "Popularity", value: "popularity" },
+  { label: "Rating", value: "rating" },
+  { label: "Latest", value: "latest" },
+  { label: "Next Episode", value: "next_episode" },
+]
+
+// 페이지네이션 — 페이지당 24건 (4×6 grid)
+const BROWSE_PAGE_SIZE = 24
 
 // API 응답 타입 — camelCase (Phase 2 mapper.ts 와 통일)
 type ApiDrama = DramaApi
@@ -92,17 +123,66 @@ function buildGoogleCalendarUrlForDrama(
   return `https://calendar.google.com/calendar/render?${params.toString()}`
 }
 
-// next_episode_date → D-Day 라벨
+// next_episode_date → D-Day 라벨 (Asia/Seoul 기준)
+//
+// 규칙 (Phase 2.1 — 2026-05-18):
+//   - null 또는 과거 날짜 → "Check official schedule"
+//     (next_episode_date 가 오늘보다 과거면 TMDB 데이터가 stale — 다음 ingest 까지 신뢰 X)
+//   - 오늘 = 정확히 동일 YYYY-MM-DD → "New episode today!"
+//   - 내일 (+1) → "New episode tomorrow"
+//   - 2~6일 후 → "New episode in N days"
+//   - 7일 이상 → "Mar 25" 같은 절대 날짜
+//
+// 날짜 비교는 Asia/Seoul 기준 — 한국 방영 일정 기준이라 글로벌 유저의 로컬 자정으로 잘못 판정하는 케이스 차단
 function buildDDayLabel(nextEpisodeDate: string | null): string {
-  if (!nextEpisodeDate) return "Check schedule"
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const target = new Date(nextEpisodeDate + "T00:00:00")
+  if (!nextEpisodeDate) return "Check official schedule"
+
+  // Asia/Seoul 오늘 YYYY-MM-DD — sv-SE locale 이 ISO 형식 출력
+  const seoulToday = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
+
+  if (nextEpisodeDate === seoulToday) return "New episode today!"
+  if (nextEpisodeDate < seoulToday) return "Check official schedule" // 과거 — stale data
+
+  // 미래 날짜 — 일수 계산 (UTC 자정 기준 — 양쪽 같은 TZ 라 결과 동일)
+  const target = new Date(nextEpisodeDate + "T00:00:00Z")
+  const today = new Date(seoulToday + "T00:00:00Z")
   const diffDays = Math.round((target.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
-  if (diffDays <= 0) return "New episode today!"
+
   if (diffDays === 1) return "New episode tomorrow"
   if (diffDays <= 6) return `New episode in ${diffDays} days`
-  return target.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  return target.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+}
+
+// 페이지네이션 번호 배열 빌더 (Phase 2.1)
+//
+// 현재 페이지 기준 ±2 범위 + 처음/마지막 + 필요 시 생략 부호.
+// 예: 총 10페이지, 현재 5 → [1, "...", 3, 4, 5, 6, 7, "...", 10]
+//     총 3페이지, 현재 2 → [1, 2, 3]
+function buildPageNumbers(current: number, total: number): Array<number | "ellipsis"> {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1)
+  }
+  const out: Array<number | "ellipsis"> = []
+  out.push(1)
+  if (current > 4) out.push("ellipsis")
+  const start = Math.max(2, current - 2)
+  const end = Math.min(total - 1, current + 2)
+  for (let p = start; p <= end; p++) out.push(p)
+  if (current < total - 3) out.push("ellipsis")
+  out.push(total)
+  return out
+}
+
+// 표시용 제목 선택 — 영문 우선, 없으면 한글 fallback (Phase 2.1)
+//
+// 이미 ingest 단계에서 title = c.name (영문) || c.original_name (한글) fallback 처리됨.
+// 따라서 drama.title 은 항상 무언가 들어있음 (DB NOT NULL).
+// 본 헬퍼는 frontend 단의 추가 방어층 — title 이 (예: 빈 문자열) 인 경우만 originalName fallback.
+function getDisplayTitle(drama: ApiDrama): string {
+  const t = (drama.title ?? "").trim()
+  if (t) return t
+  const o = (drama.originalName ?? "").trim()
+  return o || "Untitled"
 }
 
 function Chip({
@@ -157,6 +237,7 @@ function DramaCard({
   onAdd: (dramaId: string) => void
   onOpenDetail: (dramaId: string) => void
 }) {
+  const displayTitle = getDisplayTitle(drama)
   return (
     <div className="bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors group">
       <button
@@ -168,7 +249,7 @@ function DramaCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={drama.posterUrl}
-            alt={drama.title}
+            alt={displayTitle}
             className="absolute inset-0 w-full h-full object-cover"
           />
         ) : (
@@ -186,7 +267,7 @@ function DramaCard({
 
       <div className="p-4">
         <h3 className="text-foreground font-semibold text-sm mb-2 line-clamp-1">
-          {drama.title}
+          {displayTitle}
         </h3>
 
         <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -250,6 +331,7 @@ function TrendingCard({
   onOpenDetail: (id: string) => void
 }) {
   const d = item.drama
+  const displayTitle = getDisplayTitle(d)
   return (
     <div className="flex-shrink-0 w-[180px] bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors">
       <button
@@ -261,7 +343,7 @@ function TrendingCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={d.posterUrl}
-            alt={d.title}
+            alt={displayTitle}
             className="absolute inset-0 w-full h-full object-cover"
           />
         ) : (
@@ -286,7 +368,7 @@ function TrendingCard({
         </span>
       </button>
       <div className="p-3">
-        <h4 className="text-foreground font-medium text-sm line-clamp-1">{d.title}</h4>
+        <h4 className="text-foreground font-medium text-sm line-clamp-1">{displayTitle}</h4>
         <p className="text-muted-foreground text-xs mt-1">
           {d.genre ?? "Drama"} · {d.year ?? "—"}
         </p>
@@ -319,14 +401,21 @@ function NowAiringCard({
   drama: ApiDrama
   onOpenDetail: (id: string) => void
 }) {
+  const displayTitle = getDisplayTitle(drama)
   const dDayLabel = buildDDayLabel(drama.nextEpisodeDate)
-  const canSchedule = drama.nextEpisodeDate != null
+  // Asia/Seoul 기준 next_episode_date 가 오늘 이상 (미래 포함) 일 때만 캘린더 등록 의미 있음.
+  // 과거·null 은 stale 또는 미확정이라 추가 비활성.
+  const canSchedule = (() => {
+    if (!drama.nextEpisodeDate) return false
+    const seoulToday = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
+    return drama.nextEpisodeDate >= seoulToday
+  })()
 
   const handleAddToCalendar = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (!canSchedule) return
     const url = buildGoogleCalendarUrlForDrama(
-      drama.title,
+      displayTitle,
       drama.nextEpisodeDate!,
       drama.overview ?? undefined
     )
@@ -335,7 +424,8 @@ function NowAiringCard({
 
   return (
     <div
-      className="flex-shrink-0 w-[260px] bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors"
+      data-na-card
+      className="flex-shrink-0 w-[260px] bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors snap-start"
     >
       <button
         type="button"
@@ -346,7 +436,7 @@ function NowAiringCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={drama.backdropPath ?? drama.posterUrl!}
-            alt={drama.title}
+            alt={displayTitle}
             className="absolute inset-0 w-full h-full object-cover"
           />
         ) : (
@@ -356,7 +446,7 @@ function NowAiringCard({
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
         <div className="absolute bottom-2 left-3 right-3 text-left">
-          <p className="text-white text-sm font-semibold line-clamp-1">{drama.title}</p>
+          <p className="text-white text-sm font-semibold line-clamp-1">{displayTitle}</p>
         </div>
       </button>
       <div className="p-3">
@@ -497,23 +587,26 @@ function DramaDetailModal({
             <CloseIcon className="w-4 h-4 text-white" />
           </button>
 
-          {/* Backdrop */}
+          {/* Backdrop + 제목 */}
+          {/* displayTitle 은 영문 우선 → 한글 fallback. originalName 은 한글 (있을 때만 subtitle). */}
           <div className="w-full aspect-video bg-[#252525] relative">
             {drama && (drama.backdropPath || drama.posterUrl) ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={drama.backdropPath ?? drama.posterUrl!}
-                alt={drama.title}
+                alt={getDisplayTitle(drama)}
                 className="absolute inset-0 w-full h-full object-cover"
               />
             ) : null}
             <div className="absolute inset-0 bg-gradient-to-t from-[#141418] via-[#141418]/50 to-transparent" />
             {drama && (
               <div className="absolute bottom-4 left-6 right-6">
-                <h2 className="text-white text-2xl font-bold mb-1">{drama.title}</h2>
-                {drama.originalName && drama.originalName !== drama.title && (
-                  <p className="text-white/70 text-sm">{drama.originalName}</p>
-                )}
+                <h2 className="text-white text-2xl font-bold mb-1">{getDisplayTitle(drama)}</h2>
+                {drama.originalName &&
+                  drama.originalName.trim() &&
+                  drama.originalName !== getDisplayTitle(drama) && (
+                    <p className="text-white/70 text-sm">{drama.originalName}</p>
+                  )}
               </div>
             )}
           </div>
@@ -695,74 +788,89 @@ function DramaDetailModal({
                 </div>
               )}
 
-              {/* Pro 전용 — AI episode summary */}
-              {isPro && (
-                <div>
-                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2 flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
-                    AI Episode Summary
-                  </p>
-                  {aiSummaryLoading ? (
-                    <p className="text-muted-foreground text-sm">Generating...</p>
-                  ) : aiSummary ? (
-                    <p className="text-foreground/90 text-sm leading-relaxed whitespace-pre-wrap">
-                      {aiSummary}
+              {/* Pro 전용 — AI episode summary + character map (Phase 2.1)
+                  비-Pro 도 항상 렌더링하되 blur + 오버레이 — 페이지 하단 "AI Drama Summary" 섹션 동일 패턴.
+                  Pro 미체결 유저에게 가치 미리보기 + 결제 유도. */}
+              <div className="relative">
+                <div
+                  className={`space-y-6 ${
+                    isPro ? "" : "blur-[4px] pointer-events-none select-none"
+                  }`}
+                >
+                  <div>
+                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2 flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
+                      AI Episode Summary
                     </p>
-                  ) : (
-                    <p className="text-muted-foreground text-sm">
-                      Summary unavailable for this drama.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Pro 전용 — AI character map */}
-              {isPro && (
-                <div>
-                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2 flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
-                    Character Map
-                  </p>
-                  {aiCharactersLoading ? (
-                    <p className="text-muted-foreground text-sm">Generating...</p>
-                  ) : aiCharacters ? (
-                    <p className="text-foreground/90 text-sm leading-relaxed whitespace-pre-wrap">
-                      {aiCharacters}
-                    </p>
-                  ) : (
-                    <p className="text-muted-foreground text-sm">
-                      Character map unavailable for this drama.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* 비-Pro 잠금 안내 */}
-              {!isPro && (
-                <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex items-center gap-3">
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
-                  >
-                    <Lock className="w-4 h-4" style={{ color: "#FF4B6E" }} />
+                    {isPro && aiSummaryLoading ? (
+                      <p className="text-muted-foreground text-sm">Generating...</p>
+                    ) : isPro && aiSummary ? (
+                      <p className="text-foreground/90 text-sm leading-relaxed whitespace-pre-wrap">
+                        {aiSummary}
+                      </p>
+                    ) : isPro ? (
+                      <p className="text-muted-foreground text-sm">
+                        Summary unavailable for this drama.
+                      </p>
+                    ) : (
+                      // 비-Pro placeholder — blur 처리되어 실제 내용 보이지 않음, 레이아웃 공간 확보용
+                      <p className="text-foreground/90 text-sm leading-relaxed">
+                        Episode-by-episode AI summary highlighting key plot points, character
+                        development, and emotional beats — generated from the synopsis.
+                      </p>
+                    )}
                   </div>
-                  <div className="flex-1">
-                    <p className="text-foreground text-sm font-medium">
-                      AI episode summary &amp; character map
+
+                  <div>
+                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2 flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
+                      Character Map
                     </p>
-                    <p className="text-muted-foreground text-xs">
-                      Coming with Hallyu Pass.
-                    </p>
+                    {isPro && aiCharactersLoading ? (
+                      <p className="text-muted-foreground text-sm">Generating...</p>
+                    ) : isPro && aiCharacters ? (
+                      <p className="text-foreground/90 text-sm leading-relaxed whitespace-pre-wrap">
+                        {aiCharacters}
+                      </p>
+                    ) : isPro ? (
+                      <p className="text-muted-foreground text-sm">
+                        Character map unavailable for this drama.
+                      </p>
+                    ) : (
+                      <p className="text-foreground/90 text-sm leading-relaxed">
+                        Main characters with relationships, family ties, and romantic arcs across
+                        the series — auto-generated for every drama.
+                      </p>
+                    )}
                   </div>
-                  <Link
-                    href="/signup"
-                    className="text-xs font-medium px-3 py-1.5 rounded-full text-white whitespace-nowrap"
-                    style={{ backgroundColor: "#FF4B6E" }}
-                  >
-                    Notify me at launch
-                  </Link>
                 </div>
-              )}
+
+                {!isPro && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-5 text-center shadow-xl max-w-sm">
+                      <div
+                        className="w-11 h-11 rounded-full flex items-center justify-center mx-auto mb-3"
+                        style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
+                      >
+                        <Lock className="w-5 h-5" style={{ color: "#FF4B6E" }} />
+                      </div>
+                      <p className="text-foreground font-medium mb-1.5">
+                        Coming with Hallyu Pass
+                      </p>
+                      <p className="text-muted-foreground text-xs mb-4">
+                        AI episode summary + character map arrive at launch.
+                      </p>
+                      <Link
+                        href="/signup"
+                        className="inline-block text-xs font-medium px-4 py-2 rounded-full text-white whitespace-nowrap"
+                        style={{ backgroundColor: "#FF4B6E" }}
+                      >
+                        Notify me at launch
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -774,8 +882,19 @@ function DramaDetailModal({
 // ──────────────────────────────────────────────────────────────
 // Page
 // ──────────────────────────────────────────────────────────────
+// useSearchParams 는 Suspense 경계 필수 — 정적 prerender 안전 처리 (login/page.tsx 동일 패턴).
 export default function KdramaMatchPage() {
+  return (
+    <Suspense fallback={null}>
+      <KdramaMatchPageInner />
+    </Suspense>
+  )
+}
+
+function KdramaMatchPageInner() {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   const [selectedGenres, setSelectedGenres] = useState<string[]>([])
   const [selectedMoods, setSelectedMoods] = useState<string[]>([])
@@ -789,14 +908,69 @@ export default function KdramaMatchPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [isPro, setIsPro] = useState(false)
 
-  const [browseGenres, setBrowseGenres] = useState<string[]>([])
-  const [browseStatus, setBrowseStatus] = useState<("ongoing" | "completed")[]>([])
-  const [browseYear, setBrowseYear] = useState<string>("all")
+  // Browse All — URL 쿼리 파라미터에서 초기 상태 읽기 (뒤로가기 시 필터 유지)
+  //   ?genre=Romance&genre=Thriller  (multi)
+  //   ?status=ongoing | completed | (omit=all)
+  //   ?year=2024 | (omit=all)
+  //   ?platform=Netflix | (omit=all)
+  //   ?sort=popularity (default) | rating | latest | next_episode
+  //   ?page=2 (default 1)
+  const [browseGenres, setBrowseGenres] = useState<string[]>(() =>
+    searchParams.getAll("genre")
+  )
+  const [browseStatus, setBrowseStatus] = useState<"all" | "ongoing" | "completed">(() => {
+    const s = searchParams.get("status")
+    return s === "ongoing" || s === "completed" ? s : "all"
+  })
+  const [browseYear, setBrowseYear] = useState<string>(() =>
+    searchParams.get("year") ?? "all"
+  )
+  const [browsePlatform, setBrowsePlatform] = useState<string>(() =>
+    searchParams.get("platform") ?? "all"
+  )
+  const [browseSort, setBrowseSort] = useState<BrowseSort>(() => {
+    const s = searchParams.get("sort")
+    return s === "rating" || s === "latest" || s === "next_episode" || s === "popularity"
+      ? s
+      : "popularity"
+  })
+  const [browsePage, setBrowsePage] = useState<number>(() => {
+    const p = Number(searchParams.get("page"))
+    return Number.isInteger(p) && p > 0 ? p : 1
+  })
+
   const [browseAll, setBrowseAll] = useState<ApiDrama[]>([])
+  const [browseTotal, setBrowseTotal] = useState<number>(0)
   const [browseLoading, setBrowseLoading] = useState(true)
+
+  // Browse All 섹션 ref — 페이지 변경 시 자동 스크롤 타깃
+  const browseSectionRef = useRef<HTMLElement>(null)
 
   const [trending, setTrending] = useState<TrendingItem[]>([])
   const [nowAiring, setNowAiring] = useState<ApiDrama[]>([])
+
+  // Now Airing 가로 스크롤 — 카드 1개씩 이동 + 양끝 화살표 노출 제어
+  // HallyuCalendar Featured 패턴 변형 (전체 폭이 아닌 카드 단위 step)
+  const nowAiringScrollRef = useRef<HTMLDivElement>(null)
+  const [naCanScrollLeft, setNaCanScrollLeft] = useState(false)
+  const [naCanScrollRight, setNaCanScrollRight] = useState(false)
+
+  const updateNaScrollState = useCallback(() => {
+    const el = nowAiringScrollRef.current
+    if (!el) return
+    // 부동소수 오차 1px 허용
+    setNaCanScrollLeft(el.scrollLeft > 0)
+    setNaCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+
+  const scrollNowAiring = (dir: "left" | "right") => {
+    const el = nowAiringScrollRef.current
+    if (!el) return
+    // 첫 카드 element 의 실제 width 측정 + gap-4 (16px) 보정 — 카드 width 변경에도 자동 대응
+    const firstCard = el.querySelector<HTMLElement>("[data-na-card]")
+    const step = firstCard ? firstCard.offsetWidth + 16 : 276
+    el.scrollBy({ left: dir === "left" ? -step : step, behavior: "smooth" })
+  }
 
   // Drama detail modal — 단일 modal 인스턴스 + 활성 drama_id
   const [modalDramaId, setModalDramaId] = useState<string | null>(null)
@@ -819,26 +993,61 @@ export default function KdramaMatchPage() {
     })
   }, [])
 
-  // 2. Browse all fetch
+  // 2. Browse all fetch + URL 동기화 (Phase 2.1)
+  //    fetch query 와 URL 쿼리 모두 동일 파라미터로 빌드. 페이지네이션 offset 계산 = (page-1)*size.
   useEffect(() => {
     const ctrl = new AbortController()
-    const params = new URLSearchParams()
-    for (const g of browseGenres) params.append("genre", g)
-    for (const s of browseStatus) params.append("status", s)
-    if (browseYear !== "all") params.append("year", browseYear)
+
+    // API 호출용 쿼리
+    const apiParams = new URLSearchParams()
+    for (const g of browseGenres) apiParams.append("genre", g)
+    if (browseStatus !== "all") apiParams.append("status", browseStatus)
+    if (browseYear !== "all") apiParams.append("year", browseYear)
+    if (browsePlatform !== "all") apiParams.append("platform", browsePlatform)
+    apiParams.set("sort", browseSort)
+    apiParams.set("limit", String(BROWSE_PAGE_SIZE))
+    apiParams.set("offset", String((browsePage - 1) * BROWSE_PAGE_SIZE))
+
+    // URL 동기화 — 사용자 facing 쿼리는 page 만 노출 (offset/limit 은 내부 계산)
+    const urlParams = new URLSearchParams()
+    for (const g of browseGenres) urlParams.append("genre", g)
+    if (browseStatus !== "all") urlParams.set("status", browseStatus)
+    if (browseYear !== "all") urlParams.set("year", browseYear)
+    if (browsePlatform !== "all") urlParams.set("platform", browsePlatform)
+    if (browseSort !== "popularity") urlParams.set("sort", browseSort)
+    if (browsePage !== 1) urlParams.set("page", String(browsePage))
+    const queryStr = urlParams.toString()
+    const nextUrl = queryStr ? `${pathname}?${queryStr}` : pathname
+    // 현재 URL 과 동일하면 replace 생략 (불필요한 re-render 방지)
+    if (window.location.search.replace(/^\?/, "") !== queryStr) {
+      router.replace(nextUrl, { scroll: false })
+    }
 
     setBrowseLoading(true)
-    fetch(`/api/dramas?${params.toString()}`, { signal: ctrl.signal })
+    fetch(`/api/dramas?${apiParams.toString()}`, { signal: ctrl.signal })
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { dramas: ApiDrama[] }) => setBrowseAll(body.dramas ?? []))
+      .then((body: { dramas: ApiDrama[]; total: number | null }) => {
+        setBrowseAll(body.dramas ?? [])
+        setBrowseTotal(body.total ?? 0)
+      })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === "AbortError") return
         console.error("[drama] browse fetch 실패:", err)
         setBrowseAll([])
+        setBrowseTotal(0)
       })
       .finally(() => setBrowseLoading(false))
     return () => ctrl.abort()
-  }, [browseGenres, browseStatus, browseYear])
+  }, [
+    browseGenres,
+    browseStatus,
+    browseYear,
+    browsePlatform,
+    browseSort,
+    browsePage,
+    pathname,
+    router,
+  ])
 
   // 3. Trending fetch
   useEffect(() => {
@@ -862,11 +1071,29 @@ export default function KdramaMatchPage() {
       })
   }, [])
 
+  // Now Airing 스크롤 상태 동기화 — nowAiring 변경, 스크롤, 뷰포트 리사이즈 모두 반영
+  useEffect(() => {
+    if (nowAiring.length === 0) return
+    // nowAiring 변경 직후 DOM 렌더 완료를 기다림 (rAF)
+    const raf = requestAnimationFrame(updateNaScrollState)
+    const el = nowAiringScrollRef.current
+    if (!el) return () => cancelAnimationFrame(raf)
+    el.addEventListener("scroll", updateNaScrollState, { passive: true })
+    const ro = new ResizeObserver(updateNaScrollState)
+    ro.observe(el)
+    return () => {
+      cancelAnimationFrame(raf)
+      el.removeEventListener("scroll", updateNaScrollState)
+      ro.disconnect()
+    }
+  }, [nowAiring, updateNaScrollState])
+
+  // 연도 옵션 — 최근 8년 + "All". 페이지네이션 도입 후 browseAll(현 페이지) 에서 추출하면 페이지마다
+  // 옵션이 달라지는 문제 발생 → 고정 리스트로 박제.
   const yearOptions = useMemo(() => {
-    const years = new Set<number>()
-    for (const d of browseAll) if (d.year) years.add(d.year)
-    return Array.from(years).sort((a, b) => b - a).slice(0, 8)
-  }, [browseAll])
+    const currentYear = new Date().getFullYear()
+    return Array.from({ length: 8 }, (_, i) => currentYear - i)
+  }, [])
 
   const toggleSelection = (
     item: string,
@@ -877,11 +1104,40 @@ export default function KdramaMatchPage() {
     else setSelected([...selected, item])
   }
 
-  const toggleBrowseStatus = (s: "ongoing" | "completed") => {
-    setBrowseStatus((prev) =>
-      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+  // 필터 변경 시 페이지 1로 리셋하는 래퍼 (Phase 2.1)
+  const toggleBrowseGenre = (g: string) => {
+    setBrowseGenres((prev) =>
+      prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
     )
+    setBrowsePage(1)
   }
+  const setBrowseStatusReset = (v: "all" | "ongoing" | "completed") => {
+    setBrowseStatus(v)
+    setBrowsePage(1)
+  }
+  const setBrowseYearReset = (v: string) => {
+    setBrowseYear(v)
+    setBrowsePage(1)
+  }
+  const setBrowsePlatformReset = (v: string) => {
+    setBrowsePlatform(v)
+    setBrowsePage(1)
+  }
+  const setBrowseSortReset = (v: BrowseSort) => {
+    setBrowseSort(v)
+    setBrowsePage(1)
+  }
+
+  // 페이지 변경 — Browse All 섹션 상단으로 부드럽게 스크롤
+  const changeBrowsePage = (next: number) => {
+    setBrowsePage(next)
+    // 다음 프레임에 scroll — fetch 시작 시점과 분리
+    requestAnimationFrame(() => {
+      browseSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  }
+
+  const browseTotalPages = Math.max(1, Math.ceil(browseTotal / BROWSE_PAGE_SIZE))
 
   const handleGetRecommendations = useCallback(async () => {
     setRecommendError(null)
@@ -935,17 +1191,14 @@ export default function KdramaMatchPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <ServiceComingSoonBanner
-        serviceName="KdramaMatch"
-        serviceLabel="KdramaMatch"
-        source="drama-page"
-      />
       <main className="max-w-[1320px] mx-auto px-6 py-12">
         {/* ─── 1. Hero ──────────────────────────────── */}
+        {/* 2026-05-18 Phase 2.1 — Soon 배너 제거 (서비스 정식 노출).
+            HangeulGo / KfoodKit 등 미구현 서비스는 ServiceComingSoonBanner 유지. */}
         <section className="text-center mb-10">
           <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">KdramaMatch</h1>
           <p className="text-muted-foreground text-lg">
-            AI-powered K-drama recommendations, just for you
+            AI-powered K-drama recommendations, curated just for you.
           </p>
           <p className="text-muted-foreground/70 text-xs mt-3">
             {isAuthenticated === false
@@ -955,6 +1208,9 @@ export default function KdramaMatchPage() {
         </section>
 
         {/* ─── 2. Now Airing ─────────────────────────── */}
+        {/* 가로 스크롤 — 스크롤바 숨김 + 좌우 화살표 (카드 1개씩 step).
+            HallyuCalendar Featured 패턴 변형: clientWidth 가 아닌 첫 카드 offsetWidth + gap.
+            양끝 도달 시 해당 방향 화살표 자동 숨김 (naCanScrollLeft/Right). */}
         {nowAiring.length > 0 && (
           <section className="mb-16">
             <div className="flex items-center gap-2 mb-6">
@@ -965,10 +1221,36 @@ export default function KdramaMatchPage() {
               <h2 className="text-2xl font-semibold text-foreground">Now Airing</h2>
               <span className="text-muted-foreground text-sm">· Next episode countdown</span>
             </div>
-            <div className="flex gap-4 overflow-x-auto pb-2 -mx-6 px-6">
-              {nowAiring.map((d) => (
-                <NowAiringCard key={d.id} drama={d} onOpenDetail={openModal} />
-              ))}
+            <div className="relative group">
+              <div
+                ref={nowAiringScrollRef}
+                className="flex gap-4 overflow-x-auto pb-2 -mx-6 px-6 snap-x snap-proximity [&::-webkit-scrollbar]:hidden"
+                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+              >
+                {nowAiring.map((d) => (
+                  <NowAiringCard key={d.id} drama={d} onOpenDetail={openModal} />
+                ))}
+              </div>
+              {naCanScrollLeft && (
+                <button
+                  type="button"
+                  onClick={() => scrollNowAiring("left")}
+                  aria-label="Scroll now airing left"
+                  className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-[#1a1a1a]/90 backdrop-blur-sm border border-border/30 items-center justify-center text-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#1a1a1a]"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
+              {naCanScrollRight && (
+                <button
+                  type="button"
+                  onClick={() => scrollNowAiring("right")}
+                  aria-label="Scroll now airing right"
+                  className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-[#1a1a1a]/90 backdrop-blur-sm border border-border/30 items-center justify-center text-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#1a1a1a]"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </section>
         )}
@@ -1092,13 +1374,17 @@ export default function KdramaMatchPage() {
           </section>
         )}
 
-        {/* ─── 6. Browse all ────────────────────────── */}
-        <section className="mb-16">
+        {/* ─── 6. Browse all ──────────────────────────
+            Phase 2.1 — 페이지당 24건 + 페이지네이션 + 필터 강화 (Status/Platform/Sort).
+            필터 칩 스타일은 기존 Chip 컴포넌트 유지 (UI 동결). 필터 변경 시 page 1 리셋.
+            URL 쿼리 동기화로 뒤로가기·새로고침에서 상태 보존. */}
+        <section ref={browseSectionRef} className="mb-16 scroll-mt-24">
           <h2 className="text-2xl font-semibold text-foreground mb-4">Browse all dramas</h2>
 
           <div className="space-y-3 mb-6">
+            {/* Genre — 멀티 선택 */}
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-muted-foreground text-xs uppercase tracking-wider w-16 flex-shrink-0">
+              <span className="text-muted-foreground text-xs uppercase tracking-wider w-20 flex-shrink-0">
                 Genre
               </span>
               {GENRES.map((g) => (
@@ -1106,43 +1392,75 @@ export default function KdramaMatchPage() {
                   key={g}
                   label={g}
                   selected={browseGenres.includes(g)}
-                  onClick={() => toggleSelection(g, browseGenres, setBrowseGenres)}
+                  onClick={() => toggleBrowseGenre(g)}
                 />
               ))}
             </div>
+
+            {/* Status — 단일 선택 (All / On Air / Ended) */}
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-muted-foreground text-xs uppercase tracking-wider w-16 flex-shrink-0">
+              <span className="text-muted-foreground text-xs uppercase tracking-wider w-20 flex-shrink-0">
                 Status
               </span>
-              {STATUS_FILTERS.map((s) => (
+              {BROWSE_STATUS_OPTIONS.map((s) => (
                 <Chip
                   key={s.value}
                   label={s.label}
-                  selected={browseStatus.includes(s.value)}
-                  onClick={() => toggleBrowseStatus(s.value)}
+                  selected={browseStatus === s.value}
+                  onClick={() => setBrowseStatusReset(s.value)}
                 />
               ))}
             </div>
-            {yearOptions.length > 0 && (
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-muted-foreground text-xs uppercase tracking-wider w-16 flex-shrink-0">
-                  Year
-                </span>
+
+            {/* Platform — 단일 선택 (All / Netflix / Viki / Disney+ / Amazon) */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-muted-foreground text-xs uppercase tracking-wider w-20 flex-shrink-0">
+                Platform
+              </span>
+              {BROWSE_PLATFORM_OPTIONS.map((p) => (
                 <Chip
-                  label="All years"
-                  selected={browseYear === "all"}
-                  onClick={() => setBrowseYear("all")}
+                  key={p.value}
+                  label={p.label}
+                  selected={browsePlatform === p.value}
+                  onClick={() => setBrowsePlatformReset(p.value)}
                 />
-                {yearOptions.map((y) => (
-                  <Chip
-                    key={y}
-                    label={String(y)}
-                    selected={browseYear === String(y)}
-                    onClick={() => setBrowseYear(String(y))}
-                  />
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
+
+            {/* Year — 최근 8년 + All (옵션) */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-muted-foreground text-xs uppercase tracking-wider w-20 flex-shrink-0">
+                Year
+              </span>
+              <Chip
+                label="All years"
+                selected={browseYear === "all"}
+                onClick={() => setBrowseYearReset("all")}
+              />
+              {yearOptions.map((y) => (
+                <Chip
+                  key={y}
+                  label={String(y)}
+                  selected={browseYear === String(y)}
+                  onClick={() => setBrowseYearReset(String(y))}
+                />
+              ))}
+            </div>
+
+            {/* Sort — 단일 선택 (Popularity / Rating / Latest / Next Episode) */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-muted-foreground text-xs uppercase tracking-wider w-20 flex-shrink-0">
+                Sort
+              </span>
+              {BROWSE_SORT_OPTIONS.map((s) => (
+                <Chip
+                  key={s.value}
+                  label={s.label}
+                  selected={browseSort === s.value}
+                  onClick={() => setBrowseSortReset(s.value)}
+                />
+              ))}
+            </div>
           </div>
 
           {browseLoading ? (
@@ -1152,16 +1470,79 @@ export default function KdramaMatchPage() {
               No dramas match the current filters.
             </p>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {browseAll.map((d) => (
-                <DramaCard
-                  key={d.id}
-                  drama={d}
-                  onAdd={handleAddToWatchlist}
-                  onOpenDetail={openModal}
-                />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {browseAll.map((d) => (
+                  <DramaCard
+                    key={d.id}
+                    drama={d}
+                    onAdd={handleAddToWatchlist}
+                    onOpenDetail={openModal}
+                  />
+                ))}
+              </div>
+
+              {/* 페이지네이션 — shadcn/ui Pagination (이전/페이지 번호/다음) */}
+              {browseTotalPages > 1 && (
+                <Pagination className="mt-8">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          if (browsePage > 1) changeBrowsePage(browsePage - 1)
+                        }}
+                        className={
+                          browsePage <= 1
+                            ? "pointer-events-none opacity-50"
+                            : "cursor-pointer"
+                        }
+                      />
+                    </PaginationItem>
+
+                    {/* 페이지 번호 — 현재 페이지 ±2 + 처음/끝 + 생략 부호 */}
+                    {buildPageNumbers(browsePage, browseTotalPages).map((p, idx) =>
+                      p === "ellipsis" ? (
+                        <PaginationItem key={`e-${idx}`}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      ) : (
+                        <PaginationItem key={p}>
+                          <PaginationLink
+                            href="#"
+                            isActive={p === browsePage}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              if (p !== browsePage) changeBrowsePage(p)
+                            }}
+                            className="cursor-pointer"
+                          >
+                            {p}
+                          </PaginationLink>
+                        </PaginationItem>
+                      )
+                    )}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          if (browsePage < browseTotalPages)
+                            changeBrowsePage(browsePage + 1)
+                        }}
+                        className={
+                          browsePage >= browseTotalPages
+                            ? "pointer-events-none opacity-50"
+                            : "cursor-pointer"
+                        }
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
+            </>
           )}
         </section>
 

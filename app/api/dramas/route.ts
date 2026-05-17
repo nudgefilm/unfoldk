@@ -17,12 +17,14 @@ import { mapDramaRow, DRAMA_SELECT } from "@/lib/dramas/mapper"
 //   ?sort=rating|year|episode_count|popularity|latest  (기본 rating, 내림차순)
 //                               (latest = first_air_date 기준 — Phase 2 추가)
 //   ?offset=0                   (페이지네이션 — 기본 0)
+//   ?limit=24                   (페이지 크기 — 기본 100, max 100. Phase 2.1 추가)
 //
-// 노출 한도: 비로그인 포함 모든 유저 동일 — 100개.
+// 노출 한도: 비로그인 포함 모든 유저 동일 — 최대 100개.
 
 export const dynamic = "force-dynamic"
 
-const BROWSE_LIMIT = 100
+const BROWSE_LIMIT_MAX = 100
+const BROWSE_LIMIT_DEFAULT = 100
 const STATUS_VALUES = ["ongoing", "completed"] as const
 // Phase 2 — popularity / latest / next_episode 정렬 추가
 const SORT_VALUES = [
@@ -47,6 +49,7 @@ const QuerySchema = z.object({
   q: z.string().trim().min(1).max(60).optional(),
   sort: z.enum(SORT_VALUES).default("rating"),
   offset: z.coerce.number().int().min(0).max(1000).default(0),
+  limit: z.coerce.number().int().min(1).max(BROWSE_LIMIT_MAX).default(BROWSE_LIMIT_DEFAULT),
 })
 
 export async function GET(request: Request) {
@@ -64,6 +67,7 @@ export async function GET(request: Request) {
     q: url.searchParams.get("q") ?? undefined,
     sort: url.searchParams.get("sort") ?? undefined,
     offset: url.searchParams.get("offset") ?? undefined,
+    limit: url.searchParams.get("limit") ?? undefined,
   }
 
   const parsed = QuerySchema.safeParse(raw)
@@ -85,10 +89,10 @@ export async function GET(request: Request) {
     q,
     sort,
     offset,
+    limit,
   } = parsed.data
 
   const supabase = await createSupabaseServerClient()
-  const limit = BROWSE_LIMIT
 
   let query = supabase.from("dramas").select(DRAMA_SELECT, { count: "exact" })
 

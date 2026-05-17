@@ -2,11 +2,18 @@
 // TMDB top_rated + discover/tv KR 두 소스를 dramas 테이블로 upsert.
 //
 // 멱등성: tmdb_id unique 제약 → onConflict 갱신.
-// 호출량 (Phase 2):
-//   - 후보 ~80건 + 각 건당 /tv/{id}?append_to_response=credits,videos,watch/providers 1회 ≈ 80 호출
-//   - append_to_response 로 4 req → 1 req 압축 (쿼터 절약)
 //
-// 캘린더 매핑 (Phase 2):
+// 수집 볼륨 (Phase 2.1 — 2026-05-18 확대):
+//   - popularity 1~8 페이지 (160건) + top_rated 1~3 페이지 (필터 후 ~30~45건)
+//   - 장르 필터 통과 후 ~150~180건 upsert 목표
+//   - detail fetch 동시 6개 제한 + append_to_response 통합 → 총 ~190콜 (TMDB 무료 티어 충분)
+//
+// 장르 필터 (Phase 2.1):
+//   - ALLOWED: Drama(18) / Mystery(9648) / Romance(10749 movie ID, 가끔 TV 응답에 포함) / Soap(10766 TV "Romance")
+//   - EXCLUDED: Reality(10764) / Talk(10767) / Animation(16)
+//   - Comedy(35) 단독 (allowed 없이) → 자연 제외 (allowed 조건 미통과)
+//
+// 캘린더 매핑:
 //   - upsert 후 source_api='tmdb' + title ILIKE 로 hallyu_calendar_events 매칭
 //   - 매칭 발견 시 dramas.calendar_event_id 백필
 
@@ -29,9 +36,14 @@ import {
 
 export interface DramaIngestResult {
   source: "tmdb-dramas"
-  scanned: number
+  scanned: number                     // dedup 직후 raw 후보 수
   upserted: number
   calendarLinked: number              // 매핑된 calendar_event_id 수
+  filteredOut?: {
+    byGenre: number                   // 버라이어티/리얼리티/애니메이션 제외
+    byMissingDetail: number           // TMDB detail fetch 실패 (보수적 제외)
+    byEmptyTitle: number              // name·original_name 모두 빈 값
+  }
   error?: string
   details?: string
   hint?: string
@@ -76,6 +88,25 @@ interface DramaUpsertRow {
   next_episode_date: string | null
   on_the_air: boolean
   is_active: boolean
+}
+
+// 장르 필터 — 버라이어티 / 리얼리티 / 애니메이션 제외 (Phase 2.1 정책)
+//   허용: Drama(18) / Mystery(9648) / Romance(10749) / Soap(10766 — TV Romance)
+//   제외: Reality(10764) / Talk(10767) / Animation(16)
+//   Comedy(35) 단독은 allowed 미통과로 자동 제외 (Comedy + Drama 조합은 keep)
+const ALLOWED_GENRE_IDS = new Set<number>([18, 9648, 10749, 10766])
+const EXCLUDED_GENRE_IDS = new Set<number>([10764, 10767, 16])
+
+function passesGenreFilter(
+  genres: ReadonlyArray<{ id: number; name: string }> | undefined | null
+): boolean {
+  if (!genres || genres.length === 0) return false
+  // 한 개라도 EXCLUDED 면 즉시 reject
+  for (const g of genres) {
+    if (EXCLUDED_GENRE_IDS.has(g.id)) return false
+  }
+  // ALLOWED 가 최소 1개는 있어야 통과 — Comedy 단독은 여기서 자연 제외
+  return genres.some((g) => ALLOWED_GENRE_IDS.has(g.id))
 }
 
 // TMDB 응답 → 우리 row 변환
@@ -160,19 +191,38 @@ function buildRow(c: TmdbTvShow, detail: TmdbTvDetail | null): DramaUpsertRow {
 }
 
 export async function runDramaIngest(): Promise<DramaIngestResult> {
-  // 1. 후보 수집 — 인기순 1~3 페이지(KR 60건) + top_rated 1~2 페이지(필터 후 ≈10~20건)
-  //    Promise.allSettled 로 부분 실패 허용. rejected 사유는 로그에 박제 (다른 cron 영향 진단용)
+  // 1. 후보 수집 — 인기순 1~8 페이지 (KR 160건) + top_rated 1~3 페이지 (필터 후 ≈30~45건)
+  //    Phase 2.1 확대 (60→150+) : popularity 5p 추가, top_rated 1p 추가.
+  //    Promise.allSettled 로 부분 실패 허용. rejected 사유는 로그에 박제.
   const sources = await Promise.allSettled([
     fetchKoreanDramasByPopularity(1),
     fetchKoreanDramasByPopularity(2),
     fetchKoreanDramasByPopularity(3),
+    fetchKoreanDramasByPopularity(4),
+    fetchKoreanDramasByPopularity(5),
+    fetchKoreanDramasByPopularity(6),
+    fetchKoreanDramasByPopularity(7),
+    fetchKoreanDramasByPopularity(8),
     fetchTopRatedKoreanDramas(1),
     fetchTopRatedKoreanDramas(2),
+    fetchTopRatedKoreanDramas(3),
   ])
 
   const all: TmdbTvShow[] = []
   const sourceErrors: string[] = []
-  const sourceLabels = ["popularity-p1", "popularity-p2", "popularity-p3", "top-rated-p1", "top-rated-p2"]
+  const sourceLabels = [
+    "popularity-p1",
+    "popularity-p2",
+    "popularity-p3",
+    "popularity-p4",
+    "popularity-p5",
+    "popularity-p6",
+    "popularity-p7",
+    "popularity-p8",
+    "top-rated-p1",
+    "top-rated-p2",
+    "top-rated-p3",
+  ]
   for (let i = 0; i < sources.length; i++) {
     const r = sources[i]
     if (r.status === "fulfilled") {
@@ -202,6 +252,7 @@ export async function runDramaIngest(): Promise<DramaIngestResult> {
       scanned: 0,
       upserted: 0,
       calendarLinked: 0,
+      filteredOut: { byGenre: 0, byMissingDetail: 0, byEmptyTitle: 0 },
       error: errSummary,
       note: "후보 0건 — 모든 TMDB 호출 실패 또는 빈 응답",
     }
@@ -252,12 +303,60 @@ export async function runDramaIngest(): Promise<DramaIngestResult> {
     )
   }
 
-  // 4. upsert row 변환
-  const rows: DramaUpsertRow[] = candidates.map((c) =>
+  // 4. 장르 필터 — 버라이어티/리얼리티/애니메이션 제외 (Phase 2.1)
+  //    detail 가 없는 후보 (fetch 실패) 는 장르 검증 불가 → 보수적으로 제외.
+  //    title 이 비어있는 (TMDB name + original_name 둘 다 없음) 후보도 NOT NULL 제약 회피용으로 제외.
+  let filteredOutByGenre = 0
+  let filteredOutByMissingDetail = 0
+  let filteredOutByEmptyTitle = 0
+  const filteredCandidates: TmdbTvShow[] = []
+  for (const c of candidates) {
+    const detail = details.get(c.id)
+    if (!detail) {
+      filteredOutByMissingDetail++
+      continue
+    }
+    const titleText = (c.name || c.original_name || "").trim()
+    if (!titleText) {
+      filteredOutByEmptyTitle++
+      continue
+    }
+    if (!passesGenreFilter(detail.genres)) {
+      filteredOutByGenre++
+      continue
+    }
+    filteredCandidates.push(c)
+  }
+  if (filteredOutByGenre + filteredOutByMissingDetail + filteredOutByEmptyTitle > 0) {
+    console.log(
+      `[ingest-dramas] 필터 결과 — 통과 ${filteredCandidates.length}/${candidates.length} (genre 제외 ${filteredOutByGenre}, detail 없음 ${filteredOutByMissingDetail}, title 없음 ${filteredOutByEmptyTitle})`
+    )
+  }
+
+  // 5. upsert row 변환
+  const rows: DramaUpsertRow[] = filteredCandidates.map((c) =>
     buildRow(c, details.get(c.id) ?? null)
   )
 
-  // 5. upsert
+  const filterStats = {
+    byGenre: filteredOutByGenre,
+    byMissingDetail: filteredOutByMissingDetail,
+    byEmptyTitle: filteredOutByEmptyTitle,
+  }
+
+  if (rows.length === 0) {
+    // 필터 후 0건 — 정상 case 아니지만 upsert 호출 자체를 회피 (PostgREST empty-array 에러 방지)
+    return {
+      source: "tmdb-dramas",
+      scanned: candidates.length,
+      upserted: 0,
+      calendarLinked: 0,
+      filteredOut: filterStats,
+      note: "장르 필터 + detail 검증 통과 row 0건 — TMDB 응답 점검 필요",
+    }
+  }
+
+  // 6. upsert
   const supabase = createSupabaseAdminClient()
   const { data, error } = await supabase
     .from("dramas")
@@ -280,6 +379,7 @@ export async function runDramaIngest(): Promise<DramaIngestResult> {
       scanned: candidates.length,
       upserted: 0,
       calendarLinked: 0,
+      filteredOut: filterStats,
       error: error.message || "(empty postgrest message)",
       details: error.details ?? undefined,
       hint: error.hint ?? undefined,
@@ -287,7 +387,7 @@ export async function runDramaIngest(): Promise<DramaIngestResult> {
     }
   }
 
-  // 6. 캘린더 자동 매핑 — source_api='tmdb' + title ILIKE artist_or_drama
+  // 7. 캘린더 자동 매핑 — source_api='tmdb' + title ILIKE artist_or_drama
   // 매칭 기준: dramas.title 가 hallyu_calendar_events.artist_or_drama 와 대소문자 무시 일치
   // 기존에 calendar_event_id 가 이미 있는 row 는 skip (수동 매핑 보존)
   const upsertedRows = (data ?? []) as Array<{
@@ -341,5 +441,6 @@ export async function runDramaIngest(): Promise<DramaIngestResult> {
     scanned: candidates.length,
     upserted: data?.length ?? 0,
     calendarLinked,
+    filteredOut: filterStats,
   }
 }
