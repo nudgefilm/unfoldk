@@ -138,6 +138,254 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 2. Pro 잠금 카피 "Coming with Hallyu Pass" → "Upgrade — $15/month" 등 결제 유도 카피로 회귀.
 3. DECISIONS.md "결제 연동 전 임시 Free 확대 정책" 항목 closed 표시.
 
+### Curation K 확정 스펙 (2026-05-16 확정)
+
+**서비스 개요**
+- 라우트: `/curation-k`
+- 핵심 컨셉: 한류 팬을 위한 한국 성지순례 & 여행 큐레이션
+- 타겟: 한국 여행 예정 or 관심 있는 글로벌 K드라마·K팝 팬
+- 데이터 소스: TourAPI(한국관광공사) + TMDB + Claude Haiku
+- 번역 비용: 최초 1회 Claude 번역 후 DB 캐싱 (재번역 없음)
+
+**데이터 수집 정책**
+- 촬영지: 수동 큐레이션, 월 1회
+- 관광지(12): 최초 1회 + 월 1회
+- 문화시설(14): 최초 1회 + 월 1회
+- 축제·행사(15): 매일
+- 숙박(32): 최초 1회 + 주 1회
+- 음식점(39): 최초 1회 + 주 1회
+- 증분 업데이트: TourAPI `modifiedtime` 비교 → 변경 항목만 갱신
+- Claude 번역: `overview_en` 없는 항목만 최초 1회 → DB 캐싱
+
+**수집 필드**
+- `title`(한글명), `eng_title`(영문명), `latitude`, `longitude`
+- `addr1`, `addr2`, `image_url`, `image_url2`
+- `overview_ko`(한글설명), `overview_en`(Claude번역)
+- `homepage`, `area_code`, `sigungu_code`, `content_type_id`, `modified_time`
+
+**페이지 구조**
+1. 히어로: SVG 한국 지도 + 지역별 통계 오버레이 (촬영지/관광지/맛집 건수)
+2. 필터 바: 지역 / 카테고리 / 드라마 연계 드롭다운
+3. 콘텐츠 탭: [촬영지] [관광지] [맛집] [숙박] [문화시설] [축제·행사]
+4. 카드 클릭 → 상세 모달 (이미지갤러리 / 영문설명 / 드라마배지 / 홈페이지 / Google Maps)
+5. AI 맞춤 코스 (Pro 전용): 드라마+스타일+기간+출발지 입력 → Claude 1일 동선 생성
+
+**Free vs Pro**
+- Free: 지도 통계 / 촬영지 탭 / 축제·행사 탭 / 기본 카드 모달
+- Pro: 전체 탭 / 드라마 연계 필터 / AI 맞춤 코스 / Google Maps 연동 / 상세 모달 전체
+
+**DB 구조**
+- `filming_spots`: 촬영지 전용
+- `tour_spots`: 전체 카테고리 (`category` 컬럼으로 구분)
+
+**기술**
+- 지도: SVG 한국 지도 (외부 SDK 없이 구현)
+- AI 코스: Claude Haiku, 유저 요청 시 실시간 생성
+- 최초 수집: 어드민 수동 트리거
+- 정기 업데이트: Vercel Cron (증분)
+
+### HallyuCalendar 확정 스펙 (2026-05-16 확정)
+
+**현재 수집 중 (기존 유지)**
+- YouTube: 컴백 영상·썸네일·발행일·채널명
+- TMDB: 드라마 제목·포스터·방영 시작일
+- Last.fm: 아티스트 신보 감지
+- Ticketmaster: 글로벌 공연·이벤트 (연동 완료 — `lib/api/ticketmaster.ts`)
+- Resend: D-7·D-1·당일 이메일 알림 (현상 유지)
+
+**추가 수집 확정 항목**
+
+YouTube Data API:
+- 영상 설명 (`snippet.description`) — Claude 이벤트 설명 생성 품질 향상
+- 라이브 방송 일정 (`liveStreamingDetails`) — 쇼케이스·컴백 라이브 자동 수집
+- 조회수 (`statistics.viewCount`)
+
+TMDB API:
+- 방영 중 여부 (`status`)
+- OTT 플랫폼 정보 (`watch/providers`) — Netflix·Viki 등
+- 에피소드 수 (`number_of_episodes`)
+- 방영 요일 (`episode_run_time`)
+- 평점 (`vote_average`)
+- 시놉시스 (`overview`)
+- 출연 배우 (`credits.cast`)
+- 백드롭 이미지 (`backdrop_path`)
+
+Last.fm API:
+- 아티스트 월간 청취자 (`artist.getInfo → listeners`)
+- 앨범 발매일 (`album.getInfo → releasedate`)
+- 앨범 이미지 (`album.getInfo → image`)
+- 앨범 트랙 목록 (`album.getInfo → tracks`)
+
+Ticketmaster Discovery API:
+- 공연 도시·국가
+- 티켓 예매 링크
+
+**제외 확정**
+- KOPIS: 제외 (Ticketmaster로 대체)
+
+**주의사항**
+- TMDB 상업 라이선스 협의 필요 (sales@themoviedb.org)
+- YouTube API 쿼터 관리 — tubewatch.kr와 별도 GCP 프로젝트 유지
+- Ticketmaster 환경변수: `TICKETMASTER_API_KEY`
+
+### KpopStats 확정 스펙 (2026-05-16 확정)
+
+**현재 수집 중 (기존 유지)**
+- YouTube: 채널 구독자수·총조회수·`channel_id` 자동매핑·주간 조회수 증감
+- Last.fm: 아티스트 월간 청취자·총 재생수·7일 증감 트렌드
+- Hallyu API: 그룹명·데뷔일·멤버 구성·소속사·활동 상태 (시드)
+
+**추가 수집 확정 항목**
+
+YouTube Data API:
+- 채널 썸네일 (`snippet.thumbnails`) — 아티스트 카드·Discord 알림 이미지
+- 최신 업로드 영상 (`activities.list`) — 최근 활동 표시·재방문 유도
+
+Last.fm API:
+- 아티스트 태그·장르 (`artist.getInfo → tags`) — 장르 필터 구현
+- 국가별 청취자 (`geo.getTopArtists`) — 차별화 기능
+- 주간 글로벌 차트 (`chart.getTopArtists`) — 차트 랭킹
+
+Hallyu API:
+- 음반 디스코그래피 — HallyuCalendar 컴백 연계
+
+**제외 확정**
+- YouTube 채널 개설일·설명: 활용처 없음
+- Last.fm 아티스트 바이오: Claude 생성으로 대체
+- Last.fm 유사 아티스트: 현재 단계 불필요
+- Hallyu API 수상 이력: 데이터 최신성 낮음 (2020년까지)
+- X(Twitter): MAU 500명+ 후 도입 유지
+
+**주의사항**
+- YouTube API 쿼터: `activities.list` 호출 추가 시 일일 쿼터 영향 검토 필요
+- 국가별 청취자: `geo.getTopArtists` 는 아티스트별 호출 → 25명 × 1콜, 캐싱 필수
+- X(Twitter) 환경변수: `TWITTER_API_KEY` (도입 시 등록)
+
+### KdramaMatch 확정 스펙 (2026-05-16 확정)
+
+**현재 수집 중 (기존 유지)**
+- TMDB: 드라마 제목·포스터·방영시작일·장르·평점·시놉시스·방영상태·플랫폼
+- Claude Haiku: AI 추천·추천 이유·fallback 추천 (동작 중)
+- Supabase: 시청 목록 (`wantToWatch`·`watching`·`completed`)
+
+**추가 수집 확정 항목**
+
+TMDB API:
+- 출연 배우 (`credits.cast`) — 배우 기반 필터·추천 핵심
+- OTT 플랫폼 정보 (`watch/providers`) — Netflix·Viki 등 "어디서 보기" 버튼
+- 원제 한글 (`original_name`) — SEO + 한국 팬 필수
+- 백드롭 이미지 (`backdrop_path`) — 드라마 상세 모달 배경
+- 에피소드 수 (`number_of_episodes`) — 시청 진행 트래킹 기반
+- 방영 종료일 (`last_air_date`) — 완결 여부 표시
+- 네트워크 (`networks`) — tvN·Netflix·MBC 구분
+- 예고편 영상 (`videos.results`) — 상세 모달 트레일러
+- 인기 지수 (`popularity`) — 정렬 기준 추가
+- 시즌 수 (`number_of_seasons`) — 시즌제 드라마 구분
+
+Claude Haiku:
+- 에피소드 요약 — Pro 핵심 기능 (현재 blur만 있음)
+- 캐릭터 관계도 — Pro 차별화 기능 (현재 blur만 있음)
+
+Supabase (자체):
+- 에피소드 진행 기록 — 시청 트래킹·락인 효과 핵심
+- 유저 평점 — 추천 개인화 향상
+
+**제외 확정**
+- MyDramaList API: TMDB로 대체 가능, 연동 공수 대비 효과 낮음 — MAU 쌓인 후 재검토
+- 유저 리뷰: MAU 쌓인 후 도입
+- 제작 국가 (`origin_country`): 한국 드라마 필터링은 기존 로직으로 충분
+
+### HangeulGo 확정 스펙 (2026-05-16 확정)
+
+**현재 상태**
+- 전체 미구현 (M+3 예정)
+
+**구현 순서**
+
+Phase 1 — 콘텐츠 기반 구축:
+- 드라마 메타데이터 (TMDB) — KdramaMatch DB 공유, 추가 비용 없음
+- 오늘의 표현 생성 (Claude Haiku) — 매일 재방문 유도 핵심
+- 드라마 대사 기반 학습 카드 (Claude Haiku) — 핵심 콘텐츠
+- 단어 뜻·예문·품사·유의어·반의어 (Naver 사전) — 학습 카드 완성
+  → 유의어·반의어는 학습 카드 하단 접이식 텍스트 표기 (초급 무시 / 중·고급 활용)
+
+Phase 2 — 학습 경험 강화:
+- 문법 설명 (Claude Haiku) — Pro 핵심 기능
+- 퀴즈 문제 생성 (Claude Haiku) — 재방문·게임화 핵심
+- 학습 스트릭·진행 기록 (Supabase) — 락인 효과 핵심
+- 학습 레벨·퀴즈 정답 기록 (Supabase) — 성취감·개인화
+
+Phase 3 — 차별화:
+- 한국어 발음 TTS (ElevenLabs $22/월) — Phase 1·2 안정 후 도입
+- 사전 생성 + CDN 캐싱 — TTS 비용 70% 절감 필수 구조
+
+**제외 확정**
+- 출연 배우: HangeulGo 활용처 없음
+- 발음 팁 설명: ElevenLabs TTS로 대체
+
+**비용 구조**
+- Phase 1: ~$0
+- Phase 2: ~$5/월
+- Phase 3: ~$27/월 (ElevenLabs $22 + Claude)
+
+**주의사항**
+- Naver 사전 API: 백엔드 연동 필수 (해외 유저 직접 호출 불가)
+- ElevenLabs: 요청마다 실시간 호출 금지 — 사전 생성 + CDN 캐싱 필수
+- 드라마 대사 원문 다량 사용 금지 — 학습 목적 인용 범위 내 사용
+- K팝 가사 직접 게시 금지 — 표현 설명 형태로만 활용
+
+### KfoodKit 확정 스펙 (2026-05-16 확정)
+
+**서비스 컨셉**
+드라마 속 음식 → 현지 재료로 만들기 → 한국 현지 맛집 연계
+유저 여정: 드라마에서 음식 발견 → 내 나라 재료로 레시피 도전 → 한국 가서 진짜 먹어보기 (Curation K 연계)
+
+**현재 상태**
+- 전체 미구현 (M+4 예정)
+
+**구현 순서**
+
+Phase 1 — 드라마-음식 연계 콘텐츠:
+- 드라마 메타데이터 연계 (TMDB — KdramaMatch DB 공유, 추가 비용 없음)
+- 드라마-음식 연계 DB (Supabase 자체 큐레이션) — 핵심 콘텐츠 기반
+- 드라마 등장 음식 설명 (Claude Haiku) — 팬 감성 기반 설명 생성
+- 해외 대체 재료 추천 (Claude Haiku) — 핵심 차별화 기능
+
+Phase 2 — 레시피 콘텐츠:
+- 한식 레시피 DB (Spoonacular $29/월) — 재료·조리법·영양·이미지
+- 관련 요리 YouTube 영상 (YouTube Data API) — 기존 인프라 재활용
+- 저장한 레시피 컬렉션 (Supabase) — 락인 효과
+- 국가별 맞춤 재료 변환 (Claude Haiku) — 나라별 개인화
+
+Phase 3 — 한국 현지 연계:
+- 지역 대표 음식점 (TourAPI — Curation K DB 공유, 추가 비용 없음)
+- 음식점 GPS·주소·이미지 (TourAPI)
+- 주간 K푸드 챌린지 (Supabase) — 재방문·바이럴 유도
+
+**데이터 공유 구조 (비용 절감)**
+- KdramaMatch DB → 드라마·포스터 재활용
+- Curation K DB → 음식점·GPS 재활용
+- YouTube 인프라 → 기존 쿼터 재활용
+
+**Free vs Pro**
+- 드라마-음식 연계: Free 주 1건 / Pro 무제한
+- 레시피 조회: Free 주 1건 / Pro 무제한
+- 대체 재료 AI 추천: Free ✅ / Pro ✅
+- 국가별 재료 변환: Free ✅ / Pro ✅
+- 레시피 컬렉션 저장: Free 5개 제한 / Pro 무제한
+- 한국 현지 맛집 연계: Free 기본 / Pro 전체
+- 주간 챌린지: Free ✅ / Pro ✅
+
+**제외 확정**
+- Spoonacular 유사 레시피: 초기 단계 불필요
+- 레시피 난이도 조정: Claude 설명으로 대체
+- YouTube 채널 통계: KfoodKit에서 불필요
+
+**비용 구조**
+- Phase 1: ~$0
+- Phase 2: ~$31/월 (Spoonacular $29 + Claude)
+- Phase 3: ~$31/월 (TourAPI 무료 + 기존)
+
 ### curation-k 지도 컴포넌트 수정 금지 (동결)
 - `app/curation-k/page.tsx` 상단의 SVG 한국 지도 영역 — `KOREA_CITIES`, `KOREA_ISLANDS`, `proj()`, polygon 스타일, 펄스 애니메이션 — **모두 동결**.
 - 변경 사유:

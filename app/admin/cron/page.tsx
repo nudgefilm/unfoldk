@@ -27,6 +27,7 @@ interface RouteSummary {
 const ROUTES = [
   "ingest-all",
   "ingest-ticketmaster",
+  "ingest-tmdb-dramas",
   "ingest-filming-spots",
   "send-reminders",
 ] as const
@@ -35,6 +36,7 @@ const ROUTES = [
 const ROUTE_DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
   "ingest-all": "ingest-all",
   "ingest-ticketmaster": "ingest-ticketmaster",
+  "ingest-tmdb-dramas": "KdramaMatch — TMDB 드라마 수집",
   "ingest-filming-spots": "Curation K — Filming Spots 수집",
   "send-reminders": "send-reminders",
 }
@@ -77,13 +79,19 @@ async function load(): Promise<LoadResult> {
       return { ok: false, error: formatPostgrestError(sumError) }
     }
 
-    // send-reminders 만 "발송 수", filming-spots 는 "촬영지 수집", 나머지 ingest-* 는 "수집 이벤트".
+    // 라우트별 메트릭 라벨:
+    //   send-reminders     → 발송 수
+    //   filming-spots      → 촬영지 수집
+    //   tmdb-dramas        → 드라마 수집
+    //   나머지 ingest-*     → 수집 이벤트
     const metricLabel =
       route === "send-reminders"
         ? "발송 수"
         : route === "ingest-filming-spots"
           ? "촬영지 수집"
-          : "수집 이벤트"
+          : route === "ingest-tmdb-dramas"
+            ? "드라마 수집"
+            : "수집 이벤트"
 
     const displayName = ROUTE_DISPLAY_NAMES[route]
 
@@ -123,6 +131,11 @@ async function load(): Promise<LoadResult> {
       // confirmed/pending 분포는 toast 로만 별도 노출 (카드는 단일 숫자).
       const r = data.result_json as { spotsInserted?: number }
       metric = (r.spotsInserted ?? 0).toLocaleString()
+    } else if (route === "ingest-tmdb-dramas" && data.result_json) {
+      // DramaIngestResult — upserted = 이번 실행 upsert 된 drama 수.
+      // calendarLinked 는 부가 정보라 카드엔 노출 안 함 (toast 영역에서 노출 가능).
+      const r = data.result_json as { upserted?: number }
+      metric = (r.upserted ?? 0).toLocaleString()
     } else if (route === "send-reminders" && data.result_json) {
       const summary = (data.result_json as { summary?: { sent?: number } }).summary
       metric = (summary?.sent ?? 0).toLocaleString()

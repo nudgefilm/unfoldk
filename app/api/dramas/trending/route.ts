@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
+import { DRAMA_SELECT, mapDramaRow, type DramaApi } from "@/lib/dramas/mapper"
 
 // /api/dramas/trending — 지금 인기 K드라마 Top 5
 //
@@ -14,21 +15,6 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 // 캐싱: 5분 SWR (Vercel CDN). trending 은 시간 단위 변화라 분단위 갱신 불필요.
 
 export const revalidate = 300
-
-interface DramaRow {
-  id: string
-  tmdb_id: number
-  title: string
-  title_ko: string | null
-  genre: string | null
-  year: number | null
-  platform: string | null
-  poster_url: string | null
-  rating: number | null
-  episode_count: number | null
-  status: string | null
-  is_active: boolean
-}
 
 interface WatchlistRow {
   drama_id: string
@@ -92,9 +78,7 @@ export async function GET() {
   // 5. drama 메타 fetch — is_active=true 만
   const { data: dramaRows, error: dramaErr } = await admin
     .from("dramas")
-    .select(
-      "id, tmdb_id, title, title_ko, genre, year, platform, poster_url, rating, episode_count, status, is_active"
-    )
+    .select(DRAMA_SELECT)
     .in("id", topIds)
     .eq("is_active", true)
 
@@ -103,9 +87,10 @@ export async function GET() {
     return NextResponse.json({ error: "query_failed" }, { status: 500 })
   }
 
-  const dramaMap = new Map<string, DramaRow>()
-  for (const d of (dramaRows ?? []) as DramaRow[]) {
-    dramaMap.set(d.id, d)
+  const dramaMap = new Map<string, DramaApi>()
+  for (const d of dramaRows ?? []) {
+    const mapped = mapDramaRow(d)
+    dramaMap.set(mapped.id, mapped)
   }
 
   // 6. Top 5 순서 유지 + 완주율 부착
@@ -121,9 +106,9 @@ export async function GET() {
         total >= COMPLETION_MIN_SAMPLE ? Math.round((completed / total) * 100) : null
       return {
         drama,
-        recent_adds: recentAdds,
-        completion_rate: completionRate, // 0~100 정수 또는 null
-        sample_size: total,
+        recentAdds,
+        completionRate, // 0~100 정수 또는 null
+        sampleSize: total,
       }
     })
     .filter((x): x is NonNullable<typeof x> => x !== null)

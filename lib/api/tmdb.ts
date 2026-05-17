@@ -3,6 +3,8 @@
 
 const TMDB_BASE = "https://api.themoviedb.org/3"
 const TMDB_IMG_BASE = "https://image.tmdb.org/t/p/w500"
+const TMDB_BACKDROP_BASE = "https://image.tmdb.org/t/p/w1280"
+const TMDB_PROFILE_BASE = "https://image.tmdb.org/t/p/w185"
 
 function tmdbHeaders(): HeadersInit {
   const token = process.env.TMDB_READ_ACCESS_TOKEN
@@ -65,6 +67,16 @@ export function tmdbPosterUrl(path: string | null): string | null {
   return path ? `${TMDB_IMG_BASE}${path}` : null
 }
 
+// w1280 backdrop — 모달 상단 배경용
+export function tmdbBackdropUrl(path: string | null | undefined): string | null {
+  return path ? `${TMDB_BACKDROP_BASE}${path}` : null
+}
+
+// w185 profile — cast 썸네일용
+export function tmdbProfileUrl(path: string | null | undefined): string | null {
+  return path ? `${TMDB_PROFILE_BASE}${path}` : null
+}
+
 
 // ============================================================
 // KdramaMatch (M+2) 전용 — 드라마 카탈로그 인제스트
@@ -76,11 +88,52 @@ export interface TmdbTvDetail {
   original_name: string
   overview: string
   first_air_date: string
+  last_air_date: string | null
   poster_path: string | null
+  backdrop_path: string | null
   vote_average: number                  // 0~10 (UnfoldK 는 5점 척도로 환산해 저장)
   number_of_episodes: number | null
+  number_of_seasons: number | null
+  popularity: number | null
   status: string                        // "Ended" | "Returning Series" | "In Production" | "Canceled" | "Pilot"
   genres: Array<{ id: number; name: string }>
+  networks: Array<{ id: number; name: string; logo_path: string | null }>
+  next_episode_to_air: { id: number; air_date: string | null } | null
+  // append_to_response 결과 — fetchTvDetail 에서 옵션으로 가져옴
+  credits?: {
+    cast: Array<{
+      id: number
+      name: string
+      character: string
+      profile_path: string | null
+      order: number
+    }>
+  }
+  videos?: {
+    results: Array<{
+      id: string
+      key: string
+      site: string
+      type: string        // "Trailer" | "Teaser" | "Clip" | ...
+      official: boolean
+      published_at: string
+    }>
+  }
+  "watch/providers"?: {
+    results: Record<
+      string,
+      {
+        link?: string
+        flatrate?: Array<{
+          provider_id: number
+          provider_name: string
+          logo_path: string | null
+        }>
+        buy?: Array<{ provider_id: number; provider_name: string; logo_path: string | null }>
+        rent?: Array<{ provider_id: number; provider_name: string; logo_path: string | null }>
+      }
+    >
+  }
 }
 
 interface TmdbTopRatedResponse {
@@ -151,9 +204,14 @@ export async function fetchTopRatedKoreanDramas(page: number): Promise<TmdbTvSho
   )
 }
 
-// 단일 드라마 상세 — episode_count, status, genres 가져오는 데 필요
-export async function fetchTvDetail(tmdbId: number): Promise<TmdbTvDetail | null> {
-  const url = `${TMDB_BASE}/tv/${tmdbId}?language=en-US`
+// 단일 드라마 상세 — episode_count, status, genres + 옵션으로 credits/videos/watch/providers
+// expanded=true 시 append_to_response 로 한 번에 4종 데이터 묶어 가져옴 (쿼터 절약 — 4 req → 1 req)
+export async function fetchTvDetail(
+  tmdbId: number,
+  options: { expanded?: boolean } = {}
+): Promise<TmdbTvDetail | null> {
+  const append = options.expanded ? "&append_to_response=credits,videos,watch/providers" : ""
+  const url = `${TMDB_BASE}/tv/${tmdbId}?language=en-US${append}`
   const res = await fetch(url, {
     headers: tmdbHeaders(),
     next: { revalidate: 3600 },
@@ -163,6 +221,41 @@ export async function fetchTvDetail(tmdbId: number): Promise<TmdbTvDetail | null
     throw new Error(`TMDB tv/${tmdbId} error ${res.status}: ${await res.text()}`)
   }
   return (await res.json()) as TmdbTvDetail
+}
+
+// videos.results 에서 공식 YouTube 트레일러 key 추출 — 우선순위: official Trailer > Trailer > Teaser
+export function pickTrailerKey(detail: TmdbTvDetail): string | null {
+  const vids = detail.videos?.results ?? []
+  const ytOnly = vids.filter((v) => v.site === "YouTube")
+  const officialTrailer = ytOnly.find((v) => v.type === "Trailer" && v.official)
+  if (officialTrailer) return officialTrailer.key
+  const anyTrailer = ytOnly.find((v) => v.type === "Trailer")
+  if (anyTrailer) return anyTrailer.key
+  const teaser = ytOnly.find((v) => v.type === "Teaser")
+  return teaser?.key ?? null
+}
+
+// US watch/providers — flatrate 우선, 비어 있으면 buy/rent fallback. 없으면 null.
+// 저장 형식: { flatrate: [{provider_id,provider_name,logo_path}], link }
+export interface DramaWatchProviderInfo {
+  flatrate: Array<{ provider_id: number; provider_name: string; logo_path: string | null }>
+  link: string | null
+}
+export function pickUsWatchProviders(detail: TmdbTvDetail): DramaWatchProviderInfo | null {
+  const us = detail["watch/providers"]?.results?.US
+  if (!us) return null
+  const flatrate = us.flatrate ?? []
+  if (flatrate.length === 0 && (us.buy?.length ?? 0) === 0 && (us.rent?.length ?? 0) === 0) {
+    return null
+  }
+  return {
+    flatrate: flatrate.map((p) => ({
+      provider_id: p.provider_id,
+      provider_name: p.provider_name,
+      logo_path: p.logo_path,
+    })),
+    link: us.link ?? null,
+  }
 }
 
 // ============================================================

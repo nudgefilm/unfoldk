@@ -3,6 +3,7 @@ import { z } from "zod"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { recommendDramas } from "@/lib/claude/recommend-dramas"
 import { hasProAccess } from "@/lib/auth/plan"
+import { DRAMA_SELECT, mapDramaRow } from "@/lib/dramas/mapper"
 
 // POST /api/dramas/recommend — 취향 기반 Top picks 추천
 //
@@ -64,9 +65,7 @@ export async function POST(request: Request) {
   }
 
   // 3. 후보 60개 — genre/platform 으로 1차 필터링, 없으면 인기 전체
-  let query = supabase
-    .from("dramas")
-    .select("id, title, title_ko, genre, year, platform, poster_url, rating, overview, episode_count, status")
+  let query = supabase.from("dramas").select(DRAMA_SELECT)
 
   if (genres.length > 0) query = query.in("genre", genres)
   if (platforms.length > 0) query = query.in("platform", platforms)
@@ -89,15 +88,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ recommendations: [], source: "fallback", note: "no candidates" })
   }
 
+  const mapped = candidates.map(mapDramaRow)
+
   // 4. Claude 추천 호출
   const result = await recommendDramas({
     genres,
     moods,
     platforms,
-    candidates: candidates.map((c) => ({
+    candidates: mapped.map((c) => ({
       id: c.id,
       title: c.title,
-      title_ko: c.title_ko,
+      title_ko: c.titleKo,
       genre: c.genre,
       year: c.year,
       platform: c.platform,
@@ -107,7 +108,7 @@ export async function POST(request: Request) {
   })
 
   // 5. id → drama row 매핑 + reason 합성, 한도 적용
-  const dramaById = new Map(candidates.map((c) => [c.id, c]))
+  const dramaById = new Map(mapped.map((c) => [c.id, c]))
   const recommendations = result.items
     .slice(0, limit)
     .map((item) => {
