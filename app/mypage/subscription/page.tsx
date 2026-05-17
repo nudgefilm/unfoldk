@@ -10,9 +10,18 @@
 // className·style 은 v0 디자인 그대로 유지하되 데이터만 실 데이터로 교체.
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { RedeemCouponForm } from "@/components/redeem-coupon-form"
 import {
   Home,
   Calendar,
@@ -403,6 +412,9 @@ export default function SubscriptionPage() {
 // 페이드인 패턴은 부모와 동일, className·style 도 v0 톤 유지
 // ============================================
 function FreeUserView() {
+  const router = useRouter()
+  // Redeem 모달 — 쿠폰 성공 시 닫고 페이지 refresh 로 plan_type 즉시 반영
+  const [redeemOpen, setRedeemOpen] = useState(false)
   return (
     <>
       {/* Section 1: Current Plan — Free */}
@@ -495,13 +507,41 @@ function FreeUserView() {
                 Have a Hallyu Pass coupon code? Redeem it to activate your plan instantly.
               </p>
             </div>
-            <Link
-              href="/redeem"
-              className="text-sm font-medium hover:underline whitespace-nowrap"
-              style={{ color: "#FF4B6E" }}
-            >
-              Redeem code →
-            </Link>
+            <Dialog open={redeemOpen} onOpenChange={setRedeemOpen}>
+              <DialogTrigger asChild>
+                <button
+                  type="button"
+                  className="text-sm font-medium hover:underline whitespace-nowrap"
+                  style={{ color: "#FF4B6E" }}
+                >
+                  Redeem code →
+                </button>
+              </DialogTrigger>
+              <DialogContent
+                className="sm:max-w-[460px] border-0 p-0"
+                style={{ backgroundColor: "#141418" }}
+              >
+                <DialogHeader className="px-8 pt-8">
+                  <DialogTitle className="text-center text-foreground">
+                    Redeem your Hallyu Pass
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="px-8 pb-8">
+                  <RedeemCouponForm
+                    hideOuterCard
+                    hideGoToSubscription
+                    onSuccess={() => {
+                      // 성공 시 모달 안에서 success view 가 표시됨 — 사용자가 닫으면 페이지 refresh
+                      // 해서 plan_type 즉시 반영. setTimeout 으로 success view 잠깐 보여준 뒤 닫기.
+                      setTimeout(() => {
+                        setRedeemOpen(false)
+                        router.refresh()
+                      }, 1800)
+                    }}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </section>
