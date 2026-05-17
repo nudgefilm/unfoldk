@@ -3,6 +3,8 @@
 // 입력: 드라마 컨텍스트 (ko + en 제목) + difficulty 힌트
 // 출력: 학습 카드에 그대로 채울 수 있는 구조화 JSON
 //
+// 모델: claude-haiku-4-5 (CLAUDE.md §6 AI 처리 원칙)
+// 구조화 출력: tool_use 강제 — 자유 텍스트 / 마크다운 응답 거부 (JSON parse 실패 방지)
 // 비용: Haiku 4.5 ≈ $0.001/회. 결정적 회전 + DB 캐싱 → 1일 1콜.
 // 저작권: 드라마 대사 원문 직접 인용 금지 — "이 드라마에서 자주 나올 법한" 학습 예시 생성.
 
@@ -13,9 +15,15 @@ if (!process.env.ANTHROPIC_API_KEY) {
   console.warn(
     "[claude/korean-phrase] ANTHROPIC_API_KEY env 누락 — Claude 호출 시 실패 예정"
   )
+} else {
+  console.log(
+    `[claude/korean-phrase] ANTHROPIC_API_KEY OK length=${process.env.ANTHROPIC_API_KEY.length}`
+  )
 }
 
 const client = new Anthropic()
+
+const MODEL = "claude-haiku-4-5"
 
 export interface KoreanPhrasePayload {
   korean: string                            // "보고 싶었어"
@@ -31,7 +39,12 @@ export interface KoreanPhrasePayload {
   difficulty: "beginner" | "intermediate" | "advanced"
 }
 
-const SYSTEM_PROMPT = `You are a Korean language tutor for UnfoldK HangeulGo, a Hallyu-themed Korean learning app for global K-drama fans.
+// 호출부가 실패 원인을 응답에 박제할 수 있도록 detail 반환.
+export type GenerateKoreanPhraseResult =
+  | { ok: true; payload: KoreanPhrasePayload }
+  | { ok: false; reason: string; detail?: string }
+
+const PHRASE_SYSTEM_PROMPT = `You are a Korean language tutor for UnfoldK HangeulGo, a Hallyu-themed Korean learning app for global K-drama fans.
 
 Generate ONE Korean phrase in the conversational style typical of the given K-drama. Strict rules:
 
@@ -42,22 +55,63 @@ Generate ONE Korean phrase in the conversational style typical of the given K-dr
   - "beginner"     = basic everyday phrase, ≤3 words, no honorific complexity
   - "intermediate" = polite form 요/-습니다 or short clause connectors
   - "advanced"     = nuanced expressions, honorifics, idiomatic
-- word_breakdown: split the Korean phrase into 2~4 logical units (eojeol or particle group). Each unit needs the surface form (word), its romanization, and a short English meaning.
+- word_breakdown: 2~4 logical units (eojeol or particle group). Each unit needs surface form (word), romanization, and a short English meaning.
 - synonyms: 1~2 similar Korean expressions (or empty array if none natural).
 - antonyms: 0~2 opposite Korean expressions (or empty array if none natural).
 - romanization: Revised Romanization (RR), no hyphens, lowercase except start of sentence.
-- english: natural 1-line English equivalent (no quotes around it).
-- No markdown, no preamble — output STRICT JSON only matching this exact shape:
+- english: natural 1-line English equivalent (no surrounding quotes).
 
-{
-  "korean": "...",
-  "romanization": "...",
-  "english": "...",
-  "word_breakdown": [{"word": "...", "romanization": "...", "meaning": "..."}],
-  "synonyms": ["..."],
-  "antonyms": ["..."],
-  "difficulty": "beginner|intermediate|advanced"
-}`
+Use the report_korean_phrase tool to return the structured output.`
+
+// tool_use 강제 — 모델이 자유 텍스트로 응답할 수 없게 막아 JSON parse 실패 차단.
+const PHRASE_TOOL: Anthropic.Tool = {
+  name: "report_korean_phrase",
+  description: "Report one Korean learning phrase inspired by a K-drama (NOT a direct quote).",
+  input_schema: {
+    type: "object",
+    properties: {
+      korean: { type: "string" },
+      romanization: { type: "string" },
+      english: { type: "string" },
+      word_breakdown: {
+        type: "array",
+        maxItems: 4,
+        items: {
+          type: "object",
+          properties: {
+            word: { type: "string" },
+            romanization: { type: "string" },
+            meaning: { type: "string" },
+          },
+          required: ["word", "romanization", "meaning"],
+        },
+      },
+      synonyms: {
+        type: "array",
+        maxItems: 2,
+        items: { type: "string" },
+      },
+      antonyms: {
+        type: "array",
+        maxItems: 2,
+        items: { type: "string" },
+      },
+      difficulty: {
+        type: "string",
+        enum: ["beginner", "intermediate", "advanced"],
+      },
+    },
+    required: [
+      "korean",
+      "romanization",
+      "english",
+      "word_breakdown",
+      "synonyms",
+      "antonyms",
+      "difficulty",
+    ],
+  },
+}
 
 export interface GenerateKoreanPhraseInput {
   dramaKo: string       // 한국어 드라마명
@@ -67,122 +121,135 @@ export interface GenerateKoreanPhraseInput {
 
 export async function generateKoreanPhrase(
   input: GenerateKoreanPhraseInput
-): Promise<KoreanPhrasePayload | null> {
+): Promise<GenerateKoreanPhraseResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
-    console.error(
-      "[claude/korean-phrase] ANTHROPIC_API_KEY 누락 — generateKoreanPhrase abort"
-    )
-    return null
+    return { ok: false, reason: "missing_api_key" }
   }
 
   const userMessage = `Drama (Korean): ${input.dramaKo}
 Drama (English): ${input.dramaEn}
 ${input.difficultyHint ? `Suggested difficulty: ${input.difficultyHint}` : ""}
 
-Generate one short Korean phrase inspired by the show's tone (NOT a direct quote). Output the JSON.`
+Generate one short Korean phrase inspired by the show's tone (NOT a direct quote). Use the report_korean_phrase tool.`
+
+  console.log(
+    `[claude/korean-phrase] 호출 시작 model=${MODEL} drama=${input.dramaEn} (${input.dramaKo})`
+  )
 
   try {
     const response = await client.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 600,
-      system: [
-        {
-          type: "text",
-          text: SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
+      model: MODEL,
+      max_tokens: 1000,
+      tools: [PHRASE_TOOL],
+      tool_choice: { type: "tool", name: "report_korean_phrase" },
+      system: PHRASE_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userMessage }],
     })
 
-    const textBlock = response.content.find(
-      (b): b is Anthropic.TextBlock => b.type === "text"
+    console.log(
+      `[claude/korean-phrase] 응답 received stop_reason=${response.stop_reason} usage=${JSON.stringify(response.usage)}`
     )
-    if (!textBlock) return null
 
-    const raw = textBlock.text.trim()
-    // 모델이 가끔 ```json ... ``` 으로 감싸는 경우 방어
-    const cleaned = raw
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/```\s*$/i, "")
-      .trim()
-
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(cleaned)
-    } catch {
-      console.error("[claude/korean-phrase] JSON parse 실패:", cleaned.slice(0, 200))
-      return null
+    const toolBlock = response.content.find(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
+    )
+    if (!toolBlock) {
+      const types = response.content.map((b) => b.type).join(",")
+      const textPreview = response.content
+        .find((b): b is Anthropic.TextBlock => b.type === "text")
+        ?.text.slice(0, 200)
+      console.error(
+        `[claude/korean-phrase] tool_use block 없음 — content=[${types}] preview=${textPreview ?? "(none)"}`
+      )
+      return {
+        ok: false,
+        reason: "no_tool_use_block",
+        detail: `content=[${types}] stop_reason=${response.stop_reason}`,
+      }
     }
 
-    if (!parsed || typeof parsed !== "object") return null
-    const obj = parsed as Record<string, unknown>
-
-    // 필수 필드 검증
-    const korean = typeof obj.korean === "string" ? obj.korean.trim() : ""
-    const english = typeof obj.english === "string" ? obj.english.trim() : ""
-    if (!korean || !english) {
-      console.error("[claude/korean-phrase] korean/english 누락:", obj)
-      return null
+    const normalized = normalizePhrase(toolBlock.input)
+    if (!normalized) {
+      console.error(
+        `[claude/korean-phrase] 필수 필드 누락 input=${JSON.stringify(toolBlock.input).slice(0, 300)}`
+      )
+      return {
+        ok: false,
+        reason: "invalid_payload",
+        detail: `tool_input=${JSON.stringify(toolBlock.input).slice(0, 200)}`,
+      }
     }
 
-    const difficulty =
-      obj.difficulty === "beginner" ||
-      obj.difficulty === "intermediate" ||
-      obj.difficulty === "advanced"
-        ? obj.difficulty
-        : "beginner"
-
-    const wb = Array.isArray(obj.word_breakdown) ? obj.word_breakdown : []
-    const word_breakdown: KoreanPhrasePayload["word_breakdown"] = []
-    for (const item of wb) {
-      if (typeof item !== "object" || item === null) continue
-      const x = item as Record<string, unknown>
-      if (typeof x.word !== "string") continue
-      word_breakdown.push({
-        word: x.word,
-        romanization: typeof x.romanization === "string" ? x.romanization : "",
-        meaning: typeof x.meaning === "string" ? x.meaning : "",
-      })
-    }
-
-    const toStringArr = (v: unknown): string[] =>
-      Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []
-
-    return {
-      korean,
-      romanization: typeof obj.romanization === "string" ? obj.romanization : "",
-      english,
-      word_breakdown,
-      synonyms: toStringArr(obj.synonyms),
-      antonyms: toStringArr(obj.antonyms),
-      difficulty,
-    }
+    return { ok: true, payload: normalized }
   } catch (err) {
-    // status / type / message / 일부 body 까지 함께 찍어 디버깅 정보 보존.
-    // Anthropic.APIError 는 .status, .error?.error?.type, .error?.error?.message 를 가진다.
     if (err instanceof Anthropic.APIError) {
       const apiBody = (err as unknown as { error?: { error?: { type?: string; message?: string } } })
         .error?.error
-      console.error(
-        `[claude/korean-phrase] APIError status=${err.status} name=${err.name} type=${
-          apiBody?.type ?? "?"
-        } message=${apiBody?.message ?? err.message} input=${JSON.stringify(input)}`
-      )
-    } else if (err instanceof Error) {
+      const detail = `status=${err.status} type=${apiBody?.type ?? "?"} message=${apiBody?.message ?? err.message}`
+      console.error(`[claude/korean-phrase] APIError ${detail} input=${JSON.stringify(input)}`)
+      return { ok: false, reason: `api_error_${err.status}`, detail }
+    }
+    if (err instanceof Error) {
       console.error(
         `[claude/korean-phrase] 예외 name=${err.name} message=${err.message} stack=${err.stack?.split("\n").slice(0, 3).join(" | ")}`
       )
-    } else {
-      console.error("[claude/korean-phrase] 알 수 없는 예외:", String(err))
+      return { ok: false, reason: "exception", detail: `${err.name}: ${err.message}` }
     }
-    return null
+    console.error("[claude/korean-phrase] 알 수 없는 예외:", String(err))
+    return { ok: false, reason: "unknown_exception", detail: String(err) }
+  }
+}
+
+// tool_use input 객체를 KoreanPhrasePayload 로 정규화. 필수 필드 누락 시 null.
+function normalizePhrase(raw: unknown): KoreanPhrasePayload | null {
+  if (typeof raw !== "object" || raw === null) return null
+  const obj = raw as Record<string, unknown>
+
+  const korean = typeof obj.korean === "string" ? obj.korean.trim() : ""
+  const english = typeof obj.english === "string" ? obj.english.trim() : ""
+  if (!korean || !english) return null
+
+  const difficulty =
+    obj.difficulty === "beginner" ||
+    obj.difficulty === "intermediate" ||
+    obj.difficulty === "advanced"
+      ? obj.difficulty
+      : "beginner"
+
+  const wb = Array.isArray(obj.word_breakdown) ? obj.word_breakdown : []
+  const word_breakdown: KoreanPhrasePayload["word_breakdown"] = []
+  for (const item of wb) {
+    if (typeof item !== "object" || item === null) continue
+    const x = item as Record<string, unknown>
+    if (typeof x.word !== "string") continue
+    word_breakdown.push({
+      word: x.word,
+      romanization: typeof x.romanization === "string" ? x.romanization : "",
+      meaning: typeof x.meaning === "string" ? x.meaning : "",
+    })
+  }
+
+  const toStringArr = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []
+
+  return {
+    korean,
+    romanization: typeof obj.romanization === "string" ? obj.romanization : "",
+    english,
+    word_breakdown,
+    synonyms: toStringArr(obj.synonyms),
+    antonyms: toStringArr(obj.antonyms),
+    difficulty,
   }
 }
 
 // ============================================================
 // Pro 전용 — AI 문법 설명
 // ============================================================
+
+export type GenerateGrammarResult =
+  | { ok: true; text: string }
+  | { ok: false; reason: string; detail?: string }
 
 const GRAMMAR_SYSTEM_PROMPT = `You are a Korean grammar tutor for UnfoldK HangeulGo. Explain the grammatical structure of a Korean phrase for English-speaking learners.
 
@@ -200,45 +267,68 @@ export async function generateGrammarExplanation(
   korean: string,
   english: string,
   difficulty: string
-): Promise<string | null> {
+): Promise<GenerateGrammarResult> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return { ok: false, reason: "missing_api_key" }
+  }
+
   const userMessage = `Korean phrase: ${korean}
 English meaning: ${english}
 Difficulty: ${difficulty}
 
 Explain the grammar.`
 
+  console.log(
+    `[claude/korean-grammar] 호출 시작 model=${MODEL} korean=${korean} difficulty=${difficulty}`
+  )
+
   try {
     const response = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODEL,
       max_tokens: 700,
-      system: [
-        {
-          type: "text",
-          text: GRAMMAR_SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
+      system: GRAMMAR_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userMessage }],
     })
+
+    console.log(
+      `[claude/korean-grammar] 응답 received stop_reason=${response.stop_reason} usage=${JSON.stringify(response.usage)}`
+    )
 
     const textBlock = response.content.find(
       (b): b is Anthropic.TextBlock => b.type === "text"
     )
-    if (!textBlock) return null
+    if (!textBlock) {
+      const types = response.content.map((b) => b.type).join(",")
+      console.error(`[claude/korean-grammar] text block 없음 — content=[${types}]`)
+      return {
+        ok: false,
+        reason: "no_text_block",
+        detail: `content=[${types}] stop_reason=${response.stop_reason}`,
+      }
+    }
 
     const text = textBlock.text.trim()
-    if (text.length === 0) return null
-    if (text.length > 1500) return text.slice(0, 1500)
-    return text
+    if (text.length === 0) {
+      console.error("[claude/korean-grammar] 빈 응답")
+      return { ok: false, reason: "empty_text" }
+    }
+
+    return { ok: true, text: text.length > 1500 ? text.slice(0, 1500) : text }
   } catch (err) {
     if (err instanceof Anthropic.APIError) {
-      console.error(`[claude/korean-grammar] API error ${err.status}:`, err.message)
-    } else {
-      console.error(
-        "[claude/korean-grammar] 예외:",
-        err instanceof Error ? err.message : String(err)
-      )
+      const apiBody = (err as unknown as { error?: { error?: { type?: string; message?: string } } })
+        .error?.error
+      const detail = `status=${err.status} type=${apiBody?.type ?? "?"} message=${apiBody?.message ?? err.message}`
+      console.error(`[claude/korean-grammar] APIError ${detail}`)
+      return { ok: false, reason: `api_error_${err.status}`, detail }
     }
-    return null
+    if (err instanceof Error) {
+      console.error(
+        `[claude/korean-grammar] 예외 name=${err.name} message=${err.message}`
+      )
+      return { ok: false, reason: "exception", detail: `${err.name}: ${err.message}` }
+    }
+    console.error("[claude/korean-grammar] 알 수 없는 예외:", String(err))
+    return { ok: false, reason: "unknown_exception", detail: String(err) }
   }
 }

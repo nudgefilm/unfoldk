@@ -179,7 +179,31 @@ export default function HangeulGoPage() {
     setPhraseError(null)
     fetch("/api/korean/phrase-of-day")
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { phrase: KoreanPhraseApi }) => setPhrase(body.phrase))
+      .then(
+        (body: {
+          phrase: KoreanPhraseApi
+          cached?: boolean
+          fallback?: boolean
+          reason?: string
+          detail?: string | null
+        }) => {
+          // fallback 응답은 reason/detail 을 콘솔에서 바로 확인할 수 있도록 노출.
+          // (정상 응답은 cached 만 로그)
+          if (body.fallback) {
+            console.warn(
+              "[korean] phrase fallback 응답:",
+              `reason=${body.reason ?? "?"}`,
+              `detail=${body.detail ?? "(none)"}`,
+              `phraseId=${body.phrase?.id ?? "?"}`
+            )
+          } else {
+            console.log(
+              `[korean] phrase loaded id=${body.phrase?.id} cached=${body.cached}`
+            )
+          }
+          setPhrase(body.phrase)
+        }
+      )
       .catch((err) => {
         console.error("[korean] phrase fetch 실패:", err)
         setPhraseError("오늘의 표현을 불러오지 못했어요.")
@@ -253,17 +277,42 @@ export default function HangeulGoPage() {
   // ─── AI Grammar fetch (Pro 유저 + phrase 준비 시)
   useEffect(() => {
     if (!isPro || !phrase) return
+    // sentinel id 는 grammar API 가 422 (fallback_phrase) 반환 — 호출 자체 skip 으로 로그 절약.
+    if (phrase.id.startsWith("fallback-")) {
+      console.warn(
+        `[korean] grammar skip — phrase 가 fallback (id=${phrase.id}). 실제 phrase 생성 후 재시도.`
+      )
+      setGrammar(null)
+      return
+    }
     setGrammar(null)
     setGrammarLoading(true)
+    console.log(`[korean] grammar fetch 시작 phraseId=${phrase.id}`)
     fetch("/api/korean/grammar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phraseId: phrase.id }),
     })
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { explanation: string }) => setGrammar(body.explanation))
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          // 실패 응답을 그대로 reject 에 실어 보냄 — catch 에서 reason/detail 확인 가능
+          return Promise.reject({ status: res.status, body })
+        }
+        return body
+      })
+      .then((body: { explanation: string; cached?: boolean }) => {
+        console.log(`[korean] grammar loaded cached=${body.cached}`)
+        setGrammar(body.explanation)
+      })
       .catch((err) => {
-        console.error("[korean] grammar fetch 실패:", err)
+        console.error(
+          "[korean] grammar fetch 실패:",
+          `status=${err?.status ?? "?"}`,
+          `error=${err?.body?.error ?? "?"}`,
+          `reason=${err?.body?.reason ?? "?"}`,
+          `detail=${err?.body?.detail ?? "?"}`
+        )
         setGrammar(null)
       })
       .finally(() => setGrammarLoading(false))

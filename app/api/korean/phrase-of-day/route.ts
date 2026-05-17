@@ -65,24 +65,26 @@ export async function GET() {
   let insertRow: PhraseRowInsert
   let fallback = false
   let reason: string | null = null
+  let detail: string | null = null
+  let generatedPayload: Awaited<ReturnType<typeof generateKoreanPhrase>> | null = null
 
   const hasApiKey = !!process.env.ANTHROPIC_API_KEY
-  const generated = hasApiKey
-    ? await generateKoreanPhrase({ dramaKo: drama.ko, dramaEn: drama.en })
-    : null
-
   if (!hasApiKey) {
     console.error(
       "[/api/korean/phrase-of-day] ANTHROPIC_API_KEY 누락 — fallback 표현으로 upsert"
     )
     fallback = true
     reason = "missing_api_key"
-  } else if (!generated) {
-    console.error(
-      `[/api/korean/phrase-of-day] generation_failed dramaKo=${drama.ko} dramaEn=${drama.en} — fallback 표현으로 upsert`
-    )
-    fallback = true
-    reason = "generation_failed"
+  } else {
+    generatedPayload = await generateKoreanPhrase({ dramaKo: drama.ko, dramaEn: drama.en })
+    if (!generatedPayload.ok) {
+      console.error(
+        `[/api/korean/phrase-of-day] generation_failed reason=${generatedPayload.reason} detail=${generatedPayload.detail ?? "(none)"} dramaKo=${drama.ko} dramaEn=${drama.en} — fallback 표현으로 upsert`
+      )
+      fallback = true
+      reason = generatedPayload.reason
+      detail = generatedPayload.detail ?? null
+    }
   }
 
   if (fallback) {
@@ -117,8 +119,12 @@ export async function GET() {
     await tryMatch("title_ko", drama.ko)
     await tryMatch("original_name", drama.ko)
 
-    // generated 가 null 이 아님이 보장됨 (위 branch 에서 fallback=false 인 경우만 도달)
-    const g = generated!
+    // generatedPayload.ok = true 가 보장됨 (위 branch 에서 fallback=false 인 경우만 도달)
+    if (!generatedPayload || !generatedPayload.ok) {
+      // 도달 불가 — 타입 가드용
+      throw new Error("unreachable: generated payload missing in non-fallback branch")
+    }
+    const g = generatedPayload.payload
     insertRow = {
       drama_id: dramaId,
       drama_name: drama.en,
@@ -161,6 +167,6 @@ export async function GET() {
   return NextResponse.json({
     phrase,
     cached: false,
-    ...(fallback ? { fallback: true, reason } : {}),
+    ...(fallback ? { fallback: true, reason, detail } : {}),
   })
 }
