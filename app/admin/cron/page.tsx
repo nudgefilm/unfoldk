@@ -29,6 +29,7 @@ const ROUTES = [
   "ingest-ticketmaster",
   "ingest-tmdb-dramas",
   "ingest-filming-spots",
+  "ingest-korean-phrases",
   "send-reminders",
 ] as const
 
@@ -38,6 +39,7 @@ const ROUTE_DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
   "ingest-ticketmaster": "ingest-ticketmaster",
   "ingest-tmdb-dramas": "KdramaMatch — TMDB 드라마 수집",
   "ingest-filming-spots": "Curation K — Filming Spots 수집",
+  "ingest-korean-phrases": "HangeulGo — 드라마 표현 생성",
   "send-reminders": "send-reminders",
 }
 
@@ -91,7 +93,9 @@ async function load(): Promise<LoadResult> {
           ? "촬영지 수집"
           : route === "ingest-tmdb-dramas"
             ? "드라마 수집"
-            : "수집 이벤트"
+            : route === "ingest-korean-phrases"
+              ? "생성 표현 수"
+              : "수집 이벤트"
 
     const displayName = ROUTE_DISPLAY_NAMES[route]
 
@@ -136,6 +140,10 @@ async function load(): Promise<LoadResult> {
       // calendarLinked 는 부가 정보라 카드엔 노출 안 함 (toast 영역에서 노출 가능).
       const r = data.result_json as { upserted?: number }
       metric = (r.upserted ?? 0).toLocaleString()
+    } else if (route === "ingest-korean-phrases" && data.result_json) {
+      // KoreanPhrasesIngestResult — generated = 이번 실행 신규 표현 수.
+      const r = data.result_json as { generated?: number }
+      metric = (r.generated ?? 0).toLocaleString()
     } else if (route === "send-reminders" && data.result_json) {
       const summary = (data.result_json as { summary?: { sent?: number } }).summary
       metric = (summary?.sent ?? 0).toLocaleString()

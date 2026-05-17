@@ -25,6 +25,7 @@ const PostSchema = z.object({
     "ingest-ticketmaster",
     "ingest-tmdb-dramas",
     "ingest-filming-spots",
+    "ingest-korean-phrases",
     "send-reminders",
   ]),
 })

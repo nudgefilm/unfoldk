@@ -37,7 +37,7 @@ const services: Array<{
   { icon: Calendar, name: "HallyuCalendar", description: "Never miss a comeback or premiere", href: "/calendar", status: "live", phase: "M+0" },
   { icon: Music, name: "KpopStats", description: "Global charts & streaming stats", href: "/kpop", status: "live", phase: "M+1" },
   { icon: Film, name: "KdramaMatch", description: "AI-powered drama recommendations", href: "/drama", status: "live", phase: "M+2" },
-  { icon: Languages, name: "HangeulGo", description: "Learn Korean from K-dramas", href: "/korean", status: "soon", phase: "M+3" },
+  { icon: Languages, name: "HangeulGo", description: "Learn Korean from K-dramas", href: "/korean", status: "live", phase: "M+3" },
   { icon: UtensilsCrossed, name: "KfoodKit", description: "Cook your favorite K-drama dishes", href: "/food", status: "soon", phase: "M+4" },
   { icon: Map, name: "Curation K", description: "Explore Korea like a Hallyu fan", href: "/curation-k", status: "live", phase: "M+5" },
 ]

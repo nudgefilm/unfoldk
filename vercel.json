@@ -32,6 +32,10 @@
     {
       "path": "/api/cron/discord-daily",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/ingest-korean-phrases",
+      "schedule": "0 8 * * *"
     }
   ]
 }

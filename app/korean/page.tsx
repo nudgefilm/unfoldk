@@ -15,11 +15,12 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
-import { ServiceComingSoonBanner } from "@/components/early-access/service-coming-soon-banner"
+import { Toaster } from "@/components/ui/toaster"
+import { useToast } from "@/components/ui/use-toast"
 import type { KoreanPhraseApi } from "@/lib/korean/mapper"
 
 interface PackApi {
@@ -37,6 +38,18 @@ interface QuizApi {
   korean: string
   options: Array<{ label: "A" | "B" | "C" | "D"; english: string }>
   correctLabel: "A" | "B" | "C" | "D"
+}
+
+interface PackDramaApi {
+  id: string
+  title: string
+  titleKo: string | null
+  posterUrl: string | null
+}
+
+interface PackDetail {
+  drama: PackDramaApi | null
+  phrases: KoreanPhraseApi[]
 }
 
 // 난이도 라벨 + 색상 (UI 톤 유지)
@@ -102,6 +115,12 @@ export default function HangeulGoPage() {
   // 5. AI Grammar (Pro)
   const [grammar, setGrammar] = useState<string | null>(null)
   const [grammarLoading, setGrammarLoading] = useState(false)
+
+  // 6. Drama Pack 모달 — 카드 클릭 시 해당 드라마의 표현 목록 노출
+  const [packModalDramaId, setPackModalDramaId] = useState<string | null>(null)
+  const [packDetail, setPackDetail] = useState<PackDetail | null>(null)
+  const [packDetailLoading, setPackDetailLoading] = useState(false)
+  const { toast } = useToast()
 
   // Drama Learning Packs 가로 스크롤 — calendar Featured 패턴 + 양끝 가드.
   // 한 번에 컨테이너 width 만큼 이동, 양끝 도달 시 해당 방향 화살표 자동 숨김.
@@ -205,6 +224,32 @@ export default function HangeulGoPage() {
       })
   }, [phrase])
 
+  // ─── 드라마 팩 상세 fetch — 모달 열릴 때 한 번
+  useEffect(() => {
+    if (!packModalDramaId) {
+      setPackDetail(null)
+      return
+    }
+    let cancelled = false
+    setPackDetailLoading(true)
+    setPackDetail(null)
+    fetch(`/api/korean/pack/${packModalDramaId}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body: PackDetail) => {
+        if (!cancelled) setPackDetail(body)
+      })
+      .catch((err) => {
+        console.error("[korean] pack detail fetch 실패:", err)
+        if (!cancelled) setPackDetail({ drama: null, phrases: [] })
+      })
+      .finally(() => {
+        if (!cancelled) setPackDetailLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [packModalDramaId])
+
   // ─── AI Grammar fetch (Pro 유저 + phrase 준비 시)
   useEffect(() => {
     if (!isPro || !phrase) return
@@ -224,7 +269,7 @@ export default function HangeulGoPage() {
       .finally(() => setGrammarLoading(false))
   }, [isPro, phrase])
 
-  // ─── 액션: Got it 클릭 시 스트릭 POST
+  // ─── 액션: Got it 클릭 시 스트릭 POST + 격려 토스트
   const handleMarkLearned = useCallback(async () => {
     if (!isAuthenticated) {
       window.location.href = "/login?redirect=/korean"
@@ -239,7 +284,12 @@ export default function HangeulGoPage() {
     } catch (err) {
       console.error("[korean] streak 업데이트 실패:", err)
     }
-  }, [isAuthenticated])
+    // 스트릭 응답과 무관하게 학습 완료 격려 메시지 (네트워크 실패 시에도 UX 유지)
+    toast({
+      title: "Great job!",
+      description: "Come back tomorrow for a new expression.",
+    })
+  }, [isAuthenticated, toast])
 
   // ─── 액션: 퀴즈 정답 체크
   const handleCheckAnswer = useCallback(async () => {
@@ -272,13 +322,8 @@ export default function HangeulGoPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }}>
-      <ServiceComingSoonBanner
-        serviceName="HangeulGo"
-        serviceLabel="HangeulGo"
-        source="korean-page"
-      />
       <main className="max-w-[1320px] mx-auto px-5 py-12">
-        {/* Page Header */}
+        {/* Page Header — Soon 배너 제거 (2026-05-18). 정식 노출 후 카피 교체. */}
         <section className="text-center mb-12">
           <div className="flex items-center justify-center gap-3 mb-4">
             <h1 className="text-4xl md:text-5xl font-bold text-foreground">HangeulGo</h1>
@@ -287,7 +332,7 @@ export default function HangeulGoPage() {
             </span>
           </div>
           <p className="text-muted-foreground text-lg">
-            Learn Korean through K-drama lines you already love
+            Learn Korean naturally through K-drama lines you already love.
           </p>
         </section>
 
@@ -445,10 +490,11 @@ export default function HangeulGoPage() {
               {packs.map((pack) => {
                 const dColor = difficultyColor(pack.difficulty)
                 return (
-                  <Link
+                  <button
                     key={pack.id}
-                    href={`/korean/pack/${pack.id}`}
-                    className="flex-shrink-0 w-[240px] bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors cursor-pointer"
+                    type="button"
+                    onClick={() => setPackModalDramaId(pack.id)}
+                    className="flex-shrink-0 w-[240px] bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors cursor-pointer text-left"
                   >
                     {/* Thumbnail — TMDB 포스터 */}
                     <div
@@ -498,7 +544,7 @@ export default function HangeulGoPage() {
                         {pack.progressPercent}% completed
                       </p>
                     </div>
-                  </Link>
+                  </button>
                 )
               })}
             </div>
@@ -721,7 +767,120 @@ export default function HangeulGoPage() {
         </section>
       </main>
 
+      {/* Drama Pack 모달 — 카드 클릭 시 해당 드라마의 학습 표현 목록 표시.
+          표현 없으면 "Expressions coming soon" (cron 이 채울 때까지 안내). */}
+      {packModalDramaId && (
+        <PackDetailModal
+          onClose={() => setPackModalDramaId(null)}
+          detail={packDetail}
+          loading={packDetailLoading}
+        />
+      )}
+
       <FooterSection />
+
+      {/* Toaster — root layout 미마운트 (CLAUDE.md §7). Got it 토스트 살리려 페이지 마운트. */}
+      <Toaster />
+    </div>
+  )
+}
+
+// Drama Pack 상세 모달 — kdrama 모달과 동일 다크 톤. 표현 목록은 카드 그리드 (난이도 배지 포함).
+function PackDetailModal({
+  onClose,
+  detail,
+  loading,
+}: {
+  onClose: () => void
+  detail: PackDetail | null
+  loading: boolean
+}) {
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+      style={{ backgroundColor: "rgba(0, 0, 0, 0.7)" }}
+      onClick={handleOverlayClick}
+    >
+      <div
+        className="w-full max-w-2xl max-h-[85vh] bg-[#1a1a1a] rounded-2xl p-6 relative animate-in zoom-in-95 duration-150 overflow-hidden flex flex-col"
+        style={{ borderRadius: "16px" }}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors z-10"
+          aria-label="Close modal"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Header — 드라마 메타 */}
+        <div className="flex items-center gap-4 mb-6 pr-8">
+          {detail?.drama?.posterUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={detail.drama.posterUrl}
+              alt={detail.drama.title}
+              className="w-16 h-24 object-cover rounded-lg flex-shrink-0"
+            />
+          ) : (
+            <div className="w-16 h-24 bg-[#252528] rounded-lg flex-shrink-0" />
+          )}
+          <div className="min-w-0">
+            <h2 className="text-xl md:text-2xl font-bold text-white truncate">
+              {detail?.drama?.title ?? "Drama"}
+            </h2>
+            {detail?.drama?.titleKo && (
+              <p className="text-muted-foreground text-sm mt-1 truncate">
+                {detail.drama.titleKo}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Body — 표현 리스트 */}
+        <div className="overflow-y-auto -mx-2 px-2 flex-1">
+          {loading ? (
+            <p className="text-center text-muted-foreground py-12">Loading expressions...</p>
+          ) : !detail || detail.phrases.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-foreground font-medium mb-1">Expressions coming soon</p>
+              <p className="text-muted-foreground text-sm">
+                New learning phrases are generated daily.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {detail.phrases.map((p) => {
+                const dColor = difficultyColor(p.difficulty)
+                return (
+                  <div
+                    key={p.id}
+                    className="bg-[#141416] border border-border/20 rounded-xl p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <h3 className="text-foreground text-lg font-semibold">{p.korean}</h3>
+                      <span
+                        className="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0"
+                        style={{ backgroundColor: dColor.bg, color: dColor.color }}
+                      >
+                        {difficultyLabel(p.difficulty)}
+                      </span>
+                    </div>
+                    {p.romanization && (
+                      <p className="text-muted-foreground text-sm">{p.romanization}</p>
+                    )}
+                    <p className="text-foreground text-sm mt-1">&ldquo;{p.english}&rdquo;</p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
