@@ -94,10 +94,14 @@ export default function HangeulGoPage() {
   const [isPro, setIsPro] = useState(false)
 
   // 1. 오늘의 표현
+  //    초기 로드: featured (오늘의 표현). Got it / Next expression 클릭 시부터 랜덤 전환.
+  //    seenPhraseIds: 세션 단위 이력 — 같은 표현 다시 안 나오게. 비-UUID (fallback sentinel) 도
+  //    저장하지만 서버에서 UUID 만 필터링.
   const [phrase, setPhrase] = useState<KoreanPhraseApi | null>(null)
   const [phraseLoading, setPhraseLoading] = useState(true)
   const [phraseError, setPhraseError] = useState<string | null>(null)
   const [showSynAnt, setShowSynAnt] = useState(false)
+  const [seenPhraseIds, setSeenPhraseIds] = useState<string[]>([])
 
   // 2. 스트릭
   const [streakDays, setStreakDays] = useState(0)
@@ -202,6 +206,10 @@ export default function HangeulGoPage() {
             )
           }
           setPhrase(body.phrase)
+          // 초기 로드 phrase 도 seen 이력에 즉시 등록 — Next expression 시 같은 표현 재노출 방지.
+          if (body.phrase?.id) {
+            setSeenPhraseIds([body.phrase.id])
+          }
         }
       )
       .catch((err) => {
@@ -318,7 +326,57 @@ export default function HangeulGoPage() {
       .finally(() => setGrammarLoading(false))
   }, [isPro, phrase])
 
-  // ─── 액션: Got it 클릭 시 스트릭 POST + 격려 토스트
+  // ─── 액션: 다음 표현으로 전환 — seen 이력 제외 랜덤 1건 fetch
+  //    Got it / Next expression 양쪽에서 호출.
+  //    이력 소진 (exhausted) 시 자동 리셋 후 재시도.
+  const advanceToNext = useCallback(async () => {
+    setPhraseLoading(true)
+    setPhraseError(null)
+    try {
+      const excludeParam = seenPhraseIds.join(",")
+      const res = await fetch(
+        `/api/korean/phrase-of-day?exclude_ids=${encodeURIComponent(excludeParam)}`
+      )
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const body = (await res.json()) as {
+        phrase: KoreanPhraseApi | null
+        exhausted?: boolean
+        random?: boolean
+      }
+
+      if (body.exhausted) {
+        // 전체 표현 소진 — 이력 리셋 후 빈 exclude_ids 로 재요청
+        const retryRes = await fetch("/api/korean/phrase-of-day?exclude_ids=")
+        const retryBody = (await retryRes.json()) as { phrase: KoreanPhraseApi | null }
+        if (retryBody.phrase) {
+          setPhrase(retryBody.phrase)
+          setSeenPhraseIds([retryBody.phrase.id])
+          toast({
+            title: "All caught up",
+            description: "You've seen every expression. Cycling through again.",
+          })
+        } else {
+          setPhraseError("표현을 더 가져오지 못했어요.")
+        }
+        return
+      }
+
+      if (body.phrase) {
+        const nextPhrase = body.phrase
+        setPhrase(nextPhrase)
+        setSeenPhraseIds((prev) => [...prev, nextPhrase.id])
+      }
+    } catch (err) {
+      console.error("[korean] advanceToNext 실패:", err)
+      setPhraseError("다음 표현을 불러오지 못했어요.")
+    } finally {
+      setPhraseLoading(false)
+    }
+  }, [seenPhraseIds, toast])
+
+  // ─── 액션: Got it 클릭 시 스트릭 POST + 격려 토스트 + 다음 표현 자동 전환
   const handleMarkLearned = useCallback(async () => {
     if (!isAuthenticated) {
       window.location.href = "/login?redirect=/korean"
@@ -333,12 +391,13 @@ export default function HangeulGoPage() {
     } catch (err) {
       console.error("[korean] streak 업데이트 실패:", err)
     }
-    // 스트릭 응답과 무관하게 학습 완료 격려 메시지 (네트워크 실패 시에도 UX 유지)
+    // 스트릭 응답과 무관하게 학습 완료 격려 메시지 + 즉시 다음 표현
     toast({
       title: "Great job!",
-      description: "Come back tomorrow for a new expression.",
+      description: "Streak updated · Here's the next one.",
     })
-  }, [isAuthenticated, toast])
+    await advanceToNext()
+  }, [isAuthenticated, toast, advanceToNext])
 
   // ─── 액션: 퀴즈 정답 체크
   const handleCheckAnswer = useCallback(async () => {
@@ -511,6 +570,7 @@ export default function HangeulGoPage() {
                 <div className="flex gap-3">
                   <Button
                     onClick={handleMarkLearned}
+                    disabled={phraseLoading}
                     className="flex-1 rounded-xl py-3 font-medium text-white flex items-center justify-center gap-2"
                     style={{ backgroundColor: "#FF4B6E" }}
                   >
@@ -525,6 +585,18 @@ export default function HangeulGoPage() {
                     <RotateCcw className="w-4 h-4" />
                     Review again
                   </Button>
+                </div>
+
+                {/* Next expression — streak 영향 없이 다음 랜덤 표현으로 이동. 세션 이력 제외. */}
+                <div className="mt-3 text-center">
+                  <button
+                    type="button"
+                    onClick={advanceToNext}
+                    disabled={phraseLoading}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  >
+                    Next expression →
+                  </button>
                 </div>
               </>
             )}

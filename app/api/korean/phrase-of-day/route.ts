@@ -9,17 +9,22 @@ import { buildFallbackKoreanPhrase } from "@/lib/korean/fallback-phrase"
 
 // GET /api/korean/phrase-of-day — 오늘의 학습 표현 (비로그인 허용)
 //
-// 동작:
-//   1. Asia/Seoul 기준 오늘 날짜 + dayOfYear 계산
-//   2. korean_phrases.featured_date == 오늘 row 존재 시 즉시 반환 (DB 캐시 hit)
-//   3. miss → 오늘의 드라마 선택 → Claude Haiku 생성 → DB INSERT/UPDATE → 반환
-//   4. Claude 호출 실패 / API 키 누락 시 fallback 표현으로 DB write (sentinel id 가 아닌
-//      실제 UUID 반환) → grammar / quiz / streak 등 phrase_id 가 UUID 라고 가정하는 API
-//      가 정상 동작.
-//   5. dramas 테이블에서 영문/한글 제목 일치 row 찾으면 drama_id 매핑
+// 두 가지 모드:
+//   A. 기본 (쿼리 파라미터 없음) — 오늘의 featured 표현 반환
+//      1. Asia/Seoul 기준 오늘 날짜 + dayOfYear 계산
+//      2. korean_phrases.featured_date == 오늘 row 존재 시 즉시 반환 (DB 캐시 hit)
+//      3. miss → 오늘의 드라마 선택 → Claude Haiku 생성 → DB INSERT/UPDATE → 반환
+//      4. Claude 호출 실패 / API 키 누락 시 fallback 표현으로 DB write (sentinel id 가 아닌
+//         실제 UUID 반환) → grammar / quiz / streak 등 phrase_id 가 UUID 라고 가정하는 API
+//         가 정상 동작.
 //
-// 멱등성: 명시적 SELECT → INSERT/UPDATE 패턴 + race 시 UPDATE 재시도 (PostgREST upsert 는
-//        partial unique index 와 호환되지 않아 사용 불가 — 본 파일 §4 주석 참조).
+//   B. 랜덤 (?exclude_ids=uuid1,uuid2,...) — 세션 이력에 없는 임의 표현 1건 반환
+//      1. korean_phrases 전체에서 exclude_ids 제외 후 50개 풀 fetch
+//      2. JS 측에서 랜덤 1개 picker
+//      3. 모두 소진 시 { phrase: null, exhausted: true } 응답 — 프론트가 이력 리셋
+//
+// 멱등성: 모드 A 는 명시적 SELECT → INSERT/UPDATE 패턴 + race 시 UPDATE 재시도
+//        (PostgREST upsert 는 partial unique index 와 호환되지 않아 사용 불가 — 본 파일 §4 주석 참조).
 
 export const dynamic = "force-dynamic"
 
@@ -54,7 +59,54 @@ function formatPgError(
     .join(" ")
 }
 
-export async function GET() {
+// UUID v4 형식 검증 — exclude_ids 에서 fallback sentinel ("fallback-...") 같은 비-UUID 제거 용도.
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// 모드 B — exclude_ids 제외 랜덤 1건 반환. 풀 limit 50 → JS Math.random pick.
+async function pickRandomPhrase(excludeIdsParam: string): Promise<NextResponse> {
+  const excludeIds = excludeIdsParam
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => UUID_REGEX.test(s))
+
+  const supabase = await createSupabaseServerClient()
+  let query = supabase
+    .from("korean_phrases")
+    .select(PHRASE_SELECT)
+    .limit(50)
+  if (excludeIds.length > 0) {
+    query = query.not("id", "in", `(${excludeIds.join(",")})`)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    console.error(
+      `[/api/korean/phrase-of-day random] 조회 실패 ${formatPgError(error)}`
+    )
+    return NextResponse.json(
+      { error: "query_failed", message: error.message },
+      { status: 500 }
+    )
+  }
+
+  const rows = (data ?? []) as unknown[]
+  if (rows.length === 0) {
+    return NextResponse.json({ phrase: null, exhausted: true, random: true })
+  }
+
+  const picked = rows[Math.floor(Math.random() * rows.length)]
+  const phrase: KoreanPhraseApi = mapKoreanPhraseRow(picked)
+  return NextResponse.json({ phrase, cached: false, random: true })
+}
+
+export async function GET(request: Request) {
+  const url = new URL(request.url)
+  const excludeIdsParam = url.searchParams.get("exclude_ids")
+  // exclude_ids 파라미터가 있으면 (빈 문자열 포함) 랜덤 모드 — 명시적 opt-in.
+  if (excludeIdsParam !== null) {
+    return pickRandomPhrase(excludeIdsParam)
+  }
+
   const supabase = await createSupabaseServerClient()
   const today = getSeoulDateString()
 
