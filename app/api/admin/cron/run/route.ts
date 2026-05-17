@@ -7,10 +7,18 @@ export const maxDuration = 300
 
 // 어드민 모니터에서 cron 라우트를 수동 실행할 수 있게 프록시
 // 이유: 클라이언트는 CRON_SECRET을 알 수 없으므로 서버 측에서 헤더 주입
+//
+// ⚠️ 신규 cron 라우트 추가 시:
+//   1. vercel.json crons 배열
+//   2. app/admin/cron/page.tsx ROUTES + ROUTE_DISPLAY_NAMES
+//   3. 본 enum
+//   4. components/admin/cron-monitor.tsx summarizeRunResult
+//   네 곳을 함께 갱신해야 어드민 수동 실행이 정상 동작 (enum 누락 시 "Object Object" 에러).
 const PostSchema = z.object({
   route: z.enum([
     "ingest-all",
     "ingest-ticketmaster",
+    "ingest-tmdb-dramas",
     "ingest-filming-spots",
     "send-reminders",
   ]),
@@ -25,7 +33,18 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
   const parsed = PostSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+    // flatten 객체를 그대로 반환하면 클라이언트가 .toString() 으로 "[object Object]" 변환
+    // → 사람이 읽을 수 있는 문자열로 압축 (route 값 문제가 가장 흔함)
+    const issues = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ")
+    return NextResponse.json(
+      {
+        error: `invalid_body: ${issues}`,
+        receivedRoute: (body as { route?: unknown })?.route,
+      },
+      { status: 400 }
+    )
   }
 
   const cronSecret = process.env.CRON_SECRET

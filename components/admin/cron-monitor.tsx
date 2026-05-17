@@ -39,7 +39,13 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok || !json.ok) {
-        toast({ title: "실행 실패", description: json.error?.toString?.() ?? `HTTP ${res.status}` })
+        // result_json 안에 error 가 박힌 경우(인제스트 함수가 실패 정상화 반환) 도 추출
+        const innerError = pickErrorString(json.result)
+        const outerError = pickErrorString(json.error)
+        const description = innerError ?? outerError ?? `HTTP ${res.status}`
+        // 콘솔에 원본 응답 박제 — 토스트만 보면 단서가 부족할 때 진단 위함
+        console.error(`[admin/cron] ${route} 수동 실행 실패:`, json)
+        toast({ title: "실행 실패", description })
       } else {
         toast({
           title: "실행 완료",
@@ -47,6 +53,7 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
         })
       }
     } catch (err) {
+      console.error(`[admin/cron] ${route} 수동 실행 예외:`, err)
       toast({ title: "실행 오류", description: err instanceof Error ? err.message : "알 수 없는 오류" })
     } finally {
       setRunningRoute(null)
@@ -180,6 +187,13 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
     return `수집 ${num(r.upserted)}건 · ${time}`
   }
 
+  if (route === "ingest-tmdb-dramas") {
+    // DramaIngestResult — scanned/upserted/calendarLinked + (실패 시 error/details)
+    const errMsg = pickErrorString(r)
+    if (errMsg) return `실패: ${errMsg} · ${time}`
+    return `드라마 ${num(r.upserted)}건 (스캔 ${num(r.scanned)} · 캘린더 매핑 ${num(r.calendarLinked)}) · ${time}`
+  }
+
   if (route === "ingest-all") {
     const total = typeof r.total_upserted === "number" ? r.total_upserted : null
     return total !== null ? `수집 ${total.toLocaleString()}건 · ${time}` : `${route} · ${time}`
@@ -195,4 +209,45 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
 
 function num(v: unknown): number {
   return typeof v === "number" ? v : 0
+}
+
+// 임의 형태의 에러 값을 사람이 읽을 수 있는 단일 문자열로 압축.
+//
+// 처리 케이스:
+//   - string                          → 그대로
+//   - Error                           → err.message
+//   - { error, details, hint, code }  → "error (code): details — hint" 조합 (PostgrestError 패턴)
+//   - { error }                       → recurse
+//   - 기타 object                     → JSON.stringify (실패 시 String(...) fallback)
+//   - null/undefined                  → null (호출부에서 fallback 처리)
+//
+// 절대 .toString() 직접 호출 금지 — 객체는 "[object Object]" 가 됨.
+function pickErrorString(value: unknown): string | null {
+  if (value == null) return null
+  if (typeof value === "string") return value
+  if (value instanceof Error) return value.message
+  if (typeof value !== "object") return String(value)
+
+  const obj = value as Record<string, unknown>
+
+  // 인제스트 결과: { error, details, hint, code }
+  if (typeof obj.error === "string") {
+    const parts = [obj.error]
+    if (typeof obj.code === "string") parts[0] = `${obj.error} (${obj.code})`
+    if (typeof obj.details === "string") parts.push(obj.details)
+    if (typeof obj.hint === "string") parts.push(`힌트: ${obj.hint}`)
+    return parts.join(" — ")
+  }
+
+  // 중첩 { error: ... } 한 단계만 더 들여다봄
+  if ("error" in obj) {
+    const nested = pickErrorString(obj.error)
+    if (nested) return nested
+  }
+
+  try {
+    return JSON.stringify(obj).slice(0, 300)
+  } catch {
+    return String(value)
+  }
 }

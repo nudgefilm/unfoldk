@@ -9,6 +9,34 @@ import { runDramaIngest } from "@/lib/ingest/dramas"
 export const maxDuration = 300
 export const dynamic = "force-dynamic"
 
+// 임의 예외 → 디버그 가능한 직렬화 형태로 변환 (Error 객체는 JSON.stringify 시 {} 가 되는 문제 회피)
+function serializeError(err: unknown): {
+  message: string
+  name?: string
+  stack?: string
+  cause?: string
+  raw?: string
+} {
+  if (err instanceof Error) {
+    return {
+      message: err.message || "(empty error message)",
+      name: err.name,
+      stack: err.stack?.split("\n").slice(0, 5).join("\n"),
+      cause: err.cause ? String(err.cause) : undefined,
+    }
+  }
+  if (typeof err === "string") return { message: err }
+  if (err && typeof err === "object") {
+    try {
+      const raw = JSON.stringify(err)
+      return { message: raw.slice(0, 500), raw: raw }
+    } catch {
+      return { message: String(err) }
+    }
+  }
+  return { message: String(err) }
+}
+
 export async function GET(request: Request) {
   const auth = verifyCronAuth(request)
   if (!auth.ok) {
@@ -19,17 +47,27 @@ export async function GET(request: Request) {
   try {
     const result = await runDramaIngest()
     const payload = { elapsedMs: Date.now() - t0, ...result }
-    await recordCronLog(
-      "ingest-tmdb-dramas",
-      result.error ? "failed" : "success",
-      payload
-    )
-    return NextResponse.json(payload)
+    // result.error 가 string 인 경우 (인제스트 함수가 실패를 정상화 반환) 도 failed 로 기록
+    const status = result.error ? "failed" : "success"
+    if (status === "failed") {
+      console.error("[ingest-tmdb-dramas] 인제스트 실패 (정상화 반환):", payload)
+    }
+    await recordCronLog("ingest-tmdb-dramas", status, payload)
+    return NextResponse.json(payload, { status: status === "failed" ? 500 : 200 })
   } catch (err) {
+    // throw 가 위까지 올라온 경우 — TMDB API 401/네트워크/genre fetch 등
+    const errInfo = serializeError(err)
+    console.error("[ingest-tmdb-dramas] 인제스트 예외:", errInfo)
     const payload = {
       elapsedMs: Date.now() - t0,
       source: "tmdb-dramas" as const,
-      error: err instanceof Error ? err.message : "unknown",
+      scanned: 0,
+      upserted: 0,
+      calendarLinked: 0,
+      error: errInfo.message,
+      errorName: errInfo.name,
+      errorStack: errInfo.stack,
+      errorCause: errInfo.cause,
     }
     await recordCronLog("ingest-tmdb-dramas", "failed", payload)
     return NextResponse.json(payload, { status: 500 })

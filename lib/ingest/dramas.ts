@@ -161,6 +161,7 @@ function buildRow(c: TmdbTvShow, detail: TmdbTvDetail | null): DramaUpsertRow {
 
 export async function runDramaIngest(): Promise<DramaIngestResult> {
   // 1. 후보 수집 — 인기순 1~3 페이지(KR 60건) + top_rated 1~2 페이지(필터 후 ≈10~20건)
+  //    Promise.allSettled 로 부분 실패 허용. rejected 사유는 로그에 박제 (다른 cron 영향 진단용)
   const sources = await Promise.allSettled([
     fetchKoreanDramasByPopularity(1),
     fetchKoreanDramasByPopularity(2),
@@ -170,8 +171,18 @@ export async function runDramaIngest(): Promise<DramaIngestResult> {
   ])
 
   const all: TmdbTvShow[] = []
-  for (const r of sources) {
-    if (r.status === "fulfilled") all.push(...r.value)
+  const sourceErrors: string[] = []
+  const sourceLabels = ["popularity-p1", "popularity-p2", "popularity-p3", "top-rated-p1", "top-rated-p2"]
+  for (let i = 0; i < sources.length; i++) {
+    const r = sources[i]
+    if (r.status === "fulfilled") {
+      all.push(...r.value)
+    } else {
+      const msg = r.reason instanceof Error ? r.reason.message : String(r.reason)
+      const label = sourceLabels[i]
+      sourceErrors.push(`${label}: ${msg}`)
+      console.error(`[ingest-dramas] ${label} 실패:`, r.reason)
+    }
   }
 
   // 2. tmdb_id 중복 제거
@@ -182,22 +193,34 @@ export async function runDramaIngest(): Promise<DramaIngestResult> {
   const candidates = Array.from(dedup.values())
 
   if (candidates.length === 0) {
+    // 모든 후보 fetch 실패 → 단순 "응답 0건" 메시지 보다 실패 사유를 직접 노출
+    const errSummary = sourceErrors.length > 0
+      ? sourceErrors.join(" | ")
+      : "TMDB 응답 0건 — API 키·네트워크 확인 필요"
     return {
       source: "tmdb-dramas",
       scanned: 0,
       upserted: 0,
       calendarLinked: 0,
-      note: "TMDB 응답 0건 — API 키·네트워크 확인 필요",
+      error: errSummary,
+      note: "후보 0건 — 모든 TMDB 호출 실패 또는 빈 응답",
     }
   }
 
   // 3. 장르 매핑 + 상세 조회 (expanded=true — append_to_response 활용)
-  const genreMap = await fetchTvGenreMap()
-  void genreMap
+  //    fetchTvGenreMap throw 시 명시적으로 catch — 후보 80건은 받았는데 genre 만 실패할 수 있음
+  try {
+    const genreMap = await fetchTvGenreMap()
+    void genreMap
+  } catch (err) {
+    // genre 는 row 변환 시 fallback 가능 (detail.genres 사용) — warning 만 로그 후 계속
+    console.warn("[ingest-dramas] genre map fetch 실패 (계속 진행):", err)
+  }
 
   // 동시 6개로 제한 (TMDB rate ≈40 req/s 충분 여유)
   const CONCURRENCY = 6
   const details = new Map<number, TmdbTvDetail | null>()
+  let detailFailures = 0
   for (let i = 0; i < candidates.length; i += CONCURRENCY) {
     const slice = candidates.slice(i, i + CONCURRENCY)
     const results = await Promise.allSettled(
@@ -206,9 +229,27 @@ export async function runDramaIngest(): Promise<DramaIngestResult> {
         detail: await fetchTvDetail(c.id, { expanded: true }),
       }))
     )
-    for (const r of results) {
-      if (r.status === "fulfilled") details.set(r.value.id, r.value.detail)
+    for (let j = 0; j < results.length; j++) {
+      const r = results[j]
+      if (r.status === "fulfilled") {
+        details.set(r.value.id, r.value.detail)
+      } else {
+        detailFailures++
+        // 모든 detail 실패 로그는 노이즈 — 첫 3건만 박제
+        if (detailFailures <= 3) {
+          const failedId = slice[j].id
+          console.warn(
+            `[ingest-dramas] tv/${failedId} detail fetch 실패:`,
+            r.reason instanceof Error ? r.reason.message : r.reason
+          )
+        }
+      }
     }
+  }
+  if (detailFailures > 0) {
+    console.warn(
+      `[ingest-dramas] detail fetch 실패 총 ${detailFailures}/${candidates.length}건 — 부분 데이터로 진행`
+    )
   }
 
   // 4. upsert row 변환
@@ -224,13 +265,22 @@ export async function runDramaIngest(): Promise<DramaIngestResult> {
     .select("id, title, calendar_event_id")
 
   if (error) {
-    console.error("[ingest-dramas] upsert 실패:", error)
+    // PostgrestError 전체 박제 — 라우트의 catch 보다 여기서 정상화 반환이 신호 더 풍부함
+    console.error("[ingest-dramas] upsert 실패:", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      // 첫 row 의 컬럼 키 — 누락 컬럼 / 신규 마이그레이션 미적용 진단용
+      sampleColumns: rows[0] ? Object.keys(rows[0]).join(",") : "(no rows)",
+      rowCount: rows.length,
+    })
     return {
       source: "tmdb-dramas",
       scanned: candidates.length,
       upserted: 0,
       calendarLinked: 0,
-      error: error.message,
+      error: error.message || "(empty postgrest message)",
       details: error.details ?? undefined,
       hint: error.hint ?? undefined,
       code: error.code ?? undefined,
