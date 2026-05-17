@@ -129,7 +129,7 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 | HangeulGo — AI Grammar Explanation | Pro 유지 | 동일 | copy 만 변경 |
 | KfoodKit — 추천·쇼핑 리스트 | Pro 유지 (잠금 UI) | 동일 | copy 만 변경 |
 | Curation K — 지도 핀 / 카드 / 국가별 위젯 | Free 가능 (이미 현 상태) | 동일 | 변경 없음 |
-| Curation K — AI 1-Day Course | Pro 유지 | 동일 | copy 만 변경 |
+| Curation K — My Hallyu Course | Pro 유지 | 동일 | copy 만 변경 |
 
 **Pro 잠금 UI copy 통일**: 모든 Pro 잠금 카드는 "Coming with Hallyu Pass" + "Notify me at launch" 패턴 사용. "Upgrade — $15/month" 직접 결제 유도 카피는 결제 연동 후 부활.
 

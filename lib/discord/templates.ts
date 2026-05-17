@@ -44,7 +44,7 @@ Coming soon — sign up to be notified at launch.
 → https://unfoldk.com/food`,
 
   curationk: `🗺️ **Curation K** — Korea, mapped for fans.
-Filming spots · K-pop pilgrimage · food · stays · AI 1-day course.
+Filming spots · K-pop pilgrimage · food · stays · My Hallyu Course.
 → https://unfoldk.com/curation-k`,
 } as const
 

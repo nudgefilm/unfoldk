@@ -8,7 +8,7 @@
 //   3. K-Pop Pilgrimage Sites — kpop_spots DB, Last.fm 인기 순서
 //   4. Korean Food Hotspots — TourAPI 음식점 (region picker)
 //   5. Themed Stays — TourAPI 숙박 (region picker)
-//   6. AI 1-Day Course — Pro 잠금 UI (Phase 2 에서 Claude 생성 결합)
+//   6. My Hallyu Course — Pro 잠금 UI (Phase 2 에서 Claude 생성 결합). 이전 명칭 "AI 1-Day Course".
 //   7. Fan Map by Country — Last.fm geo.getTopArtists × kpop_artists
 //
 // 카테고리 아이콘 (사용자 지정):
@@ -296,7 +296,7 @@ function translatePlaceName(name: string): string {
 export default function CurationKPage() {
   const [koreaPath, setKoreaPath] = useState<string | null>(null)
 
-  // 인증·플랜 (AI 1-Day Course Pro 가드용)
+  // 인증·플랜 (My Hallyu Course Pro 가드용)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [isPro, setIsPro] = useState(false)
 
@@ -1004,10 +1004,10 @@ export default function CurationKPage() {
           )}
         </div>
 
-        {/* ───── 6. AI 1-Day Course (Pro 잠금) ─────────────── */}
+        {/* ───── 6. My Hallyu Course (Pro 잠금) ─────────────── */}
         <SectionHeader
           Icon={Sparkles}
-          title="AI 1-Day Course"
+          title="My Hallyu Course"
           subtitle="Claude generates a Hallyu day-trip from your taste."
           color="#FF4B6E"
           badge="Pro"

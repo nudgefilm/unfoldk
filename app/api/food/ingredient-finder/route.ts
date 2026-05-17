@@ -20,7 +20,7 @@ export const maxDuration = 30
 //   2. zod 검증 (country enum, ingredient 1~80자)
 //   3. Claude Haiku 호출 → 대체 재료 + 현지 스토어 + tip
 //
-// 인증 정책: 결제 연동 전 임시 Free 확대 정책 (CLAUDE.md §6) 에서 AI 1-Day Course 등 AI 기능은
+// 인증 정책: 결제 연동 전 임시 Free 확대 정책 (CLAUDE.md §6) 에서 My Hallyu Course 등 AI 기능은
 // Pro 유지로 명시됨. 본 라우트도 Pro 유지 — 결제 가동 후 동일하게 유지.
 
 const BodySchema = z.object({
