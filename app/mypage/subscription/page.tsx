@@ -438,7 +438,11 @@ function FreeUserView() {
               <span className="text-muted-foreground">/month</span>
             </div>
             <p className="text-muted-foreground text-sm mb-5">Billed monthly. Cancel anytime.</p>
-            <a href="/api/lemonsqueezy/checkout?plan=monthly">
+            <a
+              href="/api/lemonsqueezy/checkout?plan=monthly"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <Button
                 className="w-full rounded-full font-medium text-white"
                 style={{ backgroundColor: "#FF4B6E" }}
@@ -465,7 +469,11 @@ function FreeUserView() {
               <span className="text-muted-foreground">/month</span>
             </div>
             <p className="text-muted-foreground text-sm mb-5">$120/year, billed annually</p>
-            <a href="/api/lemonsqueezy/checkout?plan=annual">
+            <a
+              href="/api/lemonsqueezy/checkout?plan=annual"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <Button
                 className="w-full rounded-full font-medium text-white"
                 style={{ backgroundColor: "#FF4B6E" }}
