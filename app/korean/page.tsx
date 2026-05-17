@@ -381,11 +381,25 @@ export default function HangeulGoPage() {
     }
   }, [seenPhraseIds, toast])
 
-  // ─── 액션: Got it 클릭 시 스트릭 POST + 격려 토스트 + 다음 표현 자동 전환
+  // ─── 액션: Got it 클릭 시 학습완료 기록 + 스트릭 POST + 격려 토스트 + 다음 표현 자동 전환
+  //    learning-progress POST 로 현재 phrase 를 mastered 마킹 → 페이지 재진입 시
+  //    phrase-of-day GET 이 자동으로 미학습 랜덤으로 우회 (in-memory 가 아니라 영구).
   const handleMarkLearned = useCallback(async () => {
     if (!isAuthenticated) {
       window.location.href = "/login?redirect=/korean"
       return
+    }
+    // 현재 phrase 를 mastered 기록 — 비-UUID (fallback sentinel) 은 서버가 skip
+    if (phrase?.id) {
+      try {
+        await fetch("/api/korean/learning-progress", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phraseId: phrase.id, status: "mastered" }),
+        })
+      } catch (err) {
+        console.error("[korean] learning-progress 업데이트 실패:", err)
+      }
     }
     try {
       const res = await fetch("/api/korean/streak", { method: "POST" })
@@ -402,7 +416,7 @@ export default function HangeulGoPage() {
       description: "Streak updated · Here's the next one.",
     })
     await advanceToNext()
-  }, [isAuthenticated, toast, advanceToNext])
+  }, [isAuthenticated, phrase, toast, advanceToNext])
 
   // ─── 액션: 퀴즈 정답 체크
   const handleCheckAnswer = useCallback(async () => {

@@ -13,15 +13,18 @@ import { buildFallbackKoreanPhrase } from "@/lib/korean/fallback-phrase"
 //   A. 기본 (쿼리 파라미터 없음) — 오늘의 featured 표현 반환
 //      1. Asia/Seoul 기준 오늘 날짜 + dayOfYear 계산
 //      2. korean_phrases.featured_date == 오늘 row 존재 시 즉시 반환 (DB 캐시 hit)
-//      3. miss → 오늘의 드라마 선택 → Claude Haiku 생성 → DB INSERT/UPDATE → 반환
-//      4. Claude 호출 실패 / API 키 누락 시 fallback 표현으로 DB write (sentinel id 가 아닌
+//      3. 로그인 유저 + 오늘 featured 가 user_learning_progress.status='mastered' 면
+//         자동으로 모드 B (mastered 제외 랜덤) 로 우회 — 같은 표현 재노출 방지.
+//      4. miss → 오늘의 드라마 선택 → Claude Haiku 생성 → DB INSERT/UPDATE → 반환
+//      5. Claude 호출 실패 / API 키 누락 시 fallback 표현으로 DB write (sentinel id 가 아닌
 //         실제 UUID 반환) → grammar / quiz / streak 등 phrase_id 가 UUID 라고 가정하는 API
 //         가 정상 동작.
 //
 //   B. 랜덤 (?exclude_ids=uuid1,uuid2,...) — 세션 이력에 없는 임의 표현 1건 반환
-//      1. korean_phrases 전체에서 exclude_ids 제외 후 50개 풀 fetch
-//      2. JS 측에서 랜덤 1개 picker
-//      3. 모두 소진 시 { phrase: null, exhausted: true } 응답 — 프론트가 이력 리셋
+//      1. 로그인 유저면 본인 mastered phrase id 도 exclude_ids 에 자동 머지
+//      2. korean_phrases 전체에서 exclude_ids 제외 후 50개 풀 fetch
+//      3. JS 측에서 랜덤 1개 picker
+//      4. 모두 소진 시 { phrase: null, exhausted: true } 응답 — 프론트가 이력 리셋
 //
 // 멱등성: 모드 A 는 명시적 SELECT → INSERT/UPDATE 패턴 + race 시 UPDATE 재시도
 //        (PostgREST upsert 는 partial unique index 와 호환되지 않아 사용 불가 — 본 파일 §4 주석 참조).
@@ -62,12 +65,44 @@ function formatPgError(
 // UUID v4 형식 검증 — exclude_ids 에서 fallback sentinel ("fallback-...") 같은 비-UUID 제거 용도.
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// 로그인 유저의 mastered phrase id 목록을 조회.
+// 비로그인이면 빈 배열. user_learning_progress 미존재 / RLS 차단 시도 빈 배열로 안전 처리.
+async function getMasteredPhraseIds(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>
+): Promise<string[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return []
+  const { data, error } = await supabase
+    .from("user_learning_progress")
+    .select("phrase_id")
+    .eq("user_id", user.id)
+    .eq("status", "mastered")
+  if (error) {
+    console.warn(
+      `[/api/korean/phrase-of-day] mastered 조회 실패 code=${error.code} message=${error.message}`
+    )
+    return []
+  }
+  return (data ?? [])
+    .map((r) => (r as { phrase_id: string }).phrase_id)
+    .filter((id) => UUID_REGEX.test(id))
+}
+
 // 모드 B — exclude_ids 제외 랜덤 1건 반환. 풀 limit 50 → JS Math.random pick.
-async function pickRandomPhrase(excludeIdsParam: string): Promise<NextResponse> {
-  const excludeIds = excludeIdsParam
+// extraExcludeIds: 호출자가 추가로 제외할 id 목록 (로그인 유저의 mastered 등).
+async function pickRandomPhrase(
+  excludeIdsParam: string,
+  extraExcludeIds: string[] = []
+): Promise<NextResponse> {
+  const explicit = excludeIdsParam
     .split(",")
     .map((s) => s.trim())
     .filter((s) => UUID_REGEX.test(s))
+  const excludeIds = Array.from(
+    new Set([...explicit, ...extraExcludeIds.filter((s) => UUID_REGEX.test(s))])
+  )
 
   const supabase = await createSupabaseServerClient()
   let query = supabase
@@ -102,12 +137,16 @@ async function pickRandomPhrase(excludeIdsParam: string): Promise<NextResponse> 
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const excludeIdsParam = url.searchParams.get("exclude_ids")
-  // exclude_ids 파라미터가 있으면 (빈 문자열 포함) 랜덤 모드 — 명시적 opt-in.
-  if (excludeIdsParam !== null) {
-    return pickRandomPhrase(excludeIdsParam)
-  }
 
   const supabase = await createSupabaseServerClient()
+  // 로그인 유저의 mastered 목록은 모드 A·B 양쪽에서 사용 — 한 번 조회.
+  const masteredIds = await getMasteredPhraseIds(supabase)
+
+  // exclude_ids 파라미터가 있으면 (빈 문자열 포함) 랜덤 모드 — 명시적 opt-in.
+  if (excludeIdsParam !== null) {
+    return pickRandomPhrase(excludeIdsParam, masteredIds)
+  }
+
   const today = getSeoulDateString()
 
   // 1. 캐시 hit
@@ -122,6 +161,12 @@ export async function GET(request: Request) {
     )
   }
   if (cached) {
+    const cachedId = (cached as { id: string }).id
+    // 로그인 유저 + 오늘 featured 가 이미 mastered → 미학습 랜덤 1건으로 자동 우회.
+    // 페이지 재진입 시 같은 표현이 다시 노출되는 것을 막는다.
+    if (masteredIds.includes(cachedId)) {
+      return pickRandomPhrase("", masteredIds)
+    }
     const phrase: KoreanPhraseApi = mapKoreanPhraseRow(cached)
     return NextResponse.json({ phrase, cached: true })
   }
