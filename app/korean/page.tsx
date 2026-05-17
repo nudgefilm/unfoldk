@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react"
+import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight, X, Film } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -396,13 +396,22 @@ export default function HangeulGoPage() {
               </p>
             ) : (
               <>
-                {/* Drama Tag */}
+                {/* Drama Tag — 더 눈에 띄게: Film 아이콘 + "Today's drama" 라벨 + 큰 패딩·테두리 */}
                 <div className="flex justify-center mb-6">
                   <span
-                    className="px-3 py-1 rounded-full text-xs font-medium"
-                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)", color: "#FF4B6E" }}
+                    className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold"
+                    style={{
+                      backgroundColor: "rgba(255, 75, 110, 0.15)",
+                      color: "#FF4B6E",
+                      border: "1px solid rgba(255, 75, 110, 0.35)",
+                    }}
                   >
-                    {phrase.dramaName ?? "K-drama"}
+                    <Film className="w-4 h-4" />
+                    <span className="text-foreground/70 font-normal uppercase tracking-wider text-[10px]">
+                      Today&apos;s drama
+                    </span>
+                    <span>·</span>
+                    <span>{phrase.dramaName ?? "K-drama"}</span>
                   </span>
                 </div>
 
@@ -538,12 +547,18 @@ export default function HangeulGoPage() {
             >
               {packs.map((pack) => {
                 const dColor = difficultyColor(pack.difficulty)
+                // 오늘의 표현 드라마와 일치 시 카드 하이라이트 (primary 테두리 + ring + 우상단 Today 배지)
+                const isTodaysDrama = !!phrase?.dramaId && phrase.dramaId === pack.id
                 return (
                   <button
                     key={pack.id}
                     type="button"
                     onClick={() => setPackModalDramaId(pack.id)}
-                    className="flex-shrink-0 w-[240px] bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors cursor-pointer text-left"
+                    className={`flex-shrink-0 w-[240px] bg-[#1a1a1a] rounded-xl overflow-hidden transition-colors cursor-pointer text-left ${
+                      isTodaysDrama
+                        ? "ring-2 ring-primary border border-primary"
+                        : "border border-border/30 hover:border-primary/50"
+                    }`}
                   >
                     {/* Thumbnail — TMDB 포스터 */}
                     <div
@@ -561,6 +576,15 @@ export default function HangeulGoPage() {
                         <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
                           Drama Thumbnail
                         </div>
+                      )}
+                      {/* Today 배지 — 오늘의 표현 드라마와 일치한 카드 우상단 */}
+                      {isTodaysDrama && (
+                        <span
+                          className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider text-white shadow-md"
+                          style={{ backgroundColor: "#FF4B6E" }}
+                        >
+                          Today
+                        </span>
                       )}
                     </div>
 

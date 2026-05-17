@@ -68,6 +68,12 @@ export function BentoSection() {
       description: "Cook the food from your favorite K-drama anywhere, with local ingredient substitutions powered by AI.",
       href: "/food",
     },
+    {
+      icon: "🗺️",
+      title: "Curation K",
+      description: "Discover filming spots, hidden gems, and AI-curated 1-day trips across Korea — for fans heading to Seoul and beyond.",
+      href: "/curation-k",
+    },
   ]
 
   return (
@@ -80,7 +86,7 @@ export function BentoSection() {
               Everything a Hallyu fan needs
             </h2>
             <p className="w-full max-w-[600px] text-center text-muted-foreground text-lg md:text-xl font-medium leading-relaxed">
-              Five services. One subscription. Zero FOMO.
+              Six services. One subscription. Zero FOMO.
             </p>
           </div>
         </div>

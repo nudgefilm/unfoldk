@@ -34,10 +34,16 @@ const services = [
     description: "Cook the food from your favorite K-drama anywhere, with local ingredient substitutions powered by AI.",
     href: "/food",
   },
+  {
+    icon: "🗺️",
+    title: "Curation K",
+    description: "Discover filming spots, hidden gems, and AI-curated 1-day trips across Korea — for fans heading to Seoul and beyond.",
+    href: "/curation-k",
+  },
 ]
 
 const stats = [
-  { value: "5", label: "Services built" },
+  { value: "6", label: "Services built" },
   { value: "30,000+", label: "Hallyu fans (goal)" },
   { value: "12", label: "Countries reached" },
   { value: "1", label: "Passionate team" },
@@ -117,7 +123,7 @@ export default function AboutPage() {
               We run UNFOLD LAB — a small indie studio building tools for global audiences. After launching tubewatch.kr, we kept hearing from K-pop fans who struggled to track comebacks, find dramas, and learn Korean.
             </p>
             <p>
-              UnfoldK is our answer to that. Five focused services. One affordable subscription. Zero fluff.
+              UnfoldK is our answer to that. Six focused services. One affordable subscription. Zero fluff.
             </p>
           </div>
         </section>

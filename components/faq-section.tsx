@@ -13,12 +13,12 @@ const faqData = [
   {
     question: "What's included in Hallyu Pass?",
     answer:
-      "Hallyu Pass gives you full Pro access to all five services: HallyuCalendar, KpopStats, KdramaMatch, HangeulGo, and KfoodKit. One subscription, one account, everything included.",
+      "Hallyu Pass gives you full Pro access to all six services: HallyuCalendar, KpopStats, KdramaMatch, HangeulGo, KfoodKit, and Curation K. One subscription, one account, everything included.",
   },
   {
     question: "Is there a free plan?",
     answer:
-      "Yes. The Free plan gives you limited access to all five services — enough to explore before committing. No credit card required to sign up.",
+      "Yes. The Free plan gives you limited access to all six services — enough to explore before committing. No credit card required to sign up.",
   },
   {
     question: "How does Google Calendar sync work?",

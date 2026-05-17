@@ -30,8 +30,8 @@ export function RoadmapModal({ open, onOpenChange }: Props) {
             What&apos;s coming to UnfoldK
           </DialogTitle>
           <p className="text-muted-foreground text-sm mt-1">
-            6 services for K-pop, K-drama, Korean culture fans. Three are live now —
-            three more arriving soon.
+            6 services for K-pop, K-drama, Korean culture fans. Five are live now —
+            one more arriving soon.
           </p>
         </DialogHeader>
 

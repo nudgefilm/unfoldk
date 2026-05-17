@@ -26,14 +26,14 @@ export function PricingSection() {
   }, [])
 
   const freeFeatures = [
-    "Basic access to all 5 services",
+    "Basic access to all 6 services",
     "Track up to 3 artists",
     "1 Korean lesson per day",
     "1 recipe per week",
   ]
 
   const proFeatures = [
-    "Full access to all 5 services Pro",
+    "Full access to all 6 services Pro",
     "Unlimited artist tracking",
     "Google Calendar sync",
     "iCal share link",

@@ -70,8 +70,8 @@ export function EarlyAccessBanner() {
           <Rocket className="w-4 h-4 flex-shrink-0" aria-hidden />
           <p className="text-xs sm:text-sm font-medium leading-tight flex-1 min-w-0">
             <span className="font-semibold">Early Access</span>
-            <span className="hidden sm:inline"> — New services launching soon. Join free and get notified!</span>
-            <span className="sm:hidden"> — New services soon.</span>
+            <span className="hidden sm:inline"> — KfoodKit launching soon. Join free and get notified!</span>
+            <span className="sm:hidden"> — KfoodKit soon.</span>
           </p>
           <button
             type="button"

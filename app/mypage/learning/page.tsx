@@ -1,7 +1,7 @@
 "use client"
 
-// /mypage/learning — HangeulGo Coming Soon
-// M+3 로드맵. ElevenLabs TTS 인프라 출시 후 학습 진도·streak 분기 추가.
+// /mypage/learning — HangeulGo 학습 진도 (정식 출시 — 진도/스트릭 UI 는 Phase 2 작업).
+// 현재는 HangeulGo 페이지로 안내하는 active CTA 만 노출. Soon 카피 제거.
 
 import Link from "next/link"
 import { Languages } from "lucide-react"
@@ -17,18 +17,18 @@ export default function MyLearningPage() {
             <Languages className="w-12 h-12" style={{ color: "#FF4B6E" }} />
           </div>
           <p className="text-foreground font-semibold text-lg mb-2">
-            HangeulGo is launching soon.
+            Start learning Korean today.
           </p>
           <p className="text-muted-foreground text-sm max-w-md mx-auto mb-6 leading-relaxed">
-            Learn Korean phrases from your favorite K-dramas with native-speaker audio. Track your
-            daily streak and progress here.
+            Learn Korean phrases from your favorite K-dramas with native-speaker audio.
+            Track your daily streak and progress as you grow.
           </p>
           <Link
             href="/korean"
             className="inline-block text-sm font-medium hover:underline"
             style={{ color: "#FF4B6E" }}
           >
-            Preview HangeulGo →
+            Open HangeulGo →
           </Link>
         </div>
       </div>
