@@ -55,13 +55,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_plan_type" }, { status: 400 })
   }
 
-  // 5. users 업데이트 — RLS "users_update_own" 정책으로 본인 행만 수정 가능
+  // 5. 국가 추출 — Vercel x-vercel-ip-country (ISO 3166-1 alpha-2, 대문자).
+  //    로컬·미지정·헤더 없음 → null. 추후 변경 안 함 (가입 시 1회만).
+  const rawCountry = request.headers.get("x-vercel-ip-country")
+  const country =
+    rawCountry && /^[A-Z]{2}$/.test(rawCountry.toUpperCase())
+      ? rawCountry.toUpperCase()
+      : null
+
+  // 6. users 업데이트 — RLS "users_update_own" 정책으로 본인 행만 수정 가능
   const { error: updateError } = await supabase
     .from("users")
     .update({
       plan_type: planType,
       agreed_to_terms: true,
       agreed_at: new Date().toISOString(),
+      // 기존 country 가 있으면 덮어쓰지 않음 — coalesce 동작은 별도 update 로.
+      // 단순화: 최초 가입 시점이라 country 가 NULL 일 것 → 그대로 set.
+      ...(country !== null ? { country } : {}),
     })
     .eq("id", user.id)
 

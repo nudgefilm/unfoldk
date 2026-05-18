@@ -5,9 +5,54 @@ import { Twitter, Instagram } from "lucide-react"
 import Link from "next/link"
 import { CookieConsentBanner, COOKIE_CONSENT_KEY } from "./cookie-consent-banner"
 
+// ISO 3166-1 alpha-2 (예 "US") → 국기 이모지. 외부 라이브러리 없이 codePoint 변환.
+// Regional Indicator Symbols (0x1F1E6 = 🇦) base 에 A=0 offset 더해 두 글자 조합.
+function flagEmoji(code: string): string {
+  if (!/^[A-Z]{2}$/.test(code)) return ""
+  const A = 0x1f1e6
+  return String.fromCodePoint(
+    code.charCodeAt(0) - 65 + A,
+    code.charCodeAt(1) - 65 + A
+  )
+}
+
+interface StatsResponse {
+  total_members: number
+  total_countries: number
+  top_countries: Array<{ country: string; count: number }>
+}
+
+// 마퀴 트랙 — 배열 2회 반복 + translateX(-50%) 로 끊김 없는 무한 스크롤.
+// 국가 수가 적을 때도 viewport 폭 충족 위해 최소 8회까지 패딩 반복.
+function buildMarqueeItems(
+  source: Array<{ country: string; count: number }>
+): Array<{ country: string; count: number }> {
+  if (source.length === 0) return []
+  const minRepeat = Math.max(2, Math.ceil(8 / source.length))
+  const repeated: typeof source = []
+  for (let i = 0; i < minRepeat; i++) repeated.push(...source)
+  // 마퀴 seamless wrap 을 위한 한 번 더 복제 (앞쪽 절반 == 뒤쪽 절반)
+  return [...repeated, ...repeated]
+}
+
 export function FooterSection() {
   const footerRef = useRef<HTMLElement>(null)
   const [bannerOpen, setBannerOpen] = useState(false)
+  const [stats, setStats] = useState<StatsResponse | null>(null)
+
+  // /api/stats — mount 시 1회 fetch. 실패해도 푸터 본체 노출엔 영향 없음.
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/stats")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body: StatsResponse) => {
+        if (!cancelled) setStats(body)
+      })
+      .catch((err) => console.warn("[footer] stats fetch 실패:", err))
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // 쿠키 동의 배너 — 푸터가 viewport 에 들어올 때 1회만 트리거.
   // 이미 동의했으면 IO 자체를 걸지 않음 (불필요한 리스너 제거).
@@ -144,7 +189,60 @@ export function FooterSection() {
             support@unfoldk.com
           </a>
         </p>
+
+        {/* 라인 1 — 국가·멤버 카운트. 로딩 중 skeleton. */}
+        {stats ? (
+          <p className="text-muted-foreground/80 text-xs mt-3 text-center md:text-left">
+            Fans from {stats.total_countries.toLocaleString()} countries ·{" "}
+            {stats.total_members.toLocaleString()} members
+          </p>
+        ) : (
+          <div
+            aria-hidden="true"
+            className="mt-3 h-3.5 w-56 bg-muted/20 rounded animate-pulse mx-auto md:mx-0"
+          />
+        )}
+
+        {/* 라인 2 — 국기 마퀴. top_countries 가 채워질 때만 노출. */}
+        {stats && stats.top_countries.length > 0 && (
+          <div
+            aria-hidden="true"
+            className="mt-3 overflow-hidden uf-marquee-wrap"
+          >
+            <div className="uf-marquee-track">
+              {buildMarqueeItems(stats.top_countries).map((c, i) => (
+                <span
+                  key={`${c.country}-${i}`}
+                  className="inline-block text-xl mx-1.5 leading-none"
+                  title={`${c.country} · ${c.count.toLocaleString()}`}
+                >
+                  {flagEmoji(c.country)}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* 마퀴 keyframes — 별도 CSS 파일 회피 위해 컴포넌트 인라인 */}
+      <style>{`
+        .uf-marquee-wrap { width: 100%; }
+        .uf-marquee-track {
+          display: inline-flex;
+          width: max-content;
+          animation: uf-marquee 40s linear infinite;
+        }
+        .uf-marquee-wrap:hover .uf-marquee-track {
+          animation-play-state: paused;
+        }
+        @keyframes uf-marquee {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .uf-marquee-track { animation: none; }
+        }
+      `}</style>
 
       <CookieConsentBanner open={bannerOpen} onOpenChange={setBannerOpen} />
     </footer>

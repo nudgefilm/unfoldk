@@ -316,6 +316,26 @@ interface DramaTitleOption {
   spot_count: number
 }
 
+// ─── Step 9 — 카테고리별 placeholder 이미지 (Unsplash 직링크) ─────
+// image_url 누락 row 의 카드·모달에 fallback 으로 사용. 모두 라이선스 무료.
+// 깨지는 URL 발견 시 본 매핑만 교체하면 됨.
+const PLACEHOLDER_IMAGES: Record<string, string> = {
+  filming:
+    "https://images.unsplash.com/photo-1538485399081-7c8970d4d29c?w=800&q=80&auto=format&fit=crop",
+  attractions:
+    "https://images.unsplash.com/photo-1517154421773-0529f29ea451?w=800&q=80&auto=format&fit=crop",
+  food:
+    "https://images.unsplash.com/photo-1583224994076-ae3a02a1deea?w=800&q=80&auto=format&fit=crop",
+  stays:
+    "https://images.unsplash.com/photo-1601001435957-74f0958a93c5?w=800&q=80&auto=format&fit=crop",
+  culture:
+    "https://images.unsplash.com/photo-1542144612-1b3641ec3459?w=800&q=80&auto=format&fit=crop",
+  festivals:
+    "https://images.unsplash.com/photo-1561565398-cc94f7c52ba2?w=800&q=80&auto=format&fit=crop",
+  kpop:
+    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80&auto=format&fit=crop",
+}
+
 // ─── My Hallyu Course — 폼 / 결과 / 저장 목록 타입 ─────────────
 type TravelStyle = "relaxed" | "packed" | "foodie" | "cultural"
 type DurationDays = 1 | 2 | 3 | 5 | 7
@@ -1534,6 +1554,7 @@ export default function CurationKPage() {
                   badge={prettySpotType(spot.spot_type)}
                   badgeColor={CATEGORY_COLOR_MAP.kpop}
                   fallbackIcon={<MicVocal className="w-6 h-6 text-muted-foreground" />}
+                  fallbackImage={PLACEHOLDER_IMAGES.kpop}
                 />
               ))}
             </div>
@@ -2170,6 +2191,7 @@ function SpotCard({
   badge,
   badgeColor,
   fallbackIcon,
+  fallbackImage,
   cta,
   onClick,
 }: {
@@ -2181,9 +2203,11 @@ function SpotCard({
   badge: string | null
   badgeColor: string
   fallbackIcon: React.ReactNode
+  fallbackImage?: string | null   // 카테고리별 Unsplash placeholder
   cta?: React.ReactNode
   onClick?: () => void
 }) {
+  const effectiveImage = image ?? fallbackImage ?? null
   const interactive = !!onClick
   return (
     <div
@@ -2205,10 +2229,10 @@ function SpotCard({
       }`}
     >
       <div className="w-full aspect-[4/3] bg-[#252525] relative flex items-center justify-center">
-        {image ? (
+        {effectiveImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={image}
+            src={effectiveImage}
             alt={title}
             referrerPolicy="no-referrer"
             loading="lazy"
@@ -2344,6 +2368,7 @@ function SpotsTabPanel({
             badge={item.drama_title ?? item.badge}
             badgeColor={tab.color}
             fallbackIcon={<tab.Icon className="w-6 h-6 text-muted-foreground" />}
+            fallbackImage={PLACEHOLDER_IMAGES[tab.key]}
             onClick={() => onSelectSpot(item)}
           />
         ))}
@@ -2405,12 +2430,19 @@ function SpotDetailDialog({
   isAuthenticated: boolean | null
   onClose: () => void
 }) {
-  // 이미지 갤러리: image_url + image_url2 (중복·빈 값 제거)
-  const images = spot
+  // 이미지 갤러리: image_url + image_url2 (중복·빈 값 제거).
+  // 둘 다 null 이면 카테고리별 placeholder Unsplash URL 사용.
+  const realImages = spot
     ? Array.from(
         new Set([spot.image_url, spot.image_url2].filter((s): s is string => !!s))
       )
     : []
+  const images =
+    realImages.length > 0
+      ? realImages
+      : spot && PLACEHOLDER_IMAGES[tab.key]
+        ? [PLACEHOLDER_IMAGES[tab.key]]
+        : []
   const [imageIndex, setImageIndex] = useState(0)
 
   // spot 바뀔 때 이미지 인덱스 리셋
