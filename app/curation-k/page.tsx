@@ -1206,6 +1206,20 @@ export default function CurationKPage() {
                           }}
                         />
 
+                        {/* 시각 마커 — 17 광역시도 hover 위치 모두에 작은 점.
+                            SVG 도시 마커 (Seoul/Busan/Jeju 펄스 등) 와 일부 겹치지만
+                            동일 핑크 색상이라 자연 결합. */}
+                        <span
+                          aria-hidden="true"
+                          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full transition-opacity"
+                          style={{
+                            width: 5,
+                            height: 5,
+                            backgroundColor: "#FF4B6E",
+                            opacity: isHovered ? 1 : 0.55,
+                          }}
+                        />
+
                         {/* 툴팁 — 기본 아래 펼침. Jeju(39) 는 지도 하단이라 아래로
                             나가면 잘려서 오른쪽으로 띄움. */}
                         {isHovered && (
