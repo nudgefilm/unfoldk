@@ -23,6 +23,13 @@ import { feature } from "topojson-client"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   MapPin,
   Sparkles,
   Lock,
@@ -268,7 +275,34 @@ const TABS: readonly TabDef[] = [
   },
 ] as const
 
-const SPOTS_PAGE_SIZE = 20
+const SPOTS_PAGE_SIZE = 21
+
+// 17개 광역시도 — lib/api/tourapi.ts AREA_CODE 와 정합. 클라이언트 직접 import 회피 위해 인라인.
+const REGION_OPTIONS: ReadonlyArray<{ code: number; label: string }> = [
+  { code: 1, label: "Seoul" },
+  { code: 2, label: "Incheon" },
+  { code: 3, label: "Daejeon" },
+  { code: 4, label: "Daegu" },
+  { code: 5, label: "Gwangju" },
+  { code: 6, label: "Busan" },
+  { code: 7, label: "Ulsan" },
+  { code: 8, label: "Sejong" },
+  { code: 31, label: "Gyeonggi" },
+  { code: 32, label: "Gangwon" },
+  { code: 33, label: "Chungcheongbuk" },
+  { code: 34, label: "Chungcheongnam" },
+  { code: 35, label: "Gyeongsangbuk" },
+  { code: 36, label: "Gyeongsangnam" },
+  { code: 37, label: "Jeollabuk" },
+  { code: 38, label: "Jeollanam" },
+  { code: 39, label: "Jeju" },
+] as const
+
+// /api/curation-k/dramas 응답
+interface DramaTitleOption {
+  drama_title: string
+  spot_count: number
+}
 
 interface GeoArtistItem {
   artistId: string
@@ -389,6 +423,12 @@ export default function CurationKPage() {
   const [spotsLocked, setSpotsLocked] = useState(false)
   const [spotsPage, setSpotsPage] = useState(1)
 
+  // 필터 — 지역 (모든 탭 공통), 드라마 (Filming 탭 + Pro 전용)
+  // "all" = 미적용 (API 에 미전달)
+  const [filterArea, setFilterArea] = useState<string>("all")
+  const [filterDrama, setFilterDrama] = useState<string>("all")
+  const [dramaOptions, setDramaOptions] = useState<DramaTitleOption[]>([])
+
   // K팝 성지 섹션 데이터 (탭과 별개, 자체 섹션 유지)
   const [kpopSpots, setKpopSpots] = useState<KpopSpotItem[]>([])
   const [kpopLoading, setKpopLoading] = useState(true)
@@ -461,10 +501,27 @@ export default function CurationKPage() {
   }, [])
 
   // ─── 4. 통합 탭 그리드 fetch ───────────────────────────────
-  // activeTab 변경 시 page 1 로 리셋 (별도 effect)
+  // 탭·필터 변경 시 page 1 로 리셋 (별도 effect)
   useEffect(() => {
     setSpotsPage(1)
-  }, [activeTab])
+  }, [activeTab, filterArea, filterDrama])
+
+  // 탭이 Filming 이 아니면 드라마 필터 의미 없음 — 자동 해제
+  useEffect(() => {
+    if (activeTab !== "filming" && filterDrama !== "all") {
+      setFilterDrama("all")
+    }
+  }, [activeTab, filterDrama])
+
+  // 드라마 옵션 — mount 시 1회 fetch
+  useEffect(() => {
+    fetch("/api/curation-k/dramas")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body: { items: DramaTitleOption[] }) =>
+        setDramaOptions(body.items ?? [])
+      )
+      .catch((err) => console.warn("[curation-k] dramas fetch 실패:", err))
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -474,6 +531,10 @@ export default function CurationKPage() {
       page: String(spotsPage),
       pageSize: String(SPOTS_PAGE_SIZE),
     })
+    if (filterArea !== "all") qs.set("area_code", filterArea)
+    if (activeTab === "filming" && filterDrama !== "all") {
+      qs.set("drama_title", filterDrama)
+    }
     fetch(`/api/curation-k/spots?${qs.toString()}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((body: {
@@ -500,7 +561,7 @@ export default function CurationKPage() {
     return () => {
       cancelled = true
     }
-  }, [activeTab, spotsPage])
+  }, [activeTab, spotsPage, filterArea, filterDrama])
 
   // ─── 5. K팝 성지 카드 ──────────────────────────────────────
   useEffect(() => {
@@ -956,6 +1017,62 @@ export default function CurationKPage() {
           id="explore-section"
         />
         <div className="max-w-[1320px] mx-auto px-6 mb-16">
+          {/* 필터 바 — 지역 (전 탭 공통) + 드라마 (Filming + Pro 전용) */}
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <label className="text-muted-foreground text-xs uppercase tracking-wider">
+                Region
+              </label>
+              <Select value={filterArea} onValueChange={setFilterArea}>
+                <SelectTrigger
+                  className="w-[180px] bg-[#1a1a1a] border-border/40 rounded-full text-sm"
+                  aria-label="Filter by region"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Regions</SelectItem>
+                  {REGION_OPTIONS.map((r) => (
+                    <SelectItem key={r.code} value={String(r.code)}>
+                      {r.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {activeTab === "filming" && (
+              <div className="flex items-center gap-2">
+                <label className="text-muted-foreground text-xs uppercase tracking-wider inline-flex items-center gap-1">
+                  Drama
+                  {!isPro && (
+                    <Lock className="w-3 h-3" style={{ color: "#FF4B6E" }} />
+                  )}
+                </label>
+                <Select
+                  value={filterDrama}
+                  onValueChange={setFilterDrama}
+                  disabled={!isPro}
+                >
+                  <SelectTrigger
+                    className="w-[240px] bg-[#1a1a1a] border-border/40 rounded-full text-sm disabled:opacity-50"
+                    aria-label="Filter by drama"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Dramas</SelectItem>
+                    {dramaOptions.map((d) => (
+                      <SelectItem key={d.drama_title} value={d.drama_title}>
+                        {d.drama_title} ({d.spot_count})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
           {/* 탭 바 — Pro 잠금 탭은 자물쇠 아이콘 표기 */}
           <div
             role="tablist"

@@ -41,8 +41,9 @@ type Tab = z.infer<typeof TabSchema>
 const QuerySchema = z.object({
   tab: TabSchema.default("filming"),
   area_code: z.coerce.number().int().min(1).max(39).optional(),
+  drama_title: z.string().trim().max(160).optional(),
   page: z.coerce.number().int().min(1).max(500).default(1),
-  pageSize: z.coerce.number().int().min(1).max(50).default(20),
+  pageSize: z.coerce.number().int().min(1).max(50).default(21),
 })
 
 // 비Pro 가 접근 시 locked 응답으로 차단되는 탭. 촬영지·축제·행사는 Free.
@@ -95,7 +96,7 @@ export async function GET(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
-  const { tab, area_code, page, pageSize } = parsed.data
+  const { tab, area_code, drama_title, page, pageSize } = parsed.data
 
   const supabase = await createSupabaseServerClient()
 
@@ -126,7 +127,7 @@ export async function GET(request: Request) {
 
   // ─── 1. filming 탭 — filming_spots 테이블 ────────────────────
   if (tab === "filming") {
-    const { data, error, count } = await supabase
+    let filmingQuery = supabase
       .from("filming_spots")
       .select(
         "id, drama_id, drama_title, spot_name, region, address, latitude, longitude, image_url, confidence",
@@ -135,7 +136,14 @@ export async function GET(request: Request) {
       .neq("spot_name", "__no_spots_found__")
       .order("confidence", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
-      .range(offset, rangeEnd)
+
+    if (drama_title) {
+      // PostgREST ilike 인젝션 방어 — % 와 _ 만 strip (그 외 문자는 ilike 가 안전)
+      const safeDrama = drama_title.replace(/[%_]/g, "")
+      filmingQuery = filmingQuery.ilike("drama_title", safeDrama)
+    }
+
+    const { data, error, count } = await filmingQuery.range(offset, rangeEnd)
 
     if (error) {
       console.error("[curation-k/spots] filming 조회 실패:", error.message)
