@@ -2359,6 +2359,7 @@ function SpotDetailDialog({
           {images.length > 0 ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
+              key={images[imageIndex]}
               src={images[imageIndex]}
               alt={spot.title}
               referrerPolicy="no-referrer"
@@ -2370,34 +2371,39 @@ function SpotDetailDialog({
 
           {dramaBadge && (
             <span
-              className="absolute top-3 left-3 text-[11px] font-medium px-2.5 py-1 rounded-full shadow"
+              className="absolute top-3 left-3 z-20 text-[11px] font-medium px-2.5 py-1 rounded-full shadow"
               style={{ backgroundColor: `${tab.color}e0`, color: "#fff" }}
             >
               {dramaBadge}
             </span>
           )}
 
+          {/* 좌우 화살표 + 도트 — image_url2 가 image_url 과 다를 때만 노출 */}
           {images.length > 1 && (
             <>
               <button
                 type="button"
-                onClick={() =>
+                onClick={(e) => {
+                  e.stopPropagation()
                   setImageIndex((i) => (i - 1 + images.length) % images.length)
-                }
+                }}
                 aria-label="Previous image"
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white inline-flex items-center justify-center text-lg"
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white inline-flex items-center justify-center text-lg cursor-pointer"
               >
                 ‹
               </button>
               <button
                 type="button"
-                onClick={() => setImageIndex((i) => (i + 1) % images.length)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setImageIndex((i) => (i + 1) % images.length)
+                }}
                 aria-label="Next image"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white inline-flex items-center justify-center text-lg"
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white inline-flex items-center justify-center text-lg cursor-pointer"
               >
                 ›
               </button>
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-1.5">
                 {images.map((_, i) => (
                   <span
                     key={i}

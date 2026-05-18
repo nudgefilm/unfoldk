@@ -35,7 +35,9 @@ import {
 const client = new Anthropic()
 
 const ITEMS_PER_AREA = 30
-const MAX_TRANSLATIONS_PER_RUN = 20
+// 통합 cap — 한 row 가 title + overview 둘 다 번역해도 1 카운트.
+// row 당 최대 Claude 호출 2건 → cron 한 번에 최대 200 Claude 호출.
+const MAX_TRANSLATIONS_PER_RUN = 100
 const FESTIVAL_RANGE_DAYS = 365
 
 interface CategoryConfig {
