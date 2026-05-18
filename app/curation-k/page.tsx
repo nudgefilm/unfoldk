@@ -2644,7 +2644,7 @@ function CourseItineraryView({
                 variant="outline"
                 className="rounded-full text-xs h-9"
               >
-                Generate Again
+                Try Another Route
               </Button>
             )}
             {onSave &&
