@@ -379,6 +379,15 @@ const DURATION_OPTIONS: ReadonlyArray<{ value: DurationDays; label: string }> = 
 ]
 
 // /api/curation-k/stats 응답
+interface RegionStatsBreakdown {
+  filming: number
+  attractions: number
+  culture: number
+  festivals: number
+  stays: number
+  food: number
+}
+
 interface CurationStats {
   total: number
   filming: number
@@ -387,19 +396,35 @@ interface CurationStats {
   festivals: number
   stays: number
   food: number
-  byRegion: Record<string, { filming: number; attractions: number; food: number }>
+  byRegion: Record<string, RegionStatsBreakdown>
 }
 
-// KOREA_CITIES (지도 동결) → area_code 매핑 — 지도 클릭 시 Region 필터 set.
-// 도시 이름은 KOREA_CITIES.name 과 정확히 일치해야 함.
-const CITY_TO_AREA_CODE: Record<string, number> = {
-  Seoul: 1,            // area_code 1
-  Chuncheon: 32,       // Gangwon
-  Gyeongju: 35,        // Gyeongsangbuk
-  Busan: 6,            // area_code 6
-  Gwangju: 5,          // area_code 5
-  Jeju: 39,            // area_code 39
-}
+// 17 광역시도 중심점 — SVG sibling overlay hover hit target 위치용.
+// proj() 좌표계 재사용. label 은 REGION_OPTIONS 와 동일하게 영문.
+const REGION_CENTROIDS: ReadonlyArray<{
+  code: number
+  label: string
+  lng: number
+  lat: number
+}> = [
+  { code: 1, label: "Seoul", lng: 126.978, lat: 37.5665 },
+  { code: 2, label: "Incheon", lng: 126.7052, lat: 37.4563 },
+  { code: 3, label: "Daejeon", lng: 127.3845, lat: 36.3504 },
+  { code: 4, label: "Daegu", lng: 128.6014, lat: 35.8714 },
+  { code: 5, label: "Gwangju", lng: 126.8526, lat: 35.1595 },
+  { code: 6, label: "Busan", lng: 129.0756, lat: 35.1796 },
+  { code: 7, label: "Ulsan", lng: 129.3114, lat: 35.5384 },
+  { code: 8, label: "Sejong", lng: 127.2891, lat: 36.4801 },
+  { code: 31, label: "Gyeonggi", lng: 127.0, lat: 37.27 },
+  { code: 32, label: "Gangwon", lng: 128.1555, lat: 37.8228 },
+  { code: 33, label: "Chungcheongbuk", lng: 127.7298, lat: 36.8 },
+  { code: 34, label: "Chungcheongnam", lng: 126.65, lat: 36.6 },
+  { code: 35, label: "Gyeongsangbuk", lng: 128.7427, lat: 36.4919 },
+  { code: 36, label: "Gyeongsangnam", lng: 128.2132, lat: 35.25 },
+  { code: 37, label: "Jeollabuk", lng: 127.15, lat: 35.7175 },
+  { code: 38, label: "Jeollanam", lng: 126.99, lat: 34.8161 },
+  { code: 39, label: "Jeju", lng: 126.5312, lat: 33.4996 },
+] as const
 
 interface GeoArtistItem {
   artistId: string
@@ -531,6 +556,7 @@ export default function CurationKPage() {
 
   // 지도 통계 오버레이 — /api/curation-k/stats
   const [stats, setStats] = useState<CurationStats | null>(null)
+  const [hoveredRegion, setHoveredRegion] = useState<number | null>(null)
 
   // ── My Hallyu Course (Pro) ────────────────────────────────
   const [courseDrama, setCourseDrama] = useState<string>("")
@@ -1197,73 +1223,104 @@ export default function CurationKPage() {
                   })}
                 </div>
 
-                {/* ─── 도시 클릭 오버레이 (SVG sibling) ────────────────────
-                    KOREA_CITIES 위에 transparent hit target. 클릭 시 Region 필터 set
-                    + 탭 그리드로 smooth scroll. SVG 내부는 동결 — 본 레이어는 sibling. */}
+                {/* ─── 17 광역시도 hover overlay (SVG sibling) ─────────────
+                    REGION_CENTROIDS 위에 transparent hit target. 호버 시 툴팁,
+                    클릭 시 Region 필터 set + 탭 그리드 smooth scroll.
+                    SVG 내부는 동결 — 본 레이어는 sibling. */}
                 <div className="absolute inset-0 pointer-events-none">
-                  {KOREA_CITIES.map((city) => {
-                    const code = CITY_TO_AREA_CODE[city.name]
-                    if (code === undefined) return null
-                    const [cx, cy] = proj(city.lng, city.lat)
+                  {REGION_CENTROIDS.map((region) => {
+                    const [cx, cy] = proj(region.lng, region.lat)
                     const pos = pctPosition(cx, cy)
-                    const regionStat = stats?.byRegion?.[String(code)]
-                    const totalRegion = regionStat
-                      ? regionStat.filming + regionStat.attractions + regionStat.food
-                      : null
+                    const stat = stats?.byRegion?.[String(region.code)]
+                    const isHovered = hoveredRegion === region.code
                     return (
                       <button
-                        key={`city-${city.name}`}
+                        key={`region-${region.code}`}
                         type="button"
-                        onClick={() => handleRegionClick(code)}
-                        aria-label={`Filter to ${city.name}`}
-                        title={
-                          totalRegion !== null
-                            ? `${city.name}: ${totalRegion} spots`
-                            : city.name
+                        onClick={() => handleRegionClick(region.code)}
+                        onMouseEnter={() => setHoveredRegion(region.code)}
+                        onMouseLeave={() =>
+                          setHoveredRegion((prev) =>
+                            prev === region.code ? null : prev
+                          )
                         }
-                        className="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-full focus:outline-none focus:ring-2 focus:ring-white/50 group"
+                        onFocus={() => setHoveredRegion(region.code)}
+                        onBlur={() =>
+                          setHoveredRegion((prev) =>
+                            prev === region.code ? null : prev
+                          )
+                        }
+                        aria-label={`${region.label} — view spots`}
+                        className="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-full focus:outline-none focus:ring-2 focus:ring-[#FF4B6E]/50"
                         style={{
                           left: pos.left,
                           top: pos.top,
                           width: 36,
                           height: 36,
                           backgroundColor: "transparent",
-                          zIndex: 8,
+                          zIndex: isHovered ? 30 : 8,
                         }}
                       >
                         <span
-                          className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute inset-0 rounded-full transition-opacity"
                           style={{
                             backgroundColor: "rgba(255, 75, 110, 0.18)",
                             border: "1px solid rgba(255, 75, 110, 0.5)",
+                            opacity: isHovered ? 1 : 0,
                           }}
                         />
+
+                        {/* 툴팁 — 호버 시 노출. 카드 아래쪽으로 펼침 (위쪽 잘림 방지). */}
+                        {isHovered && (
+                          <div
+                            role="tooltip"
+                            className="absolute left-1/2 top-[42px] -translate-x-1/2 w-[180px] text-left bg-[#0d0d0f] border border-border/50 rounded-lg p-3 shadow-xl text-foreground"
+                            style={{ zIndex: 40 }}
+                          >
+                            <p className="text-sm font-semibold mb-2">
+                              {region.label}
+                            </p>
+                            <ul className="space-y-1 text-[11px]">
+                              <RegionTooltipRow
+                                label="Filming"
+                                color="#FF4B6E"
+                                value={stat?.filming}
+                              />
+                              <RegionTooltipRow
+                                label="Attractions"
+                                color="#22d3ee"
+                                value={stat?.attractions}
+                              />
+                              <RegionTooltipRow
+                                label="Food"
+                                color="#facc15"
+                                value={stat?.food}
+                              />
+                              <RegionTooltipRow
+                                label="Stays"
+                                color="#a78bfa"
+                                value={stat?.stays}
+                              />
+                              <RegionTooltipRow
+                                label="Culture"
+                                color="#f472b6"
+                                value={stat?.culture}
+                              />
+                              <RegionTooltipRow
+                                label="Festivals"
+                                color="#fb923c"
+                                value={stat?.festivals}
+                              />
+                            </ul>
+                            <p className="text-muted-foreground text-[10px] mt-2">
+                              Click to filter
+                            </p>
+                          </div>
+                        )}
                       </button>
                     )
                   })}
                 </div>
-
-                {/* ─── 글로벌 통계 배지 (지도 하단 오버레이) ──────────────── */}
-                {stats && (
-                  <div className="absolute bottom-3 left-3 right-3 pointer-events-none flex justify-center">
-                    <div className="pointer-events-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border/40 bg-[#1a1a1a]/85 backdrop-blur-sm text-[11px] font-medium text-foreground shadow-lg">
-                      <span style={{ color: "#FF4B6E" }}>
-                        {stats.filming.toLocaleString()}
-                      </span>
-                      <span className="text-muted-foreground">Filming</span>
-                      <span className="text-muted-foreground/40">·</span>
-                      <span style={{ color: "#22d3ee" }}>
-                        {stats.attractions.toLocaleString()}
-                      </span>
-                      <span className="text-muted-foreground">Attractions</span>
-                      <span className="text-muted-foreground/40">·</span>
-                      <span style={{ color: "#facc15" }}>
-                        {stats.food.toLocaleString()}
-                      </span>
-                      <span className="text-muted-foreground">Food</span>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* 우측 — 카피 + 카테고리 토글 */}
@@ -1319,6 +1376,37 @@ export default function CurationKPage() {
                     cards.
                   </p>
                 </div>
+
+                {/* 통계 배지 — Filming · Attractions · Food */}
+                {stats && (
+                  <div className="mt-6 pt-5 border-t border-border/30">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">
+                      In the database
+                    </p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+                      <span className="inline-flex items-baseline gap-1.5">
+                        <span className="font-semibold" style={{ color: "#FF4B6E" }}>
+                          {stats.filming.toLocaleString()}
+                        </span>
+                        <span className="text-muted-foreground text-xs">Filming</span>
+                      </span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span className="inline-flex items-baseline gap-1.5">
+                        <span className="font-semibold" style={{ color: "#22d3ee" }}>
+                          {stats.attractions.toLocaleString()}
+                        </span>
+                        <span className="text-muted-foreground text-xs">Attractions</span>
+                      </span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span className="inline-flex items-baseline gap-1.5">
+                        <span className="font-semibold" style={{ color: "#facc15" }}>
+                          {stats.food.toLocaleString()}
+                        </span>
+                        <span className="text-muted-foreground text-xs">Food</span>
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2652,6 +2740,32 @@ function CourseDaySlot({
         ))}
       </ul>
     </div>
+  )
+}
+
+function RegionTooltipRow({
+  label,
+  color,
+  value,
+}: {
+  label: string
+  color: string
+  value: number | undefined
+}) {
+  const v = value ?? 0
+  return (
+    <li className="flex items-center justify-between">
+      <span className="inline-flex items-center gap-1.5">
+        <span
+          className="inline-block w-1.5 h-1.5 rounded-full"
+          style={{ backgroundColor: color }}
+        />
+        <span className="text-muted-foreground">{label}</span>
+      </span>
+      <span className={v > 0 ? "text-foreground font-medium" : "text-muted-foreground/40"}>
+        {v.toLocaleString()}
+      </span>
+    </li>
   )
 }
 
