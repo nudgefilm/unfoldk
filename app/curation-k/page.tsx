@@ -787,11 +787,12 @@ export default function CurationKPage() {
     }
   }
 
-  // 지도 도시 클릭 → 지역 필터 set + 탭 그리드 스크롤
+  // 지도 도시 클릭 → 지역 필터 set + 탭 그리드 스크롤.
+  // page reset effect 도 따라오지만 명시로 한 번에 batching — set 두 개로 fetch effect
+  // 가 동일 사이클 내 단일 재실행되도록 보장.
   const handleRegionClick = (areaCode: number) => {
     setFilterArea(String(areaCode))
-    // tabAnchorRef 가 마운트되면 즉시 스크롤. 페이지 effect 도 따라가지만
-    // 페이지가 이미 1 이면 scroll effect 가 트리거 안 돼 — 명시 호출.
+    setSpotsPage(1)
     requestAnimationFrame(() => {
       tabAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
     })

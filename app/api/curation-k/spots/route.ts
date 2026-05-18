@@ -62,6 +62,29 @@ const TAB_TO_CONTENT_TYPE_ID: Partial<Record<Tab, number>> = {
   food: 39,
 }
 
+// filming_spots.region 은 텍스트 (Claude 추출 — 영문 광역 라벨).
+// area_code 필터 적용 시 가능한 region 라벨 후보를 .in() 으로 매칭.
+// 도(道) 이름의 약식·전체 표기 alias 모두 포함 — Claude 가 어느 쪽으로 추출했든 hit.
+const AREA_CODE_TO_FILMING_REGION_LABELS: Record<number, string[]> = {
+  1: ["Seoul"],
+  2: ["Incheon"],
+  3: ["Daejeon"],
+  4: ["Daegu"],
+  5: ["Gwangju"],
+  6: ["Busan"],
+  7: ["Ulsan"],
+  8: ["Sejong"],
+  31: ["Gyeonggi"],
+  32: ["Gangwon"],
+  33: ["Chungbuk", "Chungcheongbuk"],
+  34: ["Chungnam", "Chungcheongnam", "Chungcheong"],
+  35: ["Gyeongbuk", "Gyeongsangbuk"],
+  36: ["Gyeongnam", "Gyeongsangnam", "Gyeongsang"],
+  37: ["Jeonbuk", "Jeollabuk"],
+  38: ["Jeonnam", "Jeollanam", "Jeolla"],
+  39: ["Jeju"],
+}
+
 export interface SpotItem {
   id: string
   content_id: string
@@ -145,6 +168,13 @@ export async function GET(request: Request) {
       // PostgREST ilike 인젝션 방어 — % 와 _ 만 strip (그 외 문자는 ilike 가 안전)
       const safeDrama = drama_title.replace(/[%_]/g, "")
       filmingQuery = filmingQuery.ilike("drama_title", safeDrama)
+    }
+
+    if (area_code !== undefined) {
+      const labels = AREA_CODE_TO_FILMING_REGION_LABELS[area_code]
+      if (labels && labels.length > 0) {
+        filmingQuery = filmingQuery.in("region", labels)
+      }
     }
 
     const { data, error, count } = await filmingQuery.range(offset, rangeEnd)
