@@ -310,6 +310,68 @@ Translate Korean tourism descriptions into clear, natural English. Rules:
 - Strip HTML tags. Don't add information that wasn't in the original.
 - Output the translation only — no preamble, no quotes.`
 
+// ─── Claude Haiku 번역 — title(한글) → eng_title(영문 장소명) ───
+const TRANSLATE_TITLE_TOOL: Anthropic.Tool = {
+  name: "report_title",
+  description:
+    "Translate the given Korean place name into a concise English place name (proper nouns Romanized in standard form).",
+  input_schema: {
+    type: "object",
+    properties: {
+      english: {
+        type: "string",
+        description:
+          "Concise English place name. Romanize Korean proper nouns. No explanation, no parentheses, max 80 chars.",
+      },
+    },
+    required: ["english"],
+  },
+}
+
+const TRANSLATE_TITLE_SYSTEM_PROMPT = `You translate Korean place names into English for a Hallyu fan platform.
+
+Rules:
+- Output the place name only. No description, no parentheses, no quotes.
+- Romanize Korean proper nouns using the most common form (e.g., 경복궁 → Gyeongbokgung Palace).
+- Use standard English equivalents when they exist (e.g., 동대문 → Dongdaemun, 부산 → Busan).
+- Keep it concise — under 80 characters.
+- If the input is already English, return it unchanged.`
+
+async function translateTitle(koTitle: string): Promise<string | null> {
+  try {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 128,
+      system: [
+        {
+          type: "text",
+          text: TRANSLATE_TITLE_SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      tools: [TRANSLATE_TITLE_TOOL],
+      tool_choice: { type: "tool", name: TRANSLATE_TITLE_TOOL.name },
+      messages: [{ role: "user", content: koTitle.slice(0, 200) }],
+    })
+
+    const toolBlock = response.content.find(
+      (b): b is Anthropic.ToolUseBlock =>
+        b.type === "tool_use" && b.name === TRANSLATE_TITLE_TOOL.name
+    )
+    if (!toolBlock) return null
+    const input = toolBlock.input as { english?: unknown }
+    if (typeof input.english !== "string") return null
+    const out = input.english.trim()
+    return out.length > 0 ? out.slice(0, 80) : null
+  } catch (err) {
+    console.warn(
+      "[tour-spots] translateTitle 실패:",
+      err instanceof Error ? err.message : String(err)
+    )
+    return null
+  }
+}
+
 async function translateOverview(koText: string): Promise<string | null> {
   try {
     const response = await client.messages.create({
@@ -338,50 +400,90 @@ async function translateOverview(koText: string): Promise<string | null> {
 }
 
 interface TranslationStats {
-  translated: number
-  byCategory: Map<number, number>
+  translated: number                       // 본 run 에서 update 발생한 row 수 (title+overview 합)
+  byCategory: Map<number, number>          // category 별 update 발생 row 수
   errors: string[]
 }
 
+// title 에 한글이 포함되어 있는지 — 영문만이면 번역 skip
+function hasHangul(s: string): boolean {
+  return /[가-힣]/.test(s)
+}
+
+// title + overview 번역 처리.
+// cap 은 "row" 단위 — 한 row 가 title 만 / overview 만 / 둘 다 번역해도 1 카운트.
+// 우선순위: 두 필드 모두 누락된 row > overview 만 누락 row > title 만 누락 row.
 async function translatePendingRows(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
   cap: number
 ): Promise<TranslationStats> {
   const stats: TranslationStats = { translated: 0, byCategory: new Map(), errors: [] }
 
+  // PostgREST OR 필터로 한 번에 조회 — 두 케이스 union.
+  // eng_title 이 null 인 row 는 title 이 영문이어도 매칭되지만, 본문 루프에서 hasHangul 가드.
   const { data, error } = await supabase
     .from("tour_spots")
-    .select("id, content_type_id, overview_ko")
-    .not("overview_ko", "is", null)
-    .is("overview_en", null)
-    .limit(cap)
+    .select("id, content_type_id, title, eng_title, overview_ko, overview_en")
+    .or("eng_title.is.null,and(overview_ko.not.is.null,overview_en.is.null)")
+    .limit(cap * 2) // cap 의 2배로 over-fetch 후 우선순위 정렬·자르기
 
   if (error) {
     stats.errors.push(`번역 대기열 조회 실패: ${error.message}`)
     return stats
   }
 
-  type Row = { id: string; content_type_id: number; overview_ko: string | null }
-  const rows = (data ?? []) as Row[]
+  type Row = {
+    id: string
+    content_type_id: number
+    title: string
+    eng_title: string | null
+    overview_ko: string | null
+    overview_en: string | null
+  }
+  const allRows = (data ?? []) as Row[]
 
-  for (const row of rows) {
-    if (!row.overview_ko) continue
-    const english = await translateOverview(row.overview_ko)
-    if (!english) continue
+  // 우선순위 점수: title 누락+overview 누락 = 2 / overview 만 누락 = 1 / title 만 누락 = 0
+  // 같은 점수 내에선 입력 순서 유지.
+  const scored = allRows.map((r) => {
+    const needTitle = r.eng_title === null && hasHangul(r.title)
+    const needOverview = r.overview_ko !== null && r.overview_en === null
+    let score = 0
+    if (needTitle && needOverview) score = 2
+    else if (needOverview) score = 1
+    else if (needTitle) score = 0
+    return { r, needTitle, needOverview, score }
+  }).filter((x) => x.needTitle || x.needOverview)
+
+  scored.sort((a, b) => b.score - a.score)
+  const rows = scored.slice(0, cap)
+
+  for (const { r, needTitle, needOverview } of rows) {
+    const updates: { eng_title?: string; overview_en?: string } = {}
+
+    if (needTitle) {
+      const eng = await translateTitle(r.title)
+      if (eng) updates.eng_title = eng
+    }
+    if (needOverview && r.overview_ko) {
+      const eng = await translateOverview(r.overview_ko)
+      if (eng) updates.overview_en = eng
+    }
+
+    if (Object.keys(updates).length === 0) continue
 
     const { error: upErr } = await supabase
       .from("tour_spots")
-      .update({ overview_en: english })
-      .eq("id", row.id)
+      .update(updates)
+      .eq("id", r.id)
 
     if (upErr) {
-      stats.errors.push(`overview_en 업데이트 실패 (${row.id}): ${upErr.message}`)
+      stats.errors.push(`번역 업데이트 실패 (${r.id}): ${upErr.message}`)
       continue
     }
     stats.translated++
     stats.byCategory.set(
-      row.content_type_id,
-      (stats.byCategory.get(row.content_type_id) ?? 0) + 1
+      r.content_type_id,
+      (stats.byCategory.get(r.content_type_id) ?? 0) + 1
     )
   }
 

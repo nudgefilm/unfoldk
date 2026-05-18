@@ -17,7 +17,7 @@
 // 다크테마 유지 (#0d0d0f bg, #FF4B6E brand, glass cards).
 // 지도 인프라 (TopoJSON + projection + 도시·도서 마커) 는 기존 패턴 보존.
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { feature } from "topojson-client"
 import { FooterSection } from "@/components/footer-section"
@@ -29,6 +29,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   MapPin,
   Sparkles,
@@ -42,6 +48,7 @@ import {
   Landmark,
   Palette,
   PartyPopper,
+  ExternalLink,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -201,8 +208,12 @@ interface SpotItem {
   korean_title: string | null
   subtitle: string | null
   address: string | null
+  addr2: string | null
   description: string | null
+  overview_ko: string | null
   image_url: string | null
+  image_url2: string | null
+  homepage: string | null
   drama_title: string | null
   region: string | null
   area_code: number | null
@@ -428,6 +439,20 @@ export default function CurationKPage() {
   const [filterArea, setFilterArea] = useState<string>("all")
   const [filterDrama, setFilterDrama] = useState<string>("all")
   const [dramaOptions, setDramaOptions] = useState<DramaTitleOption[]>([])
+
+  // 카드 클릭 → 상세 모달
+  const [selectedSpot, setSelectedSpot] = useState<SpotItem | null>(null)
+
+  // 페이지네이션 클릭 시 그리드 상단 스크롤. 초기 마운트는 건너뜀.
+  const tabAnchorRef = useRef<HTMLDivElement>(null)
+  const skipScrollRef = useRef(true)
+  useEffect(() => {
+    if (skipScrollRef.current) {
+      skipScrollRef.current = false
+      return
+    }
+    tabAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [spotsPage])
 
   // K팝 성지 섹션 데이터 (탭과 별개, 자체 섹션 유지)
   const [kpopSpots, setKpopSpots] = useState<KpopSpotItem[]>([])
@@ -1017,6 +1042,9 @@ export default function CurationKPage() {
           id="explore-section"
         />
         <div className="max-w-[1320px] mx-auto px-6 mb-16">
+          {/* 페이지네이션 스크롤 앵커 — 페이지 변경 시 이 지점으로 smooth scroll */}
+          <div ref={tabAnchorRef} className="scroll-mt-24" aria-hidden="true" />
+
           {/* 필터 바 — 지역 (전 탭 공통) + 드라마 (Filming + Pro 전용) */}
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="flex items-center gap-2">
@@ -1123,8 +1151,18 @@ export default function CurationKPage() {
             pageSize={SPOTS_PAGE_SIZE}
             onPageChange={setSpotsPage}
             isAuthenticated={isAuthenticated}
+            onSelectSpot={setSelectedSpot}
           />
         </div>
+
+        {/* 카드 상세 모달 — selectedSpot != null 일 때만 마운트 */}
+        <SpotDetailDialog
+          spot={selectedSpot}
+          tab={TABS.find((t) => t.key === activeTab) ?? TABS[0]}
+          isPro={isPro}
+          isAuthenticated={isAuthenticated}
+          onClose={() => setSelectedSpot(null)}
+        />
 
         {/* ───── 3. K-Pop Pilgrimage Sites ─────────────────── */}
         <SectionHeader
@@ -1552,6 +1590,7 @@ function SpotCard({
   badgeColor,
   fallbackIcon,
   cta,
+  onClick,
 }: {
   image: string | null
   title: string
@@ -1562,9 +1601,28 @@ function SpotCard({
   badgeColor: string
   fallbackIcon: React.ReactNode
   cta?: React.ReactNode
+  onClick?: () => void
 }) {
+  const interactive = !!onClick
   return (
-    <div className="bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/40 transition-colors">
+    <div
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                onClick?.()
+              }
+            }
+          : undefined
+      }
+      className={`bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/40 transition-colors ${
+        interactive ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#FF4B6E]" : ""
+      }`}
+    >
       <div className="w-full aspect-[4/3] bg-[#252525] relative flex items-center justify-center">
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -1616,6 +1674,7 @@ function SpotsTabPanel({
   pageSize,
   onPageChange,
   isAuthenticated,
+  onSelectSpot,
 }: {
   tab: TabDef
   items: SpotItem[]
@@ -1626,6 +1685,7 @@ function SpotsTabPanel({
   pageSize: number
   onPageChange: (page: number) => void
   isAuthenticated: boolean | null
+  onSelectSpot: (spot: SpotItem) => void
 }) {
   // 1) 잠금 — Pro 전용 탭에 비Pro 접근 시
   if (locked) {
@@ -1703,6 +1763,7 @@ function SpotsTabPanel({
             badge={item.drama_title ?? item.badge}
             badgeColor={tab.color}
             fallbackIcon={<tab.Icon className="w-6 h-6 text-muted-foreground" />}
+            onClick={() => onSelectSpot(item)}
           />
         ))}
       </div>
@@ -1747,6 +1808,195 @@ function SpotCardSkeleton() {
       </div>
     </div>
   )
+}
+
+// 카드 클릭 → 상세 모달
+function SpotDetailDialog({
+  spot,
+  tab,
+  isPro,
+  isAuthenticated,
+  onClose,
+}: {
+  spot: SpotItem | null
+  tab: TabDef
+  isPro: boolean
+  isAuthenticated: boolean | null
+  onClose: () => void
+}) {
+  // 이미지 갤러리: image_url + image_url2 (중복·빈 값 제거)
+  const images = spot
+    ? Array.from(
+        new Set([spot.image_url, spot.image_url2].filter((s): s is string => !!s))
+      )
+    : []
+  const [imageIndex, setImageIndex] = useState(0)
+
+  // spot 바뀔 때 이미지 인덱스 리셋
+  useEffect(() => {
+    setImageIndex(0)
+  }, [spot?.id])
+
+  if (!spot) return null
+
+  const fullAddress = [spot.address, spot.addr2].filter(Boolean).join(" ").trim()
+  const description = spot.description || spot.overview_ko || null
+  const hasGps = spot.latitude !== null && spot.longitude !== null
+  const mapsUrl = hasGps
+    ? `https://maps.google.com/?q=${spot.latitude},${spot.longitude}`
+    : null
+  // tab.key 가 "filming" 일 때만 드라마 배지
+  const dramaBadge = tab.key === "filming" ? spot.drama_title : null
+
+  return (
+    <Dialog
+      open={!!spot}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <DialogContent className="bg-[#141416] border-[#2a2a2a] text-foreground max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+        {/* 이미지 갤러리 */}
+        <div className="relative bg-[#252525] aspect-[16/9] flex items-center justify-center overflow-hidden">
+          {images.length > 0 ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={images[imageIndex]}
+              alt={spot.title}
+              referrerPolicy="no-referrer"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <tab.Icon className="w-12 h-12 text-muted-foreground" />
+          )}
+
+          {dramaBadge && (
+            <span
+              className="absolute top-3 left-3 text-[11px] font-medium px-2.5 py-1 rounded-full shadow"
+              style={{ backgroundColor: `${tab.color}e0`, color: "#fff" }}
+            >
+              {dramaBadge}
+            </span>
+          )}
+
+          {images.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={() =>
+                  setImageIndex((i) => (i - 1 + images.length) % images.length)
+                }
+                aria-label="Previous image"
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white inline-flex items-center justify-center text-lg"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={() => setImageIndex((i) => (i + 1) % images.length)}
+                aria-label="Next image"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white inline-flex items-center justify-center text-lg"
+              >
+                ›
+              </button>
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {images.map((_, i) => (
+                  <span
+                    key={i}
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{
+                      backgroundColor:
+                        i === imageIndex ? "#fff" : "rgba(255,255,255,0.4)",
+                    }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="p-6">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-xl font-bold text-white leading-tight">
+              {spot.title}
+            </DialogTitle>
+            {spot.korean_title && (
+              <p className="text-muted-foreground text-sm mt-1">
+                {spot.korean_title}
+              </p>
+            )}
+          </DialogHeader>
+
+          {/* 주소 */}
+          {fullAddress && (
+            <div className="flex items-start gap-2 text-sm mb-4">
+              <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+              <p className="text-foreground/90 leading-snug">{fullAddress}</p>
+            </div>
+          )}
+
+          {/* 설명 */}
+          {description && (
+            <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line mb-5">
+              {description}
+            </p>
+          )}
+
+          {/* CTA — homepage / Google Maps */}
+          <div className="flex flex-wrap items-center gap-2">
+            {spot.homepage && (
+              <a
+                href={extractFirstUrl(spot.homepage) ?? spot.homepage}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium border border-border/40 bg-[#1a1a1a] hover:border-border/70 transition-colors text-foreground"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Official Website
+              </a>
+            )}
+
+            {hasGps && mapsUrl && (
+              isPro ? (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium text-white"
+                  style={{ backgroundColor: tab.color }}
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  Open in Google Maps
+                </a>
+              ) : (
+                <Link
+                  href={
+                    isAuthenticated === false
+                      ? "/login?redirect=/curation-k"
+                      : "/signup"
+                  }
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium border border-border/40 bg-[#1a1a1a] text-muted-foreground hover:border-border/70 transition-colors"
+                  title="Coming with Hallyu Pass"
+                >
+                  <Lock className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
+                  Google Maps · Pro
+                </Link>
+              )
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// TourAPI homepage 필드가 종종 <a href="..."> ... </a> 형태 HTML — href 만 추출.
+// 추출 실패 시 호출자에서 raw 문자열 그대로 fallback.
+function extractFirstUrl(raw: string): string | null {
+  const hrefMatch = raw.match(/href=["']([^"']+)["']/i)
+  if (hrefMatch?.[1]) return hrefMatch[1]
+  const urlMatch = raw.match(/https?:\/\/[^\s"'<>]+/)
+  return urlMatch?.[0] ?? null
 }
 
 function prettySpotType(t: KpopSpotItem["spot_type"]): string {

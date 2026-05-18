@@ -69,8 +69,12 @@ export interface SpotItem {
   korean_title: string | null   // 부제 보조 — tour_spots 의 한글 원본
   subtitle: string | null       // filming: drama_title / tour: null
   address: string | null        // addr1 또는 filming.address
+  addr2: string | null          // tour 만 (filming 은 null)
   description: string | null    // overview_en (tour) — filming 은 null
+  overview_ko: string | null    // tour 만 (모달 fallback)
   image_url: string | null
+  image_url2: string | null     // tour 만 (보조 이미지)
+  homepage: string | null       // tour 만
   drama_title: string | null    // filming 만
   region: string | null         // filming 만 (tour 는 area_code 별도)
   area_code: number | null      // tour 만
@@ -170,8 +174,12 @@ export async function GET(request: Request) {
       korean_title: null,
       subtitle: r.drama_title,
       address: r.address,
+      addr2: null,
       description: null,
+      overview_ko: null,
       image_url: r.image_url,
+      image_url2: null,
+      homepage: null,
       drama_title: r.drama_title,
       region: r.region,
       area_code: null,
@@ -196,7 +204,7 @@ export async function GET(request: Request) {
   let query = supabase
     .from("tour_spots")
     .select(
-      "id, content_id, content_type_id, title, eng_title, addr1, addr2, area_code, latitude, longitude, image_url, overview_en, event_start_date, event_end_date",
+      "id, content_id, content_type_id, title, eng_title, addr1, addr2, area_code, latitude, longitude, image_url, image_url2, overview_ko, overview_en, homepage, event_start_date, event_end_date",
       { count: "exact" }
     )
     .eq("content_type_id", contentTypeId)
@@ -238,7 +246,10 @@ export async function GET(request: Request) {
     latitude: number | null
     longitude: number | null
     image_url: string | null
+    image_url2: string | null
+    overview_ko: string | null
     overview_en: string | null
+    homepage: string | null
     event_start_date: string | null
     event_end_date: string | null
   }
@@ -253,8 +264,12 @@ export async function GET(request: Request) {
         ? formatFestivalDateRange(r.event_start_date, r.event_end_date)
         : null,
     address: r.addr1 ?? null,
+    addr2: r.addr2,
     description: r.overview_en,
+    overview_ko: r.overview_ko,
     image_url: r.image_url,
+    image_url2: r.image_url2,
+    homepage: r.homepage,
     drama_title: null,
     region: null,
     area_code: r.area_code,
