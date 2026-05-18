@@ -240,6 +240,9 @@ export async function GET(request: Request) {
       { count: "exact" }
     )
     .eq("content_type_id", contentTypeId)
+    // 2026-05-19 — image_url 없는 row 는 카드 UI 가 빈 placeholder 라 노출 제외.
+    // 이후 cron 이 arrange="O" 로 image-bearing 만 추가 → DB 점진 정화.
+    .not("image_url", "is", null)
 
   if (area_code !== undefined) {
     query = query.eq("area_code", area_code)

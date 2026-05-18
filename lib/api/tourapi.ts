@@ -219,7 +219,10 @@ export async function areaBasedList(args: {
   return tourFetch<TourItem>("areaBasedList2", {
     numOfRows: args.numOfRows ?? 20,
     pageNo: args.pageNo ?? 1,
-    arrange: "P", // 인기도순 (조회수 기반)
+    // KorService2 arrange: O/P/Q/R = "이미지가 있는 자료만" 반환.
+    // O = 제목순 + 이미지 있음. 카드 UI 기본 가정 (이미지 필수) 에 맞춰 O 고정.
+    // 이전에 "P" (KorService 1 의 인기도순이라 오해) 로 두어 image-less row 가 섞임.
+    arrange: "O",
     ...(args.areaCode ? { areaCode: args.areaCode } : {}),
     ...(args.sigunguCode ? { sigunguCode: args.sigunguCode } : {}),
     ...(args.contentTypeId ? { contentTypeId: args.contentTypeId } : {}),
@@ -311,7 +314,8 @@ export async function searchFestival(args: {
     eventStartDate: args.eventStartDate,
     numOfRows: args.numOfRows ?? 30,
     pageNo: args.pageNo ?? 1,
-    arrange: "P",
+    // O = 제목순 + 이미지 있는 자료만. 포스터 없는 축제는 카드에 못 그려서 제외.
+    arrange: "O",
     ...(args.eventEndDate ? { eventEndDate: args.eventEndDate } : {}),
     ...(args.areaCode ? { areaCode: args.areaCode } : {}),
   }, 3600) // 1h
