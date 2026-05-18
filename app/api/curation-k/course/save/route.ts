@@ -22,7 +22,7 @@ const StopSchema = z.object({
 })
 
 const DaySchema = z.object({
-  day: z.number().int().min(1).max(3),
+  day: z.number().int().min(1).max(7),
   title: z.string().max(160),
   morning: z.array(StopSchema).default([]),
   afternoon: z.array(StopSchema).default([]),
@@ -32,10 +32,17 @@ const DaySchema = z.object({
 const PostSchema = z.object({
   drama_title: z.string().trim().min(1).max(160),
   travel_style: z.enum(["relaxed", "packed", "foodie", "cultural"]),
-  duration_days: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  duration_days: z.union([
+    z.literal(1),
+    z.literal(2),
+    z.literal(3),
+    z.literal(5),
+    z.literal(7),
+  ]),
   departure_region: z.string().trim().min(1).max(60),
+  arrival_region: z.string().trim().min(1).max(60),
   itinerary: z.object({
-    days: z.array(DaySchema).min(1).max(3),
+    days: z.array(DaySchema).min(1).max(7),
   }),
 })
 
@@ -70,7 +77,7 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
-  const { drama_title, travel_style, duration_days, departure_region, itinerary } = parsed.data
+  const { drama_title, travel_style, duration_days, departure_region, arrival_region, itinerary } = parsed.data
 
   // 사용자별 저장 cap — 무한 적재 방지 (20건)
   const { count: existingCount } = await supabase
@@ -90,19 +97,22 @@ export async function POST(request: Request) {
     travel_style,
     duration_days,
     departure_region,
+    arrival_region,
     itinerary,
     generated_at: new Date().toISOString(),
   }
 
   // title 은 카드 헤더용 — 드라마명 + 스타일
   const title = `${drama_title} · ${travel_style}`
+  // region 은 hallyu_courses.region 컬럼 — 단일 지역만 저장 가능해 도착지 기준
+  // (사용자가 가는 곳 = arrival_region 이 의미상 더 정확)
 
   const { data: inserted, error: insErr } = await supabase
     .from("hallyu_courses")
     .insert({
       user_id: user.id,
       title,
-      region: departure_region,
+      region: arrival_region,
       course_data,
     })
     .select("id, title, region, course_data, created_at")

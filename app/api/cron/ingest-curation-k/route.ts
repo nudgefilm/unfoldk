@@ -15,24 +15,38 @@ import {
 export const maxDuration = 300
 export const dynamic = "force-dynamic"
 
-// /api/cron/ingest-curation-k — 매일 03:00 UTC (= 12:00 KST)
+// /api/cron/ingest-curation-k
 //
-// 단일 cron 으로 Curation K 데이터 전체를 갱신 (2026-05-19 통합):
-//   1) tour_spots:    TourAPI 5개 카테고리 (15/12/14/32/39) + Claude 번역
-//   2) filming_spots: 드라마별 촬영지 추출 (Claude + TourAPI 매핑)
-//   3) kpop_spots:    K팝 성지 자동 수집 (Claude + TourAPI 키워드 검색)
+// 2026-05-19 단계 분리 — 한 cron 실행에서 모두 돌리면 maxDuration 300s
+// 초과 위험 + Claude 비용 spike. ?stage 로 분기:
 //
-// 수동 트리거·자동 cron 모두 동일하게 3 단계 전부 실행. 옵션 파라미터 없음.
-// 각 단계는 독립적으로 try/catch — 한 단계 실패해도 나머지 진행.
+//   ?stage=primary    → tour_spots (TourAPI 5 카테고리 + enrichment + 번역)
+//   ?stage=secondary  → filming_spots + kpop_spots (Claude 무거운 단계)
+//   (미지정)          → 위 3 단계 전부 실행 (어드민 수동 트리거 / 백필용)
+//
+// 자동 cron (vercel.json):
+//   03:00 UTC → ?stage=primary
+//   04:00 UTC → ?stage=secondary
+//
+// 각 단계 독립 try/catch — 한 단계 실패해도 나머지 진행.
+
+type Stage = "primary" | "secondary" | "all"
 
 interface CombinedResult {
   source: "curation-k"
+  stage: Stage
   total_upserted: number          // tour_spots 신규/변경 row 수 (어드민 카드 메트릭)
   total_translated: number        // 본 실행에서 번역된 행 수
+  total_enriched: number          // detailCommon2 로 overview_ko 채운 row 수
   categories: TourSpotsIngestResult["categories"]
   filming: FilmingSpotsIngestResult | null
   kpop: KpopSpotsIngestResult | null
   errors: string[]
+}
+
+function parseStage(raw: string | null): Stage {
+  if (raw === "primary" || raw === "secondary") return raw
+  return "all"
 }
 
 export async function GET(request: Request) {
@@ -41,46 +55,58 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: auth.reason, debug: auth.debug }, { status: 401 })
   }
 
+  const { searchParams } = new URL(request.url)
+  const stage = parseStage(searchParams.get("stage"))
+  const runTour = stage === "all" || stage === "primary"
+  const runSecondary = stage === "all" || stage === "secondary"
+
   const combined: CombinedResult = {
     source: "curation-k",
+    stage,
     total_upserted: 0,
     total_translated: 0,
+    total_enriched: 0,
     categories: [],
     filming: null,
     kpop: null,
     errors: [],
   }
 
-  try {
-    const tour = await runTourSpotsIngest()
-    combined.total_upserted = tour.total_upserted
-    combined.total_translated = tour.total_translated
-    combined.categories = tour.categories
-    combined.errors.push(...tour.errors)
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    combined.errors.push(`tour-spots 단계 최상위 예외: ${msg}`)
-    console.error("[cron/ingest-curation-k] tour-spots 최상위 에러:", err)
+  if (runTour) {
+    try {
+      const tour = await runTourSpotsIngest()
+      combined.total_upserted = tour.total_upserted
+      combined.total_translated = tour.total_translated
+      combined.total_enriched = tour.total_enriched
+      combined.categories = tour.categories
+      combined.errors.push(...tour.errors)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      combined.errors.push(`tour-spots 단계 최상위 예외: ${msg}`)
+      console.error("[cron/ingest-curation-k] tour-spots 최상위 에러:", err)
+    }
   }
 
-  try {
-    const filming = await runFilmingSpotsIngest()
-    combined.filming = filming
-    combined.errors.push(...filming.errors)
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    combined.errors.push(`filming-spots 단계 최상위 예외: ${msg}`)
-    console.error("[cron/ingest-curation-k] filming-spots 최상위 에러:", err)
-  }
+  if (runSecondary) {
+    try {
+      const filming = await runFilmingSpotsIngest()
+      combined.filming = filming
+      combined.errors.push(...filming.errors)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      combined.errors.push(`filming-spots 단계 최상위 예외: ${msg}`)
+      console.error("[cron/ingest-curation-k] filming-spots 최상위 에러:", err)
+    }
 
-  try {
-    const kpop = await runKpopSpotsIngest()
-    combined.kpop = kpop
-    combined.errors.push(...kpop.errors)
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    combined.errors.push(`kpop-spots 단계 최상위 예외: ${msg}`)
-    console.error("[cron/ingest-curation-k] kpop-spots 최상위 에러:", err)
+    try {
+      const kpop = await runKpopSpotsIngest()
+      combined.kpop = kpop
+      combined.errors.push(...kpop.errors)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      combined.errors.push(`kpop-spots 단계 최상위 예외: ${msg}`)
+      console.error("[cron/ingest-curation-k] kpop-spots 최상위 에러:", err)
+    }
   }
 
   // /curation-k 페이지 + 지도 핀 API 캐시 즉시 무효화

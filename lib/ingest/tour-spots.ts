@@ -29,6 +29,7 @@ import {
   type ContentTypeId,
   type TourItem,
   areaBasedList,
+  detailCommon,
   searchFestival,
 } from "@/lib/api/tourapi"
 
@@ -38,7 +39,13 @@ const ITEMS_PER_AREA = 30
 // 통합 cap — 한 row 가 title + overview 둘 다 번역해도 1 카운트.
 // row 당 최대 Claude 호출 2건 → cron 한 번에 최대 200 Claude 호출.
 const MAX_TRANSLATIONS_PER_RUN = 100
-const FESTIVAL_RANGE_DAYS = 365
+// detailCommon2 enrichment cap — overview_ko 가 비어있는 row 에 대해 detail fetch.
+// TourAPI 호출 비용만 들고 Claude 호출 없음. 한 번에 최대 50건 (~25초).
+const MAX_DETAIL_ENRICHMENTS_PER_RUN = 50
+
+// 축제·행사 검색 범위 — 당해년도 1월 1일 ~ 오늘 + 18개월.
+// 1월부터 시작해야 진행중 축제·이미 시작한 long-running 축제도 포착.
+const FESTIVAL_FUTURE_MONTHS = 18
 
 interface CategoryConfig {
   contentTypeId: ContentTypeId
@@ -73,6 +80,7 @@ export interface TourSpotsIngestResult {
   source: "tour-spots"
   total_upserted: number
   total_translated: number
+  total_enriched: number      // detailCommon2 로 overview_ko 채운 row 수
   categories: CategoryRunResult[]
   errors: string[]
 }
@@ -223,8 +231,12 @@ async function runCategory(
   const today = new Date()
   const ymd = (d: Date) =>
     `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`
-  const eventStart = ymd(today)
-  const eventEnd = ymd(new Date(today.getTime() + FESTIVAL_RANGE_DAYS * 86400_000))
+  // 축제·행사 범위: 당해년도 1/1 ~ 오늘 + 18개월. setMonth 가 월 오버플로우
+  // 자동 처리 (예: 2026-05 + 18 = 2027-11).
+  const eventStart = ymd(new Date(today.getFullYear(), 0, 1))
+  const eventEndDate = new Date(today)
+  eventEndDate.setMonth(eventEndDate.getMonth() + FESTIVAL_FUTURE_MONTHS)
+  const eventEnd = ymd(eventEndDate)
 
   for (const areaCode of ALL_AREA_CODES) {
     try {
@@ -401,6 +413,95 @@ async function translateOverview(koText: string): Promise<string | null> {
   }
 }
 
+// ─── detailCommon2 enrichment ────────────────────────────────
+// list 엔드포인트는 overview 를 안 줘서 overview_ko 가 영구 null.
+// 본 함수가 누락 row 를 모아 detailCommon2 호출 → overview_ko / homepage /
+// modified_time 갱신. 다음 단계 translatePendingRows 에서 overview_en 생성.
+interface EnrichmentStats {
+  enriched: number
+  errors: string[]
+}
+
+// TourAPI overview 는 종종 HTML 태그 (<br>, <strong>, ...) 포함 — 단순 strip
+function stripHtml(s: string): string {
+  return s
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .trim()
+}
+
+async function enrichOverviews(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  cap: number
+): Promise<EnrichmentStats> {
+  const stats: EnrichmentStats = { enriched: 0, errors: [] }
+
+  const { data, error } = await supabase
+    .from("tour_spots")
+    .select("id, content_id")
+    .is("overview_ko", null)
+    .limit(cap)
+
+  if (error) {
+    stats.errors.push(`enrichment 대기열 조회 실패: ${error.message}`)
+    return stats
+  }
+
+  type Row = { id: string; content_id: string }
+  const rows = (data ?? []) as Row[]
+
+  for (const row of rows) {
+    let detail: Awaited<ReturnType<typeof detailCommon>>
+    try {
+      detail = await detailCommon(row.content_id)
+    } catch (err) {
+      stats.errors.push(
+        `detailCommon "${row.content_id}": ${err instanceof Error ? err.message : String(err)}`
+      )
+      continue
+    }
+    if (!detail) continue
+
+    const updates: {
+      overview_ko?: string
+      homepage?: string
+      modified_time?: string
+    } = {}
+
+    if (detail.overview) {
+      const cleaned = stripHtml(detail.overview)
+      if (cleaned.length > 0) updates.overview_ko = cleaned.slice(0, 4000)
+    }
+    if (detail.homepage) {
+      const cleanedHome = detail.homepage.trim().slice(0, 1000)
+      if (cleanedHome.length > 0) updates.homepage = cleanedHome
+    }
+    if (detail.modifiedtime) {
+      updates.modified_time = detail.modifiedtime
+    }
+
+    if (Object.keys(updates).length === 0) continue
+
+    const { error: upErr } = await supabase
+      .from("tour_spots")
+      .update(updates)
+      .eq("id", row.id)
+
+    if (upErr) {
+      stats.errors.push(`enrichment 업데이트 실패 (${row.id}): ${upErr.message}`)
+      continue
+    }
+    if (updates.overview_ko) stats.enriched++
+  }
+
+  return stats
+}
+
 interface TranslationStats {
   translated: number                       // 본 run 에서 update 발생한 row 수 (title+overview 합)
   byCategory: Map<number, number>          // category 별 update 발생 row 수
@@ -498,6 +599,7 @@ export async function runTourSpotsIngest(): Promise<TourSpotsIngestResult> {
     source: "tour-spots",
     total_upserted: 0,
     total_translated: 0,
+    total_enriched: 0,
     categories: [],
     errors: [],
   }
@@ -524,7 +626,19 @@ export async function runTourSpotsIngest(): Promise<TourSpotsIngestResult> {
     }
   }
 
-  // 번역은 모든 카테고리 수집 끝낸 후 한 번에 cap 만큼만
+  // overview_ko 가 비어있는 row 에 detailCommon2 호출로 채움.
+  // 번역 단계 전에 실행 — 같은 run 에서 이 row 들의 overview_en 도 만들어짐.
+  try {
+    const enr = await enrichOverviews(supabase, MAX_DETAIL_ENRICHMENTS_PER_RUN)
+    result.total_enriched = enr.enriched
+    if (enr.errors.length > 0) result.errors.push(...enr.errors)
+  } catch (err) {
+    result.errors.push(
+      `enrichment 단계 예외: ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
+
+  // 번역은 모든 카테고리 수집·enrichment 끝낸 후 한 번에 cap 만큼만
   try {
     const tr = await translatePendingRows(supabase, MAX_TRANSLATIONS_PER_RUN)
     result.total_translated = tr.translated

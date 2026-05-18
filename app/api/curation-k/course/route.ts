@@ -18,13 +18,20 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 const TRAVEL_STYLE = z.enum(["relaxed", "packed", "foodie", "cultural"])
-const DURATION_DAYS = z.union([z.literal(1), z.literal(2), z.literal(3)])
+const DURATION_DAYS = z.union([
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(5),
+  z.literal(7),
+])
 
 const PostSchema = z.object({
   drama_title: z.string().trim().min(1).max(160),
   travel_style: TRAVEL_STYLE,
   duration_days: DURATION_DAYS,
   departure_region: z.string().trim().min(1).max(60),
+  arrival_region: z.string().trim().min(1).max(60),
 })
 
 // REGION 라벨 ↔ area_code — Claude 컨텍스트 fetch 용.
@@ -59,7 +66,7 @@ const ITINERARY_TOOL: Anthropic.Tool = {
     properties: {
       days: {
         type: "array",
-        maxItems: 3,
+        maxItems: 7,
         items: {
           type: "object",
           properties: {
@@ -118,7 +125,10 @@ Rules:
   · packed → more stops, tighter transit
   · foodie → restaurants and markets dominate
   · cultural → palaces, museums, historical districts
-- Be honest about transport: Seoul metro, KTX between cities, taxi for short hops. Mention realistic duration_minutes (5–90).
+- Honor the departure → arrival route:
+  · Same region (departure == arrival) → loop course, ending near departure on the last day.
+  · Different regions → progress geographically from departure to arrival. Stops earlier in the trip should be near departure; later stops near arrival. Include realistic inter-city transit (KTX, bus, domestic flight if needed) on the transition day.
+- Be honest about transport: Seoul metro, KTX between cities, taxi for short hops. Mention realistic duration_minutes (5–180; allow longer for inter-city transit).
 - Reasons are concise — 1–2 sentences, no marketing fluff.
 - Output ONLY the tool call. No prose.`
 
@@ -126,7 +136,7 @@ Rules:
 async function fetchContext(
   supabase: ReturnType<typeof createSupabaseServerClient> extends Promise<infer T> ? T : never,
   drama_title: string,
-  area_code: number | null
+  area_codes: number[]      // 출발 + 도착 (중복 제거)
 ) {
   const safeDrama = drama_title.replace(/[%_]/g, "")
 
@@ -138,15 +148,16 @@ async function fetchContext(
     .order("confidence", { ascending: false, nullsFirst: false })
     .limit(10)
 
+  // 도착·출발 지역 양쪽 tour_spots — 동선 가이드에 쓰임. 각 지역에서 최대 12건.
   const tourPromise =
-    area_code !== null
+    area_codes.length > 0
       ? supabase
           .from("tour_spots")
-          .select("eng_title, title, addr1, content_type_id")
-          .eq("area_code", area_code)
+          .select("eng_title, title, addr1, area_code, content_type_id")
+          .in("area_code", area_codes)
           .in("content_type_id", [12, 14, 39]) // attractions / culture / food
           .not("image_url", "is", null)
-          .limit(20)
+          .limit(area_codes.length * 12)
       : Promise.resolve({ data: null, error: null })
 
   const [filming, tour] = await Promise.all([filmingPromise, tourPromise])
@@ -164,10 +175,12 @@ async function fetchContext(
     eng_title: string | null
     title: string
     addr1: string | null
+    area_code: number | null
     content_type_id: number
   }>).map((r) => ({
     name: (r.eng_title ?? r.title).trim(),
     address: r.addr1 ?? "",
+    area_code: r.area_code,
     type: r.content_type_id === 12 ? "attraction" : r.content_type_id === 14 ? "culture" : "food",
   }))
 
@@ -207,15 +220,36 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
-  const { drama_title, travel_style, duration_days, departure_region } = parsed.data
-  const area_code = REGION_LABEL_TO_AREA[departure_region] ?? null
+  const { drama_title, travel_style, duration_days, departure_region, arrival_region } = parsed.data
+  const departureCode = REGION_LABEL_TO_AREA[departure_region] ?? null
+  const arrivalCode = REGION_LABEL_TO_AREA[arrival_region] ?? null
+  const areaCodes = Array.from(
+    new Set([departureCode, arrivalCode].filter((c): c is number => c !== null))
+  )
+  const sameRegion = departure_region === arrival_region
 
-  // 3) 컨텍스트 fetch
-  const context = await fetchContext(supabase, drama_title, area_code)
+  // 3) 컨텍스트 fetch — 출발+도착 양쪽 spots
+  const context = await fetchContext(supabase, drama_title, areaCodes)
+
+  const formatTourLine = (t: {
+    name: string
+    address: string
+    area_code: number | null
+    type: string
+  }) => {
+    const regionTag =
+      t.area_code === departureCode
+        ? ` [${departure_region}]`
+        : t.area_code === arrivalCode
+          ? ` [${arrival_region}]`
+          : ""
+    return `- [${t.type}]${regionTag} ${t.name} (${t.address})`
+  }
 
   // 4) Claude 호출 — tool_use 강제
   const userPrompt = `Drama: "${drama_title}"
 Departure region: ${departure_region}
+Arrival region: ${arrival_region}${sameRegion ? " (same as departure — loop course)" : " (different region — progress geographically)"}
 Trip length: ${duration_days} day(s)
 Style: ${travel_style}
 
@@ -226,14 +260,20 @@ ${
     : "(none in our database — improvise plausibly from your knowledge)"
 }
 
-Nearby spots in ${departure_region}:
+Real spots in ${
+    sameRegion ? departure_region : `${departure_region} and ${arrival_region}`
+  } (tag = region):
 ${
   context.tour.length > 0
-    ? context.tour.slice(0, 15).map((t) => `- [${t.type}] ${t.name} (${t.address})`).join("\n")
-    : "(no enriched data yet for this area)"
+    ? context.tour.slice(0, 24).map(formatTourLine).join("\n")
+    : "(no enriched data yet for these areas)"
 }
 
-Build the itinerary now.`
+Build the itinerary now. ${
+    sameRegion
+      ? `Keep all stops within ${departure_region}.`
+      : `Start near ${departure_region}, end near ${arrival_region}, include inter-city transit.`
+  }`
 
   let response: Anthropic.Message
   try {

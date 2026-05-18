@@ -161,6 +161,8 @@ export async function GET(request: Request) {
         { count: "exact" }
       )
       .neq("spot_name", "__no_spots_found__")
+      // 2026-05-19 임시 — image_url null 행 제외 (빈 카드 UX 개선, Step 9 전)
+      .not("image_url", "is", null)
       .order("confidence", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
 

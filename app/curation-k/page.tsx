@@ -318,7 +318,7 @@ interface DramaTitleOption {
 
 // ─── My Hallyu Course — 폼 / 결과 / 저장 목록 타입 ─────────────
 type TravelStyle = "relaxed" | "packed" | "foodie" | "cultural"
-type DurationDays = 1 | 2 | 3
+type DurationDays = 1 | 2 | 3 | 5 | 7
 
 interface CourseStop {
   name: string
@@ -347,6 +347,7 @@ interface GeneratedCourse {
     travel_style: TravelStyle
     duration_days: DurationDays
     departure_region: string
+    arrival_region: string
   }
 }
 
@@ -359,6 +360,7 @@ interface SavedCourse {
     travel_style: TravelStyle
     duration_days: DurationDays
     departure_region: string
+    arrival_region?: string                // 신규 — 과거 저장본은 미존재 가능
     itinerary: GeneratedItinerary
     generated_at: string
   }
@@ -376,6 +378,8 @@ const DURATION_OPTIONS: ReadonlyArray<{ value: DurationDays; label: string }> = 
   { value: 1, label: "1 day" },
   { value: 2, label: "2 days" },
   { value: 3, label: "3 days" },
+  { value: 5, label: "5 days" },
+  { value: 7, label: "7 days" },
 ]
 
 // /api/curation-k/stats 응답
@@ -563,6 +567,7 @@ export default function CurationKPage() {
   const [courseStyle, setCourseStyle] = useState<TravelStyle>("relaxed")
   const [courseDays, setCourseDays] = useState<DurationDays>(1)
   const [courseDeparture, setCourseDeparture] = useState<string>("Seoul")
+  const [courseArrival, setCourseArrival] = useState<string>("Seoul")
   const [courseGenerating, setCourseGenerating] = useState(false)
   const [courseSaving, setCourseSaving] = useState(false)
   const [courseError, setCourseError] = useState<string | null>(null)
@@ -718,6 +723,7 @@ export default function CurationKPage() {
           travel_style: courseStyle,
           duration_days: courseDays,
           departure_region: courseDeparture,
+          arrival_region: courseArrival,
         }),
       })
       const json = await res.json().catch(() => ({}))
@@ -748,6 +754,7 @@ export default function CurationKPage() {
           travel_style: generatedCourse.meta.travel_style,
           duration_days: generatedCourse.meta.duration_days,
           departure_region: generatedCourse.meta.departure_region,
+          arrival_region: generatedCourse.meta.arrival_region,
           itinerary: generatedCourse.itinerary,
         }),
       })
@@ -1623,6 +1630,32 @@ export default function CurationKPage() {
 
                 <div className="mb-4">
                   <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
+                    Arriving at
+                  </label>
+                  <Select value={courseArrival} onValueChange={setCourseArrival}>
+                    <SelectTrigger
+                      className="w-full bg-[#0d0d0f] border-border/40 rounded-full text-sm"
+                      aria-label="Arrival region"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REGION_OPTIONS.map((r) => (
+                        <SelectItem key={r.code} value={r.label}>
+                          {r.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-muted-foreground/60 text-[11px] mt-1.5">
+                    {courseDeparture === courseArrival
+                      ? "Loop course — start and end in the same region."
+                      : `Progressive route: ${courseDeparture} → ${courseArrival}.`}
+                  </p>
+                </div>
+
+                <div className="mb-4">
+                  <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
                     Travel style
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -1756,8 +1789,11 @@ export default function CurationKPage() {
                               </p>
                               <p className="text-muted-foreground text-xs mt-1">
                                 {prettyTravelStyle(c.course_data.travel_style)} ·{" "}
-                                {c.course_data.duration_days}d · from{" "}
-                                {c.course_data.departure_region}
+                                {c.course_data.duration_days}d ·{" "}
+                                {c.course_data.arrival_region &&
+                                c.course_data.arrival_region !== c.course_data.departure_region
+                                  ? `${c.course_data.departure_region} → ${c.course_data.arrival_region}`
+                                  : `from ${c.course_data.departure_region}`}
                               </p>
                               <p className="text-muted-foreground/60 text-[11px] mt-1">
                                 {new Date(c.created_at).toLocaleDateString("en-US", {
@@ -1801,6 +1837,9 @@ export default function CurationKPage() {
                                   travel_style: c.course_data.travel_style,
                                   duration_days: c.course_data.duration_days,
                                   departure_region: c.course_data.departure_region,
+                                  arrival_region:
+                                    c.course_data.arrival_region ??
+                                    c.course_data.departure_region,
                                 }}
                                 compact
                               />
@@ -2398,13 +2437,12 @@ function SpotDetailDialog({
       }}
     >
       <DialogContent className="bg-[#141416] border-[#2a2a2a] text-foreground max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-        {/* 이미지 갤러리 */}
+        {/* 이미지 갤러리 — key 없이 src 직접 교체 (unmount 재로딩 회피) */}
         <div className="relative bg-[#252525] aspect-[16/9] flex items-center justify-center overflow-hidden">
           {images.length > 0 ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              key={images[imageIndex]}
-              src={images[imageIndex]}
+              src={images[imageIndex] ?? images[0]}
               alt={spot.title}
               referrerPolicy="no-referrer"
               className="absolute inset-0 w-full h-full object-cover"
@@ -2415,24 +2453,25 @@ function SpotDetailDialog({
 
           {dramaBadge && (
             <span
-              className="absolute top-3 left-3 z-20 text-[11px] font-medium px-2.5 py-1 rounded-full shadow"
+              className="absolute top-3 left-3 z-30 text-[11px] font-medium px-2.5 py-1 rounded-full shadow pointer-events-none"
               style={{ backgroundColor: `${tab.color}e0`, color: "#fff" }}
             >
               {dramaBadge}
             </span>
           )}
 
-          {/* 좌우 화살표 + 도트 — image_url2 가 image_url 과 다를 때만 노출 */}
+          {/* 좌우 화살표 + 도트 — images.length > 1 일 때만 (image_url == image_url2 면 Set 중복 제거) */}
           {images.length > 1 && (
             <>
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  setImageIndex((i) => (i - 1 + images.length) % images.length)
+                  const next = (imageIndex - 1 + images.length) % images.length
+                  setImageIndex(next)
                 }}
                 aria-label="Previous image"
-                className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white inline-flex items-center justify-center text-lg cursor-pointer"
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-30 w-9 h-9 rounded-full bg-black/70 hover:bg-black text-white inline-flex items-center justify-center text-lg cursor-pointer"
               >
                 ‹
               </button>
@@ -2440,14 +2479,15 @@ function SpotDetailDialog({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  setImageIndex((i) => (i + 1) % images.length)
+                  const next = (imageIndex + 1) % images.length
+                  setImageIndex(next)
                 }}
                 aria-label="Next image"
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white inline-flex items-center justify-center text-lg cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-30 w-9 h-9 rounded-full bg-black/70 hover:bg-black text-white inline-flex items-center justify-center text-lg cursor-pointer"
               >
                 ›
               </button>
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-1.5">
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 flex gap-1.5 pointer-events-none">
                 {images.map((_, i) => (
                   <span
                     key={i}
@@ -2564,6 +2604,7 @@ function CourseItineraryView({
     travel_style: TravelStyle
     duration_days: DurationDays
     departure_region: string
+    arrival_region: string
   }
   saved?: boolean
   saving?: boolean
@@ -2572,6 +2613,10 @@ function CourseItineraryView({
   regenerating?: boolean
   compact?: boolean
 }) {
+  const routeLabel =
+    meta.departure_region === meta.arrival_region
+      ? `from ${meta.departure_region}`
+      : `${meta.departure_region} → ${meta.arrival_region}`
   return (
     <div
       className={
@@ -2587,8 +2632,7 @@ function CourseItineraryView({
               {meta.drama_title}
             </h3>
             <p className="text-muted-foreground text-xs mt-1">
-              {prettyTravelStyle(meta.travel_style)} · {meta.duration_days}d ·
-              from {meta.departure_region}
+              {prettyTravelStyle(meta.travel_style)} · {meta.duration_days}d · {routeLabel}
             </p>
           </div>
           <div className="flex items-center gap-2">

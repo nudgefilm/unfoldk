@@ -146,10 +146,22 @@ async function load(): Promise<LoadResult> {
       const r = data.result_json as { upserted?: number }
       metric = (r.upserted ?? 0).toLocaleString()
     } else if (route === "ingest-curation-k" && data.result_json) {
-      // CombinedResult — total_upserted = tour_spots 신규/변경 row 합.
-      // filming_spots 는 ?include_filming=true 일 때만 실행 (toast 로 별도 노출).
-      const r = data.result_json as { total_upserted?: number }
-      metric = (r.total_upserted ?? 0).toLocaleString()
+      // CombinedResult — stage 따라 메트릭 선택.
+      //   primary/all → tour_spots 신규/변경 row 합
+      //   secondary   → filming + kpop 신규 합
+      const r = data.result_json as {
+        stage?: string
+        total_upserted?: number
+        filming?: { spotsInserted?: number } | null
+        kpop?: { spotsUpserted?: number } | null
+      }
+      if (r.stage === "secondary") {
+        const film = r.filming?.spotsInserted ?? 0
+        const kpop = r.kpop?.spotsUpserted ?? 0
+        metric = (film + kpop).toLocaleString()
+      } else {
+        metric = (r.total_upserted ?? 0).toLocaleString()
+      }
     } else if (route === "ingest-tmdb-dramas" && data.result_json) {
       // DramaIngestResult — upserted = 이번 실행 upsert 된 drama 수.
       // calendarLinked 는 부가 정보라 카드엔 노출 안 함 (toast 영역에서 노출 가능).

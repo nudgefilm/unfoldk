@@ -203,9 +203,11 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
   const r = result as Record<string, unknown>
 
   if (route === "ingest-curation-k") {
-    // CombinedResult — { total_upserted, total_translated, categories[], filming, kpop, errors }
+    // CombinedResult — { stage, total_upserted, total_translated, total_enriched, categories[], filming, kpop, errors }
+    const stage = typeof r.stage === "string" ? r.stage : "all"
     const upserted = num(r.total_upserted)
     const translated = num(r.total_translated)
+    const enriched = num(r.total_enriched)
     const cats = Array.isArray(r.categories) ? r.categories : []
     const skipped = cats.filter((c) => (c as { skipped?: unknown }).skipped === true).length
     const filming = r.filming as { spotsInserted?: number } | null | undefined
@@ -218,11 +220,13 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
       kpop && typeof kpop === "object"
         ? ` · K-Pop 성지 신규 ${num(kpop.spotsUpserted)}`
         : ""
+    const enrichedPart = enriched > 0 ? ` · enrich ${enriched}` : ""
     const translatedPart = translated > 0 ? ` · 번역 ${translated}` : ""
     const skipPart = skipped > 0 ? ` · skip ${skipped}` : ""
     const errors = Array.isArray(r.errors) ? r.errors.length : 0
     const errPart = errors > 0 ? ` · errors ${errors}` : ""
-    return `${upserted}건 수집${translatedPart}${skipPart}${filmPart}${kpopPart}${errPart} · ${time}`
+    const stagePart = stage !== "all" ? ` [${stage}]` : ""
+    return `${upserted}건 수집${stagePart}${enrichedPart}${translatedPart}${skipPart}${filmPart}${kpopPart}${errPart} · ${time}`
   }
 
   if (route === "ingest-ticketmaster") {
