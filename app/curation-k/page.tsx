@@ -315,6 +315,68 @@ interface DramaTitleOption {
   spot_count: number
 }
 
+// ─── My Hallyu Course — 폼 / 결과 / 저장 목록 타입 ─────────────
+type TravelStyle = "relaxed" | "packed" | "foodie" | "cultural"
+type DurationDays = 1 | 2 | 3
+
+interface CourseStop {
+  name: string
+  address: string
+  reason?: string
+  transport?: string
+  duration_minutes?: number
+}
+
+interface CourseDay {
+  day: number
+  title: string
+  morning: CourseStop[]
+  afternoon: CourseStop[]
+  evening: CourseStop[]
+}
+
+interface GeneratedItinerary {
+  days: CourseDay[]
+}
+
+interface GeneratedCourse {
+  itinerary: GeneratedItinerary
+  meta: {
+    drama_title: string
+    travel_style: TravelStyle
+    duration_days: DurationDays
+    departure_region: string
+  }
+}
+
+interface SavedCourse {
+  id: string
+  title: string
+  region: string | null
+  course_data: {
+    drama_title: string
+    travel_style: TravelStyle
+    duration_days: DurationDays
+    departure_region: string
+    itinerary: GeneratedItinerary
+    generated_at: string
+  }
+  created_at: string
+}
+
+const TRAVEL_STYLE_OPTIONS: ReadonlyArray<{ value: TravelStyle; label: string }> = [
+  { value: "relaxed", label: "Relaxed" },
+  { value: "packed", label: "Packed" },
+  { value: "foodie", label: "Foodie" },
+  { value: "cultural", label: "Cultural" },
+]
+
+const DURATION_OPTIONS: ReadonlyArray<{ value: DurationDays; label: string }> = [
+  { value: 1, label: "1 day" },
+  { value: 2, label: "2 days" },
+  { value: 3, label: "3 days" },
+]
+
 // /api/curation-k/stats 응답
 interface CurationStats {
   total: number
@@ -469,6 +531,19 @@ export default function CurationKPage() {
   // 지도 통계 오버레이 — /api/curation-k/stats
   const [stats, setStats] = useState<CurationStats | null>(null)
 
+  // ── My Hallyu Course (Pro) ────────────────────────────────
+  const [courseDrama, setCourseDrama] = useState<string>("")
+  const [courseStyle, setCourseStyle] = useState<TravelStyle>("relaxed")
+  const [courseDays, setCourseDays] = useState<DurationDays>(1)
+  const [courseDeparture, setCourseDeparture] = useState<string>("Seoul")
+  const [courseGenerating, setCourseGenerating] = useState(false)
+  const [courseSaving, setCourseSaving] = useState(false)
+  const [courseError, setCourseError] = useState<string | null>(null)
+  const [generatedCourse, setGeneratedCourse] = useState<GeneratedCourse | null>(null)
+  const [generatedSaved, setGeneratedSaved] = useState(false)
+  const [savedCourses, setSavedCourses] = useState<SavedCourse[]>([])
+  const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null)
+
   // 페이지네이션 클릭 시 그리드 상단 스크롤. 초기 마운트는 건너뜀.
   const tabAnchorRef = useRef<HTMLDivElement>(null)
   const skipScrollRef = useRef(true)
@@ -581,6 +656,90 @@ export default function CurationKPage() {
       .then((body: CurationStats) => setStats(body))
       .catch((err) => console.warn("[curation-k] stats fetch 실패:", err))
   }, [])
+
+  // My Hallyu Course — Pro 진입 시 저장 코스 목록 fetch
+  useEffect(() => {
+    if (!isPro) return
+    fetch("/api/curation-k/course")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body: { items: SavedCourse[] }) => setSavedCourses(body.items ?? []))
+      .catch((err) => console.warn("[curation-k] saved courses fetch 실패:", err))
+  }, [isPro])
+
+  // 드라마 옵션이 늦게 도착하면 첫 번째 드라마로 자동 set
+  useEffect(() => {
+    if (!courseDrama && dramaOptions.length > 0) {
+      setCourseDrama(dramaOptions[0].drama_title)
+    }
+  }, [dramaOptions, courseDrama])
+
+  async function handleGenerateCourse() {
+    setCourseError(null)
+    setGeneratedSaved(false)
+    if (!courseDrama) {
+      setCourseError("Pick a drama first.")
+      return
+    }
+    setCourseGenerating(true)
+    setGeneratedCourse(null)
+    try {
+      const res = await fetch("/api/curation-k/course", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          drama_title: courseDrama,
+          travel_style: courseStyle,
+          duration_days: courseDays,
+          departure_region: courseDeparture,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setCourseError(
+          json?.detail ?? json?.error ?? `Generation failed (HTTP ${res.status})`
+        )
+        return
+      }
+      setGeneratedCourse({ itinerary: json.itinerary, meta: json.meta })
+    } catch (err) {
+      setCourseError(err instanceof Error ? err.message : "Generation failed")
+    } finally {
+      setCourseGenerating(false)
+    }
+  }
+
+  async function handleSaveCourse() {
+    if (!generatedCourse) return
+    setCourseSaving(true)
+    setCourseError(null)
+    try {
+      const res = await fetch("/api/curation-k/course/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          drama_title: generatedCourse.meta.drama_title,
+          travel_style: generatedCourse.meta.travel_style,
+          duration_days: generatedCourse.meta.duration_days,
+          departure_region: generatedCourse.meta.departure_region,
+          itinerary: generatedCourse.itinerary,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setCourseError(json?.detail ?? json?.error ?? `Save failed (HTTP ${res.status})`)
+        return
+      }
+      // 저장 성공 — 목록 갱신 + saved 표시
+      setGeneratedSaved(true)
+      if (json.item) {
+        setSavedCourses((prev) => [json.item as SavedCourse, ...prev])
+      }
+    } catch (err) {
+      setCourseError(err instanceof Error ? err.message : "Save failed")
+    } finally {
+      setCourseSaving(false)
+    }
+  }
 
   // 지도 도시 클릭 → 지역 필터 set + 탭 그리드 스크롤
   const handleRegionClick = (areaCode: number) => {
@@ -1319,69 +1478,255 @@ export default function CurationKPage() {
           badge="Pro"
         />
         <div className="max-w-[1320px] mx-auto px-6 mb-16">
-          <div className="relative">
-            <div
-              className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${
-                isPro ? "" : "blur-[4px] pointer-events-none"
-              }`}
-            >
-              <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
-                <h3 className="text-foreground font-semibold mb-2">Personalized routes</h3>
-                <p className="text-muted-foreground text-sm">
-                  Linked to your KdramaMatch picks. Watched My Demon? Get a
-                  Seoul day-trip built around its filming locations.
-                </p>
+          {!isPro ? (
+            <div className="relative bg-[#141418] border border-border/30 rounded-2xl p-10 text-center">
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+                style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
+              >
+                <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
               </div>
-              <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
-                <h3 className="text-foreground font-semibold mb-2">Walking + transit</h3>
-                <p className="text-muted-foreground text-sm">
-                  Each stop comes with realistic timing between locations, so
-                  the course is actually walkable.
-                </p>
-              </div>
-              <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
-                <h3 className="text-foreground font-semibold mb-2">Save & reuse</h3>
-                <p className="text-muted-foreground text-sm">
-                  Your generated courses live in your profile — open them
-                  again before your trip.
-                </p>
-              </div>
-            </div>
-
-            {!isPro && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl max-w-sm">
-                  <div
-                    className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
-                  >
-                    <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
-                  </div>
-                  <p className="text-foreground font-medium mb-2">
-                    Coming with Hallyu Pass
-                  </p>
-                  <p className="text-muted-foreground text-xs mb-4">
-                    Personalized Hallyu day-trip routes generated from your drama taste — arriving at launch.
-                  </p>
-                  <Link href={isAuthenticated === false ? "/login?redirect=/curation-k" : "/signup"}>
-                    <Button
-                      className="px-6 py-2 rounded-full font-medium text-white"
-                      style={{ backgroundColor: "#FF4B6E" }}
-                    >
-                      Notify me at launch
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {isPro && (
-            <div className="mt-6 bg-[#141418] border border-border/30 rounded-2xl p-6 text-center">
-              <p className="text-muted-foreground text-sm">
-                Course generation launches with Phase 2 — your saved courses
-                will appear here.
+              <p className="text-foreground font-medium mb-2">Coming with Hallyu Pass</p>
+              <p className="text-muted-foreground text-xs mb-4 max-w-md mx-auto">
+                Personalized Hallyu day-trip routes built from your drama taste —
+                arriving at launch.
               </p>
+              <Link
+                href={
+                  isAuthenticated === false ? "/login?redirect=/curation-k" : "/signup"
+                }
+              >
+                <Button
+                  className="px-6 py-2 rounded-full font-medium text-white"
+                  style={{ backgroundColor: "#FF4B6E" }}
+                >
+                  Notify me at launch
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* 입력 폼 */}
+              <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
+                      Drama
+                    </label>
+                    <Select value={courseDrama} onValueChange={setCourseDrama}>
+                      <SelectTrigger
+                        className="w-full bg-[#0d0d0f] border-border/40 rounded-full text-sm"
+                        aria-label="Pick a drama"
+                      >
+                        <SelectValue placeholder="Pick a drama" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dramaOptions.length === 0 && (
+                          <SelectItem value="__loading__" disabled>
+                            Loading…
+                          </SelectItem>
+                        )}
+                        {dramaOptions.map((d) => (
+                          <SelectItem key={d.drama_title} value={d.drama_title}>
+                            {d.drama_title} ({d.spot_count})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
+                      Departing from
+                    </label>
+                    <Select value={courseDeparture} onValueChange={setCourseDeparture}>
+                      <SelectTrigger
+                        className="w-full bg-[#0d0d0f] border-border/40 rounded-full text-sm"
+                        aria-label="Departure region"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REGION_OPTIONS.map((r) => (
+                          <SelectItem key={r.code} value={r.label}>
+                            {r.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
+                    Travel style
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {TRAVEL_STYLE_OPTIONS.map((opt) => {
+                      const active = courseStyle === opt.value
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setCourseStyle(opt.value)}
+                          className="px-4 py-2 rounded-full text-xs font-medium border transition-colors"
+                          style={
+                            active
+                              ? {
+                                  backgroundColor: "#FF4B6E",
+                                  borderColor: "#FF4B6E",
+                                  color: "#fff",
+                                }
+                              : {
+                                  backgroundColor: "#0d0d0f",
+                                  borderColor: "rgba(255,255,255,0.1)",
+                                  color: "rgba(255,255,255,0.7)",
+                                }
+                          }
+                        >
+                          {opt.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="mb-5">
+                  <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
+                    Length
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {DURATION_OPTIONS.map((opt) => {
+                      const active = courseDays === opt.value
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setCourseDays(opt.value)}
+                          className="px-4 py-2 rounded-full text-xs font-medium border transition-colors"
+                          style={
+                            active
+                              ? {
+                                  backgroundColor: "#FF4B6E",
+                                  borderColor: "#FF4B6E",
+                                  color: "#fff",
+                                }
+                              : {
+                                  backgroundColor: "#0d0d0f",
+                                  borderColor: "rgba(255,255,255,0.1)",
+                                  color: "rgba(255,255,255,0.7)",
+                                }
+                          }
+                        >
+                          {opt.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={handleGenerateCourse}
+                  disabled={courseGenerating || !courseDrama || dramaOptions.length === 0}
+                  className="rounded-full text-white"
+                  style={{ backgroundColor: "#FF4B6E" }}
+                >
+                  {courseGenerating ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 animate-pulse" />
+                      Creating your itinerary…
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      Generate My Course
+                    </span>
+                  )}
+                </Button>
+
+                {courseError && (
+                  <p className="text-[#ef4444] text-xs mt-3">{courseError}</p>
+                )}
+              </div>
+
+              {/* 생성 결과 */}
+              {generatedCourse && (
+                <CourseItineraryView
+                  itinerary={generatedCourse.itinerary}
+                  meta={generatedCourse.meta}
+                  saved={generatedSaved}
+                  saving={courseSaving}
+                  onSave={handleSaveCourse}
+                  onRegenerate={handleGenerateCourse}
+                  regenerating={courseGenerating}
+                />
+              )}
+
+              {/* 저장 목록 */}
+              {savedCourses.length > 0 && (
+                <div>
+                  <h3 className="text-foreground font-semibold text-sm uppercase tracking-wider mb-3">
+                    My Saved Courses
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {savedCourses.map((c) => {
+                      const expanded = expandedCourseId === c.id
+                      return (
+                        <div
+                          key={c.id}
+                          className="bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden"
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedCourseId(expanded ? null : c.id)
+                            }
+                            className="w-full p-4 flex items-start justify-between text-left hover:bg-[#22222a] transition-colors"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-foreground font-medium text-sm truncate">
+                                {c.course_data.drama_title}
+                              </p>
+                              <p className="text-muted-foreground text-xs mt-1">
+                                {prettyTravelStyle(c.course_data.travel_style)} ·{" "}
+                                {c.course_data.duration_days}d · from{" "}
+                                {c.course_data.departure_region}
+                              </p>
+                              <p className="text-muted-foreground/60 text-[11px] mt-1">
+                                {new Date(c.created_at).toLocaleDateString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                              </p>
+                            </div>
+                            <ChevronRight
+                              className={`w-4 h-4 mt-0.5 flex-shrink-0 transition-transform ${
+                                expanded ? "rotate-90" : ""
+                              }`}
+                            />
+                          </button>
+                          {expanded && (
+                            <div className="px-4 pb-4">
+                              <CourseItineraryView
+                                itinerary={c.course_data.itinerary}
+                                meta={{
+                                  drama_title: c.course_data.drama_title,
+                                  travel_style: c.course_data.travel_style,
+                                  duration_days: c.course_data.duration_days,
+                                  departure_region: c.course_data.departure_region,
+                                }}
+                                compact
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2109,6 +2454,173 @@ function extractFirstUrl(raw: string): string | null {
   if (hrefMatch?.[1]) return hrefMatch[1]
   const urlMatch = raw.match(/https?:\/\/[^\s"'<>]+/)
   return urlMatch?.[0] ?? null
+}
+
+// My Hallyu Course — 일정 카드 (생성 결과 + 저장 코스 확장 양쪽 사용)
+function CourseItineraryView({
+  itinerary,
+  meta,
+  saved,
+  saving,
+  onSave,
+  onRegenerate,
+  regenerating,
+  compact,
+}: {
+  itinerary: GeneratedItinerary
+  meta: {
+    drama_title: string
+    travel_style: TravelStyle
+    duration_days: DurationDays
+    departure_region: string
+  }
+  saved?: boolean
+  saving?: boolean
+  onSave?: () => void
+  onRegenerate?: () => void
+  regenerating?: boolean
+  compact?: boolean
+}) {
+  return (
+    <div
+      className={
+        compact
+          ? "space-y-4"
+          : "bg-[#1a1a1a] border border-border/30 rounded-2xl p-6 space-y-4"
+      }
+    >
+      {!compact && (
+        <div className="flex items-start justify-between gap-2 flex-wrap">
+          <div>
+            <h3 className="text-foreground font-semibold text-base">
+              {meta.drama_title}
+            </h3>
+            <p className="text-muted-foreground text-xs mt-1">
+              {prettyTravelStyle(meta.travel_style)} · {meta.duration_days}d ·
+              from {meta.departure_region}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {onRegenerate && (
+              <Button
+                type="button"
+                onClick={onRegenerate}
+                disabled={regenerating || saving}
+                variant="outline"
+                className="rounded-full text-xs h-9"
+              >
+                Generate Again
+              </Button>
+            )}
+            {onSave &&
+              (saved ? (
+                <span
+                  className="inline-flex items-center gap-1.5 text-xs px-4 py-2 rounded-full"
+                  style={{ backgroundColor: "rgba(34,197,94,0.15)", color: "#22c55e" }}
+                >
+                  ✓ Saved
+                </span>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={onSave}
+                  disabled={saving || regenerating}
+                  className="rounded-full text-white text-xs h-9"
+                  style={{ backgroundColor: "#FF4B6E" }}
+                >
+                  {saving ? "Saving…" : "Save Course"}
+                </Button>
+              ))}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {itinerary.days.map((day) => (
+          <div
+            key={day.day}
+            className="bg-[#0d0d0f] border border-border/30 rounded-xl p-4"
+          >
+            <div className="flex items-baseline gap-2 mb-3">
+              <span
+                className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: "rgba(255,75,110,0.15)", color: "#FF4B6E" }}
+              >
+                Day {day.day}
+              </span>
+              <p className="text-foreground text-sm font-medium">{day.title}</p>
+            </div>
+
+            <CourseDaySlot label="Morning" stops={day.morning} />
+            <CourseDaySlot label="Afternoon" stops={day.afternoon} />
+            <CourseDaySlot label="Evening" stops={day.evening} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CourseDaySlot({
+  label,
+  stops,
+}: {
+  label: string
+  stops: CourseStop[]
+}) {
+  if (stops.length === 0) return null
+  return (
+    <div className="mb-3 last:mb-0">
+      <p className="text-muted-foreground text-[10px] uppercase tracking-wider mb-2">
+        {label}
+      </p>
+      <ul className="space-y-2">
+        {stops.map((stop, i) => (
+          <li
+            key={`${label}-${i}`}
+            className="bg-[#1a1a1a] border border-border/20 rounded-lg p-3"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-foreground text-sm font-medium">{stop.name}</p>
+                {stop.address && (
+                  <p className="text-muted-foreground text-xs mt-0.5">
+                    {stop.address}
+                  </p>
+                )}
+              </div>
+              {stop.transport && (
+                <span className="text-muted-foreground text-[10px] uppercase tracking-wider flex-shrink-0 px-2 py-0.5 rounded-full bg-[#0d0d0f] border border-border/30">
+                  {stop.transport}
+                  {stop.duration_minutes ? ` · ${stop.duration_minutes}m` : ""}
+                </span>
+              )}
+            </div>
+            {stop.reason && (
+              <p className="text-muted-foreground/80 text-xs mt-2 leading-relaxed">
+                {stop.reason}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function prettyTravelStyle(s: TravelStyle): string {
+  switch (s) {
+    case "relaxed":
+      return "Relaxed"
+    case "packed":
+      return "Packed"
+    case "foodie":
+      return "Foodie"
+    case "cultural":
+      return "Cultural"
+    default:
+      return s
+  }
 }
 
 function prettySpotType(t: KpopSpotItem["spot_type"]): string {
