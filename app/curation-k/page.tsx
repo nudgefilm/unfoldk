@@ -315,6 +315,29 @@ interface DramaTitleOption {
   spot_count: number
 }
 
+// /api/curation-k/stats 응답
+interface CurationStats {
+  total: number
+  filming: number
+  attractions: number
+  culture: number
+  festivals: number
+  stays: number
+  food: number
+  byRegion: Record<string, { filming: number; attractions: number; food: number }>
+}
+
+// KOREA_CITIES (지도 동결) → area_code 매핑 — 지도 클릭 시 Region 필터 set.
+// 도시 이름은 KOREA_CITIES.name 과 정확히 일치해야 함.
+const CITY_TO_AREA_CODE: Record<string, number> = {
+  Seoul: 1,            // area_code 1
+  Chuncheon: 32,       // Gangwon
+  Gyeongju: 35,        // Gyeongsangbuk
+  Busan: 6,            // area_code 6
+  Gwangju: 5,          // area_code 5
+  Jeju: 39,            // area_code 39
+}
+
 interface GeoArtistItem {
   artistId: string
   name: string
@@ -443,6 +466,9 @@ export default function CurationKPage() {
   // 카드 클릭 → 상세 모달
   const [selectedSpot, setSelectedSpot] = useState<SpotItem | null>(null)
 
+  // 지도 통계 오버레이 — /api/curation-k/stats
+  const [stats, setStats] = useState<CurationStats | null>(null)
+
   // 페이지네이션 클릭 시 그리드 상단 스크롤. 초기 마운트는 건너뜀.
   const tabAnchorRef = useRef<HTMLDivElement>(null)
   const skipScrollRef = useRef(true)
@@ -547,6 +573,24 @@ export default function CurationKPage() {
       )
       .catch((err) => console.warn("[curation-k] dramas fetch 실패:", err))
   }, [])
+
+  // 지도 통계 — mount 시 1회 fetch
+  useEffect(() => {
+    fetch("/api/curation-k/stats")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body: CurationStats) => setStats(body))
+      .catch((err) => console.warn("[curation-k] stats fetch 실패:", err))
+  }, [])
+
+  // 지도 도시 클릭 → 지역 필터 set + 탭 그리드 스크롤
+  const handleRegionClick = (areaCode: number) => {
+    setFilterArea(String(areaCode))
+    // tabAnchorRef 가 마운트되면 즉시 스크롤. 페이지 effect 도 따라가지만
+    // 페이지가 이미 1 이면 scroll effect 가 트리거 안 돼 — 명시 호출.
+    requestAnimationFrame(() => {
+      tabAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -973,6 +1017,74 @@ export default function CurationKPage() {
                     )
                   })}
                 </div>
+
+                {/* ─── 도시 클릭 오버레이 (SVG sibling) ────────────────────
+                    KOREA_CITIES 위에 transparent hit target. 클릭 시 Region 필터 set
+                    + 탭 그리드로 smooth scroll. SVG 내부는 동결 — 본 레이어는 sibling. */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {KOREA_CITIES.map((city) => {
+                    const code = CITY_TO_AREA_CODE[city.name]
+                    if (code === undefined) return null
+                    const [cx, cy] = proj(city.lng, city.lat)
+                    const pos = pctPosition(cx, cy)
+                    const regionStat = stats?.byRegion?.[String(code)]
+                    const totalRegion = regionStat
+                      ? regionStat.filming + regionStat.attractions + regionStat.food
+                      : null
+                    return (
+                      <button
+                        key={`city-${city.name}`}
+                        type="button"
+                        onClick={() => handleRegionClick(code)}
+                        aria-label={`Filter to ${city.name}`}
+                        title={
+                          totalRegion !== null
+                            ? `${city.name}: ${totalRegion} spots`
+                            : city.name
+                        }
+                        className="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-full focus:outline-none focus:ring-2 focus:ring-white/50 group"
+                        style={{
+                          left: pos.left,
+                          top: pos.top,
+                          width: 36,
+                          height: 36,
+                          backgroundColor: "transparent",
+                          zIndex: 8,
+                        }}
+                      >
+                        <span
+                          className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          style={{
+                            backgroundColor: "rgba(255, 75, 110, 0.18)",
+                            border: "1px solid rgba(255, 75, 110, 0.5)",
+                          }}
+                        />
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* ─── 글로벌 통계 배지 (지도 하단 오버레이) ──────────────── */}
+                {stats && (
+                  <div className="absolute bottom-3 left-3 right-3 pointer-events-none flex justify-center">
+                    <div className="pointer-events-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border/40 bg-[#1a1a1a]/85 backdrop-blur-sm text-[11px] font-medium text-foreground shadow-lg">
+                      <span style={{ color: "#FF4B6E" }}>
+                        {stats.filming.toLocaleString()}
+                      </span>
+                      <span className="text-muted-foreground">Filming</span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span style={{ color: "#22d3ee" }}>
+                        {stats.attractions.toLocaleString()}
+                      </span>
+                      <span className="text-muted-foreground">Attractions</span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span style={{ color: "#facc15" }}>
+                        {stats.food.toLocaleString()}
+                      </span>
+                      <span className="text-muted-foreground">Food</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 우측 — 카피 + 카테고리 토글 */}
