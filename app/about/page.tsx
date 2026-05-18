@@ -1,6 +1,17 @@
+"use client"
+
 import Link from "next/link"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { ContactForm } from "@/components/contact-form"
 import { Languages, GraduationCap } from "lucide-react"
 
 const services = [
@@ -145,14 +156,32 @@ export default function AboutPage() {
               <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-2xl mb-6">
                 UnfoldK believes in the power of cultural exchange. We offer free institutional access to accredited educational institutions, Korean language programs, and culture-related nonprofits.
               </p>
-              <Link href="/contact">
-                <Button
-                  className="px-6 py-3 rounded-full font-medium text-white"
-                  style={{ backgroundColor: "#FF4B6E" }}
-                >
-                  Request Educational Access
-                </Button>
-              </Link>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    className="px-6 py-3 rounded-full font-medium text-white"
+                    style={{ backgroundColor: "#FF4B6E" }}
+                  >
+                    Request Educational Access
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-[#141416] border-[#2a2a2a] text-foreground max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl font-bold text-white">
+                      Request Educational Access
+                    </DialogTitle>
+                    <DialogDescription className="text-muted-foreground text-sm">
+                      Tell us about your institution or program — we typically reply within 1–2 business days.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="mt-4">
+                    <ContactForm
+                      defaultSubject="Educational Access Request"
+                      hideOuterCard
+                    />
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </section>
