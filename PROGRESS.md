@@ -42,7 +42,7 @@
 - `app/about/page.tsx` —
   · Hero lead 하단에 인디 개발자 소개 문단 추가 ("Built by a solo indie developer from Korea, …")
   · "How it started" 본문 교체 (UNFOLD LAB 정의 + UnfoldK 탄생 배경 압축)
-  · "Educational Access" 신규 섹션 — GraduationCap 아이콘 + 제목 "Expanding the Possibilities of Hallyu Education Worldwide" + 본문 + "Request Educational Access" → `/contact` (기존 Resend 폼 재사용)
+  · "Educational Access" 신규 섹션 — GraduationCap 아이콘 + 제목 "Expanding the Possibilities of Hallyu Education Worldwide" + 본문 + "Request Educational Access" 버튼 → shadcn `<Dialog>` 모달 (subject 자동 채움 "Educational Access Request"). 폼은 신규 `components/contact-form.tsx` 단일 진실원 — `/contact` 페이지와 본 모달이 공유 (RedeemCouponForm 동일 패턴).
   · Mission Card / Stats / Services Grid / CTA 는 유지
 - `COPY.md` — About 페이지 우산 아래 Hero / How it started / Educational Access 3 블록으로 재구성. 이전 "Empowering K-Culture Education Globally" 카피 폐기 메모 박제.
 
