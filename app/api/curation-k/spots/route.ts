@@ -93,7 +93,7 @@ export interface SpotItem {
   subtitle: string | null       // filming: drama_title / tour: null
   address: string | null        // addr1 또는 filming.address
   addr2: string | null          // tour 만 (filming 은 null)
-  description: string | null    // overview_en (tour) — filming 은 null
+  overview_en: string | null    // tour 만 — Claude 영문 번역. filming 은 null.
   overview_ko: string | null    // tour 만 (모달 fallback)
   image_url: string | null
   image_url2: string | null     // tour 만 (보조 이미지)
@@ -207,7 +207,7 @@ export async function GET(request: Request) {
       subtitle: r.drama_title,
       address: r.address,
       addr2: null,
-      description: null,
+      overview_en: null,
       overview_ko: null,
       image_url: r.image_url,
       image_url2: null,
@@ -297,7 +297,7 @@ export async function GET(request: Request) {
         : null,
     address: r.addr1 ?? null,
     addr2: r.addr2,
-    description: r.overview_en,
+    overview_en: r.overview_en,
     overview_ko: r.overview_ko,
     image_url: r.image_url,
     image_url2: r.image_url2,

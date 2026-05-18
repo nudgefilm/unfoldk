@@ -210,7 +210,7 @@ interface SpotItem {
   subtitle: string | null
   address: string | null
   addr2: string | null
-  description: string | null
+  overview_en: string | null
   overview_ko: string | null
   image_url: string | null
   image_url2: string | null
@@ -2362,7 +2362,7 @@ function SpotsTabPanel({
             key={item.id}
             image={item.image_url}
             title={item.title}
-            subtitle={item.subtitle ?? item.description ?? ""}
+            subtitle={item.subtitle ?? item.overview_en ?? ""}
             region={item.region}
             address={item.address}
             badge={item.drama_title ?? item.badge}
@@ -2453,7 +2453,8 @@ function SpotDetailDialog({
   if (!spot) return null
 
   const fullAddress = [spot.address, spot.addr2].filter(Boolean).join(" ").trim()
-  const description = spot.description || spot.overview_ko || null
+  // overview_en (Claude 영문 번역) 우선, 없으면 overview_ko 한글 원본 fallback.
+  const description = (spot.overview_en ?? spot.overview_ko) || null
   const hasGps = spot.latitude !== null && spot.longitude !== null
   const mapsUrl = hasGps
     ? `https://maps.google.com/?q=${spot.latitude},${spot.longitude}`
