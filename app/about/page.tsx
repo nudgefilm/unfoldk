@@ -65,13 +65,10 @@ export default function AboutPage() {
           />
           
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6 relative z-10">
-            Built for Hallyu fans,<br />by a Hallyu fan.
+            Built by a solo indie developer from Korea, for Hallyu fans around the world.
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto relative z-10">
-            UnfoldK started because keeping up with K-pop comebacks, K-dramas, and Korean culture is a full-time job. So we built the tools to make it effortless.
-          </p>
-          <p className="mt-6 text-base md:text-lg text-muted-foreground/80 max-w-2xl mx-auto relative z-10 leading-relaxed">
-            Built by a solo indie developer from Korea, for Hallyu fans around the world. We keep improving to bring you a better experience.
+            We keep improving to bring you a better experience.
           </p>
         </section>
 

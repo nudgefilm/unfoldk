@@ -9,18 +9,25 @@
 > 페이지 라우트: `/about` (`app/about/page.tsx`). 섹션 순서:
 > Hero → Mission → Stats → How it started → **Educational Access** → Services → CTA.
 
-### Hero — 인디 개발자 소개 문구
+### Hero — 메인 헤드라인 + 서브카피
 
-Hero 의 lead 문단 바로 아래에 노출되는 보조 문장.
+About 페이지 Hero 의 h1 + lead `<p>` 1줄 구성. 광고 카피풍의 짧은 메시지로 단순화.
 
 ```
+[h1]
 Built by a solo indie developer from Korea,
 for Hallyu fans around the world.
+
+[lead]
 We keep improving to bring you a better experience.
 ```
 
-- **용도**: 1인 운영 indie 스튜디오임을 솔직히 안내, 유저 신뢰·기대치 정렬
-- **위치**: Hero `<p>` lead 다음 보조 문단 (`mt-6`, muted/80 톤)
+- **용도**: 1인 운영 indie 스튜디오임을 정직하게 노출 + 지속 개선 약속
+- **위치**: Hero 섹션 h1 + 그 아래 lead `<p>` (muted/lg)
+- **이전 카피 (폐기)** (2026-05-19):
+  - h1: "Built for Hallyu fans, by a Hallyu fan."
+  - lead: "UnfoldK started because keeping up with K-pop comebacks, K-dramas, and Korean culture is a full-time job. So we built the tools to make it effortless."
+  - 보조 문단: "Built by a solo indie developer from Korea, for Hallyu fans around the world. We keep improving to bring you a better experience." (h1 흡수로 제거됨)
 - **상태**: 반영 완료 (2026-05-19)
 
 
