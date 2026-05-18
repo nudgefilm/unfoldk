@@ -32,6 +32,9 @@ import {
   Hotel,
   ChevronRight,
   Globe,
+  Landmark,
+  Palette,
+  PartyPopper,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -134,17 +137,6 @@ const CATEGORY_COLOR_MAP: Record<Category, string> = Object.fromEntries(
 
 // ─── API 응답 타입 ───────────────────────────────────────────
 
-interface FilmingSpotItem {
-  id: string
-  drama_id: string | null
-  drama_title: string
-  spot_name: string
-  region: string | null
-  address: string | null
-  image_url: string | null
-  confidence: number
-}
-
 interface KpopSpotItem {
   id: string
   artist_id: string | null
@@ -194,6 +186,90 @@ interface TourSpotItem {
   imageUrl: string | null
 }
 
+// /api/curation-k/spots 응답 — filming/tour 양쪽을 동일 shape 로 정규화
+interface SpotItem {
+  id: string
+  content_id: string
+  title: string
+  korean_title: string | null
+  subtitle: string | null
+  address: string | null
+  description: string | null
+  image_url: string | null
+  drama_title: string | null
+  region: string | null
+  area_code: number | null
+  content_type_id: number | null
+  badge: string | null
+  latitude: number | null
+  longitude: number | null
+}
+
+// 통합 탭 — 사용자 spec 순서: [촬영지] [관광지] [맛집] [숙박] [문화시설] [축제·행사]
+type TabKey = "filming" | "attractions" | "food" | "stays" | "culture" | "festivals"
+
+interface TabDef {
+  key: TabKey
+  label: string
+  Icon: typeof Video
+  color: string
+  proLocked: boolean
+  emptyMessage: string
+}
+
+const TABS: readonly TabDef[] = [
+  {
+    key: "filming",
+    label: "Filming Spots",
+    Icon: Video,
+    color: "#FF4B6E",
+    proLocked: false,
+    emptyMessage: "No filming spots yet — daily extraction starts at 03:00 UTC.",
+  },
+  {
+    key: "attractions",
+    label: "Attractions",
+    Icon: Landmark,
+    color: "#22d3ee",
+    proLocked: true,
+    emptyMessage: "No attractions in this view.",
+  },
+  {
+    key: "food",
+    label: "Food",
+    Icon: UtensilsCrossed,
+    color: "#facc15",
+    proLocked: true,
+    emptyMessage: "No restaurants in this view.",
+  },
+  {
+    key: "stays",
+    label: "Stays",
+    Icon: Hotel,
+    color: "#a78bfa",
+    proLocked: true,
+    emptyMessage: "No stays in this view.",
+  },
+  {
+    key: "culture",
+    label: "Culture",
+    Icon: Palette,
+    color: "#f472b6",
+    proLocked: true,
+    emptyMessage: "No cultural venues in this view.",
+  },
+  {
+    key: "festivals",
+    label: "Festivals",
+    Icon: PartyPopper,
+    color: "#fb923c",
+    proLocked: false,
+    emptyMessage: "No upcoming festivals. Check back soon.",
+  },
+] as const
+
+const SPOTS_PAGE_SIZE = 20
+
 interface GeoArtistItem {
   artistId: string
   name: string
@@ -203,19 +279,6 @@ interface GeoArtistItem {
   rank: number
   spot_count: number
 }
-
-// 지역 선택지 — food / stays 공용
-const AREA_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "seoul", label: "Seoul" },
-  { value: "busan", label: "Busan" },
-  { value: "jeju", label: "Jeju" },
-  { value: "gyeonggi", label: "Gyeonggi" },
-  { value: "gangwon", label: "Gangwon" },
-  { value: "incheon", label: "Incheon" },
-  { value: "daegu", label: "Daegu" },
-  { value: "gyeongsangbuk", label: "Gyeongsangbuk" },
-  { value: "jeollanam", label: "Jeollanam" },
-]
 
 const COUNTRY_OPTIONS = [
   "United States",
@@ -318,19 +381,24 @@ export default function CurationKPage() {
   const [viewState, setViewState] = useState<ViewState>(null)
   // 주소 변환은 REGION_MAP 동기 변환으로 전환 — Haiku lazy fetch 제거 (즉시 표시, 비용 0).
 
-  // 섹션 데이터
-  const [filmingSpots, setFilmingSpots] = useState<FilmingSpotItem[]>([])
-  const [filmingLoading, setFilmingLoading] = useState(true)
+  // 통합 탭 그리드 (filming / attractions / food / stays / culture / festivals)
+  const [activeTab, setActiveTab] = useState<TabKey>("filming")
+  const [spotsItems, setSpotsItems] = useState<SpotItem[]>([])
+  const [spotsTotal, setSpotsTotal] = useState<number | null>(null)
+  const [spotsLoading, setSpotsLoading] = useState(true)
+  const [spotsLocked, setSpotsLocked] = useState(false)
+  const [spotsPage, setSpotsPage] = useState(1)
+
+  // K팝 성지 섹션 데이터 (탭과 별개, 자체 섹션 유지)
   const [kpopSpots, setKpopSpots] = useState<KpopSpotItem[]>([])
   const [kpopLoading, setKpopLoading] = useState(true)
 
-  const [foodArea, setFoodArea] = useState("seoul")
+  // Food / Stay 상태는 hero 지도 오버레이용으로만 유지 (Seoul 고정).
+  // Step 5 (지도 통계 오버레이) 에서 별도 데이터 소스로 교체 예정.
+  const foodArea = "seoul"
   const [foodItems, setFoodItems] = useState<TourSpotItem[]>([])
-  const [foodLoading, setFoodLoading] = useState(true)
-
-  const [stayArea, setStayArea] = useState("seoul")
+  const stayArea = "seoul"
   const [stayItems, setStayItems] = useState<TourSpotItem[]>([])
-  const [stayLoading, setStayLoading] = useState(true)
 
   const [geoCountry, setGeoCountry] = useState("United States")
   const [geoItems, setGeoItems] = useState<GeoArtistItem[]>([])
@@ -392,15 +460,47 @@ export default function CurationKPage() {
       })
   }, [])
 
-  // ─── 4. 촬영지 카드 ────────────────────────────────────────
+  // ─── 4. 통합 탭 그리드 fetch ───────────────────────────────
+  // activeTab 변경 시 page 1 로 리셋 (별도 effect)
   useEffect(() => {
-    setFilmingLoading(true)
-    fetch("/api/curation-k/filming-spots?limit=12")
+    setSpotsPage(1)
+  }, [activeTab])
+
+  useEffect(() => {
+    let cancelled = false
+    setSpotsLoading(true)
+    const qs = new URLSearchParams({
+      tab: activeTab,
+      page: String(spotsPage),
+      pageSize: String(SPOTS_PAGE_SIZE),
+    })
+    fetch(`/api/curation-k/spots?${qs.toString()}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { items: FilmingSpotItem[] }) => setFilmingSpots(body.items ?? []))
-      .catch((err) => console.warn("[curation-k] filming fetch 실패:", err))
-      .finally(() => setFilmingLoading(false))
-  }, [])
+      .then((body: {
+        items: SpotItem[]
+        total: number | null
+        locked: boolean
+      }) => {
+        if (cancelled) return
+        setSpotsItems(body.items ?? [])
+        setSpotsTotal(body.total ?? null)
+        setSpotsLocked(body.locked === true)
+      })
+      .catch((err) => {
+        console.warn(`[curation-k] spots(${activeTab}) fetch 실패:`, err)
+        if (cancelled) return
+        setSpotsItems([])
+        setSpotsTotal(0)
+        setSpotsLocked(false)
+      })
+      .finally(() => {
+        if (cancelled) return
+        setSpotsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, spotsPage])
 
   // ─── 5. K팝 성지 카드 ──────────────────────────────────────
   useEffect(() => {
@@ -412,24 +512,20 @@ export default function CurationKPage() {
       .finally(() => setKpopLoading(false))
   }, [])
 
-  // ─── 6. Food / Stays — region 변경 시 재조회 ──────────────
+  // ─── 6. Food / Stays — hero 오버레이 핀 전용 (Seoul 고정, mount 시 1회) ──
   useEffect(() => {
-    setFoodLoading(true)
     fetch(`/api/curation-k/food?area=${foodArea}&limit=8`)
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((body: { items: TourSpotItem[] }) => setFoodItems(body.items ?? []))
       .catch((err) => console.warn("[curation-k] food fetch 실패:", err))
-      .finally(() => setFoodLoading(false))
-  }, [foodArea])
+  }, [])
 
   useEffect(() => {
-    setStayLoading(true)
     fetch(`/api/curation-k/stays?area=${stayArea}&limit=8`)
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((body: { items: TourSpotItem[] }) => setStayItems(body.items ?? []))
       .catch((err) => console.warn("[curation-k] stays fetch 실패:", err))
-      .finally(() => setStayLoading(false))
-  }, [stayArea])
+  }, [])
 
   // ─── 7. Geo widget ────────────────────────────────────────
   useEffect(() => {
@@ -851,40 +947,66 @@ export default function CurationKPage() {
           </div>
         </section>
 
-        {/* ───── 2. K-Drama Filming Spots ──────────────────── */}
+        {/* ───── 2. 통합 탭 그리드 (filming/관광지/맛집/숙박/문화시설/축제) ── */}
         <SectionHeader
-          Icon={Video}
-          title="K-Drama Filming Spots"
-          subtitle="Walk the cafés, stairs, and streets from the dramas you love."
-          color={CATEGORY_COLOR_MAP.filming}
-          id="filming-section"
+          Icon={MapPin}
+          title="Explore Hallyu Korea"
+          subtitle="Filming spots, attractions, food, stays, culture, and festivals — all in one view."
+          color="#FF4B6E"
+          id="explore-section"
         />
         <div className="max-w-[1320px] mx-auto px-6 mb-16">
-          {filmingLoading ? (
-            <EmptyCard message="Loading filming spots..." />
-          ) : filmingSpots.length === 0 ? (
-            <EmptyCard
-              message="No filming spots yet — daily extraction starts at 03:00 UTC."
-            />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filmingSpots.map((spot) => (
-                <SpotCard
-                  key={spot.id}
-                  image={spot.image_url}
-                  title={spot.spot_name}
-                  subtitle={spot.drama_title}
-                  region={spot.region}
-                  address={spot.address}
-                  badge={
-                    spot.confidence >= 0.8 ? "Verified" : null
+          {/* 탭 바 — Pro 잠금 탭은 자물쇠 아이콘 표기 */}
+          <div
+            role="tablist"
+            aria-label="Curation K categories"
+            className="flex flex-wrap gap-2 mb-6"
+          >
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab.key
+              const showLock = tab.proLocked && !isPro
+              return (
+                <button
+                  key={tab.key}
+                  role="tab"
+                  aria-selected={isActive}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium border transition-colors"
+                  style={
+                    isActive
+                      ? {
+                          backgroundColor: tab.color,
+                          borderColor: tab.color,
+                          color: "#fff",
+                        }
+                      : {
+                          backgroundColor: "#1a1a1a",
+                          borderColor: "rgba(255,255,255,0.1)",
+                          color: "rgba(255,255,255,0.7)",
+                        }
                   }
-                  badgeColor={CATEGORY_COLOR_MAP.filming}
-                  fallbackIcon={<Video className="w-6 h-6 text-muted-foreground" />}
-                />
-              ))}
-            </div>
-          )}
+                >
+                  <tab.Icon className="w-3.5 h-3.5" />
+                  {tab.label}
+                  {showLock && <Lock className="w-3 h-3 opacity-70" />}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* 그리드 본체 */}
+          <SpotsTabPanel
+            tab={TABS.find((t) => t.key === activeTab) ?? TABS[0]}
+            items={spotsItems}
+            total={spotsTotal}
+            loading={spotsLoading}
+            locked={spotsLocked}
+            page={spotsPage}
+            pageSize={SPOTS_PAGE_SIZE}
+            onPageChange={setSpotsPage}
+            isAuthenticated={isAuthenticated}
+          />
         </div>
 
         {/* ───── 3. K-Pop Pilgrimage Sites ─────────────────── */}
@@ -915,89 +1037,6 @@ export default function CurationKPage() {
                   badge={prettySpotType(spot.spot_type)}
                   badgeColor={CATEGORY_COLOR_MAP.kpop}
                   fallbackIcon={<MicVocal className="w-6 h-6 text-muted-foreground" />}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ───── 4. Korean Food Hotspots ────────────────────── */}
-        <SectionHeader
-          Icon={UtensilsCrossed}
-          title="Korean Food Hotspots"
-          subtitle="Drama-famous restaurants + regional dishes, by neighborhood."
-          color={CATEGORY_COLOR_MAP.food}
-          id="food-section"
-        />
-        <div className="max-w-[1320px] mx-auto px-6 mb-16">
-          <RegionPicker
-            value={foodArea}
-            onChange={setFoodArea}
-            color={CATEGORY_COLOR_MAP.food}
-          />
-          {foodLoading ? (
-            <EmptyCard message="Loading restaurants..." />
-          ) : foodItems.length === 0 ? (
-            <EmptyCard message="No restaurants returned for this region." />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {foodItems.map((item) => (
-                <SpotCard
-                  key={item.contentId}
-                  image={item.imageUrl}
-                  title={item.title}
-                  subtitle={item.address ?? ""}
-                  region={null}
-                  address={null}
-                  badge={null}
-                  badgeColor={CATEGORY_COLOR_MAP.food}
-                  fallbackIcon={<UtensilsCrossed className="w-6 h-6 text-muted-foreground" />}
-                  cta={
-                    <Link
-                      href="/food"
-                      className="text-xs font-medium inline-flex items-center gap-0.5 hover:underline"
-                      style={{ color: CATEGORY_COLOR_MAP.food }}
-                    >
-                      Cook it at home <ChevronRight className="w-3 h-3" />
-                    </Link>
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ───── 5. Themed Stays ───────────────────────────── */}
-        <SectionHeader
-          Icon={Hotel}
-          title="Themed Stays"
-          subtitle="Hotels, guesthouses, and hanok stays curated for fan trips."
-          color={CATEGORY_COLOR_MAP.stays}
-          id="stays-section"
-        />
-        <div className="max-w-[1320px] mx-auto px-6 mb-16">
-          <RegionPicker
-            value={stayArea}
-            onChange={setStayArea}
-            color={CATEGORY_COLOR_MAP.stays}
-          />
-          {stayLoading ? (
-            <EmptyCard message="Loading stays..." />
-          ) : stayItems.length === 0 ? (
-            <EmptyCard message="No stays returned for this region." />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {stayItems.map((item) => (
-                <SpotCard
-                  key={item.contentId}
-                  image={item.imageUrl}
-                  title={item.title}
-                  subtitle={item.address ?? ""}
-                  region={null}
-                  address={null}
-                  badge={null}
-                  badgeColor={CATEGORY_COLOR_MAP.stays}
-                  fallbackIcon={<Hotel className="w-6 h-6 text-muted-foreground" />}
                 />
               ))}
             </div>
@@ -1386,43 +1425,6 @@ function EmptyCard({ message }: { message: string }) {
   )
 }
 
-function RegionPicker({
-  value,
-  onChange,
-  color,
-}: {
-  value: string
-  onChange: (v: string) => void
-  color: string
-}) {
-  return (
-    <div className="flex flex-wrap gap-2 mb-5">
-      {AREA_OPTIONS.map((opt) => {
-        const active = value === opt.value
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className="px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
-            style={
-              active
-                ? { backgroundColor: color, borderColor: color, color: "#fff" }
-                : {
-                    backgroundColor: "#1a1a1a",
-                    borderColor: "rgba(255,255,255,0.1)",
-                    color: "rgba(255,255,255,0.7)",
-                  }
-            }
-          >
-            {opt.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
 function SpotCard({
   image,
   title,
@@ -1481,6 +1483,150 @@ function SpotCard({
           </p>
         )}
         {cta && <div className="mt-3">{cta}</div>}
+      </div>
+    </div>
+  )
+}
+
+// 통합 탭 그리드 본체 — 로딩 / 잠금 / 빈 / 카드 그리드 + 페이지네이션
+function SpotsTabPanel({
+  tab,
+  items,
+  total,
+  loading,
+  locked,
+  page,
+  pageSize,
+  onPageChange,
+  isAuthenticated,
+}: {
+  tab: TabDef
+  items: SpotItem[]
+  total: number | null
+  loading: boolean
+  locked: boolean
+  page: number
+  pageSize: number
+  onPageChange: (page: number) => void
+  isAuthenticated: boolean | null
+}) {
+  // 1) 잠금 — Pro 전용 탭에 비Pro 접근 시
+  if (locked) {
+    return (
+      <div className="relative">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 blur-[4px] pointer-events-none">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SpotCardSkeleton key={i} />
+          ))}
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center px-6">
+          <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl max-w-sm">
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+              style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
+            >
+              <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+            </div>
+            <p className="text-foreground font-medium mb-2">Coming with Hallyu Pass</p>
+            <p className="text-muted-foreground text-xs mb-4">
+              {tab.label} are part of Hallyu Pass — get notified when it goes live.
+            </p>
+            <Link
+              href={
+                isAuthenticated === false ? "/login?redirect=/curation-k" : "/signup"
+              }
+            >
+              <Button
+                className="px-6 py-2 rounded-full font-medium text-white"
+                style={{ backgroundColor: "#FF4B6E" }}
+              >
+                Notify me at launch
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 2) 로딩 — 스켈레톤 그리드
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SpotCardSkeleton key={i} />
+        ))}
+      </div>
+    )
+  }
+
+  // 3) 빈 상태
+  if (items.length === 0) {
+    return <EmptyCard message={tab.emptyMessage} />
+  }
+
+  // 4) 카드 그리드 + 페이지네이션
+  const totalPages =
+    total !== null && total > 0 ? Math.max(1, Math.ceil(total / pageSize)) : null
+  const canPrev = page > 1
+  const canNext =
+    totalPages !== null ? page < totalPages : items.length === pageSize
+
+  return (
+    <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {items.map((item) => (
+          <SpotCard
+            key={item.id}
+            image={item.image_url}
+            title={item.title}
+            subtitle={item.subtitle ?? item.description ?? ""}
+            region={item.region}
+            address={item.address}
+            badge={item.drama_title ?? item.badge}
+            badgeColor={tab.color}
+            fallbackIcon={<tab.Icon className="w-6 h-6 text-muted-foreground" />}
+          />
+        ))}
+      </div>
+
+      {(canPrev || canNext) && (
+        <div className="flex items-center justify-between mt-6 text-xs">
+          <button
+            type="button"
+            onClick={() => canPrev && onPageChange(page - 1)}
+            disabled={!canPrev}
+            className="px-4 py-2 rounded-full bg-[#1a1a1a] border border-border/40 text-foreground disabled:opacity-30 disabled:cursor-not-allowed hover:border-border/70 transition-colors"
+          >
+            ← Prev
+          </button>
+          <div className="text-muted-foreground">
+            Page {page}
+            {totalPages !== null ? ` / ${totalPages}` : ""}
+            {total !== null ? ` · ${total.toLocaleString()} total` : ""}
+          </div>
+          <button
+            type="button"
+            onClick={() => canNext && onPageChange(page + 1)}
+            disabled={!canNext}
+            className="px-4 py-2 rounded-full bg-[#1a1a1a] border border-border/40 text-foreground disabled:opacity-30 disabled:cursor-not-allowed hover:border-border/70 transition-colors"
+          >
+            Next →
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SpotCardSkeleton() {
+  return (
+    <div className="bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden">
+      <div className="w-full aspect-[4/3] bg-[#252525] animate-pulse" />
+      <div className="p-4 space-y-2">
+        <div className="h-4 bg-[#252525] rounded w-3/4 animate-pulse" />
+        <div className="h-3 bg-[#252525] rounded w-1/2 animate-pulse" />
+        <div className="h-3 bg-[#252525] rounded w-2/3 animate-pulse mt-3" />
       </div>
     </div>
   )
