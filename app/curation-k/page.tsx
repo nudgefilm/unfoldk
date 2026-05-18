@@ -49,6 +49,7 @@ import {
   Palette,
   PartyPopper,
   ExternalLink,
+  Trash2,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -738,6 +739,25 @@ export default function CurationKPage() {
       setCourseError(err instanceof Error ? err.message : "Save failed")
     } finally {
       setCourseSaving(false)
+    }
+  }
+
+  // 저장된 코스 삭제 — 확인 없이 즉시 호출. 실패해도 UI 는 낙관 갱신 안 함 (롤백 X).
+  async function handleDeleteCourse(courseId: string) {
+    try {
+      const res = await fetch(`/api/curation-k/course/${courseId}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        console.warn(
+          `[curation-k] course delete 실패 (HTTP ${res.status})`
+        )
+        return
+      }
+      setSavedCourses((prev) => prev.filter((c) => c.id !== courseId))
+      if (expandedCourseId === courseId) setExpandedCourseId(null)
+    } catch (err) {
+      console.warn("[curation-k] course delete 예외:", err)
     }
   }
 
@@ -1677,14 +1697,16 @@ export default function CurationKPage() {
                           key={c.id}
                           className="bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden"
                         >
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpandedCourseId(expanded ? null : c.id)
-                            }
-                            className="w-full p-4 flex items-start justify-between text-left hover:bg-[#22222a] transition-colors"
-                          >
-                            <div className="min-w-0 flex-1">
+                          <div className="w-full p-4 flex items-start justify-between gap-2 hover:bg-[#22222a] transition-colors">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedCourseId(expanded ? null : c.id)
+                              }
+                              className="min-w-0 flex-1 text-left focus:outline-none"
+                              aria-expanded={expanded}
+                              aria-controls={`course-${c.id}-body`}
+                            >
                               <p className="text-foreground font-medium text-sm truncate">
                                 {c.course_data.drama_title}
                               </p>
@@ -1700,15 +1722,34 @@ export default function CurationKPage() {
                                   day: "numeric",
                                 })}
                               </p>
+                            </button>
+                            <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCourse(c.id)}
+                                aria-label="Delete course"
+                                className="w-7 h-7 rounded-full inline-flex items-center justify-center text-muted-foreground hover:text-[#ef4444] hover:bg-[#0d0d0f] focus:outline-none focus:ring-2 focus:ring-[#ef4444]/40 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedCourseId(expanded ? null : c.id)
+                                }
+                                aria-label={expanded ? "Collapse" : "Expand"}
+                                className="w-7 h-7 rounded-full inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-[#0d0d0f] focus:outline-none focus:ring-2 focus:ring-white/20 transition-colors"
+                              >
+                                <ChevronRight
+                                  className={`w-4 h-4 transition-transform ${
+                                    expanded ? "rotate-90" : ""
+                                  }`}
+                                />
+                              </button>
                             </div>
-                            <ChevronRight
-                              className={`w-4 h-4 mt-0.5 flex-shrink-0 transition-transform ${
-                                expanded ? "rotate-90" : ""
-                              }`}
-                            />
-                          </button>
+                          </div>
                           {expanded && (
-                            <div className="px-4 pb-4">
+                            <div id={`course-${c.id}-body`} className="px-4 pb-4">
                               <CourseItineraryView
                                 itinerary={c.course_data.itinerary}
                                 meta={{

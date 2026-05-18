@@ -55,6 +55,7 @@ const ROUTE_ACTIONS: Partial<Record<(typeof ROUTES)[number], CronAction[]>> = {
   "ingest-curation-k": [
     { label: "수집 실행" },
     { label: "촬영지 포함 전체 실행", params: { include_filming: "true" } },
+    { label: "K-Pop 성지 수집", params: { include_kpop: "true" } },
   ],
 }
 
