@@ -50,14 +50,10 @@ const ROUTE_DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
   "send-reminders": "send-reminders",
 }
 
-// 라우트별 수동 트리거 버튼 정의 — 미지정 라우트는 단일 기본 버튼
-const ROUTE_ACTIONS: Partial<Record<(typeof ROUTES)[number], CronAction[]>> = {
-  "ingest-curation-k": [
-    { label: "수집 실행" },
-    { label: "촬영지 포함 전체 실행", params: { include_filming: "true" } },
-    { label: "K-Pop 성지 수집", params: { include_kpop: "true" } },
-  ],
-}
+// 라우트별 수동 트리거 버튼 정의 — 미지정 라우트는 단일 기본 "수동 실행" 버튼.
+// ingest-curation-k (2026-05-19): tour_spots + filming_spots + kpop_spots 항상 전체
+// 실행하도록 통합 → 분기 옵션 제거.
+const ROUTE_ACTIONS: Partial<Record<(typeof ROUTES)[number], CronAction[]>> = {}
 
 type LoadResult =
   | { ok: true; summaries: RouteSummary[]; logs: CronLogRow[] }
