@@ -85,8 +85,10 @@ function geometryToPath(geom: GeoJSON.Geometry): string {
   return ""
 }
 
-// ⚠️ 지도 컴포넌트 수정 금지 (CLAUDE.md §6 / 2026-05-16). 도시·도서·polygon 스타일·
-//    proj() 모두 동결 — 변경 필요 시 별도 PR + 사용자 사전 승인.
+// 2026-05-19 사용자 명시 요청 — 시각 단순화.
+// Seoul / Busan / Jeju 만 펄스 표시 (primary 강조). 나머지 광역시도 점은
+// SVG 외부 sibling overlay 에서 그림 (REGION_CENTROIDS 기준).
+// 부속 도서 (Baengnyeong / Ulleung / Dokdo / Marado) 마커·라벨은 모두 제거.
 const KOREA_CITIES: Array<{
   name: string
   lng: number
@@ -95,32 +97,8 @@ const KOREA_CITIES: Array<{
   labelOffset?: [number, number]
 }> = [
   { name: "Seoul", lng: 126.978, lat: 37.5665, tier: "primary" },
-  { name: "Chuncheon", lng: 127.7298, lat: 37.8813, tier: "secondary" },
-  { name: "Gyeongju", lng: 129.2247, lat: 35.8562, tier: "secondary" },
   { name: "Busan", lng: 129.0756, lat: 35.1796, tier: "primary" },
-  { name: "Gwangju", lng: 126.8526, lat: 35.1595, tier: "secondary", labelOffset: [-62, 4] },
   { name: "Jeju", lng: 126.5312, lat: 33.4996, tier: "primary", labelOffset: [-30, 18] },
-]
-
-// 50m TopoJSON 에 누락되는 부속 도서 — 영토 주권 표기 (독도·마라도) 포함 명시 마커.
-// 독도·울릉은 실제 위경도면 화면상 본토에서 너무 멀어 한국 공식 지도 관용 (학교 교과서·우표·
-// 뉴스 그래픽 등) 따라 displayLng/displayLat 로 본토 가까이 inset. 실제 좌표(lng/lat)는 그대로 보존.
-// ⚠️ 수정 금지 (CLAUDE.md §6).
-const KOREA_ISLANDS: Array<{
-  name: string
-  lng: number          // 실제 위경도
-  lat: number
-  displayLng?: number  // 시각 표기용 (생략 시 lng)
-  displayLat?: number
-  rx?: number
-  ry?: number
-  labelOnly?: boolean
-  labelOffset: [number, number]
-}> = [
-  { name: "Baengnyeong", lng: 124.7, lat: 37.97, displayLng: 125.4, rx: 5, ry: 3, labelOffset: [9, -4] },
-  { name: "Ulleung", lng: 130.85, lat: 37.5, labelOnly: true, labelOffset: [-55, 4] },
-  { name: "Dokdo", lng: 131.87, lat: 37.24, displayLng: 131.0, displayLat: 37.33, rx: 2.6, ry: 1.4, labelOffset: [8, 4] },
-  { name: "Marado", lng: 126.27, lat: 33.11, rx: 3.4, ry: 2, labelOffset: [-46, 12] },
 ]
 
 interface CountriesAtlas {
@@ -1071,53 +1049,7 @@ export default function CurationKPage() {
                     </>
                   )}
 
-                  {/* 부속 도서 — 50m TopoJSON 누락 보완. 본토와 동일한 outline 스타일.
-                      독도·울릉은 displayLng/displayLat inset 으로 본토 가까이 시각화. */}
-                  {KOREA_ISLANDS.map((island) => {
-                    const [cx, cy] = proj(island.displayLng ?? island.lng, island.displayLat ?? island.lat)
-                    const [lx, ly] = island.labelOffset
-                    return (
-                      <g key={island.name}>
-                        {!island.labelOnly && island.rx !== undefined && island.ry !== undefined && (
-                          <>
-                            <ellipse
-                              cx={cx}
-                              cy={cy}
-                              rx={island.rx}
-                              ry={island.ry}
-                              fill="none"
-                              stroke="#FF4B6E"
-                              strokeOpacity="0.08"
-                              strokeWidth="1.2"
-                            />
-                            <ellipse
-                              cx={cx}
-                              cy={cy}
-                              rx={island.rx}
-                              ry={island.ry}
-                              fill="none"
-                              stroke="#ffffff"
-                              strokeOpacity="0.55"
-                              strokeWidth="0.7"
-                            />
-                          </>
-                        )}
-                        <text
-                          x={cx + lx}
-                          y={cy + ly}
-                          fill="#ffffff"
-                          opacity="0.6"
-                          fontSize="10"
-                          fontStyle="italic"
-                          fontFamily="system-ui, sans-serif"
-                        >
-                          {island.name}
-                        </text>
-                      </g>
-                    )
-                  })}
-
-                  {/* 도시 마커 — primary 핑크 펄스, secondary 정지 점 */}
+                  {/* 도시 마커 — Seoul/Busan/Jeju primary 펄스만 유지 (2026-05-19) */}
                   {KOREA_CITIES.map((city) => {
                     const [cx, cy] = proj(city.lng, city.lat)
                     const [lx, ly] = city.labelOffset ?? [10, 4]
@@ -1226,13 +1158,16 @@ export default function CurationKPage() {
                 {/* ─── 17 광역시도 hover overlay (SVG sibling) ─────────────
                     REGION_CENTROIDS 위에 transparent hit target. 호버 시 툴팁,
                     클릭 시 Region 필터 set + 탭 그리드 smooth scroll.
-                    SVG 내부는 동결 — 본 레이어는 sibling. */}
+                    Seoul/Busan/Jeju 는 SVG 내부 펄스 별도 유지 — 시각 점 중복 회피. */}
                 <div className="absolute inset-0 pointer-events-none">
                   {REGION_CENTROIDS.map((region) => {
                     const [cx, cy] = proj(region.lng, region.lat)
                     const pos = pctPosition(cx, cy)
                     const stat = stats?.byRegion?.[String(region.code)]
                     const isHovered = hoveredRegion === region.code
+                    // Seoul(1) / Busan(6) / Jeju(39) 는 SVG 펄스가 시각 마커 역할
+                    const hasPulse =
+                      region.code === 1 || region.code === 6 || region.code === 39
                     return (
                       <button
                         key={`region-${region.code}`}
@@ -1261,6 +1196,19 @@ export default function CurationKPage() {
                           zIndex: isHovered ? 30 : 8,
                         }}
                       >
+                        {/* 작은 점 마커 — 펄스 없는 14 광역시도만. 호버 ring 안쪽 중앙. */}
+                        {!hasPulse && (
+                          <span
+                            aria-hidden="true"
+                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                            style={{
+                              width: 5,
+                              height: 5,
+                              backgroundColor: "#FF4B6E",
+                              opacity: isHovered ? 1 : 0.55,
+                            }}
+                          />
+                        )}
                         <span
                           className="absolute inset-0 rounded-full transition-opacity"
                           style={{
