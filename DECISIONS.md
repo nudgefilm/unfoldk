@@ -21,6 +21,40 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-19 Curation K 카드 상세 모달 보강 — spot_description / visit_reason / homepage 컬럼 추가
+
+- 결정 내용:
+  - **migration `0029_curation_k_descriptions.sql`** — 모두 nullable, 기존 row 영향 없음.
+    · `filming_spots.spot_description text` — Claude Haiku 가 추출한 촬영 장면·맥락 1~2문장 (영문)
+    · `kpop_spots.visit_reason text` — Claude Haiku 가 추출한 K팝 팬 방문 이유 (이미 추출 중이었으나 영구화)
+    · `kpop_spots.homepage text` — 공식 홈페이지 URL (있을 때만)
+  - **ingest 코드 영구화** (`lib/curation-k/filming-spots.ts` / `lib/curation-k/kpop-spots.ts`):
+    · filming-spots: Claude tool input_schema 에 `description` 필드 추가 + insert payload 에 `spot_description` 포함
+    · kpop-spots: 이미 추출되던 `visitReason` 을 upsert payload 에 추가 — 0029 적용 후 다음 cron 부터 자동 채워짐
+  - **API 응답 확장** (`/api/curation-k/spots`, `/api/curation-k/kpop-spots`) — SpotItem / KpopSpotRow 인터페이스에 `drama_id`, `spot_description`, `event_start_date`, `event_end_date`, `visit_reason`, `homepage` 추가.
+  - **카드 상세 모달 탭별 분기** (`app/curation-k/page.tsx` `SpotDetailDialog`):
+    · `filming` — 좌상 "Featured in: <drama>" 배지를 `<Link href="/drama">` 로 클릭 가능하게 + 본문 description 은 `spot_description`
+    · `festivals` — 본문 상단에 기간 칩 (subtitle = "YYYY-MM-DD ~ YYYY-MM-DD")
+    · 그 외 — 기존 overview_en ?? overview_ko 패턴 유지
+  - **K-Pop Pilgrimage 상세 모달 신규** (`KpopSpotDetailDialog`) — kpop_spots 카드 클릭 진입. visit_reason 본문 + homepage CTA + Google Maps Pro 게이팅 ("Coming with Hallyu Pass" 패턴).
+- 이유:
+  - 사용자 spec 으로 탭별 모달 구성 항목이 명확화 — "촬영 장면 설명", "방문 이유" 등 모달에서만 의미 있는 컨텍스트를 영구화. Claude 가 이미 추출하던 정보 (visit_reason) 가 휘발되던 비효율 해소.
+  - "Featured in" 배지를 클릭 가능하게 하여 Curation K → KdramaMatch 교차 트래픽 유도 (서비스 간 락인).
+  - 기존 row 호환: 모달은 NULL 시 섹션 자체를 숨김 — UX 회귀 없음.
+- 대안으로 고려했던 것:
+  - **JSONB 단일 컬럼 `metadata`** 에 description/visit_reason 등 모아 저장 — 인덱스·쿼리 가독성 손해. 명시적 컬럼 우선.
+  - **모달에서만 fetch 하는 별도 detail endpoint** — 추가 round-trip + Claude 호출 가능성. 카드 그리드 응답에 미리 포함이 단순.
+
+## 2026-05-19 SpotDetailDialog 이미지 갤러리 화살표 — functional update + stopPropagation 강화
+
+- 결정 내용:
+  - `setImageIndex((prev) => …)` 함수형 업데이트로 stale closure 우려 제거.
+  - `onMouseDown` + `onClick` 양쪽에 `e.stopPropagation()` + `e.preventDefault()` — Dialog 외곽 click outside detection 이나 image overlay 클릭 캡처에 끌려가지 않게 방어.
+  - 가드 조건을 `images.length > 1` → `realImages.length > 1` 로 명시 — placeholder fallback 단독 (1장) 일 때 화살표 미노출이 코드 의도로 드러남.
+- 이유: 갤러리 prev/next 클릭이 일부 케이스에서 무반응이라는 사용자 보고 → 코드상 stale closure 가능성 + Dialog 이벤트 상호작용 가능성 두 축 모두 방어. 데이터 측면 (image_url2 NULL) 은 이미 `Set` dedup + filter 로 정상 처리되고 있어 추가 변경 없음.
+- 대안으로 고려했던 것:
+  - `useMemo` 로 images 배열 메모이즈 — primitive 비교만 들어가는 곳이라 효과 미미.
+
 ## 2026-05-18 Curation K 통합 cron + tour_spots 테이블 신규
 
 - 결정 내용:

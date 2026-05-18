@@ -4,21 +4,59 @@
 
 ---
 
-## About 페이지 — Empowering K-Culture Education Globally
+## About 페이지
+
+> 페이지 라우트: `/about` (`app/about/page.tsx`). 섹션 순서:
+> Hero → Mission → Stats → How it started → **Educational Access** → Services → CTA.
+
+### Hero — 인디 개발자 소개 문구
+
+Hero 의 lead 문단 바로 아래에 노출되는 보조 문장.
 
 ```
-Empowering K-Culture Education Globally
+Built by a solo indie developer from Korea,
+for Hallyu fans around the world.
+We keep improving to bring you a better experience.
+```
 
-We believe in the power of cultural exchange. UnfoldK offers free
-institutional access for recognized educational organizations,
-Korean language programs, and cultural non-profits.
+- **용도**: 1인 운영 indie 스튜디오임을 솔직히 안내, 유저 신뢰·기대치 정렬
+- **위치**: Hero `<p>` lead 다음 보조 문단 (`mt-6`, muted/80 톤)
+- **상태**: 반영 완료 (2026-05-19)
+
+
+### How it started — 섹션 본문
+
+```
+UNFOLD LAB is a small indie studio building tools for users
+around the world. We heard from K-pop fans that tracking
+comeback schedules, finding dramas, learning Korean, and
+planning trips to Korea was harder than it should be.
+
+UnfoldK is our answer to that.
+```
+
+- **용도**: UNFOLD LAB 소개 + UnfoldK 탄생 배경
+- **이전 카피**: "After launching tubewatch.kr…" / "Six focused services. One affordable subscription. Zero fluff." (2026-05-19 폐기)
+- **상태**: 반영 완료 (2026-05-19)
+
+
+### Educational Access — Expanding the Possibilities of Hallyu Education Worldwide
+
+```
+Expanding the Possibilities of Hallyu Education Worldwide
+
+UnfoldK believes in the power of cultural exchange.
+We offer free institutional access to accredited educational
+institutions, Korean language programs, and culture-related
+nonprofits.
 
 [Request Educational Access]
 ```
 
-- **용도**: About 페이지 내 교육기관/비영리 대상 무료 액세스 안내 섹션
-- **CTA**: "Request Educational Access" → 문의 폼 또는 `mailto:support@unfoldk.com` (확정 필요)
-- **상태**: 카피 확정. UI 반영 미완.
+- **용도**: 교육기관·한국어 프로그램·문화 비영리 대상 무료 institutional 액세스 안내
+- **CTA**: "Request Educational Access" → `/contact` 페이지 (기존 Resend 폼 재사용)
+- **이전 카피 (폐기)**: "Empowering K-Culture Education Globally" (2026-05-19)
+- **상태**: 반영 완료 (2026-05-19)
 
 ---
 

@@ -26,6 +26,8 @@ interface KpopSpotRow {
   latitude: number | string | null
   longitude: number | string | null
   image_url: string | null
+  visit_reason: string | null
+  homepage: string | null
   created_at: string
 }
 
@@ -51,7 +53,7 @@ export async function GET(request: Request) {
   let query = admin
     .from("kpop_spots")
     .select(
-      "id, artist_id, artist_name, spot_name, spot_type, region, address, latitude, longitude, image_url, created_at"
+      "id, artist_id, artist_name, spot_name, spot_type, region, address, latitude, longitude, image_url, visit_reason, homepage, created_at"
     )
     .order("created_at", { ascending: false })
     .limit(200) // 정렬 위해 일단 풀 fetch (kpop_spots 총량 작음 가정)

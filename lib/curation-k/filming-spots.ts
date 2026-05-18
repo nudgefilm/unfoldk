@@ -61,6 +61,7 @@ interface ExtractedSpot {
   spotName: string
   region: string | null
   confidence: number
+  description: string | null   // 촬영 장면·맥락 1~2문장 (영문). 모달 본문에 노출.
 }
 
 // Claude tool — 구조화 출력 강제 (CLAUDE.md §6 AI 처리 원칙)
@@ -91,6 +92,11 @@ const EXTRACT_TOOL: Anthropic.Tool = {
               type: "number",
               description:
                 "Your confidence this is a real, well-documented filming location (0.0–1.0). 0.9+ = widely reported by fans / officially confirmed. 0.5–0.9 = plausible. <0.5 = guess.",
+            },
+            description: {
+              type: "string",
+              description:
+                "1–2 sentences (English) describing the iconic scene or context filmed here — what fans recognize when they visit. Keep concise and spoiler-light. Omit if unsure.",
             },
           },
           required: ["spotName", "confidence"],
@@ -148,7 +154,12 @@ async function extractSpotsForDrama(
   const out: ExtractedSpot[] = []
   for (const raw of input.spots.slice(0, MAX_SPOTS_PER_DRAMA)) {
     if (typeof raw !== "object" || raw === null) continue
-    const r = raw as { spotName?: unknown; region?: unknown; confidence?: unknown }
+    const r = raw as {
+      spotName?: unknown
+      region?: unknown
+      confidence?: unknown
+      description?: unknown
+    }
     if (typeof r.spotName !== "string" || r.spotName.trim().length === 0) continue
     if (typeof r.confidence !== "number") continue
     const confidence = Math.max(0, Math.min(1, r.confidence))
@@ -156,6 +167,10 @@ async function extractSpotsForDrama(
       spotName: r.spotName.trim().slice(0, 200),
       region: typeof r.region === "string" && r.region.trim().length > 0 ? r.region.trim() : null,
       confidence,
+      description:
+        typeof r.description === "string" && r.description.trim().length > 0
+          ? r.description.trim().slice(0, 600)
+          : null,
     })
   }
   return out
@@ -422,6 +437,7 @@ export async function runFilmingSpotsIngest(): Promise<FilmingSpotsIngestResult>
           drama_id: dramaId,
           drama_title: dramaTitle,
           spot_name: spot.spotName,
+          spot_description: spot.description,
           region: spot.region,
           address: tourSpot?.address ?? null,
           latitude: tourSpot?.latitude ?? null,

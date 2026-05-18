@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { Languages } from "lucide-react"
+import { Languages, GraduationCap } from "lucide-react"
 
 const services = [
   {
@@ -70,6 +70,9 @@ export default function AboutPage() {
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto relative z-10">
             UnfoldK started because keeping up with K-pop comebacks, K-dramas, and Korean culture is a full-time job. So we built the tools to make it effortless.
           </p>
+          <p className="mt-6 text-base md:text-lg text-muted-foreground/80 max-w-2xl mx-auto relative z-10 leading-relaxed">
+            Built by a solo indie developer from Korea, for Hallyu fans around the world. We keep improving to bring you a better experience.
+          </p>
         </section>
 
         {/* Mission Card */}
@@ -120,11 +123,40 @@ export default function AboutPage() {
           </h2>
           <div className="space-y-4 text-muted-foreground text-lg leading-relaxed max-w-3xl">
             <p>
-              We run UNFOLD LAB — a small indie studio building tools for global audiences. After launching tubewatch.kr, we kept hearing from K-pop fans who struggled to track comebacks, find dramas, and learn Korean.
+              UNFOLD LAB is a small indie studio building tools for users around the world. We heard from K-pop fans that tracking comeback schedules, finding dramas, learning Korean, and planning trips to Korea was harder than it should be.
             </p>
-            <p>
-              UnfoldK is our answer to that. Six focused services. One affordable subscription. Zero fluff.
-            </p>
+            <p>UnfoldK is our answer to that.</p>
+          </div>
+        </section>
+
+        {/* Educational Access */}
+        <section className="pb-16">
+          <div
+            className="w-full rounded-2xl p-8 md:p-12 border border-border/30"
+            style={{ backgroundColor: "#141416" }}
+          >
+            <div className="flex flex-col items-center text-center">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
+                style={{ backgroundColor: "rgba(255, 75, 110, 0.12)" }}
+              >
+                <GraduationCap className="w-7 h-7" style={{ color: "#FF4B6E" }} />
+              </div>
+              <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-4 max-w-2xl">
+                Expanding the Possibilities of Hallyu Education Worldwide
+              </h2>
+              <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-2xl mb-6">
+                UnfoldK believes in the power of cultural exchange. We offer free institutional access to accredited educational institutions, Korean language programs, and culture-related nonprofits.
+              </p>
+              <Link href="/contact">
+                <Button
+                  className="px-6 py-3 rounded-full font-medium text-white"
+                  style={{ backgroundColor: "#FF4B6E" }}
+                >
+                  Request Educational Access
+                </Button>
+              </Link>
+            </div>
           </div>
         </section>
 

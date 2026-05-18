@@ -301,6 +301,7 @@ export async function runKpopSpotsIngest(): Promise<KpopSpotsIngestResult> {
             longitude: spot.longitude,
             tour_content_id: spot.contentId,
             image_url: spot.imageUrl,
+            visit_reason: meta.visitReason,
           },
           { onConflict: "artist_name,spot_name,spot_type" }
         )

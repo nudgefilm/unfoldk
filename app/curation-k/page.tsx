@@ -164,6 +164,8 @@ interface KpopSpotItem {
   latitude: number | string | null
   longitude: number | string | null
   image_url: string | null
+  visit_reason: string | null   // 0029 마이그레이션 — Claude 추출 방문 이유
+  homepage: string | null       // 0029 마이그레이션 — 공식 홈페이지 (있을 때만)
 }
 
 // /api/curation-k/map 의 filming 핀 (kpop 부분은 별도 endpoint 에서 가져옴)
@@ -215,7 +217,11 @@ interface SpotItem {
   image_url: string | null
   image_url2: string | null
   homepage: string | null
-  drama_title: string | null
+  drama_id: string | null            // filming 만 — 모달 "Featured in" 배지 클릭 시 /drama 이동
+  drama_title: string | null         // filming 만
+  spot_description: string | null    // filming 만 — Claude 추출 촬영 장면 설명 (0029)
+  event_start_date: string | null    // festivals 만 (YYYYMMDD)
+  event_end_date: string | null      // festivals 만
   region: string | null
   area_code: number | null
   content_type_id: number | null
@@ -577,6 +583,7 @@ export default function CurationKPage() {
 
   // 카드 클릭 → 상세 모달
   const [selectedSpot, setSelectedSpot] = useState<SpotItem | null>(null)
+  const [selectedKpopSpot, setSelectedKpopSpot] = useState<KpopSpotItem | null>(null)
 
   // 지도 통계 오버레이 — /api/curation-k/stats
   const [stats, setStats] = useState<CurationStats | null>(null)
@@ -1555,11 +1562,20 @@ export default function CurationKPage() {
                   badgeColor={CATEGORY_COLOR_MAP.kpop}
                   fallbackIcon={<MicVocal className="w-6 h-6 text-muted-foreground" />}
                   fallbackImage={PLACEHOLDER_IMAGES.kpop}
+                  onClick={() => setSelectedKpopSpot(spot)}
                 />
               ))}
             </div>
           )}
         </div>
+
+        {/* K-Pop 성지 카드 상세 모달 — selectedKpopSpot 기준 */}
+        <KpopSpotDetailDialog
+          spot={selectedKpopSpot}
+          isPro={isPro}
+          isAuthenticated={isAuthenticated}
+          onClose={() => setSelectedKpopSpot(null)}
+        />
 
         {/* ───── 6. My Hallyu Course (Pro 잠금) ─────────────── */}
         <SectionHeader
@@ -2453,14 +2469,25 @@ function SpotDetailDialog({
   if (!spot) return null
 
   const fullAddress = [spot.address, spot.addr2].filter(Boolean).join(" ").trim()
-  // overview_en (Claude 영문 번역) 우선, 없으면 overview_ko 한글 원본 fallback.
-  const description = (spot.overview_en ?? spot.overview_ko) || null
   const hasGps = spot.latitude !== null && spot.longitude !== null
   const mapsUrl = hasGps
     ? `https://maps.google.com/?q=${spot.latitude},${spot.longitude}`
     : null
-  // tab.key 가 "filming" 일 때만 드라마 배지
+
+  // 탭별 모달 본문 description 선택
+  //   filming  → spot_description (Claude 추출 촬영 장면)
+  //   그 외    → overview_en ?? overview_ko (Claude 영문 번역 우선, 한글 원본 fallback)
+  const description =
+    tab.key === "filming"
+      ? spot.spot_description ?? null
+      : (spot.overview_en ?? spot.overview_ko) || null
+
+  // filming 탭 — "Featured in: <드라마>" 배지 (이미지 위 오버레이). 클릭 시 /drama 페이지로 이동.
+  // 다른 탭에서는 미노출.
   const dramaBadge = tab.key === "filming" ? spot.drama_title : null
+
+  // festivals 탭 — 기간 표시 (subtitle 에 미리 가공된 "YYYY-MM-DD ~ YYYY-MM-DD" 사용).
+  const festivalPeriod = tab.key === "festivals" ? spot.subtitle : null
 
   return (
     <Dialog
@@ -2484,24 +2511,31 @@ function SpotDetailDialog({
             <tab.Icon className="w-12 h-12 text-muted-foreground" />
           )}
 
+          {/* filming — "Featured in: <drama>" 클릭 가능한 배지 (→ /drama) */}
           {dramaBadge && (
-            <span
-              className="absolute top-3 left-3 z-30 text-[11px] font-medium px-2.5 py-1 rounded-full shadow pointer-events-none"
+            <Link
+              href="/drama"
+              className="absolute top-3 left-3 z-30 text-[11px] font-medium px-2.5 py-1 rounded-full shadow inline-flex items-center gap-1 hover:opacity-90 transition-opacity"
               style={{ backgroundColor: `${tab.color}e0`, color: "#fff" }}
+              onClick={(e) => e.stopPropagation()}
+              title="Browse this drama on KdramaMatch"
             >
-              {dramaBadge}
-            </span>
+              <span className="opacity-80">Featured in:</span>
+              <span className="font-semibold">{dramaBadge}</span>
+            </Link>
           )}
 
-          {/* 좌우 화살표 + 도트 — images.length > 1 일 때만 (image_url == image_url2 면 Set 중복 제거) */}
-          {images.length > 1 && (
+          {/* 좌우 화살표 + 도트 — realImages 2장 이상일 때만 (image_url == image_url2 면 Set 중복 제거).
+              placeholder fallback (1장) 단독일 땐 화살표 미노출. */}
+          {realImages.length > 1 && (
             <>
               <button
                 type="button"
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
+                  e.preventDefault()
                   e.stopPropagation()
-                  const next = (imageIndex - 1 + images.length) % images.length
-                  setImageIndex(next)
+                  setImageIndex((prev) => (prev - 1 + realImages.length) % realImages.length)
                 }}
                 aria-label="Previous image"
                 className="absolute left-2 top-1/2 -translate-y-1/2 z-30 w-9 h-9 rounded-full bg-black/70 hover:bg-black text-white inline-flex items-center justify-center text-lg cursor-pointer"
@@ -2510,10 +2544,11 @@ function SpotDetailDialog({
               </button>
               <button
                 type="button"
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
+                  e.preventDefault()
                   e.stopPropagation()
-                  const next = (imageIndex + 1) % images.length
-                  setImageIndex(next)
+                  setImageIndex((prev) => (prev + 1) % realImages.length)
                 }}
                 aria-label="Next image"
                 className="absolute right-2 top-1/2 -translate-y-1/2 z-30 w-9 h-9 rounded-full bg-black/70 hover:bg-black text-white inline-flex items-center justify-center text-lg cursor-pointer"
@@ -2548,6 +2583,21 @@ function SpotDetailDialog({
             )}
           </DialogHeader>
 
+          {/* festivals — 기간 */}
+          {festivalPeriod && (
+            <div className="flex items-center gap-2 text-sm mb-4">
+              <span
+                className="inline-flex items-center text-[11px] font-medium px-2.5 py-1 rounded-full"
+                style={{
+                  backgroundColor: `${tab.color}22`,
+                  color: tab.color,
+                }}
+              >
+                {festivalPeriod}
+              </span>
+            </div>
+          )}
+
           {/* 주소 */}
           {fullAddress && (
             <div className="flex items-start gap-2 text-sm mb-4">
@@ -2556,7 +2606,7 @@ function SpotDetailDialog({
             </div>
           )}
 
-          {/* 설명 */}
+          {/* 설명 — filming 은 spot_description, 나머지는 overview_en ?? overview_ko */}
           {description && (
             <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line mb-5">
               {description}
@@ -2585,6 +2635,139 @@ function SpotDetailDialog({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium text-white"
                   style={{ backgroundColor: tab.color }}
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  Open in Google Maps
+                </a>
+              ) : (
+                <Link
+                  href={
+                    isAuthenticated === false
+                      ? "/login?redirect=/curation-k"
+                      : "/signup"
+                  }
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium border border-border/40 bg-[#1a1a1a] text-muted-foreground hover:border-border/70 transition-colors"
+                  title="Coming with Hallyu Pass"
+                >
+                  <Lock className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
+                  Google Maps · Pro
+                </Link>
+              )
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// K-Pop 성지 상세 모달 — kpop_spots 컬럼 매핑.
+//   image_url / spot_name / artist_name / spot_type / region / address / lat·lng /
+//   visit_reason (0029 마이그레이션) / homepage (0029, 있을 때만).
+//   Google Maps 는 Pro 게이팅 (filming/tour 모달과 동일 정책).
+function KpopSpotDetailDialog({
+  spot,
+  isPro,
+  isAuthenticated,
+  onClose,
+}: {
+  spot: KpopSpotItem | null
+  isPro: boolean
+  isAuthenticated: boolean | null
+  onClose: () => void
+}) {
+  if (!spot) return null
+
+  const imageSrc = spot.image_url ?? PLACEHOLDER_IMAGES.kpop
+  const lat = typeof spot.latitude === "string" ? Number(spot.latitude) : spot.latitude
+  const lng = typeof spot.longitude === "string" ? Number(spot.longitude) : spot.longitude
+  const hasGps = lat !== null && lng !== null && Number.isFinite(lat) && Number.isFinite(lng)
+  const mapsUrl = hasGps ? `https://maps.google.com/?q=${lat},${lng}` : null
+  const accentColor = CATEGORY_COLOR_MAP.kpop
+
+  return (
+    <Dialog
+      open={!!spot}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <DialogContent className="bg-[#141416] border-[#2a2a2a] text-foreground max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+        {/* 이미지 */}
+        <div className="relative bg-[#252525] aspect-[16/9] flex items-center justify-center overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageSrc}
+            alt={spot.spot_name}
+            referrerPolicy="no-referrer"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          {/* 아티스트 배지 */}
+          <span
+            className="absolute top-3 left-3 z-30 text-[11px] font-medium px-2.5 py-1 rounded-full shadow pointer-events-none"
+            style={{ backgroundColor: `${accentColor}e0`, color: "#fff" }}
+          >
+            {spot.artist_name}
+          </span>
+          {/* 카테고리 배지 (오른쪽 위) */}
+          <span
+            className="absolute top-3 right-3 z-30 text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/70 text-white pointer-events-none uppercase tracking-wider"
+          >
+            {prettySpotType(spot.spot_type)}
+          </span>
+        </div>
+
+        <div className="p-6">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-xl font-bold text-white leading-tight">
+              {spot.spot_name}
+            </DialogTitle>
+            <p className="text-muted-foreground text-sm mt-1">
+              {spot.artist_name}
+            </p>
+          </DialogHeader>
+
+          {/* 방문 이유 — Claude 추출 (0029 마이그레이션 적용 후부터 채워짐) */}
+          {spot.visit_reason && (
+            <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line mb-5">
+              {spot.visit_reason}
+            </p>
+          )}
+
+          {/* 주소 */}
+          {(spot.region || spot.address) && (
+            <div className="flex items-start gap-2 text-sm mb-5">
+              <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+              <p className="text-foreground/90 leading-snug">
+                {spot.region}
+                {spot.region && spot.address ? " · " : ""}
+                {spot.address}
+              </p>
+            </div>
+          )}
+
+          {/* CTA — homepage / Google Maps (Pro 게이팅) */}
+          <div className="flex flex-wrap items-center gap-2">
+            {spot.homepage && (
+              <a
+                href={extractFirstUrl(spot.homepage) ?? spot.homepage}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium border border-border/40 bg-[#1a1a1a] hover:border-border/70 transition-colors text-foreground"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Official Website
+              </a>
+            )}
+
+            {hasGps && mapsUrl && (
+              isPro ? (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium text-white"
+                  style={{ backgroundColor: accentColor }}
                 >
                   <MapPin className="w-3.5 h-3.5" />
                   Open in Google Maps

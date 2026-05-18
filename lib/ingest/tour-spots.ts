@@ -3,14 +3,14 @@
 // 카테고리:
 //   12: 관광지       — intervalDays 30
 //   14: 문화시설     — intervalDays 30
-//   15: 축제·행사    — intervalDays 1 (오늘 ~ +365일)
+//   15: 축제·행사    — intervalDays 1 (당해년도 1/1 ~ 오늘 + 18개월)
 //   32: 숙박         — intervalDays 30
 //   39: 음식점       — intervalDays 30
 //
 // 수집 로직:
 //   1) cron_logs 에서 본 카테고리 마지막 성공 시각 조회
 //      → intervalDays 미만이면 skip (단, tour_spots 에 해당 카테고리 행 0건이면 강제 실행)
-//   2) 행사·축제 = searchFestival2(today~+365d, area 전체 순회)
+//   2) 행사·축제 = searchFestival2(당해년도 1/1 ~ 오늘+18개월, area 전체 순회)
 //      그 외     = areaBasedList2(area 전체 순회, page 1만 — 30 items/area)
 //   3) 응답 item 의 modifiedtime 이 DB row 와 동일하면 upsert 스킵 (불필요한 update 방지)
 //   4) overview_ko 가 있고 overview_en 이 null 인 행을 Claude Haiku 로 번역 (cap)

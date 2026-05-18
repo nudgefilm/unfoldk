@@ -4,6 +4,73 @@
 
 ---
 
+## 현재 상태 (2026-05-19 세션 18 / Curation K 카드 모달 탭별 분기 + K-Pop 모달 신규 + About 페이지 카피 리뉴얼)
+
+> Curation K Phase 2 잔여 작업 마감. 카드 상세 모달이 탭별로 적절한 필드를 노출하도록 분기 (filming = Featured in 클릭 배지 + spot_description, festivals = 기간 칩, 그 외 = overview). K-Pop Pilgrimage 카드는 모달이 없었으나 신규 KpopSpotDetailDialog 로 visit_reason · homepage · GMaps(Pro) 노출. 이미지 갤러리 화살표가 일부 케이스 무반응이라는 보고에 functional update + stopPropagation/preventDefault 다중 방어. DB 측 영구화 — `0029_curation_k_descriptions.sql` 로 filming_spots.spot_description / kpop_spots.visit_reason · homepage 컬럼 추가, ingest 코드 동시 반영 (Claude 가 이미 추출하던 visit_reason 이 휘발되던 비효율 해소). About 페이지는 인디 개발자 소개 문구 + Educational Access 섹션 신설 + How it started 본문 교체, COPY.md 동기화.
+
+### 완료
+
+#### A. Curation K — SpotDetailDialog 탭별 분기 + 화살표 안정화
+
+- **탭별 분기** (`app/curation-k/page.tsx` `SpotDetailDialog`):
+  · `filming` — 좌상 배지를 "Featured in: <drama>" 형태로 변경하고 `<Link href="/drama">` 로 클릭 가능하게 (Curation K → KdramaMatch 교차 트래픽). 본문 description 은 `spot_description` 사용.
+  · `festivals` — 본문 상단에 기간 칩 (subtitle = "YYYY-MM-DD ~ YYYY-MM-DD", API 가공).
+  · 그 외 (attractions/food/stays/culture) — 기존 overview_en ?? overview_ko 패턴 유지.
+- **화살표 prev/next 안정화** — `setImageIndex((prev) => …)` 함수형 update + `onMouseDown` · `onClick` 양쪽 `stopPropagation()` + `preventDefault()`. 가드를 `images.length > 1` → `realImages.length > 1` 로 명시해 placeholder 단독 시 화살표 미노출 의도 코드에 박제.
+- **호환**: API 응답에 spot_description 등 새 필드가 NULL 로 와도 모달이 섹션 자체를 숨겨 회귀 없음.
+
+#### B. K-Pop Pilgrimage 카드 상세 모달 신규 — `KpopSpotDetailDialog`
+
+- kpop_spots 카드 클릭 시 모달이 없던 결함 해소.
+- 구성: 단일 이미지 + 아티스트 배지 (좌상) + 카테고리 라벨 (우상) + 본문 visit_reason + 주소 + Official Website (homepage 있을 때만) + Google Maps (Pro 게이팅).
+- Pro 잠금 UI: `"Coming with Hallyu Pass"` 패턴 통일 (CLAUDE.md §6 — 결제 가동 전 임시 정책 유지).
+
+#### C. 0029 마이그레이션 + ingest 영구화
+
+- `supabase/migrations/0029_curation_k_descriptions.sql` — 3 컬럼 idempotent 추가 (모두 nullable).
+- `lib/curation-k/filming-spots.ts` — Claude tool `input_schema.spots.items.properties.description` 신규 + `ExtractedSpot.description` + insert payload 에 `spot_description` 포함.
+- `lib/curation-k/kpop-spots.ts` — upsert payload 에 `visit_reason: meta.visitReason` 추가. (Claude 추출 로직 자체는 기존 그대로)
+- `app/api/curation-k/spots/route.ts` — filming select 에 `spot_description` 추가, SpotItem 인터페이스에 `drama_id` / `spot_description` / `event_start_date` / `event_end_date` 노출. tour 매핑에 event 날짜 포함.
+- `app/api/curation-k/kpop-spots/route.ts` — select 에 `visit_reason, homepage` 추가 + 인터페이스 확장.
+
+#### D. tour-spots.ts 헤더 주석 정합 (e7c7016 로직과 일치)
+
+- 헤더 주석 두 줄을 실제 동작 "당해년도 1/1 ~ 오늘+18개월" 로 정정. `FESTIVAL_FUTURE_MONTHS=18` + `new Date(today.getFullYear(), 0, 1)` 로직은 이미 적용된 상태였음.
+
+#### E. About 페이지 4종 개선 + COPY.md 동기화
+
+- `app/about/page.tsx` —
+  · Hero lead 하단에 인디 개발자 소개 문단 추가 ("Built by a solo indie developer from Korea, …")
+  · "How it started" 본문 교체 (UNFOLD LAB 정의 + UnfoldK 탄생 배경 압축)
+  · "Educational Access" 신규 섹션 — GraduationCap 아이콘 + 제목 "Expanding the Possibilities of Hallyu Education Worldwide" + 본문 + "Request Educational Access" → `/contact` (기존 Resend 폼 재사용)
+  · Mission Card / Stats / Services Grid / CTA 는 유지
+- `COPY.md` — About 페이지 우산 아래 Hero / How it started / Educational Access 3 블록으로 재구성. 이전 "Empowering K-Culture Education Globally" 카피 폐기 메모 박제.
+
+### 신규 의존성
+
+- 없음.
+
+### 사용자 액션 필요
+
+1. **Supabase SQL Editor 에서 `0029_curation_k_descriptions.sql` 적용** — 적용 전엔 ingest 코드의 새 컬럼 upsert 가 unknown column 에러로 실패할 수 있음. 적용 후 다음 cron 부터 자동 채워짐.
+2. **`/admin/cron` 에서 Curation K 통합 cron 수동 트리거** — 신규 row 부터 `spot_description` / `visit_reason` / `homepage` 자동 채워짐. 기존 row 는 NULL 유지 (모달에서 자연 미노출). festival 날짜 범위 (당해년도 1/1 ~ 오늘+18개월) 재수집도 동일 트리거로 처리.
+
+### 다음 세션 후보 (carry-over)
+
+- **세션 17 carry-over 전체 유지** —
+  - famous-dramas ↔ dramas 매칭 실측 검증 (어드민 cron 수동 실행 → `auto_added_dramas` 카운트 확인)
+  - top.gg 심사 통과 후 봇 페이지 운영
+  - /calendar / /today / /notify 슬래시 명령 추가
+  - **세션 14 carry-over**: KdramaMatch Phase 2 잔여 / Curation K Phase 2 잔여 / 결제 가동 시 복원 / 세션 13 잔여
+  - 블로그 cron 운영 안정화
+
+### 블로커
+
+- **top.gg 심사 1~2주 대기** — 외부 의존 (세션 15 carry-over)
+- 세션 13 carry-over — 메인 페이지 hang + Ghost Globe 미작동
+
+---
+
 ## 현재 상태 (2026-05-18 세션 17 / AI → UnfoldK 카피 리브랜딩 + HangeulGo Got it 영구화 + LMS 새 탭·no-store·Redeem 모달)
 
 > 사용자 노출 카피의 서비스 주체를 일관되게 "UnfoldK" 로 정렬 (벤더명·"AI" 단독 노출 제거 + CLAUDE.md 규칙 박제). HangeulGo "Got it" 후 페이지 재진입 시 같은 표현이 다시 나오던 UX 결함을 user_learning_progress 영구화로 해결. Lemon Squeezy 결제는 새 탭 오픈 + redirect 응답 Cache-Control: no-store 로 다른 계정 이메일 cross-contamination 차단. Subscription 페이지 쿠폰 입력은 /redeem 페이지 전체 이동 → 모달로 전환 (폼 컴포넌트 재사용).
