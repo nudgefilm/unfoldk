@@ -162,6 +162,9 @@ export interface TourItem {
   cat2?: string
   cat3?: string
   modifiedtime?: string
+  // searchFestival2 응답 추가 필드 (다른 엔드포인트에선 undefined)
+  eventstartdate?: string  // YYYYMMDD
+  eventenddate?: string    // YYYYMMDD
 }
 
 // ─── 1. 위치기반 관광정보조회 (locationBasedList2) ──────────────
@@ -263,7 +266,39 @@ export async function detailImage(
   }, 86400) // 24h
 }
 
-// ─── 7. 행사·축제·공연 (searchFestival2) ────────────────────
+// ─── 7. 공통 상세 (detailCommon2) ────────────────────────────
+// list 응답이 제공 안 하는 overview / homepage / modifiedtime 보강용.
+// areaBasedList2 / searchFestival2 결과 contentId 별 1회 호출.
+export interface TourDetailCommon {
+  contentid: string
+  contenttypeid?: string
+  title?: string
+  overview?: string                  // 본문 (한국어, HTML 가능)
+  homepage?: string                  // HTML <a> 태그 포함될 수 있음
+  modifiedtime?: string              // YYYYMMDDHHMMSS
+  firstimage?: string
+  firstimage2?: string
+  addr1?: string
+  addr2?: string
+  mapx?: string
+  mapy?: string
+  areacode?: string
+  sigungucode?: string
+}
+
+export async function detailCommon(
+  contentId: string
+): Promise<TourDetailCommon | null> {
+  const { items } = await tourFetch<TourDetailCommon>("detailCommon2", {
+    contentId,
+    numOfRows: 1,
+    pageNo: 1,
+  }, 21600) // 6h
+  return items[0] ?? null
+}
+
+
+// ─── 8. 행사·축제·공연 (searchFestival2) ────────────────────
 // 한류 페스티벌·콘서트·팝업 정보. 캘린더 보완 데이터로 활용 가능.
 export async function searchFestival(args: {
   eventStartDate: string   // YYYYMMDD

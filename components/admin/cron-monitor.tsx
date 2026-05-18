@@ -6,13 +6,19 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { Play } from "lucide-react"
 
+interface CronAction {
+  label: string                                      // 버튼 라벨
+  params?: Record<string, string>                    // route 에 붙일 query string
+}
+
 interface RouteSummary {
-  route: string                                      // API 식별자 (e.g. "ingest-filming-spots")
+  route: string                                      // API 식별자 (e.g. "ingest-curation-k")
   displayName?: string                               // UI 표시명 (옵션 — 없으면 route 그대로)
   lastExecutedAt: string | null
   lastStatus: "success" | "failed" | null
   metric: string
   metricLabel: string
+  actions?: CronAction[]                             // 미지정 시 단일 "수동 실행" 버튼
 }
 
 interface CronLogRow {
@@ -26,16 +32,18 @@ interface CronLogRow {
 export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; logs: CronLogRow[] }) {
   const router = useRouter()
   const { toast } = useToast()
-  const [runningRoute, setRunningRoute] = useState<string | null>(null)
+  // 동일 route 라도 actions 가 여러 개 있을 수 있어 key 는 `route|label` 조합
+  const [runningKey, setRunningKey] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
-  async function runManually(route: string) {
-    setRunningRoute(route)
+  async function runManually(route: string, action?: CronAction) {
+    const key = action ? `${route}|${action.label}` : route
+    setRunningKey(key)
     try {
       const res = await fetch("/api/admin/cron/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ route }),
+        body: JSON.stringify({ route, params: action?.params }),
       })
       const json = await res.json().catch(() => ({}))
 
@@ -71,7 +79,7 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
       console.error(`[admin/cron] ${route} 수동 실행 예외:`, err)
       toast({ title: "실행 오류", description: err instanceof Error ? err.message : "알 수 없는 오류" })
     } finally {
-      setRunningRoute(null)
+      setRunningKey(null)
       startTransition(() => router.refresh())
     }
   }
@@ -105,21 +113,30 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
               )}
             </div>
 
-            <div className="flex items-end justify-between">
+            <div className="flex items-end justify-between gap-3">
               <div>
                 <p className="text-muted-foreground text-xs">{s.metricLabel}</p>
                 <p className="text-foreground text-2xl font-bold">{s.metric}</p>
               </div>
-              <Button
-                size="sm"
-                onClick={() => runManually(s.route)}
-                disabled={runningRoute !== null}
-                className="rounded-full"
-                style={{ backgroundColor: "#FF4B6E", color: "white" }}
-              >
-                <Play className="w-3 h-3 mr-1" />
-                {runningRoute === s.route ? "실행 중..." : "수동 실행"}
-              </Button>
+              <div className="flex flex-wrap gap-2 justify-end">
+                {(s.actions ?? [{ label: "수동 실행" }]).map((action) => {
+                  const key = `${s.route}|${action.label}`
+                  const isRunning = runningKey === key
+                  return (
+                    <Button
+                      key={key}
+                      size="sm"
+                      onClick={() => runManually(s.route, action)}
+                      disabled={runningKey !== null}
+                      className="rounded-full"
+                      style={{ backgroundColor: "#FF4B6E", color: "white" }}
+                    >
+                      <Play className="w-3 h-3 mr-1" />
+                      {isRunning ? "실행 중..." : action.label}
+                    </Button>
+                  )
+                })}
+              </div>
             </div>
           </div>
         ))}
@@ -185,17 +202,22 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
 
   const r = result as Record<string, unknown>
 
-  if (route === "ingest-filming-spots") {
-    const inserted = num(r.spotsInserted)
-    const confirmed = num(r.spotsConfirmed)
-    const pending = num(r.spotsPending)
-    const retried = num(r.pendingRetried)
-    const promoted = num(r.pendingPromoted)
+  if (route === "ingest-curation-k") {
+    // CombinedResult — { total_upserted, total_translated, categories[], filming, errors }
+    const upserted = num(r.total_upserted)
+    const translated = num(r.total_translated)
+    const cats = Array.isArray(r.categories) ? r.categories : []
+    const skipped = cats.filter((c) => (c as { skipped?: unknown }).skipped === true).length
+    const filming = r.filming as { spotsInserted?: number } | null | undefined
+    const filmPart =
+      filming && typeof filming === "object"
+        ? ` · 촬영지 신규 ${num(filming.spotsInserted)}`
+        : ""
+    const translatedPart = translated > 0 ? ` · 번역 ${translated}` : ""
+    const skipPart = skipped > 0 ? ` · skip ${skipped}` : ""
     const errors = Array.isArray(r.errors) ? r.errors.length : 0
-    const retryPart =
-      retried > 0 ? ` · pending 재시도 ${retried}/${promoted} 승격` : ""
     const errPart = errors > 0 ? ` · errors ${errors}` : ""
-    return `신규 ${inserted}건 (confirmed ${confirmed} / pending ${pending})${retryPart}${errPart} · ${time}`
+    return `${upserted}건 수집${translatedPart}${skipPart}${filmPart}${errPart} · ${time}`
   }
 
   if (route === "ingest-ticketmaster") {

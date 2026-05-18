@@ -21,6 +21,28 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-18 Curation K 통합 cron + tour_spots 테이블 신규
+
+- 결정 내용:
+  - **`ingest-filming-spots` cron 슬롯을 `ingest-curation-k` 로 교체** (`0 3 * * *` 유지). 단일 cron 으로 Curation K 의 두 데이터 소스를 통합 실행.
+  - **tour_spots 테이블 신규** (migration `0027_tour_spots.sql`) — TourAPI 5개 카테고리 (`12 관광지` / `14 문화시설` / `15 축제·행사` / `32 숙박` / `39 음식점`) 를 `content_type_id` 컬럼으로 구분해 단일 테이블에 저장. `content_id` unique 키로 upsert. RLS: anon+auth select / admin write.
+  - **카테고리별 주기 차등 적용** (`lib/ingest/tour-spots.ts`) — 축제·행사 매일 / 나머지 30일 마다. 마지막 성공 시각은 `cron_logs` 의 `result_json.categories[]` 에서 카테고리별 `skipped=false` 마지막 실행으로 판단. 단, 본 카테고리 row 가 DB 에 0건이면 강제 실행 (최초 수집).
+  - **modifiedtime 증분 비교** — TourAPI 응답 item 의 `modifiedtime` 이 DB 의 기존 row 와 동일하면 upsert 자체를 skip (불필요 UPDATE 회피).
+  - **Claude 번역 — `overview_ko → overview_en` 1회**, cron 당 최대 20건 cap. tool_use 강제 JSON 출력 + 24h ephemeral cache.
+  - **`?include_filming=true` 옵션** — vercel 자동 실행은 tour_spots 만, 어드민 수동 트리거에서만 filming_spots 동시 실행 (촬영지 수집은 수동 큐레이션 정책 유지).
+  - **기존 `/api/cron/ingest-filming-spots` 라우트 파일 유지** — DB 잔존 cron_logs 와의 호환 + 추후 별도 수동 트리거 가능성.
+- 이유:
+  - cron 슬롯 한정 (Vercel Hobby 10개 cap) 안에서 Curation K 확장을 흡수.
+  - 카테고리별 변경 빈도 차이 (축제는 매일 신규, 관광지·음식점은 월 단위) 가 커 단일 주기로 묶으면 손해. category-level interval 로 비용 균형.
+  - `tour_spots` 와 `filming_spots` 를 분리 — filming_spots 는 드라마-촬영지 1:N 마스터 (`drama_id` 필수), tour_spots 는 일반 카탈로그 (드라마 무관). 데이터 모델·생애주기 다름.
+  - `cron_logs.result_json` 을 카테고리별 상태 스토어로 재사용 → 별도 메타 테이블 도입 회피. 단점은 로그 retention 정책에 묶이는 것 (현재 무제한).
+- 대안으로 고려했던 것:
+  - **카테고리별 별도 cron 라우트** (`ingest-tour-tourist-spots`, `ingest-tour-festival` 등 5개) — Vercel cron 슬롯 5개 추가 소비. 카테고리 결과 통합 어드민 카드 만들기 어려움.
+  - **`tour_spots` 를 `filming_spots` 에 합치고 `spot_type` 컬럼 분기** — drama 연계 의무 컬럼 (`drama_id` / `drama_title`) 이 tour_spots 에선 부적합. nullable 로 풀면 데이터 무결성 약화.
+  - **카테고리별 interval 상태를 별도 메타 테이블 (`tour_ingest_state`) 로 박제** — 정확하지만 마이그레이션 1개 추가. cron_logs 재사용으로도 정합성 충분 (skipped=false 마지막 시각 = 마지막 성공).
+- 사용자 액션 필요:
+  - **Supabase SQL Editor 에서 `0027_tour_spots.sql` 적용** — Vercel 배포 전 또는 후 단발 실행.
+
 ## 2026-05-18 인증 임베디드 URL 의 redirect 응답에 Cache-Control: no-store 필수
 
 - 결정 내용:

@@ -13,6 +13,11 @@ export interface CronLogRow {
   executed_at: string
 }
 
+interface CronAction {
+  label: string                                      // 버튼 라벨
+  params?: Record<string, string>                    // route 에 붙일 query string
+}
+
 interface RouteSummary {
   route: string
   displayName: string                                // UI 카드 제목 (route 식별자와 분리)
@@ -20,15 +25,17 @@ interface RouteSummary {
   lastStatus: "success" | "failed" | null
   metric: string                                     // 수집 이벤트 수 or 발송 수 — 라우트별 의미 다름
   metricLabel: string
+  actions?: CronAction[]                             // 미지정 시 단일 "수동 실행" 버튼 (params 없음)
 }
 
 // KOPIS 는 2026-05-16 폐기 (글로벌 유저 부적합). 과거 cron_logs 의 'ingest-kopis' 행은
 // 화면에 노출 안 됨 — 필요 시 SQL 로 정리.
+// ingest-filming-spots 는 2026-05-18 ingest-curation-k 에 흡수 (?include_filming=true 로 수동 실행).
 const ROUTES = [
   "ingest-all",
   "ingest-ticketmaster",
   "ingest-tmdb-dramas",
-  "ingest-filming-spots",
+  "ingest-curation-k",
   "ingest-korean-phrases",
   "send-reminders",
 ] as const
@@ -38,9 +45,17 @@ const ROUTE_DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
   "ingest-all": "ingest-all",
   "ingest-ticketmaster": "ingest-ticketmaster",
   "ingest-tmdb-dramas": "KdramaMatch — TMDB 드라마 수집",
-  "ingest-filming-spots": "Curation K — Filming Spots 수집",
+  "ingest-curation-k": "Curation K 통합 수집",
   "ingest-korean-phrases": "HangeulGo — 드라마 표현 생성",
   "send-reminders": "send-reminders",
+}
+
+// 라우트별 수동 트리거 버튼 정의 — 미지정 라우트는 단일 기본 버튼
+const ROUTE_ACTIONS: Partial<Record<(typeof ROUTES)[number], CronAction[]>> = {
+  "ingest-curation-k": [
+    { label: "수집 실행" },
+    { label: "촬영지 포함 전체 실행", params: { include_filming: "true" } },
+  ],
 }
 
 type LoadResult =
@@ -83,14 +98,15 @@ async function load(): Promise<LoadResult> {
 
     // 라우트별 메트릭 라벨:
     //   send-reminders     → 발송 수
-    //   filming-spots      → 촬영지 수집
+    //   curation-k         → tour_spots 신규/변경
     //   tmdb-dramas        → 드라마 수집
+    //   korean-phrases     → 생성 표현 수
     //   나머지 ingest-*     → 수집 이벤트
     const metricLabel =
       route === "send-reminders"
         ? "발송 수"
-        : route === "ingest-filming-spots"
-          ? "촬영지 수집"
+        : route === "ingest-curation-k"
+          ? "tour_spots 신규/변경"
           : route === "ingest-tmdb-dramas"
             ? "드라마 수집"
             : route === "ingest-korean-phrases"
@@ -98,6 +114,7 @@ async function load(): Promise<LoadResult> {
               : "수집 이벤트"
 
     const displayName = ROUTE_DISPLAY_NAMES[route]
+    const actions = ROUTE_ACTIONS[route]
 
     if (!data) {
       summaries.push({
@@ -107,6 +124,7 @@ async function load(): Promise<LoadResult> {
         lastStatus: null,
         metric: "—",
         metricLabel,
+        actions,
       })
       continue
     }
@@ -130,11 +148,11 @@ async function load(): Promise<LoadResult> {
     } else if (route === "ingest-ticketmaster" && data.result_json) {
       const r = data.result_json as { upserted?: number }
       metric = (r.upserted ?? 0).toLocaleString()
-    } else if (route === "ingest-filming-spots" && data.result_json) {
-      // FilmingSpotsIngestResult — spotsInserted = 이번 실행 신규 row.
-      // confirmed/pending 분포는 toast 로만 별도 노출 (카드는 단일 숫자).
-      const r = data.result_json as { spotsInserted?: number }
-      metric = (r.spotsInserted ?? 0).toLocaleString()
+    } else if (route === "ingest-curation-k" && data.result_json) {
+      // CombinedResult — total_upserted = tour_spots 신규/변경 row 합.
+      // filming_spots 는 ?include_filming=true 일 때만 실행 (toast 로 별도 노출).
+      const r = data.result_json as { total_upserted?: number }
+      metric = (r.total_upserted ?? 0).toLocaleString()
     } else if (route === "ingest-tmdb-dramas" && data.result_json) {
       // DramaIngestResult — upserted = 이번 실행 upsert 된 drama 수.
       // calendarLinked 는 부가 정보라 카드엔 노출 안 함 (toast 영역에서 노출 가능).
@@ -156,6 +174,7 @@ async function load(): Promise<LoadResult> {
       lastStatus: data.status,
       metric,
       metricLabel,
+      actions,
     })
   }
 

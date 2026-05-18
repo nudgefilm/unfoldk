@@ -24,10 +24,15 @@ const PostSchema = z.object({
     "ingest-all",
     "ingest-ticketmaster",
     "ingest-tmdb-dramas",
-    "ingest-filming-spots",
+    "ingest-curation-k",
     "ingest-korean-phrases",
     "send-reminders",
   ]),
+  // 선택적 쿼리 파라미터 — cron 라우트가 옵션을 받을 때 (e.g. ingest-curation-k?include_filming=true)
+  // 값은 모두 문자열로 직렬화. 키·값 길이는 64자 cap.
+  params: z
+    .record(z.string().max(64), z.string().max(64))
+    .optional(),
 })
 
 export async function POST(request: Request) {
@@ -60,7 +65,9 @@ export async function POST(request: Request) {
 
   // 베이스 URL: 프로덕션은 NEXT_PUBLIC_APP_URL, 로컬은 요청 origin
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin
-  const targetUrl = `${appUrl}/api/cron/${parsed.data.route}`
+  const params = parsed.data.params ?? {}
+  const qs = new URLSearchParams(params).toString()
+  const targetUrl = `${appUrl}/api/cron/${parsed.data.route}${qs ? `?${qs}` : ""}`
 
   const t0 = Date.now()
   try {
