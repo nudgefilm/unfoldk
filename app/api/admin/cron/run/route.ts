@@ -26,6 +26,7 @@ const PostSchema = z.object({
     "ingest-tmdb-dramas",
     "ingest-curation-k",
     "ingest-korean-phrases",
+    "ingest-food-recipes",
     "send-reminders",
   ]),
   // 선택적 쿼리 파라미터 — cron 라우트가 옵션을 받을 때 (e.g. ingest-curation-k?include_filming=true)

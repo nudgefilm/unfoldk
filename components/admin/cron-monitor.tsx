@@ -247,6 +247,13 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
     return `생성 ${num(r.generated)}건 (스캔 ${num(r.scanned)} · skip ${num(r.skipped)} · unknown ${num(r.unknown_dramas)})${autoPart}${errPart} · ${time}`
   }
 
+  if (route === "ingest-food-recipes") {
+    // FoodRecipesIngestResult — fetched/upserted/skipped/errors.
+    const errors = Array.isArray(r.errors) ? r.errors.length : 0
+    const errPart = errors > 0 ? ` · errors ${errors}` : ""
+    return `레시피 ${num(r.upserted)}건 (페치 ${num(r.fetched)} · skip ${num(r.skipped)})${errPart} · ${time}`
+  }
+
   if (route === "ingest-all") {
     const total = typeof r.total_upserted === "number" ? r.total_upserted : null
     return total !== null ? `수집 ${total.toLocaleString()}건 · ${time}` : `${route} · ${time}`
