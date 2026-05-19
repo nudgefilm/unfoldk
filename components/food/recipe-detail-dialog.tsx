@@ -104,9 +104,8 @@ export function RecipeDetailDialog({
       }}
     >
       <DialogContent className="bg-[#141416] border-[#2a2a2a] text-foreground max-w-2xl max-h-[90vh] p-0 flex flex-col overflow-hidden">
-        {/* 이미지 영역 — 상단 고정. image_url 없으면 emoji placeholder.
-            높이 cap 으로 긴 모달에서 스크롤 시에도 콘텐츠 영역만 움직임. */}
-        <div className="relative bg-[#252525] flex items-center justify-center overflow-hidden flex-shrink-0 h-[200px] sm:h-[260px]">
+        {/* 이미지 영역 — 상단 고정. 4:3 비율 통일 (카드·어드민과 일치). object-cover 비율 유지. */}
+        <div className="relative bg-[#252525] flex items-center justify-center overflow-hidden flex-shrink-0 aspect-[4/3]">
           {detail?.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

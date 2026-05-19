@@ -108,12 +108,12 @@ export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b border-[#2a2a2a]">
-              <th className="px-4 py-3 w-20">seq</th>
+              <th className="px-4 py-3 w-16">seq</th>
+              <th className="px-4 py-3 w-28">image</th>
               <th className="px-4 py-3">recipe_nm_ko</th>
               <th className="px-4 py-3">title_en</th>
-              <th className="px-4 py-3 w-24">image</th>
               <th className="px-4 py-3 w-24">source</th>
-              <th className="px-4 py-3 w-24 text-right">action</th>
+              <th className="px-4 py-3 w-20 text-right">action</th>
             </tr>
           </thead>
           <tbody>
@@ -122,10 +122,6 @@ export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
                 <td className="px-4 py-2.5 text-muted-foreground tabular-nums">
                   {r.mafra_rcp_seq ?? "-"}
                 </td>
-                <td className="px-4 py-2.5 text-foreground">{r.title}</td>
-                <td className="px-4 py-2.5 text-muted-foreground">
-                  {r.title_en ?? "—"}
-                </td>
                 <td className="px-4 py-2.5">
                   {r.image_url ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
@@ -133,13 +129,17 @@ export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
                       src={r.image_url}
                       alt={r.title}
                       referrerPolicy="no-referrer"
-                      className="w-12 h-12 object-cover rounded border border-[#2a2a2a]"
+                      className="w-20 aspect-[4/3] object-cover rounded border border-[#2a2a2a]"
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded border border-dashed border-[#2a2a2a] flex items-center justify-center text-muted-foreground text-xs">
+                    <div className="w-20 aspect-[4/3] rounded border border-dashed border-[#2a2a2a] flex items-center justify-center text-muted-foreground text-xs">
                       —
                     </div>
                   )}
+                </td>
+                <td className="px-4 py-2.5 text-foreground">{r.title}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">
+                  {r.title_en ?? "—"}
                 </td>
                 <td className="px-4 py-2.5">
                   <SourceBadge source={r.image_source} />
@@ -327,7 +327,7 @@ function FoodImageEditDialog({
           )}
         </DialogHeader>
 
-        {/* 현재 이미지 미리보기 */}
+        {/* 현재 이미지 미리보기 — 4:3 비율 통일 */}
         {row?.image_url && (
           <div className="mb-2">
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
@@ -338,7 +338,7 @@ function FoodImageEditDialog({
               src={row.image_url}
               alt={row.title}
               referrerPolicy="no-referrer"
-              className="w-full max-h-48 object-contain rounded border border-[#2a2a2a] bg-[#0d0d0f]"
+              className="w-full aspect-[4/3] object-cover rounded border border-[#2a2a2a] bg-[#0d0d0f]"
             />
           </div>
         )}

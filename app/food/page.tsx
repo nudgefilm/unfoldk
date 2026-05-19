@@ -458,8 +458,8 @@ export default function KfoodKitPage() {
                     onClick={() => setActiveRecipeId(recipe.id)}
                     className="text-left bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors"
                   >
-                    {/* 이미지 — MAFRA 응답엔 이미지 없음. 이후 enrichment 단계에서 채워짐 */}
-                    <div className="h-40 bg-[#252525] flex items-center justify-center overflow-hidden">
+                    {/* 이미지 — 4:3 비율 통일. object-cover 로 비율 유지. */}
+                    <div className="aspect-[4/3] bg-[#252525] flex items-center justify-center overflow-hidden">
                       {recipe.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
