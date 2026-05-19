@@ -12,6 +12,7 @@
 
 import { generateBlogPost, BlogGenerationError, type GeneratedPost } from "./anthropic"
 import { searchUnsplashImage, UnsplashError, type UnsplashImage } from "./unsplash"
+import { listRecentBlogImageSlugs } from "./used-images"
 import { putFile, getFileSha, GitHubError, type PutFileResult } from "./github"
 
 export type RunStage =
@@ -132,10 +133,15 @@ export async function runBlogGenerationCron(): Promise<RunResult> {
 
   // 같은 slug 가 우연히 다른 날짜로 존재할 수 있어 별도 확인은 불필요 (date prefix 가 path 보장).
 
-  // 3. Unsplash 이미지
+  // 3. Unsplash 이미지 — 기존 포스트 cover 이미지 슬러그 모아 중복 회피.
+  //    listRecentBlogImageSlugs 자체 실패는 swallow (빈 Set 반환). 검색 결과 중 미사용 항목
+  //    중 랜덤 선택 — 같은 query 라도 다양성 확보.
+  const usedSlugs = await listRecentBlogImageSlugs()
   let image: UnsplashImage
   try {
-    image = await searchUnsplashImage(post.unsplashQuery)
+    image = await searchUnsplashImage(post.unsplashQuery, {
+      excludeImageSlugs: usedSlugs,
+    })
   } catch (err) {
     const msg =
       err instanceof UnsplashError
