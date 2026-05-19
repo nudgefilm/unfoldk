@@ -3,13 +3,12 @@ import { verifyCronAuth } from "@/lib/cron/auth"
 import { recordCronLog } from "@/lib/cron/log"
 import { runFoodRecipesIngest } from "@/lib/ingest/food-recipes"
 
-// KfoodKit (M+4) — Spoonacular 한식 레시피 인제스트
-// vercel.json: 매주 월요일 UTC 06:00 (= KST 15:00)
+// KfoodKit (M+4) — MAFRA 한식 레시피 인제스트
+// vercel.json: 매월 1일 UTC 06:00 (= KST 15:00). 농림부 데이터셋이 거의 영구 고정 (537건) 이라 월 1회로 충분.
 // 수동 호출: Authorization: Bearer ${CRON_SECRET}
 //
-// quota 보호 — Spoonacular Cooking plan 일 150 points. weekly 호출 + cap=50 으로
-// 일일 quota 의 1/3 만 사용. 실시간 호출 (사용자 facing) 은 별도 라우트에서.
-export const maxDuration = 60
+// 전체 537건 + 재료 6,104 + 과정 3,022 페치 = 약 12 API 호출 / run. 쿼터 1,000/일 의 1% 만 사용.
+export const maxDuration = 120
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {

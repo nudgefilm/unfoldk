@@ -1,29 +1,28 @@
 // KfoodKit (M+4) — 농림수산식품교육문화정보원 한식 레시피 인제스트
 //
 // 데이터 소스: 농림부 별도 호스트 (211.237.50.150:7080) 의 3 grid:
-//   - 226 기본정보 (총 537 레시피)
+//   - 226 기본정보 (총 537 레시피, 거의 영구 고정)
 //   - 227 재료정보 (총 6,104 행 — RECIPE_ID 로 join)
 //   - 228 과정정보 (총 3,022 행 — RECIPE_ID 로 join)
 //
-// 전략:
-//   1) 기본정보 first page (cap=50) fetch
+// 전략 (cap 없음 — 데이터셋이 소규모 고정이라 매번 전체 처리):
+//   1) 기본정보 전체 fetch (537건, 1 페이지로 충분하지만 fetchAll 로 안전 처리)
 //   2) 신규 RECIPE_ID 만 식별 (이미 DB 에 있는 mafra_rcp_seq 는 skip)
-//   3) 신규가 있으면 재료·과정 전체 fetch (각 1~7페이지, 데이터셋이 작아 비용 무시)
+//   3) 신규가 있으면 재료·과정 전체 fetch (각 7/4 페이지)
 //   4) RECIPE_ID 별 메모리 join 후 food_recipes upsert
 //
+// cron: 월 1회 (vercel.json "0 6 1 * *"). 데이터가 거의 변하지 않아 주간 → 월간 회귀.
 // 영문 변환은 별도 enrichment 단계 (Claude Haiku) 사후 처리.
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import {
-  getRecipeBasics,
+  getAllRecipeBasics,
   getAllRecipeIngredients,
   getAllRecipeProcess,
   type MafraRecipeBasic,
   type MafraRecipeIngredient,
   type MafraRecipeStep,
 } from "@/lib/api/mafra-recipe"
-
-const MAX_RECIPES_PER_RUN = 50
 
 export interface FoodRecipesIngestResult {
   source: "food-recipes"
@@ -137,11 +136,10 @@ export async function runFoodRecipesIngest(): Promise<FoodRecipesIngestResult> {
     errors: [],
   }
 
-  // 1) 기본정보 첫 페이지 (cap 만큼)
+  // 1) 기본정보 전체 fetch (총 537건, 1 페이지로 끝나지만 fetchAll 로 안전)
   let basics: MafraRecipeBasic[] = []
   try {
-    const res = await getRecipeBasics(1, MAX_RECIPES_PER_RUN)
-    basics = res.items
+    basics = await getAllRecipeBasics()
     result.fetched = basics.length
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

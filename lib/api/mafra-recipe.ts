@@ -185,6 +185,10 @@ async function fetchAll<T>(
   return out
 }
 
+export async function getAllRecipeBasics(): Promise<MafraRecipeBasic[]> {
+  return fetchAll(getRecipeBasics)
+}
+
 export async function getAllRecipeIngredients(): Promise<MafraRecipeIngredient[]> {
   return fetchAll(getRecipeIngredients)
 }
