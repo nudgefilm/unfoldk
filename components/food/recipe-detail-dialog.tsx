@@ -41,8 +41,18 @@ interface RecipeDetail {
   ready_in_minutes: number | null
   servings: number | null
   nutrition: NutritionShape | null
-  ingredients: Array<{ name: string; capacity: string | null; type: string | null }>
-  instructions: Array<{ step: number; instruction: string; tip: string | null }>
+  ingredients: Array<{
+    name: string
+    name_en: string | null
+    capacity: string | null
+    type: string | null
+  }>
+  instructions: Array<{
+    step: number
+    instruction: string
+    instruction_en: string | null
+    tip: string | null
+  }>
 }
 
 export function RecipeDetailDialog({
@@ -204,7 +214,7 @@ export function RecipeDetailDialog({
                 )}
               </div>
 
-              {/* 재료 목록 (한글 원본) */}
+              {/* 재료 목록 — 한글 (영문) 병기. 영문 없으면 한글만. */}
               {detail.ingredients.length > 0 && (
                 <section className="mb-6">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
@@ -216,7 +226,12 @@ export function RecipeDetailDialog({
                         key={i}
                         className="text-sm text-foreground/90 flex justify-between gap-3"
                       >
-                        <span className="truncate">{ing.name}</span>
+                        <span className="truncate">
+                          {ing.name}
+                          {ing.name_en && (
+                            <span className="text-muted-foreground"> ({ing.name_en})</span>
+                          )}
+                        </span>
                         {ing.capacity && (
                           <span className="text-muted-foreground flex-shrink-0">
                             {ing.capacity}
@@ -228,7 +243,7 @@ export function RecipeDetailDialog({
                 </section>
               )}
 
-              {/* 조리 과정 (한글 원본) */}
+              {/* 조리 과정 — 한글 위, 영문 아래 (있을 때). */}
               {detail.instructions.length > 0 && (
                 <section className="mb-2">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
@@ -245,6 +260,11 @@ export function RecipeDetailDialog({
                         </span>
                         <div className="flex-1 text-sm text-foreground/90 leading-relaxed">
                           <p>{s.instruction}</p>
+                          {s.instruction_en && (
+                            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                              {s.instruction_en}
+                            </p>
+                          )}
                           {s.tip && (
                             <p className="mt-1 text-xs text-muted-foreground">💡 {s.tip}</p>
                           )}
