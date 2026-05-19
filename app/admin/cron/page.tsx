@@ -37,6 +37,7 @@ const ROUTES = [
   "ingest-tmdb-dramas",
   "ingest-curation-k",
   "ingest-korean-phrases",
+  "ingest-food-recipes",
   "send-reminders",
 ] as const
 
@@ -47,6 +48,7 @@ const ROUTE_DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
   "ingest-tmdb-dramas": "KdramaMatch — TMDB 드라마 수집",
   "ingest-curation-k": "Curation K 통합 수집",
   "ingest-korean-phrases": "HangeulGo — 드라마 표현 생성",
+  "ingest-food-recipes": "KfoodKit — 레시피 수집",
   "send-reminders": "send-reminders",
 }
 
@@ -108,7 +110,9 @@ async function load(): Promise<LoadResult> {
             ? "드라마 수집"
             : route === "ingest-korean-phrases"
               ? "생성 표현 수"
-              : "수집 이벤트"
+              : route === "ingest-food-recipes"
+                ? "레시피 수집"
+                : "수집 이벤트"
 
     const displayName = ROUTE_DISPLAY_NAMES[route]
     const actions = ROUTE_ACTIONS[route]
@@ -171,6 +175,10 @@ async function load(): Promise<LoadResult> {
       // KoreanPhrasesIngestResult — generated = 이번 실행 신규 표현 수.
       const r = data.result_json as { generated?: number }
       metric = (r.generated ?? 0).toLocaleString()
+    } else if (route === "ingest-food-recipes" && data.result_json) {
+      // FoodRecipesIngestResult — upserted = 이번 실행 신규 레시피 수.
+      const r = data.result_json as { upserted?: number }
+      metric = (r.upserted ?? 0).toLocaleString()
     } else if (route === "send-reminders" && data.result_json) {
       const summary = (data.result_json as { summary?: { sent?: number } }).summary
       metric = (summary?.sent ?? 0).toLocaleString()
