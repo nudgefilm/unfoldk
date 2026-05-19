@@ -21,6 +21,26 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-19 KfoodKit 외부 API — Spoonacular → 농림수산식품교육문화정보원 (MAFRA) 레시피 API 전환
+
+- 결정 내용:
+  - 데이터 소스를 Spoonacular ($29/월 유료) → 농림수산식품교육문화정보원 레시피 API (data.go.kr, 무료) 로 교체.
+  - 승인 엔드포인트 3종 (기본정보 / 재료정보 / 과정정보) 모두 사용.
+  - **migration `0031_kfoodkit_mafra.sql`** — `food_recipes.spoonacular_id integer` 컬럼 drop + `mafra_rcp_seq text` unique 컬럼 신규. 0030 적용 직후 (데이터 0건) 라 안전.
+  - **`lib/api/spoonacular.ts` 삭제**, `lib/api/mafra-recipe.ts` 신규 — `getRecipeList` / `getRecipeIngredients` / `getRecipeProcess` / `getRecipeDetail` 4종 함수, 24h revalidate 캐싱.
+  - **`lib/ingest/food-recipes.ts`** — 기본정보 50건 페치 후 신규 항목만 재료·과정 추가 호출 → upsert (mafra_rcp_seq 충돌키). cron 인터페이스는 변경 없음.
+  - **`.env.local`** — `SPOONACULAR_API_KEY` 제거, `MAFRA_API_KEY` 항목 + 발급 안내 주석 박제.
+  - 영문 설명 (`title_en`, `instructions_en` 등) 은 후속 단계 (Claude Haiku enrichment) 에서 사후 생성 — MAFRA 응답이 한국어라 글로벌 유저 노출엔 번역 필수. 현 단계 ingest 는 한글 원본만 저장.
+- 이유:
+  - **비용** — Spoonacular $29/월 vs MAFRA 무료. KfoodKit 가 Phase 2 도달 (MAU 1k+) 전까지 매출 0 인 상태에서 유료 API 부담 회피.
+  - **데이터 정확성** — 한국 공식 기관 데이터 → 한식 레시피의 정확도·다양성이 Spoonacular (외산 사이트 크롤링 기반) 보다 우월. KfoodKit 의 "드라마 속 음식 → 진짜 한식" 컨셉에 부합.
+  - **쿼터 충분** — 1,000~10,000 호출/일. 본 cron weekly + cap 50 (재료·과정 포함 시 150 쿼터) → 일일 쿼터의 15% 만 사용.
+  - **공공데이터 일관** — TourAPI (Curation K) 가 이미 같은 data.go.kr 플랫폼 → 인증·캐싱·에러 핸들링 패턴 재사용.
+- 대안으로 고려했던 것:
+  - **Spoonacular 유지 + MAU 도달 후 평가** — 무료 quota (150/일) 부족 + 한식 카테고리 데이터 빈약 가능성. 사전 검증 비용 회피.
+  - **만개의레시피·해먹남녀 등 민간 사이트 크롤링** — robots.txt + 저작권 리스크.
+  - **TheMealDB (무료, 글로벌)** — 한식 레시피 수 절대 부족.
+
 ## 2026-05-19 Curation K 카드 상세 모달 보강 — spot_description / visit_reason / homepage 컬럼 추가
 
 - 결정 내용:

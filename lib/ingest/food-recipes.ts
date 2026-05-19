@@ -1,77 +1,113 @@
-// KfoodKit (M+4) — Spoonacular 한식 레시피 인제스트
+// KfoodKit (M+4) — 농림수산식품교육문화정보원 한식 레시피 인제스트
+//
+// 데이터 소스: data.go.kr 농림수산식품교육문화정보원 레시피 API (3종 엔드포인트).
+// 응답은 한국어 — 영문 설명은 별도 단계 (Claude Haiku enrichment) 에서 사후 생성.
 //
 // 수집 전략:
-//   1) searchKoreanRecipes(offset, 50) 호출 — 한 번에 최대 50건 페치
-//   2) 이미 food_recipes 에 있는 spoonacular_id 는 skip (불필요 update 회피)
-//   3) 신규 항목만 SpoonacularRecipe → food_recipes row 매핑 후 upsert
+//   1) getRecipeList(pageNo, 50) — 한 번에 최대 50건 기본정보 페치
+//   2) 이미 food_recipes 에 있는 mafra_rcp_seq 는 skip
+//   3) 신규 항목만 재료·과정 추가 호출 후 → food_recipes row 매핑 → upsert
 //
 // 쿼터·시간 가드레일:
-//   - MAX_RECIPES_PER_RUN=50 — Spoonacular Cooking plan 일 150 points 기준 safe
-//     (complexSearch addRecipeInformation=true 는 numResults 만큼 points 소비)
-//   - weekly cron 으로만 호출 (vercel.json: 0 6 * * 1, 월 06:00 UTC)
-//   - 응답 캐싱은 spoonacular.ts 의 24h revalidate 가 처리
+//   - MAX_RECIPES_PER_RUN=50 — 일일 1,000 쿼터의 5% (재료·과정 포함 시 3 쿼터/레시피)
+//   - weekly cron 만 호출 (vercel.json: 0 6 * * 1, 월 06:00 UTC)
+//   - 응답 캐싱은 mafra-recipe.ts 의 24h revalidate 가 처리
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import {
-  searchKoreanRecipes,
-  type SpoonacularRecipe,
-} from "@/lib/api/spoonacular"
+  getRecipeList,
+  getRecipeIngredients,
+  getRecipeProcess,
+  type MafraRecipeBasic,
+  type MafraRecipeIngredient,
+  type MafraRecipeStep,
+} from "@/lib/api/mafra-recipe"
 
 const MAX_RECIPES_PER_RUN = 50
 
 export interface FoodRecipesIngestResult {
   source: "food-recipes"
-  fetched: number       // Spoonacular 응답 항목 수
-  upserted: number      // 실제 신규 insert 된 row 수 (이미 존재하는 spoonacular_id 는 제외)
+  fetched: number       // MAFRA 응답 기본정보 항목 수
+  upserted: number      // 신규 insert 된 row 수
   skipped: number       // 이미 존재해 skip 된 항목 수
   errors: string[]
 }
 
-// SpoonacularRecipe → food_recipes row 변환.
-// ingredients / instructions / nutrition 은 jsonb 컬럼이라 원본 구조를 압축 보존.
+// MAFRA 응답 → food_recipes row 변환.
+// title 은 한글 원본 (rcpNm) — 영문 번역은 후속 Claude enrichment 단계.
 interface UpsertRow {
-  spoonacular_id: number
+  mafra_rcp_seq: string
   title: string
   image_url: string | null
-  ingredients: unknown   // jsonb — [{ name, amount, unit, original }]
-  instructions: unknown  // jsonb — [{ step, instruction }]
-  nutrition: unknown     // jsonb — Spoonacular nutrition.nutrients 그대로
+  ingredients: unknown   // jsonb — [{ raw: string }] (rcpPartsDtls 그대로 보존)
+  instructions: unknown  // jsonb — [{ step, instruction, image_url? }]
+  nutrition: unknown     // jsonb — { calories, carbs, protein, fat, sodium, low_sodium_tip }
   ready_in_minutes: number | null
   servings: number | null
   source_url: string | null
 }
 
-function toUpsertRow(recipe: SpoonacularRecipe): UpsertRow | null {
-  if (!recipe.id || !recipe.title?.trim()) return null
+// 영양 문자열 → number (단위·공백 제거). 비숫자/빈값은 null.
+function parseNum(s: string | undefined): number | null {
+  if (!s) return null
+  const m = s.replace(/[^\d.]/g, "")
+  if (!m) return null
+  const n = Number(m)
+  return Number.isFinite(n) ? n : null
+}
 
-  const ingredients =
-    recipe.extendedIngredients?.map((ing) => ({
-      name: ing.name,
-      amount: ing.amount ?? null,
-      unit: ing.unit ?? null,
-      original: ing.original ?? null,
-    })) ?? []
+function toUpsertRow(
+  basic: MafraRecipeBasic,
+  ingredients: MafraRecipeIngredient[],
+  steps: MafraRecipeStep[]
+): UpsertRow | null {
+  if (!basic.rcpSeq || !basic.rcpNm?.trim()) return null
 
-  // Spoonacular 는 instructions 를 grouped (analyzedInstructions[].steps) 로 반환.
-  // 단일 그룹 가정으로 flatten — 다중 그룹 (예: "Marinade" + "Cook") 은 첫 그룹만 사용.
-  const instructions =
-    recipe.analyzedInstructions?.[0]?.steps?.map((s) => ({
-      step: s.number,
-      instruction: s.step,
-    })) ?? []
+  // 재료: rcpPartsDtls 가 자유 텍스트라 그대로 보존. 후속 단계에서 파싱·번역.
+  const ingredientPayload = ingredients
+    .map((i) => i.rcpPartsDtls?.trim())
+    .filter((s): s is string => !!s)
+    .map((raw) => ({ raw }))
 
-  const nutrition = recipe.nutrition?.nutrients ?? null
+  // 과정: cookingNo 정렬 + 각 단계 텍스트/이미지 함께 저장
+  const stepsPayload = steps
+    .slice()
+    .sort((a, b) => {
+      const ai = Number(a.cookingNo ?? 0)
+      const bi = Number(b.cookingNo ?? 0)
+      return ai - bi
+    })
+    .map((s) => ({
+      step: Number(s.cookingNo ?? 0),
+      instruction: s.cookingDc?.trim() ?? "",
+      image_url: s.stepFileUrl?.trim() || null,
+    }))
+    .filter((s) => s.instruction.length > 0)
+
+  const nutrition = {
+    calories: parseNum(basic.infoEng),
+    carbs: parseNum(basic.infoCar),
+    protein: parseNum(basic.infoPro),
+    fat: parseNum(basic.infoFat),
+    sodium: parseNum(basic.infoNa),
+    low_sodium_tip: basic.rcpNaTip?.trim() || null,
+    way: basic.rcpWay2?.trim() || null,        // 조리방법 (굽기·끓이기 등)
+    pat: basic.rcpPat2?.trim() || null,        // 요리종류 (반찬·국&찌개 등)
+  }
+
+  const imageUrl = basic.attFileNoMk?.trim() || basic.attFileNoMain?.trim() || null
 
   return {
-    spoonacular_id: recipe.id,
-    title: recipe.title.trim(),
-    image_url: recipe.image?.trim() || null,
-    ingredients,
-    instructions,
+    mafra_rcp_seq: basic.rcpSeq,
+    title: basic.rcpNm.trim(),
+    image_url: imageUrl,
+    ingredients: ingredientPayload,
+    instructions: stepsPayload,
     nutrition,
-    ready_in_minutes: recipe.readyInMinutes ?? null,
-    servings: recipe.servings ?? null,
-    source_url: recipe.sourceUrl?.trim() || null,
+    // MAFRA 응답은 조리시간·인분수 미제공 — 후속 단계에서 보강 (현재는 null)
+    ready_in_minutes: null,
+    servings: null,
+    source_url: null,
   }
 }
 
@@ -84,58 +120,78 @@ export async function runFoodRecipesIngest(): Promise<FoodRecipesIngestResult> {
     errors: [],
   }
 
-  // 1) Spoonacular 한식 레시피 페치 (한 번에 cap 만큼)
-  let recipes: SpoonacularRecipe[] = []
+  // 1) MAFRA 기본정보 목록 페치 (한 번에 cap 만큼)
+  let basics: MafraRecipeBasic[] = []
   try {
-    const res = await searchKoreanRecipes({ number: MAX_RECIPES_PER_RUN })
-    recipes = res.results
-    result.fetched = recipes.length
+    const res = await getRecipeList({ pageNo: 1, numOfRows: MAX_RECIPES_PER_RUN })
+    basics = res.items
+    result.fetched = basics.length
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    result.errors.push(`Spoonacular 검색 실패: ${msg}`)
+    result.errors.push(`MAFRA 기본정보 페치 실패: ${msg}`)
     return result
   }
 
-  if (recipes.length === 0) return result
+  if (basics.length === 0) return result
 
   const supabase = createSupabaseAdminClient()
 
-  // 2) 이미 존재하는 spoonacular_id 조회 — skip 처리용
-  const ids = recipes.map((r) => r.id)
+  // 2) 이미 존재하는 mafra_rcp_seq 조회 — skip 처리용
+  const seqs = basics.map((b) => b.rcpSeq).filter((s): s is string => !!s)
   const { data: existingRows, error: exErr } = await supabase
     .from("food_recipes")
-    .select("spoonacular_id")
-    .in("spoonacular_id", ids)
+    .select("mafra_rcp_seq")
+    .in("mafra_rcp_seq", seqs)
 
   if (exErr) {
     result.errors.push(`existing 조회 실패: ${exErr.message}`)
-    // 계속 진행 — upsert onConflict 가 받아주지만, skip 카운트는 부정확해짐
+    // 계속 진행 — onConflict 가 받아주지만, skip 카운트는 부정확해짐
   }
 
-  const existingSet = new Set<number>(
+  const existingSet = new Set<string>(
     (existingRows ?? [])
-      .map((r) => (r as { spoonacular_id: number }).spoonacular_id)
-      .filter((id): id is number => typeof id === "number")
+      .map((r) => (r as { mafra_rcp_seq: string }).mafra_rcp_seq)
+      .filter((s): s is string => typeof s === "string")
   )
 
-  // 3) 신규만 매핑
+  // 3) 신규만 재료·과정 페치 후 매핑
   const rows: UpsertRow[] = []
-  for (const recipe of recipes) {
-    if (existingSet.has(recipe.id)) {
+  for (const basic of basics) {
+    if (!basic.rcpSeq) continue
+    if (existingSet.has(basic.rcpSeq)) {
       result.skipped++
       continue
     }
-    const row = toUpsertRow(recipe)
+
+    let ingredients: MafraRecipeIngredient[] = []
+    let steps: MafraRecipeStep[] = []
+    try {
+      ingredients = await getRecipeIngredients(basic.rcpSeq)
+    } catch (err) {
+      result.errors.push(
+        `재료 페치 실패 (${basic.rcpSeq}): ${err instanceof Error ? err.message : String(err)}`
+      )
+      // 재료 실패해도 row 는 생성 (instructions 빈 배열로 진행 가능)
+    }
+    try {
+      steps = await getRecipeProcess(basic.rcpSeq)
+    } catch (err) {
+      result.errors.push(
+        `과정 페치 실패 (${basic.rcpSeq}): ${err instanceof Error ? err.message : String(err)}`
+      )
+    }
+
+    const row = toUpsertRow(basic, ingredients, steps)
     if (!row) continue
     rows.push(row)
   }
 
   if (rows.length === 0) return result
 
-  // 4) upsert — spoonacular_id 충돌키 (race 안전)
+  // 4) upsert — mafra_rcp_seq 충돌키 (race 안전)
   const { error: upErr, count } = await supabase
     .from("food_recipes")
-    .upsert(rows, { onConflict: "spoonacular_id", count: "exact" })
+    .upsert(rows, { onConflict: "mafra_rcp_seq", count: "exact" })
 
   if (upErr) {
     result.errors.push(`upsert 실패: ${upErr.message}`)
