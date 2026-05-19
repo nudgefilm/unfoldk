@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Trophy, ChevronRight, ChevronLeft, Lock, Bot, Sparkles, Clock, Flame, Plus, Check, ShoppingCart, X as XIcon } from "lucide-react"
+import { Search, Trophy, ChevronRight, ChevronLeft, Lock, Bot, Sparkles, Clock, Flame, Plus, Check, ShoppingCart, X as XIcon, Download } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -59,15 +59,16 @@ const COUNTRY_GROUPS: Array<{
   },
 ]
 
-interface FinderSubstitute {
-  name: string
-  note: string
+// /api/food/ingredient-finder 응답 (음식명 → 재료별 sourcing breakdown)
+interface FinderItem {
+  ingredient_ko: string
+  substitute_en: string
+  store: string
+  difficulty: "Easy" | "Medium" | "Hard"
 }
 
 interface FinderResult {
-  substitutes: FinderSubstitute[]
-  stores: string[]
-  tip: string
+  items: FinderItem[]
 }
 
 interface RecipeListItem {
@@ -128,9 +129,9 @@ export default function KfoodKitPage() {
   // 상세 모달 — 선택된 recipe id (null = 닫힘)
   const [activeRecipeId, setActiveRecipeId] = useState<string | null>(null)
 
-  // AI Ingredient Finder 상태
+  // AI Dish-to-Ingredients Finder 상태
   const [finderCountry, setFinderCountry] = useState("US")
-  const [finderIngredient, setFinderIngredient] = useState("")
+  const [finderDish, setFinderDish] = useState("")
   const [finderLoading, setFinderLoading] = useState(false)
   const [finderResult, setFinderResult] = useState<FinderResult | null>(null)
   const [finderError, setFinderError] = useState<string | null>(null)
@@ -138,6 +139,8 @@ export default function KfoodKitPage() {
   // My Shopping List — localStorage 영속화 (로그인 불필요)
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([])
   const [shoppingHydrated, setShoppingHydrated] = useState(false)         // hydration 완료 전엔 localStorage 쓰기 skip
+  const shoppingBoxRef = useRef<HTMLDivElement | null>(null)              // PNG 캡처 target
+  const [savingImage, setSavingImage] = useState(false)
 
   // 마운트 시 plan 권한 확인 — Pro 잠금 가드용
   useEffect(() => {
@@ -280,11 +283,39 @@ export default function KfoodKitPage() {
     }
   }
 
-  // Ingredient Finder — POST /api/food/ingredient-finder
+  // Shopping List 박스 PNG 캡처 — html2canvas 동적 import (bundle 크기 절감).
+  // 캡처 직전 워터마크 노드를 임시로 추가해 결과물에만 노출, 캡처 후 제거.
+  const handleSaveShoppingListAsImage = async () => {
+    const node = shoppingBoxRef.current
+    if (!node || shoppingItems.length === 0 || savingImage) return
+    setSavingImage(true)
+    try {
+      const { default: html2canvas } = await import("html2canvas")
+      const canvas = await html2canvas(node, {
+        backgroundColor: "#1a1a1a",                          // 박스 배경과 일치
+        scale: 2,                                            // retina 품질
+        logging: false,
+        useCORS: true,
+      })
+      const dataUrl = canvas.toDataURL("image/png")
+      const link = document.createElement("a")
+      link.href = dataUrl
+      link.download = "unfoldk-shopping-list.png"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (err) {
+      console.error("[food] PNG 저장 실패:", err)
+    } finally {
+      setSavingImage(false)
+    }
+  }
+
+  // Dish → 재료 sourcing breakdown — POST /api/food/ingredient-finder
   // Pro 가드는 라우트 측에서 403 으로 반환. UI 는 blur overlay 로 미리 막아 401/403 조우 최소화.
   const handleFinderSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const trimmed = finderIngredient.trim()
+    const trimmed = finderDish.trim()
     if (!trimmed) return
 
     setFinderLoading(true)
@@ -294,21 +325,19 @@ export default function KfoodKitPage() {
       const res = await fetch("/api/food/ingredient-finder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingredient: trimmed, country: finderCountry }),
+        body: JSON.stringify({ dish: trimmed, country: finderCountry }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
         const msg =
           typeof json.error === "string"
             ? json.error
-            : "Could not find substitutes — try again."
+            : "Could not generate the breakdown — try again."
         setFinderError(msg)
         return
       }
       setFinderResult({
-        substitutes: json.substitutes ?? [],
-        stores: json.stores ?? [],
-        tip: json.tip ?? "",
+        items: Array.isArray(json.items) ? (json.items as FinderItem[]) : [],
       })
     } catch (err) {
       console.error("[food/finder] 요청 실패:", err)
@@ -546,23 +575,23 @@ export default function KfoodKitPage() {
                 <h3 className="text-lg font-semibold text-white">Local Ingredient Finder</h3>
               </div>
               <p className="text-muted-foreground text-sm mb-6">
-                Paste any Korean ingredient from a recipe above — we&apos;ll find substitutes
-                and where to buy it in your country.
+                Enter a Korean dish name and select your country — UnfoldK will show you where
+                to find every ingredient at your local stores.
               </p>
 
               <form
                 onSubmit={handleFinderSubmit}
                 className="grid grid-cols-1 md:grid-cols-[1fr_240px_auto] gap-3 mb-6"
               >
-                {/* 식재료 검색 */}
+                {/* 음식명 입력 */}
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">
-                    Korean ingredient
+                    Korean Dish Name
                   </label>
                   <Input
-                    value={finderIngredient}
-                    onChange={(e) => setFinderIngredient(e.target.value)}
-                    placeholder="e.g. Gochugaru, Doenjang, Tteok"
+                    value={finderDish}
+                    onChange={(e) => setFinderDish(e.target.value)}
+                    placeholder="e.g. 부추김치, 비빔밥, 김치찌개"
                     maxLength={80}
                     className="bg-[#0d0d0f] border-[#2a2a2a] rounded-lg text-foreground placeholder:text-muted-foreground"
                   />
@@ -594,7 +623,7 @@ export default function KfoodKitPage() {
                 <div className="md:self-end">
                   <Button
                     type="submit"
-                    disabled={finderLoading || finderIngredient.trim().length === 0}
+                    disabled={finderLoading || finderDish.trim().length === 0}
                     className="h-10 rounded-full font-medium text-white px-5 w-full md:w-auto"
                     style={{ backgroundColor: "#FF4B6E" }}
                   >
@@ -610,85 +639,92 @@ export default function KfoodKitPage() {
                   {finderError}
                 </div>
               ) : finderResult ? (
-                <div className="space-y-4">
-                  {/* 대체 재료 — 각 항목에 Add to Shopping List 버튼 */}
-                  <div className="bg-[#252525] rounded-lg p-4">
-                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
-                      Substitutes
-                    </p>
-                    <ul className="space-y-2">
-                      {finderResult.substitutes.map((s, i) => {
-                        const inList = shoppingItems.some(
-                          (item) => item.name.toLowerCase() === s.name.toLowerCase()
-                        )
-                        return (
-                          <li key={i} className="text-sm flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <span className="text-foreground font-medium">{s.name}</span>
-                              {s.note && (
-                                <span className="text-muted-foreground"> — {s.note}</span>
-                              )}
-                            </div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={inList}
-                              onClick={() => handleAddToShoppingList(s.name)}
-                              className="flex-shrink-0 h-7 px-2.5 text-xs bg-transparent border-[#3a3a3a] text-foreground hover:bg-[#1a1a1a]"
+                <div className="space-y-3">
+                  {/* 재료별 카드 — 원재료(한글) / 현지 대체품(영문) / 구매처 / 난이도 + Add to List */}
+                  {finderResult.items.map((item, i) => {
+                    const inList = shoppingItems.some(
+                      (s) => s.name.toLowerCase() === item.substitute_en.toLowerCase()
+                    )
+                    const diffColors: Record<FinderItem["difficulty"], string> = {
+                      Easy: "bg-green-500/20 text-green-400",
+                      Medium: "bg-yellow-500/20 text-yellow-400",
+                      Hard: "bg-red-500/20 text-red-400",
+                    }
+                    return (
+                      <div
+                        key={i}
+                        className="bg-[#252525] rounded-lg p-4 grid grid-cols-1 md:grid-cols-[1.2fr_1.5fr_1.4fr_auto] gap-3 items-center"
+                      >
+                        {/* 원재료 한글 */}
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
+                            Ingredient
+                          </p>
+                          <p className="text-foreground font-medium truncate">
+                            {item.ingredient_ko}
+                          </p>
+                        </div>
+                        {/* 현지 대체품 영문 */}
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
+                            Local substitute
+                          </p>
+                          <p className="text-foreground text-sm truncate">
+                            {item.substitute_en}
+                          </p>
+                        </div>
+                        {/* 구매처 + 난이도 */}
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
+                            Where to buy
+                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-muted-foreground text-sm truncate">
+                              {item.store}
+                            </span>
+                            <span
+                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${diffColors[item.difficulty]}`}
                             >
-                              {inList ? (
-                                <>
-                                  <Check className="w-3 h-3 mr-1" />
-                                  Added
-                                </>
-                              ) : (
-                                <>
-                                  <Plus className="w-3 h-3 mr-1" />
-                                  Add to List
-                                </>
-                              )}
-                            </Button>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </div>
-
-                  {/* 현지 스토어 */}
-                  {finderResult.stores.length > 0 && (
-                    <div className="bg-[#252525] rounded-lg p-4">
-                      <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
-                        Where to buy
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {finderResult.stores.map((store) => (
-                          <span
-                            key={store}
-                            className="text-xs font-medium px-2.5 py-1 rounded-full"
-                            style={{
-                              backgroundColor: "rgba(255, 75, 110, 0.15)",
-                              color: "#FF4B6E",
-                            }}
+                              {item.difficulty}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Add to List */}
+                        <div className="md:justify-self-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={inList}
+                            onClick={() => handleAddToShoppingList(item.substitute_en)}
+                            className="h-8 px-3 text-xs bg-transparent border-[#3a3a3a] text-foreground hover:bg-[#1a1a1a] whitespace-nowrap"
                           >
-                            {store}
-                          </span>
-                        ))}
+                            {inList ? (
+                              <>
+                                <Check className="w-3 h-3 mr-1" />
+                                Added
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3 h-3 mr-1" />
+                                Add to List
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Tip */}
-                  {finderResult.tip && (
-                    <div className="bg-[#141416] border border-border/30 rounded-lg p-3 text-sm text-muted-foreground">
-                      💡 {finderResult.tip}
-                    </div>
+                    )
+                  })}
+                  {finderResult.items.length === 0 && (
+                    <p className="text-muted-foreground text-sm">
+                      No essential ingredients identified for this dish — try a different name.
+                    </p>
                   )}
                 </div>
               ) : (
                 <p className="text-muted-foreground text-sm">
-                  Search for any Korean ingredient — we&apos;ll find substitutes and local stores in
-                  your country.
+                  Enter a Korean dish above — UnfoldK will list each essential ingredient
+                  and where to source it locally.
                 </p>
               )}
             </div>
@@ -719,19 +755,34 @@ export default function KfoodKitPage() {
           <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
             <h2 className="text-2xl font-semibold text-white">My Shopping List</h2>
             {shoppingItems.length > 0 && (
-              <button
-                type="button"
-                onClick={handleClearShoppingList}
-                className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-              >
-                Clear all
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleSaveShoppingListAsImage}
+                  disabled={savingImage}
+                  className="text-xs font-medium px-3 py-1.5 rounded-full border border-[#3a3a3a] text-foreground hover:bg-[#1a1a1a] disabled:opacity-60 inline-flex items-center gap-1.5"
+                >
+                  <Download className="w-3 h-3" />
+                  {savingImage ? "Saving…" : "Save as Image"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearShoppingList}
+                  className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                >
+                  Clear all
+                </button>
+              </div>
             )}
           </div>
           <p className="text-muted-foreground text-sm mb-6">
-            Search for Korean ingredients above to build your shopping list.
+            Use the Ingredient Finder above to find local substitutes — then add them to
+            your shopping list.
           </p>
-          <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
+          <div
+            ref={shoppingBoxRef}
+            className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6"
+          >
             {shoppingItems.length === 0 ? (
               <div className="text-center py-6">
                 <ShoppingCart className="w-8 h-8 mx-auto mb-3 text-muted-foreground/60" />
@@ -779,6 +830,14 @@ export default function KfoodKitPage() {
                   </li>
                 ))}
               </ul>
+            )}
+            {/* 워터마크 — 항목 있을 때만. PNG 캡처 시 함께 포함 (브랜드 출처). */}
+            {shoppingItems.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-border/20 text-center">
+                <p className="text-[11px] tracking-wider text-muted-foreground/70">
+                  unfoldk.com
+                </p>
+              </div>
             )}
           </div>
         </section>

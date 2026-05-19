@@ -1,14 +1,16 @@
-// KfoodKit — AI Ingredient Finder
+// KfoodKit — Local Ingredient Finder (음식명 기반 전체 재료 변환)
 //
-// 입력: 한국 식재료명 (영어 또는 한글) + 국가 코드 (ISO 3166-1 alpha-2)
-// 출력: 대체 재료 후보 + 해당 국가의 현지 구매처 (마트·이커머스)
+// 입력: 한국 음식명 (한글, 예: "부추김치", "비빔밥") + 국가 코드 (ISO alpha-2)
+// 출력: 해당 음식의 핵심 재료 5~10개 — 각 재료별:
+//   - 원재료명 (한글)
+//   - 현지 대체품명 (영문)
+//   - 구매처 추천 (현지 화이트리스트에서 1~2)
+//   - 대체 난이도 (Easy / Medium / Hard)
 //
-// 모델: claude-haiku-4-5-20251001 (CLAUDE.md §6 AI 처리 원칙 — 추출·매핑은 Haiku)
-// tool_use 로 구조화 출력 강제 (JSON.parse 실패 위험 제거).
+// 모델: claude-haiku-4-5-20251001 (CLAUDE.md §6 — 매핑·변환 = Haiku)
+// 비용: 1 호출 ≈ output 1500 tokens × $5/1M = $0.0075. Pro 전용·실시간이라 호출량 제한적.
 //
-// 비용: 1 호출 ≈ output 400 tokens × $5/1M = $0.002. Pro 전용이라 호출량 제한적.
-//
-// 시스템 프롬프트에 국가별 store map 박제 (캐시 안정성 + Haiku 캐싱 활용 가능).
+// 시스템 프롬프트에 국가별 store map 박제 (재현성 + Haiku 캐싱 활용 가능).
 // 신규 국가 추가 시 STORES_BY_COUNTRY 만 갱신.
 
 import Anthropic from "@anthropic-ai/sdk"
@@ -26,7 +28,7 @@ export const SUPPORTED_COUNTRIES = [
 export type CountryCode = (typeof SUPPORTED_COUNTRIES)[number]
 
 // 국가별 현지 마트·이커머스 — Haiku 가 추천에 활용할 reference.
-// 식료품 전문 (특히 한국·아시아 식재료 잘 갖춘) 우선. e-commerce 와 오프라인 혼합.
+// 한국·아시아 식재료 잘 갖춘 곳 우선. e-commerce 와 오프라인 혼합.
 const STORES_BY_COUNTRY: Record<CountryCode, string[]> = {
   US: ["Whole Foods", "H Mart", "Amazon"],
   CA: ["T&T Supermarket", "Amazon CA"],
@@ -73,9 +75,6 @@ const COUNTRY_LABELS: Record<CountryCode, string> = {
   AE: "United Arab Emirates",
 }
 
-// 시스템 프롬프트 — 캐시 안정성 위해 동적 값 절대 삽입 금지.
-// store map 전체를 한 번에 박제 (Haiku 4.5 cache prefix 임계값 4096 토큰 — 현 프롬프트는 미달이라
-// 실제 캐시 안 되지만 안정성 차원에서 ephemeral 마커 유지. CLAUDE.md §6 패턴).
 function buildStoresReference(): string {
   return SUPPORTED_COUNTRIES.map(
     (code) =>
@@ -83,67 +82,75 @@ function buildStoresReference(): string {
   ).join("\n")
 }
 
-const SYSTEM_PROMPT = `You are a Korean cooking assistant for UnfoldK's KfoodKit. Help K-food fans worldwide find or substitute Korean ingredients in their own country.
+const SYSTEM_PROMPT = `You are a Korean cooking assistant for UnfoldK's KfoodKit. A user gives you the name of a Korean dish (in Korean) and their country. You list the dish's essential ingredients and tell them, for each one, what local substitute or sourcing path to use in that country.
 
-For each request you receive an ingredient (Korean dish/sauce/produce, in English or Romanized Korean) and an ISO country code. You must:
-1. Suggest 1–3 practical substitute ingredients available in that country, with a one-line note on each (flavor profile match, where it differs).
-2. Recommend 1–3 specific stores from the country's known retailers (see the reference below) where the original or a substitute is most likely to be found. Use ONLY stores from the country-specific list — do not invent stores.
-3. Give one short closing tip (1 sentence) — e.g., recommended brand name, freezer aisle, ethnic foods section.
+Rules:
+- Pick 5–10 of the most essential ingredients for the dish. Skip seasonings that are trivially substitutable (salt, sugar, water).
+- For each ingredient, fill ALL four fields:
+  1. ingredient_ko: the original Korean ingredient name (Korean characters). Plain noun, no quantity.
+  2. substitute_en: short English name for the closest local equivalent (≤60 chars). If the original is widely available abroad (e.g., "gochujang" sold at Whole Foods), give the original Romanized name + a one-word qualifier. If a true substitute is needed (e.g., "perilla leaves" → "shiso leaves" in Japan), use that.
+  3. store: 1–2 specific stores from the country's reference list below — comma-separated. Use ONLY stores from the country-specific list. Do not invent stores.
+  4. difficulty: "Easy" (widely stocked in mainstream grocery), "Medium" (Asian aisle or large mart), or "Hard" (needs Korean specialty store or online order).
 
 Country-specific store reference (use only these names):
 ${buildStoresReference()}
 
 Strict rules:
-- Plain English only. No Korean characters in output. No emojis. No markdown.
-- If the country has no clear K-food retail availability, still recommend the closest substitutes + general grocery stores from the list.
+- Plain English on substitute_en/store. No Korean characters, no emojis, no markdown.
 - DO NOT recommend an online store from another country (e.g., don't suggest "Amazon US" for a Japan request).
-- If you're not sure an ingredient is real, output a clearly-labeled approximate substitute rather than inventing details.`
+- If you don't recognize the dish, still produce a best-effort guess based on the name — never refuse.`
 
 const FINDER_TOOL: Anthropic.Tool = {
-  name: "report_ingredient_finder",
+  name: "report_dish_ingredient_finder",
   description:
-    "Submit substitute ingredient suggestions and local store recommendations for the user's country.",
+    "Submit the per-ingredient sourcing breakdown for the given Korean dish in the given country.",
   input_schema: {
     type: "object",
     properties: {
-      substitutes: {
+      items: {
         type: "array",
-        maxItems: 3,
+        minItems: 1,
+        maxItems: 12,
         items: {
           type: "object",
           properties: {
-            name: { type: "string", description: "Substitute ingredient name in English." },
-            note: {
+            ingredient_ko: {
+              type: "string",
+              description: "Original Korean ingredient name (Korean characters). No quantity.",
+            },
+            substitute_en: {
               type: "string",
               description:
-                "One-line note on the substitute (≤120 chars). Flavor match or use-case nuance.",
+                "Short English name for the local equivalent or Romanized original (≤60 chars).",
+            },
+            store: {
+              type: "string",
+              description:
+                "1–2 stores from the country's reference list, comma-separated. No invented names.",
+            },
+            difficulty: {
+              type: "string",
+              enum: ["Easy", "Medium", "Hard"],
+              description: "Sourcing difficulty in this country.",
             },
           },
-          required: ["name", "note"],
+          required: ["ingredient_ko", "substitute_en", "store", "difficulty"],
         },
-      },
-      stores: {
-        type: "array",
-        maxItems: 3,
-        items: {
-          type: "string",
-          description:
-            "Specific store name from the country's reference list. Do not invent new names.",
-        },
-      },
-      tip: {
-        type: "string",
-        description: "One short closing tip (≤160 chars). Brand, aisle, or sourcing tip.",
       },
     },
-    required: ["substitutes", "stores", "tip"],
+    required: ["items"],
   },
 }
 
-export interface IngredientFinderResult {
-  substitutes: Array<{ name: string; note: string }>
-  stores: string[]
-  tip: string
+export interface DishIngredientItem {
+  ingredient_ko: string
+  substitute_en: string
+  store: string
+  difficulty: "Easy" | "Medium" | "Hard"
+}
+
+export interface DishIngredientsResult {
+  items: DishIngredientItem[]
 }
 
 export class IngredientFinderError extends Error {
@@ -163,13 +170,13 @@ export function getCountryLabel(code: CountryCode): string {
 
 // 호출자: /api/food/ingredient-finder POST 라우트.
 // Pro 가드는 라우트 측에서 처리 — 본 함수는 입력만 검증.
-export async function findIngredient(args: {
-  ingredient: string
+export async function findDishIngredients(args: {
+  dish: string
   country: CountryCode
-}): Promise<IngredientFinderResult> {
-  const ingredient = args.ingredient.trim().slice(0, 80)
-  if (ingredient.length === 0) {
-    throw new IngredientFinderError("ingredient 빈 값")
+}): Promise<DishIngredientsResult> {
+  const dish = args.dish.trim().slice(0, 80)
+  if (dish.length === 0) {
+    throw new IngredientFinderError("dish 빈 값")
   }
   if (!isSupportedCountry(args.country)) {
     throw new IngredientFinderError(`country 미지원: ${args.country}`)
@@ -179,7 +186,7 @@ export async function findIngredient(args: {
   try {
     response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
+      max_tokens: 2048,
       system: [
         {
           type: "text",
@@ -192,7 +199,7 @@ export async function findIngredient(args: {
       messages: [
         {
           role: "user",
-          content: `Country: ${args.country} (${COUNTRY_LABELS[args.country]})\nIngredient: ${ingredient}\n\nProduce the finder output.`,
+          content: `Country: ${args.country} (${COUNTRY_LABELS[args.country]})\nDish: ${dish}\n\nProduce the per-ingredient sourcing breakdown.`,
         },
       ],
     })
@@ -213,45 +220,55 @@ export async function findIngredient(args: {
     throw new IngredientFinderError("Haiku 응답에 tool_use 블록 없음")
   }
 
-  const input = toolBlock.input as Partial<IngredientFinderResult>
-  if (
-    !Array.isArray(input.substitutes) ||
-    !Array.isArray(input.stores) ||
-    typeof input.tip !== "string"
-  ) {
-    throw new IngredientFinderError("응답 schema 위반")
+  const input = toolBlock.input as { items?: unknown }
+  if (!Array.isArray(input.items)) {
+    throw new IngredientFinderError("응답 schema 위반 (items 배열 아님)")
   }
 
-  // 코드 측 재검증 — store 화이트리스트 (LLM 이 country 외 store 섞을 위험 차단)
-  const allowedStores = new Set(STORES_BY_COUNTRY[args.country].map((s) => s.toLowerCase()))
-  const filteredStores = input.stores
-    .filter((s): s is string => typeof s === "string")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && allowedStores.has(s.toLowerCase()))
-    .slice(0, 3)
+  // 코드 측 재검증 — LLM 가 country 외 store 섞을 위험 + difficulty enum 위반 차단.
+  const allowedStores = new Set(
+    STORES_BY_COUNTRY[args.country].map((s) => s.toLowerCase())
+  )
 
-  const filteredSubstitutes = input.substitutes
-    .filter(
-      (s): s is { name: string; note: string } =>
-        typeof s === "object" &&
-        s !== null &&
-        typeof (s as { name?: unknown }).name === "string" &&
-        typeof (s as { note?: unknown }).note === "string"
-    )
-    .map((s) => ({
-      name: s.name.trim().slice(0, 80),
-      note: s.note.trim().slice(0, 160),
-    }))
-    .filter((s) => s.name.length > 0)
-    .slice(0, 3)
+  const validItems: DishIngredientItem[] = []
+  for (const raw of input.items) {
+    if (typeof raw !== "object" || raw === null) continue
+    const o = raw as {
+      ingredient_ko?: unknown
+      substitute_en?: unknown
+      store?: unknown
+      difficulty?: unknown
+    }
+    if (
+      typeof o.ingredient_ko !== "string" ||
+      typeof o.substitute_en !== "string" ||
+      typeof o.store !== "string" ||
+      typeof o.difficulty !== "string"
+    ) {
+      continue
+    }
+    if (o.difficulty !== "Easy" && o.difficulty !== "Medium" && o.difficulty !== "Hard") continue
 
-  if (filteredSubstitutes.length === 0) {
-    throw new IngredientFinderError("substitutes 결과 0건")
+    // store 화이트리스트 필터 — 1개라도 허용 store 면 통과, 아닌 부분만 trim.
+    const filteredStore = o.store
+      .split(/[,/·]/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && allowedStores.has(s.toLowerCase()))
+      .slice(0, 2)
+      .join(", ")
+    if (filteredStore.length === 0) continue
+
+    validItems.push({
+      ingredient_ko: o.ingredient_ko.trim().slice(0, 80),
+      substitute_en: o.substitute_en.trim().slice(0, 60),
+      store: filteredStore,
+      difficulty: o.difficulty,
+    })
   }
 
-  return {
-    substitutes: filteredSubstitutes,
-    stores: filteredStores,
-    tip: input.tip.trim().slice(0, 200),
+  if (validItems.length === 0) {
+    throw new IngredientFinderError("유효 재료 결과 0건")
   }
+
+  return { items: validItems.slice(0, 12) }
 }

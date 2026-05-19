@@ -3,7 +3,7 @@ import { z } from "zod"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { hasProAccess } from "@/lib/auth/plan"
 import {
-  findIngredient,
+  findDishIngredients,
   IngredientFinderError,
   SUPPORTED_COUNTRIES,
   type CountryCode,
@@ -12,19 +12,19 @@ import {
 export const dynamic = "force-dynamic"
 export const maxDuration = 30
 
-// /api/food/ingredient-finder — Pro 전용 AI Ingredient Finder
+// /api/food/ingredient-finder — Pro 전용 AI Dish-to-Ingredients Finder
 //
-// body: { ingredient: string, country: ISO 2-letter code }
+// body: { dish: string, country: ISO 2-letter code }
 // 흐름:
 //   1. 로그인 + Pro 가드 (admin 포함)
-//   2. zod 검증 (country enum, ingredient 1~80자)
-//   3. Claude Haiku 호출 → 대체 재료 + 현지 스토어 + tip
+//   2. zod 검증 (country enum, dish 1~80자)
+//   3. Claude Haiku 호출 → 음식 핵심 재료 5~10개 + 현지 대체품/구매처/난이도
 //
-// 인증 정책: 결제 연동 전 임시 Free 확대 정책 (CLAUDE.md §6) 에서 My Hallyu Course 등 AI 기능은
+// 인증 정책: 결제 연동 전 임시 Free 확대 정책 (CLAUDE.md §6) 에서 AI 기능은
 // Pro 유지로 명시됨. 본 라우트도 Pro 유지 — 결제 가동 후 동일하게 유지.
 
 const BodySchema = z.object({
-  ingredient: z.string().trim().min(1, "ingredient 필수").max(80),
+  dish: z.string().trim().min(1, "dish 필수").max(80),
   country: z.enum(SUPPORTED_COUNTRIES),
 })
 
@@ -66,8 +66,8 @@ export async function POST(request: Request) {
 
   // 3. Claude 호출
   try {
-    const result = await findIngredient({
-      ingredient: parsed.data.ingredient,
+    const result = await findDishIngredients({
+      dish: parsed.data.dish,
       country: parsed.data.country as CountryCode,
     })
     return NextResponse.json({ ok: true, ...result })
