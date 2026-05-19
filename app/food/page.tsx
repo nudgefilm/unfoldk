@@ -4,11 +4,13 @@ import { useEffect, useState } from "react"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Trophy, ChevronRight, Lock, Bot, Sparkles } from "lucide-react"
+import { Search, Trophy, ChevronRight, Lock, Bot, Sparkles, Clock, Flame } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 import { ServiceComingSoonBanner } from "@/components/early-access/service-coming-soon-banner"
+import { RecipeDetailDialog } from "@/components/food/recipe-detail-dialog"
+import { WeeklyPicksSection } from "@/components/food/weekly-picks-section"
 
 // AI Ingredient Finder — 한류 팬 밀집 20개국. 지역별 <optgroup> 그룹화.
 // 이모지 + ISO alpha-2 코드. /api/food/ingredient-finder 에 country 로 전송.
@@ -69,14 +71,32 @@ interface FinderResult {
   tip: string
 }
 
-const foodCards = [
-  { drama: "Squid Game", dish: "Dalgona", difficulty: "Easy", image: "/placeholder-food.jpg" },
-  { drama: "Crash Landing on You", dish: "Army Stew", difficulty: "Medium", image: "/placeholder-food.jpg" },
-  { drama: "Parasite", dish: "Ram-don", difficulty: "Easy", image: "/placeholder-food.jpg" },
-  { drama: "Itaewon Class", dish: "Kimchi Jjigae", difficulty: "Medium", image: "/placeholder-food.jpg" },
-  { drama: "My Love from the Star", dish: "Chimaek", difficulty: "Easy", image: "/placeholder-food.jpg" },
-  { drama: "Goblin", dish: "Tteokbokki", difficulty: "Hard", image: "/placeholder-food.jpg" },
-]
+interface RecipeListItem {
+  id: string
+  title: string
+  title_en: string | null
+  image_url: string | null
+  ready_in_minutes: number | null
+  servings: number | null
+  category: string | null
+  level: string | null
+  calorie_kcal: number | null
+}
+
+// MAFRA LEVEL_NM (한글) → UI 라벨 매핑
+const LEVEL_MAP: Record<string, "Easy" | "Medium" | "Hard"> = {
+  "쉬움": "Easy",
+  "초급": "Easy",
+  "보통": "Medium",
+  "중급": "Medium",
+  "어려움": "Hard",
+  "고급": "Hard",
+}
+
+function mapLevel(ko: string | null): "Easy" | "Medium" | "Hard" {
+  if (!ko) return "Medium"
+  return LEVEL_MAP[ko] ?? "Medium"
+}
 
 const difficultyColors: Record<string, string> = {
   Easy: "bg-green-500/20 text-green-400",
@@ -87,6 +107,14 @@ const difficultyColors: Record<string, string> = {
 export default function KfoodKitPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isPro, setIsPro] = useState(false)                         // monthly/annual/admin 통합 판별
+
+  // 레시피 카탈로그 (Popular K-Drama Recipes 섹션)
+  const [recipes, setRecipes] = useState<RecipeListItem[]>([])
+  const [recipesLoading, setRecipesLoading] = useState(true)
+  const [recipesError, setRecipesError] = useState<string | null>(null)
+
+  // 상세 모달 — 선택된 recipe id (null = 닫힘)
+  const [activeRecipeId, setActiveRecipeId] = useState<string | null>(null)
 
   // AI Ingredient Finder 상태
   const [finderCountry, setFinderCountry] = useState("US")
@@ -109,6 +137,44 @@ export default function KfoodKitPage() {
       setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
     })
   }, [])
+
+  // 레시피 카탈로그 fetch — pageSize 12 로 그리드 채움 (3열 × 4행)
+  useEffect(() => {
+    let cancelled = false
+    setRecipesLoading(true)
+    setRecipesError(null)
+    fetch("/api/food/recipes?pageSize=12", { cache: "no-store" })
+      .then(async (res) => {
+        const json = await res.json().catch(() => ({}))
+        if (cancelled) return
+        if (!res.ok) {
+          setRecipesError(typeof json.error === "string" ? json.error : "Failed to load recipes.")
+          return
+        }
+        setRecipes(Array.isArray(json.items) ? (json.items as RecipeListItem[]) : [])
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error("[food] recipes fetch 실패:", err)
+        setRecipesError("Network error.")
+      })
+      .finally(() => {
+        if (!cancelled) setRecipesLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // 클라이언트 사이드 검색 필터 — Popular Recipes 그리드 대상.
+  // title 또는 title_en 부분 일치. 빈 쿼리는 전체 통과.
+  const filteredRecipes = recipes.filter((r) => {
+    const q = searchQuery.trim().toLowerCase()
+    if (q.length === 0) return true
+    const inKo = r.title.toLowerCase().includes(q)
+    const inEn = r.title_en?.toLowerCase().includes(q) ?? false
+    return inKo || inEn
+  })
 
   // Ingredient Finder — POST /api/food/ingredient-finder
   // Pro 가드는 라우트 측에서 403 으로 반환. UI 는 blur overlay 로 미리 막아 401/403 조우 최소화.
@@ -215,55 +281,121 @@ export default function KfoodKitPage() {
           </div>
         </section>
 
-        {/* Drama Food Cards Grid */}
+        {/* Drama Food Cards Grid — food_recipes 실데이터 (MAFRA) */}
         <section className="mb-12">
           <h2 className="text-2xl font-semibold text-white mb-6">Popular K-Drama Recipes</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {foodCards.map((card, index) => (
-              <div 
-                key={index}
-                className="bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors"
-              >
-                {/* Image Placeholder */}
-                <div className="h-40 bg-[#252525] flex items-center justify-center">
-                  <span className="text-muted-foreground text-4xl">🍜</span>
-                </div>
-                
-                {/* Content */}
-                <div className="p-4">
-                  {/* Drama Tag */}
-                  <span className="inline-block px-2 py-1 rounded-full text-xs bg-[#252525] text-muted-foreground mb-2">
-                    {card.drama}
-                  </span>
-                  
-                  {/* Dish Name */}
-                  <h3 className="text-lg font-bold text-white mb-3">{card.dish}</h3>
-                  
-                  {/* Difficulty Badge */}
-                  <div className="flex items-center justify-between mb-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${difficultyColors[card.difficulty]}`}>
-                      {card.difficulty}
-                    </span>
-                    <Link href="/login" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                      <Bot className="w-3 h-3" />
-                      Get local substitutes
-                    </Link>
+
+          {recipesError && (
+            <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 text-sm text-red-400 mb-4">
+              {recipesError}
+            </div>
+          )}
+
+          {recipesLoading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden animate-pulse"
+                >
+                  <div className="h-40 bg-[#252525]" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-3 w-20 bg-[#252525] rounded-full" />
+                    <div className="h-5 w-3/4 bg-[#252525] rounded" />
+                    <div className="h-4 w-full bg-[#252525] rounded" />
                   </div>
-                  
-                  {/* View Recipe Link */}
-                  <Link 
-                    href={`/food/recipe/${card.dish.toLowerCase().replace(/\s+/g, '-')}`}
-                    className="text-sm font-medium flex items-center gap-1 hover:underline"
-                    style={{ color: "#FF4B6E" }}
-                  >
-                    View Recipe
-                    <ChevronRight className="w-4 h-4" />
-                  </Link>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
+
+          {!recipesLoading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredRecipes.map((recipe) => {
+                const level = mapLevel(recipe.level)
+                const bilingual = recipe.title_en
+                  ? `${recipe.title} (${recipe.title_en})`
+                  : recipe.title
+                return (
+                  <button
+                    key={recipe.id}
+                    type="button"
+                    onClick={() => setActiveRecipeId(recipe.id)}
+                    className="text-left bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors"
+                  >
+                    {/* 이미지 — MAFRA 응답엔 이미지 없음. 이후 enrichment 단계에서 채워짐 */}
+                    <div className="h-40 bg-[#252525] flex items-center justify-center overflow-hidden">
+                      {recipe.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={recipe.image_url}
+                          alt={recipe.title}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-muted-foreground text-4xl">🍜</span>
+                      )}
+                    </div>
+
+                    <div className="p-4">
+                      {/* 카테고리 핀 (밥 / 국&찌개 등) */}
+                      <span className="inline-block px-2 py-1 rounded-full text-xs bg-[#252525] text-muted-foreground mb-2">
+                        {recipe.category ?? "Korean recipe"}
+                      </span>
+
+                      {/* 음식명 — 한글 (영문) */}
+                      <h3 className="text-lg font-bold text-white mb-3 leading-tight">
+                        {bilingual}
+                      </h3>
+
+                      {/* 난이도 + 칼로리·조리시간 */}
+                      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${difficultyColors[level]}`}
+                        >
+                          {level}
+                        </span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {recipe.calorie_kcal != null && (
+                            <span className="inline-flex items-center gap-1">
+                              <Flame className="w-3 h-3" />
+                              {recipe.calorie_kcal} kcal
+                            </span>
+                          )}
+                          {recipe.ready_in_minutes != null && (
+                            <span className="inline-flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {recipe.ready_in_minutes} min
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* View Recipe — 클릭 시 모달 오픈 */}
+                      <span
+                        className="text-sm font-medium flex items-center gap-1"
+                        style={{ color: "#FF4B6E" }}
+                      >
+                        View Recipe
+                        <ChevronRight className="w-4 h-4" />
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
+
+              {filteredRecipes.length === 0 && !recipesError && (
+                <p className="col-span-full text-muted-foreground text-sm">
+                  No recipes match your search.
+                </p>
+              )}
+            </div>
+          )}
         </section>
+
+        {/* This Week's K-Food Picks (Pro 전용) — Popular Recipes 아래 */}
+        <WeeklyPicksSection isPro={isPro} onRecipeClick={(id) => setActiveRecipeId(id)} />
 
         {/* AI Ingredient Substitution (Pro Feature) — isPro 면 블러·오버레이 해제 */}
         <section className="mb-12">
@@ -466,6 +598,12 @@ export default function KfoodKitPage() {
           </div>
         </section>
       </main>
+
+      {/* 레시피 상세 모달 — 카드 클릭 시 마운트, lazy fetch */}
+      <RecipeDetailDialog
+        recipeId={activeRecipeId}
+        onClose={() => setActiveRecipeId(null)}
+      />
 
       <FooterSection />
     </div>
