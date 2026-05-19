@@ -248,10 +248,18 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
   }
 
   if (route === "ingest-food-recipes") {
-    // FoodRecipesIngestResult — fetched/upserted/skipped/errors.
+    // CombinedPayload — fetched/upserted/skipped + backfill { matched, updated, unmatched } + errors.
     const errors = Array.isArray(r.errors) ? r.errors.length : 0
     const errPart = errors > 0 ? ` · errors ${errors}` : ""
-    return `레시피 ${num(r.upserted)}건 (페치 ${num(r.fetched)} · skip ${num(r.skipped)})${errPart} · ${time}`
+    const backfill = r.backfill as
+      | { matched?: unknown; updated?: unknown; unmatched?: unknown }
+      | null
+      | undefined
+    const backfillPart =
+      backfill && typeof backfill === "object"
+        ? ` · 이미지 ${num(backfill.updated)}건 매칭 (try ${num(backfill.matched)} · miss ${num(backfill.unmatched)})`
+        : ""
+    return `레시피 ${num(r.upserted)}건 (페치 ${num(r.fetched)} · skip ${num(r.skipped)})${backfillPart}${errPart} · ${time}`
   }
 
   if (route === "ingest-all") {

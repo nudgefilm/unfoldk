@@ -111,7 +111,7 @@ async function load(): Promise<LoadResult> {
             : route === "ingest-korean-phrases"
               ? "생성 표현 수"
               : route === "ingest-food-recipes"
-                ? "레시피 수집"
+                ? "레시피 + 이미지 매칭"
                 : "수집 이벤트"
 
     const displayName = ROUTE_DISPLAY_NAMES[route]
@@ -177,9 +177,14 @@ async function load(): Promise<LoadResult> {
       const r = data.result_json as { generated?: number }
       metric = (r.generated ?? 0).toLocaleString()
     } else if (route === "ingest-food-recipes" && data.result_json) {
-      // FoodRecipesIngestResult — upserted = 이번 실행 신규 레시피 수.
-      const r = data.result_json as { upserted?: number }
-      metric = (r.upserted ?? 0).toLocaleString()
+      // CombinedPayload — upserted (MAFRA 신규) + backfill.updated (MFDS 이미지 매칭) 합산.
+      const r = data.result_json as {
+        upserted?: number
+        backfill?: { updated?: number } | null
+      }
+      const ingested = r.upserted ?? 0
+      const imagesUpdated = r.backfill?.updated ?? 0
+      metric = (ingested + imagesUpdated).toLocaleString()
     } else if (route === "send-reminders" && data.result_json) {
       const summary = (data.result_json as { summary?: { sent?: number } }).summary
       metric = (summary?.sent ?? 0).toLocaleString()
