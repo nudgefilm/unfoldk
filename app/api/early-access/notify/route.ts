@@ -92,8 +92,7 @@ export async function POST(request: Request) {
 
   // 2) 사용자 환영 메일 — 운영 단계에서 발송 (도메인 verify 가정).
   const userSubject = "You're on the UnfoldK Early Access list 🚀"
-  const liveServices = "HallyuCalendar · KpopStats · Curation K"
-  const upcomingServices = "KdramaMatch · HangeulGo · KfoodKit"
+  const liveServices = "HallyuCalendar · KpopStats · KdramaMatch · HangeulGo · KfoodKit · Curation K"
   const userHtml = `<!DOCTYPE html>
 <html><head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:0;background:#0d0d0f;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#e5e5e5;">
@@ -109,13 +108,11 @@ export async function POST(request: Request) {
             You're on the list 🚀
           </h1>
           <p style="font-size:15px;color:#b3b3b3;line-height:1.6;margin:0 0 20px;">
-            Thanks for signing up for Early Access. We'll email you when each upcoming service launches.
+            Thanks for signing up for Early Access. We'll email you when we ship new features or major updates.
           </p>
           <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:18px;margin:20px 0;">
-            <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Live now</div>
+            <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">All 6 services live</div>
             <div style="color:#ffffff;font-size:14px;line-height:1.6;">${escapeHtml(liveServices)}</div>
-            <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin:12px 0 6px;">Coming soon</div>
-            <div style="color:#ffffff;font-size:14px;line-height:1.6;">${escapeHtml(upcomingServices)}</div>
           </div>
           <p style="font-size:14px;color:#b3b3b3;line-height:1.6;margin:24px 0 0;">
             See what's already live at <a href="https://unfoldk.com" style="color:#FF4B6E;">unfoldk.com</a>.

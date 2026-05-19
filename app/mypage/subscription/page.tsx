@@ -433,7 +433,7 @@ function FreeUserView() {
           <p className="text-muted-foreground text-sm mb-1">You&apos;re on the Free plan.</p>
           <p className="text-muted-foreground text-sm">
             Upgrade to <span className="text-foreground font-medium">Hallyu Pass</span> for full
-            access to all 5 services.
+            access to all 6 services.
           </p>
         </div>
       </section>

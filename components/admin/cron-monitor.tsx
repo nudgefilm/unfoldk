@@ -248,18 +248,32 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
   }
 
   if (route === "ingest-food-recipes") {
-    // CombinedPayload — fetched/upserted/skipped + backfill { matched, updated, unmatched } + errors.
+    // CombinedPayload — ingest + image backfill (3 phase) + title backfill + errors.
     const errors = Array.isArray(r.errors) ? r.errors.length : 0
     const errPart = errors > 0 ? ` · errors ${errors}` : ""
     const backfill = r.backfill as
-      | { matched?: unknown; updated?: unknown; unmatched?: unknown }
+      | {
+          candidates?: unknown
+          phase1_updated?: unknown
+          phase2_updated?: unknown
+          phase3_updated?: unknown
+          unmatched?: unknown
+        }
       | null
       | undefined
     const backfillPart =
       backfill && typeof backfill === "object"
-        ? ` · 이미지 ${num(backfill.updated)}건 매칭 (try ${num(backfill.matched)} · miss ${num(backfill.unmatched)})`
+        ? ` · 이미지 mfds ${num(backfill.phase1_updated) + num(backfill.phase2_updated)} + unsplash ${num(backfill.phase3_updated)} (cand ${num(backfill.candidates)} · miss ${num(backfill.unmatched)})`
         : ""
-    return `레시피 ${num(r.upserted)}건 (페치 ${num(r.fetched)} · skip ${num(r.skipped)})${backfillPart}${errPart} · ${time}`
+    const titleBackfill = r.title_backfill as
+      | { updated?: unknown; pending?: unknown }
+      | null
+      | undefined
+    const titlePart =
+      titleBackfill && typeof titleBackfill === "object"
+        ? ` · 영문 ${num(titleBackfill.updated)}건 (pending ${num(titleBackfill.pending)})`
+        : ""
+    return `레시피 ${num(r.upserted)}건 (페치 ${num(r.fetched)} · skip ${num(r.skipped)})${backfillPart}${titlePart}${errPart} · ${time}`
   }
 
   if (route === "ingest-all") {

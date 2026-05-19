@@ -177,14 +177,23 @@ async function load(): Promise<LoadResult> {
       const r = data.result_json as { generated?: number }
       metric = (r.generated ?? 0).toLocaleString()
     } else if (route === "ingest-food-recipes" && data.result_json) {
-      // CombinedPayload — upserted (MAFRA 신규) + backfill.updated (MFDS 이미지 매칭) 합산.
+      // CombinedPayload — upserted + 이미지 backfill 3-phase + 영문 backfill 합산.
       const r = data.result_json as {
         upserted?: number
-        backfill?: { updated?: number } | null
+        backfill?: {
+          phase1_updated?: number
+          phase2_updated?: number
+          phase3_updated?: number
+        } | null
+        title_backfill?: { updated?: number } | null
       }
       const ingested = r.upserted ?? 0
-      const imagesUpdated = r.backfill?.updated ?? 0
-      metric = (ingested + imagesUpdated).toLocaleString()
+      const imagesUpdated =
+        (r.backfill?.phase1_updated ?? 0) +
+        (r.backfill?.phase2_updated ?? 0) +
+        (r.backfill?.phase3_updated ?? 0)
+      const titlesUpdated = r.title_backfill?.updated ?? 0
+      metric = (ingested + imagesUpdated + titlesUpdated).toLocaleString()
     } else if (route === "send-reminders" && data.result_json) {
       const summary = (data.result_json as { summary?: { sent?: number } }).summary
       metric = (summary?.sent ?? 0).toLocaleString()

@@ -31,6 +31,7 @@ interface RecipeDetail {
   title_en: string | null
   description_en: string | null
   image_url: string | null
+  image_source: "mfds" | "unsplash" | null
   ready_in_minutes: number | null
   servings: number | null
   nutrition: NutritionShape | null
@@ -91,9 +92,10 @@ export function RecipeDetailDialog({
         if (!o) onClose()
       }}
     >
-      <DialogContent className="bg-[#141416] border-[#2a2a2a] text-foreground max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-        {/* 이미지 영역 — image_url 없으면 emoji placeholder */}
-        <div className="relative bg-[#252525] aspect-[16/9] flex items-center justify-center overflow-hidden">
+      <DialogContent className="bg-[#141416] border-[#2a2a2a] text-foreground max-w-2xl max-h-[90vh] p-0 flex flex-col overflow-hidden">
+        {/* 이미지 영역 — 상단 고정. image_url 없으면 emoji placeholder.
+            높이 cap 으로 긴 모달에서 스크롤 시에도 콘텐츠 영역만 움직임. */}
+        <div className="relative bg-[#252525] flex items-center justify-center overflow-hidden flex-shrink-0 h-[200px] sm:h-[260px]">
           {detail?.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -107,7 +109,8 @@ export function RecipeDetailDialog({
           )}
         </div>
 
-        <div className="p-6">
+        {/* 콘텐츠 영역 — 이미지 아래 스크롤 가능. flex-1 로 남은 높이 차지. */}
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-bold text-white leading-tight">
               {detail
@@ -165,7 +168,7 @@ export function RecipeDetailDialog({
               {detail.ingredients.length > 0 && (
                 <section className="mb-6">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                    재료 / Ingredients
+                    재료 / INGREDIENTS
                   </h3>
                   <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
                     {detail.ingredients.map((ing, i) => (
@@ -186,7 +189,7 @@ export function RecipeDetailDialog({
               {detail.instructions.length > 0 && (
                 <section className="mb-2">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                    조리법 / Instructions
+                    조리법 / INSTRUCTIONS
                   </h3>
                   <ol className="space-y-3">
                     {detail.instructions.map((s) => (
@@ -207,6 +210,21 @@ export function RecipeDetailDialog({
                     ))}
                   </ol>
                 </section>
+              )}
+
+              {/* 이미지 출처 — Unsplash 가이드라인상 의무 표기 */}
+              {detail.image_source === "unsplash" && (
+                <p className="mt-6 text-[11px] text-muted-foreground/70 text-right">
+                  Photo from{" "}
+                  <a
+                    href="https://unsplash.com/?utm_source=unfoldk&utm_medium=referral"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline hover:text-muted-foreground"
+                  >
+                    Unsplash
+                  </a>
+                </p>
               )}
             </>
           )}

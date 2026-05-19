@@ -37,6 +37,7 @@ export interface RecipeDetail {
   title_en: string | null
   description_en: string | null
   image_url: string | null
+  image_source: "mfds" | "unsplash" | null
   ready_in_minutes: number | null
   servings: number | null
   nutrition: NutritionShape | null
@@ -98,7 +99,7 @@ export async function GET(
   const { data, error } = await supabase
     .from("food_recipes")
     .select(
-      "id, mafra_rcp_seq, title, title_en, description_en, image_url, ready_in_minutes, servings, nutrition, ingredients, instructions"
+      "id, mafra_rcp_seq, title, title_en, description_en, image_url, image_source, ready_in_minutes, servings, nutrition, ingredients, instructions"
     )
     .eq("id", parsed.data.id)
     .maybeSingle()
@@ -117,6 +118,7 @@ export async function GET(
     title_en: string | null
     description_en: string | null
     image_url: string | null
+    image_source: "mfds" | "unsplash" | null
     ready_in_minutes: number | null
     servings: number | null
     nutrition: NutritionShape | null
@@ -167,6 +169,7 @@ export async function GET(
     title_en,
     description_en,
     image_url: row.image_url,
+    image_source: row.image_source,
     ready_in_minutes: row.ready_in_minutes,
     servings: row.servings,
     nutrition: row.nutrition,

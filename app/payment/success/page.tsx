@@ -41,7 +41,7 @@ export default function PaymentSuccessPage() {
           Welcome to Hallyu Pass! 🎉
         </h1>
         <p className="text-muted-foreground text-center mb-8">
-          Your subscription is now active. Enjoy full access to all 5 services.
+          Your subscription is now active. Enjoy full access to all 6 services.
         </p>
 
         {/* Primary CTA */}

@@ -6,15 +6,20 @@ import {
   runFoodImageBackfill,
   type FoodImageBackfillResult,
 } from "@/lib/ingest/food-image-backfill"
+import {
+  runFoodTitleBackfill,
+  type FoodTitleBackfillResult,
+} from "@/lib/ingest/food-title-backfill"
 
-// KfoodKit (M+4) — MAFRA 한식 레시피 인제스트 + MFDS 이미지 backfill
+// KfoodKit (M+4) — MAFRA 한식 레시피 인제스트 + MFDS 이미지 backfill + 영문 제목 backfill
 // vercel.json: 매월 1일 UTC 06:00 (= KST 15:00). MAFRA·MFDS 둘 다 거의 영구 고정 데이터.
 // 수동 호출: Authorization: Bearer ${CRON_SECRET}
 //
-// 두 단계 — 독립 try/catch. backfill 실패해도 ingest 결과는 보존.
-//   1) MAFRA 전체 537건 + 재료 6,104 + 과정 3,022 페치 → food_recipes upsert (~12 API 호출)
-//   2) MFDS COOKRCP01 (~1,200건) 전체 fetch → image_url=null 매칭 → image_url UPDATE
-export const maxDuration = 180
+// 세 단계 — 독립 try/catch. 한 단계 실패해도 나머지 진행.
+//   1) MAFRA 전체 537건 + 재료 6,104 + 과정 3,022 페치 → food_recipes upsert
+//   2) MFDS COOKRCP01 매칭 (P1) + Claude 정규화 후 재매칭 (P2) + Unsplash fallback (P3)
+//   3) title_en/description_en 배치 backfill (cap 30/run, 누적)
+export const maxDuration = 240
 export const dynamic = "force-dynamic"
 
 interface CombinedPayload {
@@ -24,6 +29,7 @@ interface CombinedPayload {
   upserted: number
   skipped: number
   backfill: FoodImageBackfillResult | null
+  title_backfill: FoodTitleBackfillResult | null
   errors: string[]
 }
 
@@ -41,6 +47,7 @@ export async function GET(request: Request) {
     upserted: 0,
     skipped: 0,
     backfill: null,
+    title_backfill: null,
     errors: [],
   }
 
@@ -57,7 +64,7 @@ export async function GET(request: Request) {
     console.error("[cron/ingest-food-recipes] MAFRA 최상위 에러:", err)
   }
 
-  // 2) MFDS 이미지 backfill (MFDS_API_KEY 미설정 시 errors[] 로만 기록, 다른 단계 진행)
+  // 2) MFDS 이미지 backfill — 3 phase (MFDS match → Claude 정규화 retry → Unsplash fallback)
   try {
     const backfill = await runFoodImageBackfill()
     combined.backfill = backfill
@@ -66,6 +73,17 @@ export async function GET(request: Request) {
     const msg = err instanceof Error ? err.message : String(err)
     combined.errors.push(`image backfill 최상위 예외: ${msg}`)
     console.error("[cron/ingest-food-recipes] backfill 최상위 에러:", err)
+  }
+
+  // 3) title_en/description_en 배치 backfill — 카드·모달 영문 병기 노출용 (cap 30/run)
+  try {
+    const tb = await runFoodTitleBackfill()
+    combined.title_backfill = tb
+    combined.errors.push(...tb.errors)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    combined.errors.push(`title backfill 최상위 예외: ${msg}`)
+    console.error("[cron/ingest-food-recipes] title backfill 최상위 에러:", err)
   }
 
   combined.elapsedMs = Date.now() - t0

@@ -54,13 +54,14 @@ export default function TermsPage() {
               </Section>
 
               <Section title="2. Description of Service">
-                <p className="mb-3">UnfoldK provides five services for global Hallyu fans:</p>
+                <p className="mb-3">UnfoldK provides six services for global Hallyu fans:</p>
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li>HallyuCalendar: K-pop and K-drama event calendar</li>
                   <li>KpopStats: Global artist statistics dashboard</li>
                   <li>KdramaMatch: UnfoldK K-drama recommendations</li>
                   <li>HangeulGo: Korean language learning via K-drama content</li>
                   <li>KfoodKit: K-drama recipe and local ingredient guide</li>
+                  <li>Curation K: Filming locations, attractions, and K-Pop pilgrimage map</li>
                 </ul>
               </Section>
 
