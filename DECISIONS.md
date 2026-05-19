@@ -21,6 +21,82 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-20 KfoodKit M+4 출시 — 데이터 인프라 + 이미지 backfill 3-phase + 어드민 콘솔
+
+- 결정 내용:
+  - **MAFRA 엔드포인트 확정** — 사용자 spec 의 `tn_pubr_public_recipe_info_api` 가 data.go.kr 에 미등록(`resultCode 12 NO OPENAPI SERVICE`) 으로 호스트 전면 교체. 실제 농림부 별도 호스트 `http://211.237.50.150:7080/openapi/{KEY}/json/{GRID_ID}/{startRow}/{endRow}` 사용. serviceKey 는 path 에 박힘 (쿼리 X). Grid: BASIC(226, 537) / INGREDIENTS(227, 6,104) / PROCESS(228, 3,022). `RECIPE_NM_KO / RCP_NM 등 응답 스키마가 spec 의 rcpNm 과 완전히 달라 lib/api/mafra-recipe.ts 전면 재작성.
+  - **이미지 backfill 3-phase 파이프라인** — MAFRA 가 이미지를 제공하지 않아 보강 필요:
+    · Phase 1: 식약처 COOKRCP01 (1,146건) 정규화 매칭 (NFC + 공백·구두점 제거 후 exact → 양방향 contains).
+    · Phase 2: Phase 1 unmatched row 의 RECIPE_NM_KO 를 Claude Haiku 배치 정규화 후 재매칭 ("김치찌게" → "김치찌개" 류 오타 보정).
+    · Phase 3: 모두 실패한 row 는 Claude 가 "Korean {romanized} + 핵심 재료" 영문 쿼리 생성 → Unsplash fallback. Unsplash rate-limit (50/h) 대비 cap 40/run.
+    · `image_source` 컬럼으로 출처 추적 (`mfds | unsplash | upload | manual`). 카드·모달에서 unsplash 일 때 출처 표기 (가이드라인 의무).
+  - **/food 페이지 풀스택**:
+    · 정적 6 카드 → 서버 페이징 (12/페이지) + 300ms search debounce + smooth scroll.
+    · This Week's K-Food Picks (Pro 전용) — Claude Haiku 가 계절 기반 후보 50건에서 3-5 선정 + 1줄 영문 이유. `food_weekly_picks(week_start UNIQUE)` DB 캐싱 + Next.js `revalidate=604800`. recipe_id 화이트리스트로 hallucination 차단.
+    · RecipeDetailDialog — 상단 `aspect-video` + `flex-col` scrollable 콘텐츠. 한글(영문) 병기. 제목 옆 단일 Copy 아이콘 + shadcn Tooltip "Copy to Ingredient Finder".
+    · title_en/description_en lazy 생성 — 모달 첫 오픈 시 Claude Haiku tool_use 호출 + DB 캐싱. 카드 그리드 일괄 노출 위해 cron Phase 4 배치 backfill (cap 30/run, 누적).
+  - **Ingredient Finder 전면 재설계** — 기존 "재료 1개 → 대체 재료" → "음식명 1개 → 전체 재료 sourcing breakdown" 변환. `lib/claude/ingredient-finder.ts` `findIngredient` → `findDishIngredients`. tool_use schema: `items[] = { ingredient_ko, substitute_en, store, difficulty: Easy|Medium|Hard }`. store 화이트리스트 + difficulty enum 코드 측 재검증.
+  - **My Shopping List** — Pro 잠금 해제하고 전유저 사용 (localStorage 영속화). `html2canvas` 동적 import 로 PNG 다운로드 + 박스 하단 unfoldk.com 워터마크. CLAUDE.md §6 "Pro 유지" 표 항목과 상충 — 결제 가동 시 잠금 복원 여부 별도 결정 필요 (carry-over).
+  - **/admin/food 콘솔** — `food-images` Storage 버킷 (public read · admin write only via `is_admin(auth.uid())`). FoodAdminTable: 전체/이미지 있음/없음 필터 + 검색 + 썸네일 + source 배지. FoodImageEditDialog: 파일 업로드 (JPG/PNG/WEBP 5MB, `{recipe_id}.{ext}` upsert + `?v={timestamp}` 캐시 우회) / URL 직접 입력 (image_source='manual') / 이미지 제거.
+  - **마이그레이션 5종 신규** — 0030 ~ 0034.
+  - **KfoodKit "soon" → "live"** — header SERVICES_META · ServiceComingSoonBanner 제거 · roadmap-modal · early-access-banner · early-access notify 이메일 · "5 services" → "6 services" 4곳 정합.
+- 이유:
+  - **비용** — Spoonacular $29/월 + 한식 데이터 빈약 vs MAFRA 무료 + 한국 공식 + 한식 정확도 우월.
+  - **데이터 풀** — MAFRA 537 + MFDS 1,146 + Unsplash fallback = 실질적으로 모든 row 에 이미지 확보 가능. mfds 매칭 1차 후 보정 단계가 ROI 높음 ("김치찌게" 같은 단일 표기 차이로 매칭 실패 케이스 다수).
+  - **출시 가속** — KfoodKit 을 "soon" 으로 두면 6 서비스 마케팅 메시지 약해짐. M+4 인프라가 갖춰져 "All 6 live" 로 전환이 가능했음.
+  - **어드민 콘솔** — Claude backfill 이 채워주지 못한 long-tail row 를 운영자가 빠르게 수기 큐레이션할 수 있어야 카드 UX 가 깨지지 않음. mfds/unsplash 자동 결과를 수동 override 할 수 있도록 image_source='manual'/'upload' 분리.
+- 대안으로 고려했던 것:
+  - **수동 이미지 큐레이션만** — 537 건 수기 작업 부담. Phase 1 자동 + Phase 2-3 자동 + 어드민 잔여 큐레이션이 효율적.
+  - **NAVER 검색 API 이미지** — 저작권 리스크 + 글로벌 라이선스 불명확. Unsplash 가 라이선스 안전.
+  - **TheMealDB · MyDramaList API 추가 연동** — 한식 카테고리 데이터 부족. MAFRA 가 더 깊이 있음.
+  - **Pro Shopping List 유지** — 락인 효과는 있으나 결제 연동 전 단계라 가치 작음. localStorage 가 가입 전 체험을 늘림.
+
+## 2026-05-20 Curation K cron 회귀 — 매일 전체 → 매일(축제만) + 월 1회(전체)
+
+- 결정 내용:
+  - vercel.json 2 슬롯으로 분리:
+    · 매일 03:00 UTC `?only_festivals=true`
+    · 매월 1일 03:00 UTC 전체 (tour 5 카테고리 + filming + kpop)
+  - `runTourSpotsIngest({ onlyFestivals })` — true 시 CATEGORIES 를 FESTIVAL(15) 만으로 제한 + enrichment/translation 도 같은 카테고리만.
+  - `?stage=primary/secondary` 파라미터 제거, `?only_festivals=true` 단일 분기로 단순화.
+  - 어드민 카드 metric: `stage='festivals'` 시 tour 만 / 그 외 tour + filming + kpop 합산.
+- 이유:
+  - 관광지·문화시설·숙박·음식점 (12·14·32·39) 은 거의 영구 고정 데이터 → 매일 fetch 가 quota 낭비.
+  - 축제·행사 (15) 만 시간 민감 (D-1 등록 가능) → 매일 따라잡기 필수.
+  - filming_spots / kpop_spots 도 Claude 무거운 단계라 월 1회 충분.
+  - Claude 비용 약 90% 절감 추정 (번역 cap 100 × 30회 → 100 × 1회 + 축제 ~30/일 × 30회).
+- 대안으로 고려했던 것:
+  - **격주 또는 주간** — 축제 시간 민감성 손해. 월 1회 + 매일 축제 슬롯이 최적.
+  - **stage 파라미터 유지** — 슬롯 4개로 복잡도 증가. 단일 분기가 단순.
+
+## 2026-05-20 Early Access 배너 — 비로그인 전용 + 카피 교체
+
+- 결정 내용:
+  - `createSupabaseBrowserClient` + `onAuthStateChange` 구독 — 로그인 사용자에게 배너 미노출.
+  - `isAuthenticated` null 상태 (확인 전) 에도 미노출 — flash-of-banner 방지.
+  - 카피: "Track K-pop comebacks · Discover dramas · Learn Korean · Explore Korea | all in one place. Updated daily. Free to join."
+  - CTA: "See what's coming" + RoadmapModal 제거. "Start now" → StartModal 인플레이스 (현재 경로 next 보존).
+- 이유:
+  - 로그인 사용자에게 가입 push 는 노이즈 + 이미 사이트 사용 중이라 무의미.
+  - 6 services live 상태에서 "comings" 강조 카피가 부적절. 가치 제안 (track/discover/learn/explore) 가 명확.
+  - Start now → StartModal 은 페이지 이동 없이 OAuth 진입 가능 — 다른 컴포넌트 (report-button, blog-comments) 와 일관된 패턴.
+- 대안으로 고려했던 것:
+  - **배너 전면 제거** — 비회원 가입 hook 손해. 로그인 가드만 추가가 적정.
+
+## 2026-05-20 블로그 cover Unsplash 다양화 + 중복 회피
+
+- 결정 내용:
+  - `searchUnsplashImage` per_page 5 → 15. `results[0]` 고정 → 필터링 후 랜덤 pick.
+  - `excludeImageSlugs?: Set<string>` 옵션 — Unsplash URL slug (`photo-{timestamp}-{hash}`) 기반 중복 회피.
+  - `lib/blog-gen/used-images.ts` (신규) — GitHub Contents API 로 `content/blog/` 최신 30 MDX frontmatter `image:` URL 슬러그 수집. listing 실패는 swallow (dedup 불가, 생성은 진행).
+- 이유:
+  - 같은 query (예: "Korean K-pop concert") 면 항상 같은 사진 [0] 가 반환되어 이전 포스트와 cover 중복 발생.
+  - URL slug 가 photo identifier — API id 와 형식 다르지만 URL 만 저장한 기존 포스트에서도 추출 가능.
+  - GitHub Contents API 5000/h authenticated → 30 파일 listing + read 비용 무시.
+- 대안으로 고려했던 것:
+  - **Supabase 별도 테이블에 used image id 추적** — DB 마이그레이션 부담. GitHub repo 자체가 source of truth 라 추가 인프라 불필요.
+  - **Claude 가 더 specific 쿼리 생성** — 효과 일부 있으나 long-tail 중복 여전. 랜덤 pick + dedup 이 강력.
+
 ## 2026-05-19 KfoodKit 외부 API — Spoonacular → 농림수산식품교육문화정보원 (MAFRA) 레시피 API 전환
 
 - 결정 내용:
