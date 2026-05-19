@@ -437,15 +437,18 @@ function stripHtml(s: string): string {
 
 async function enrichOverviews(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
-  cap: number
+  cap: number,
+  contentTypeFilter?: number
 ): Promise<EnrichmentStats> {
   const stats: EnrichmentStats = { enriched: 0, errors: [] }
 
-  const { data, error } = await supabase
+  let q = supabase
     .from("tour_spots")
     .select("id, content_id")
     .is("overview_ko", null)
     .limit(cap)
+  if (contentTypeFilter !== undefined) q = q.eq("content_type_id", contentTypeFilter)
+  const { data, error } = await q
 
   if (error) {
     stats.errors.push(`enrichment 대기열 조회 실패: ${error.message}`)
@@ -518,17 +521,20 @@ function hasHangul(s: string): boolean {
 // 우선순위: 두 필드 모두 누락된 row > overview 만 누락 row > title 만 누락 row.
 async function translatePendingRows(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
-  cap: number
+  cap: number,
+  contentTypeFilter?: number
 ): Promise<TranslationStats> {
   const stats: TranslationStats = { translated: 0, byCategory: new Map(), errors: [] }
 
   // PostgREST OR 필터로 한 번에 조회 — 두 케이스 union.
   // eng_title 이 null 인 row 는 title 이 영문이어도 매칭되지만, 본문 루프에서 hasHangul 가드.
-  const { data, error } = await supabase
+  let q = supabase
     .from("tour_spots")
     .select("id, content_type_id, title, eng_title, overview_ko, overview_en")
     .or("eng_title.is.null,and(overview_ko.not.is.null,overview_en.is.null)")
     .limit(cap * 2) // cap 의 2배로 over-fetch 후 우선순위 정렬·자르기
+  if (contentTypeFilter !== undefined) q = q.eq("content_type_id", contentTypeFilter)
+  const { data, error } = await q
 
   if (error) {
     stats.errors.push(`번역 대기열 조회 실패: ${error.message}`)
@@ -594,7 +600,12 @@ async function translatePendingRows(
 }
 
 // ─── 메인 진입점 ──────────────────────────────────────────────
-export async function runTourSpotsIngest(): Promise<TourSpotsIngestResult> {
+// onlyFestivals=true: 축제·행사 (15) 카테고리만 수집 + 해당 카테고리 enrichment·번역만 처리.
+// 일 cron 슬롯 (`?only_festivals=true`) 에서 사용 — 축제는 시간 민감 (D-1 등록 가능) 이라
+// 매일 따라잡되, 나머지 카테고리는 월 1회 (전체 cron) 에서 일괄 처리.
+export async function runTourSpotsIngest(
+  options: { onlyFestivals?: boolean } = {}
+): Promise<TourSpotsIngestResult> {
   const result: TourSpotsIngestResult = {
     source: "tour-spots",
     total_upserted: 0,
@@ -605,8 +616,12 @@ export async function runTourSpotsIngest(): Promise<TourSpotsIngestResult> {
   }
 
   const supabase = createSupabaseAdminClient()
+  const categoriesToRun = options.onlyFestivals
+    ? CATEGORIES.filter((c) => c.contentTypeId === CONTENT_TYPE.FESTIVAL)
+    : CATEGORIES
+  const contentTypeFilter = options.onlyFestivals ? CONTENT_TYPE.FESTIVAL : undefined
 
-  for (const config of CATEGORIES) {
+  for (const config of categoriesToRun) {
     try {
       const cat = await runCategory(supabase, config)
       result.categories.push(cat)
@@ -629,7 +644,7 @@ export async function runTourSpotsIngest(): Promise<TourSpotsIngestResult> {
   // overview_ko 가 비어있는 row 에 detailCommon2 호출로 채움.
   // 번역 단계 전에 실행 — 같은 run 에서 이 row 들의 overview_en 도 만들어짐.
   try {
-    const enr = await enrichOverviews(supabase, MAX_DETAIL_ENRICHMENTS_PER_RUN)
+    const enr = await enrichOverviews(supabase, MAX_DETAIL_ENRICHMENTS_PER_RUN, contentTypeFilter)
     result.total_enriched = enr.enriched
     if (enr.errors.length > 0) result.errors.push(...enr.errors)
   } catch (err) {
@@ -640,7 +655,7 @@ export async function runTourSpotsIngest(): Promise<TourSpotsIngestResult> {
 
   // 번역은 모든 카테고리 수집·enrichment 끝낸 후 한 번에 cap 만큼만
   try {
-    const tr = await translatePendingRows(supabase, MAX_TRANSLATIONS_PER_RUN)
+    const tr = await translatePendingRows(supabase, MAX_TRANSLATIONS_PER_RUN, contentTypeFilter)
     result.total_translated = tr.translated
     for (const cat of result.categories) {
       cat.translated = tr.byCategory.get(cat.category) ?? 0

@@ -17,20 +17,19 @@ export const dynamic = "force-dynamic"
 
 // /api/cron/ingest-curation-k
 //
-// 2026-05-19 단계 분리 — 한 cron 실행에서 모두 돌리면 maxDuration 300s
-// 초과 위험 + Claude 비용 spike. ?stage 로 분기:
+// 2026-05-19 cron 회귀 — 매일 03:00 (전체) + 04:00 (secondary) → 월 1회 + 일 1회 (축제만).
 //
-//   ?stage=primary    → tour_spots (TourAPI 5 카테고리 + enrichment + 번역)
-//   ?stage=secondary  → filming_spots + kpop_spots (Claude 무거운 단계)
-//   (미지정)          → 위 3 단계 전부 실행 (어드민 수동 트리거 / 백필용)
+//   ?only_festivals=true → tour_spots FESTIVAL(15) 만 + 해당 카테고리 enrichment·번역.
+//                          secondary (filming/kpop) skip — Claude 비용 절감.
+//   (미지정)              → 전체 (tour 5 카테고리 + secondary). 어드민 수동·월 1회.
 //
 // 자동 cron (vercel.json):
-//   03:00 UTC → ?stage=primary
-//   04:00 UTC → ?stage=secondary
+//   매일 03:00 UTC      → ?only_festivals=true (축제는 시간 민감해 매일 따라잡음)
+//   매월 1일 03:00 UTC   → 전체 (나머지 카테고리 + filming + kpop)
 //
 // 각 단계 독립 try/catch — 한 단계 실패해도 나머지 진행.
 
-type Stage = "primary" | "secondary" | "all"
+type Stage = "festivals" | "all"
 
 interface CombinedResult {
   source: "curation-k"
@@ -44,11 +43,6 @@ interface CombinedResult {
   errors: string[]
 }
 
-function parseStage(raw: string | null): Stage {
-  if (raw === "primary" || raw === "secondary") return raw
-  return "all"
-}
-
 export async function GET(request: Request) {
   const auth = verifyCronAuth(request)
   if (!auth.ok) {
@@ -56,9 +50,9 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url)
-  const stage = parseStage(searchParams.get("stage"))
-  const runTour = stage === "all" || stage === "primary"
-  const runSecondary = stage === "all" || stage === "secondary"
+  const onlyFestivals = searchParams.get("only_festivals") === "true"
+  const stage: Stage = onlyFestivals ? "festivals" : "all"
+  const runSecondary = !onlyFestivals
 
   const combined: CombinedResult = {
     source: "curation-k",
@@ -72,19 +66,17 @@ export async function GET(request: Request) {
     errors: [],
   }
 
-  if (runTour) {
-    try {
-      const tour = await runTourSpotsIngest()
-      combined.total_upserted = tour.total_upserted
-      combined.total_translated = tour.total_translated
-      combined.total_enriched = tour.total_enriched
-      combined.categories = tour.categories
-      combined.errors.push(...tour.errors)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      combined.errors.push(`tour-spots 단계 최상위 예외: ${msg}`)
-      console.error("[cron/ingest-curation-k] tour-spots 최상위 에러:", err)
-    }
+  try {
+    const tour = await runTourSpotsIngest({ onlyFestivals })
+    combined.total_upserted = tour.total_upserted
+    combined.total_translated = tour.total_translated
+    combined.total_enriched = tour.total_enriched
+    combined.categories = tour.categories
+    combined.errors.push(...tour.errors)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    combined.errors.push(`tour-spots 단계 최상위 예외: ${msg}`)
+    console.error("[cron/ingest-curation-k] tour-spots 최상위 에러:", err)
   }
 
   if (runSecondary) {
