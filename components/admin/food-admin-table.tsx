@@ -129,10 +129,10 @@ export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
                       src={r.image_url}
                       alt={r.title}
                       referrerPolicy="no-referrer"
-                      className="w-20 aspect-[4/3] object-cover rounded border border-[#2a2a2a]"
+                      className="w-24 aspect-video object-cover rounded border border-[#2a2a2a]"
                     />
                   ) : (
-                    <div className="w-20 aspect-[4/3] rounded border border-dashed border-[#2a2a2a] flex items-center justify-center text-muted-foreground text-xs">
+                    <div className="w-24 aspect-video rounded border border-dashed border-[#2a2a2a] flex items-center justify-center text-muted-foreground text-xs">
                       —
                     </div>
                   )}
@@ -327,7 +327,7 @@ function FoodImageEditDialog({
           )}
         </DialogHeader>
 
-        {/* 현재 이미지 미리보기 — 4:3 비율 통일 */}
+        {/* 현재 이미지 미리보기 — 16:9 비율 통일 (카드·모달과 일치) */}
         {row?.image_url && (
           <div className="mb-2">
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
@@ -338,7 +338,7 @@ function FoodImageEditDialog({
               src={row.image_url}
               alt={row.title}
               referrerPolicy="no-referrer"
-              className="w-full aspect-[4/3] object-cover rounded border border-[#2a2a2a] bg-[#0d0d0f]"
+              className="w-full aspect-video object-cover rounded border border-[#2a2a2a] bg-[#0d0d0f]"
             />
           </div>
         )}
