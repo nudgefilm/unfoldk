@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Trophy, ChevronRight, Lock, Bot, Sparkles, Clock, Flame } from "lucide-react"
+import { Search, Trophy, ChevronRight, ChevronLeft, Lock, Bot, Sparkles, Clock, Flame, Plus, Check, ShoppingCart, X as XIcon } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -103,14 +103,27 @@ const difficultyColors: Record<string, string> = {
   Hard: "bg-red-500/20 text-red-400",
 }
 
+const RECIPES_PAGE_SIZE = 12
+const SHOPPING_LIST_KEY = "kfoodkit-shopping-list"
+
+interface ShoppingItem {
+  id: string
+  name: string
+  checked: boolean
+}
+
 export default function KfoodKitPage() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [isPro, setIsPro] = useState(false)                         // monthly/annual/admin 통합 판별
+  const [debouncedSearch, setDebouncedSearch] = useState("")              // 300ms 후 API 호출
+  const [isPro, setIsPro] = useState(false)                               // monthly/annual/admin 통합 판별
 
-  // 레시피 카탈로그 (Popular K-Drama Recipes 섹션)
+  // 레시피 카탈로그 (Popular K-Drama Recipes 섹션) — 서버 페이지네이션
   const [recipes, setRecipes] = useState<RecipeListItem[]>([])
   const [recipesLoading, setRecipesLoading] = useState(true)
   const [recipesError, setRecipesError] = useState<string | null>(null)
+  const [recipesPage, setRecipesPage] = useState(1)
+  const [recipesTotal, setRecipesTotal] = useState(0)
+  const recipesGridRef = useRef<HTMLDivElement | null>(null)              // 페이지 변경 시 smooth scroll target
 
   // 상세 모달 — 선택된 recipe id (null = 닫힘)
   const [activeRecipeId, setActiveRecipeId] = useState<string | null>(null)
@@ -121,6 +134,10 @@ export default function KfoodKitPage() {
   const [finderLoading, setFinderLoading] = useState(false)
   const [finderResult, setFinderResult] = useState<FinderResult | null>(null)
   const [finderError, setFinderError] = useState<string | null>(null)
+
+  // My Shopping List — localStorage 영속화 (로그인 불필요)
+  const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([])
+  const [shoppingHydrated, setShoppingHydrated] = useState(false)         // hydration 완료 전엔 localStorage 쓰기 skip
 
   // 마운트 시 plan 권한 확인 — Pro 잠금 가드용
   useEffect(() => {
@@ -137,12 +154,27 @@ export default function KfoodKitPage() {
     })
   }, [])
 
-  // 레시피 카탈로그 fetch — pageSize 12 로 그리드 채움 (3열 × 4행)
+  // 검색 디바운스 — 입력 후 300ms 안정화되면 API 재호출. 페이지 자동 1로 리셋.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim())
+      setRecipesPage(1)
+    }, 300)
+    return () => clearTimeout(handle)
+  }, [searchQuery])
+
+  // 레시피 카탈로그 fetch — 서버 페이징 + search 파라미터.
+  // (page, debouncedSearch) 가 변하면 재호출.
   useEffect(() => {
     let cancelled = false
     setRecipesLoading(true)
     setRecipesError(null)
-    fetch("/api/food/recipes?pageSize=12", { cache: "no-store" })
+    const params = new URLSearchParams({
+      page: String(recipesPage),
+      pageSize: String(RECIPES_PAGE_SIZE),
+    })
+    if (debouncedSearch.length > 0) params.set("search", debouncedSearch)
+    fetch(`/api/food/recipes?${params.toString()}`, { cache: "no-store" })
       .then(async (res) => {
         const json = await res.json().catch(() => ({}))
         if (cancelled) return
@@ -151,6 +183,7 @@ export default function KfoodKitPage() {
           return
         }
         setRecipes(Array.isArray(json.items) ? (json.items as RecipeListItem[]) : [])
+        setRecipesTotal(typeof json.total === "number" ? json.total : 0)
       })
       .catch((err) => {
         if (cancelled) return
@@ -163,17 +196,89 @@ export default function KfoodKitPage() {
     return () => {
       cancelled = true
     }
+  }, [recipesPage, debouncedSearch])
+
+  // localStorage → shoppingItems hydration (마운트 1회). 이후 변경분만 저장.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SHOPPING_LIST_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          setShoppingItems(
+            parsed.filter(
+              (i): i is ShoppingItem =>
+                typeof i === "object" &&
+                i !== null &&
+                typeof i.id === "string" &&
+                typeof i.name === "string" &&
+                typeof i.checked === "boolean"
+            )
+          )
+        }
+      }
+    } catch (err) {
+      console.warn("[food] shopping list hydrate 실패:", err)
+    }
+    setShoppingHydrated(true)
   }, [])
 
-  // 클라이언트 사이드 검색 필터 — Popular Recipes 그리드 대상.
-  // title 또는 title_en 부분 일치. 빈 쿼리는 전체 통과.
-  const filteredRecipes = recipes.filter((r) => {
-    const q = searchQuery.trim().toLowerCase()
-    if (q.length === 0) return true
-    const inKo = r.title.toLowerCase().includes(q)
-    const inEn = r.title_en?.toLowerCase().includes(q) ?? false
-    return inKo || inEn
-  })
+  // shoppingItems 변경 시 localStorage 동기화. hydrate 전엔 초기 [] 로 덮어쓰기 방지.
+  useEffect(() => {
+    if (!shoppingHydrated) return
+    try {
+      localStorage.setItem(SHOPPING_LIST_KEY, JSON.stringify(shoppingItems))
+    } catch (err) {
+      console.warn("[food] shopping list 저장 실패:", err)
+    }
+  }, [shoppingItems, shoppingHydrated])
+
+  const totalPages = Math.max(1, Math.ceil(recipesTotal / RECIPES_PAGE_SIZE))
+
+  const handlePageChange = (next: number) => {
+    if (next < 1 || next > totalPages) return
+    setRecipesPage(next)
+    // 그리드 상단으로 smooth scroll — fetch 시작 직후 곧바로 이동 (로딩 스켈레톤이 보임)
+    requestAnimationFrame(() => {
+      recipesGridRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  }
+
+  // Shopping List 핸들러들 — 중복 이름은 단일 항목 유지 (case-insensitive).
+  const handleAddToShoppingList = (name: string) => {
+    const trimmed = name.trim()
+    if (trimmed.length === 0) return
+    setShoppingItems((prev) => {
+      const existing = prev.find((i) => i.name.toLowerCase() === trimmed.toLowerCase())
+      if (existing) return prev
+      const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+      return [...prev, { id, name: trimmed, checked: false }]
+    })
+  }
+
+  const handleToggleShoppingItem = (id: string) => {
+    setShoppingItems((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, checked: !i.checked } : i))
+    )
+  }
+
+  const handleRemoveShoppingItem = (id: string) => {
+    setShoppingItems((prev) => prev.filter((i) => i.id !== id))
+  }
+
+  const handleClearShoppingList = () => {
+    setShoppingItems([])
+  }
+
+  // 재료명 클립보드 복사 — 모달에서 호출. navigator.clipboard 지원 안 되면 silent fail.
+  const handleCopyIngredient = (name: string) => {
+    if (!name) return
+    try {
+      void navigator.clipboard?.writeText(name)
+    } catch (err) {
+      console.warn("[food] clipboard 복사 실패:", err)
+    }
+  }
 
   // Ingredient Finder — POST /api/food/ingredient-finder
   // Pro 가드는 라우트 측에서 403 으로 반환. UI 는 blur overlay 로 미리 막아 401/403 조우 최소화.
@@ -276,8 +381,15 @@ export default function KfoodKitPage() {
         </section>
 
         {/* Drama Food Cards Grid — food_recipes 실데이터 (MAFRA) */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-semibold text-white mb-6">Popular K-Drama Recipes</h2>
+        <section className="mb-12" ref={recipesGridRef}>
+          <div className="flex items-baseline justify-between mb-6 flex-wrap gap-2">
+            <h2 className="text-2xl font-semibold text-white">Popular K-Drama Recipes</h2>
+            {recipesTotal > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {recipesTotal.toLocaleString()} recipes
+              </span>
+            )}
+          </div>
 
           {recipesError && (
             <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 text-sm text-red-400 mb-4">
@@ -305,7 +417,7 @@ export default function KfoodKitPage() {
 
           {!recipesLoading && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredRecipes.map((recipe) => {
+              {recipes.map((recipe) => {
                 const level = mapLevel(recipe.level)
                 const bilingual = recipe.title_en
                   ? `${recipe.title} (${recipe.title_en})`
@@ -379,11 +491,40 @@ export default function KfoodKitPage() {
                 )
               })}
 
-              {filteredRecipes.length === 0 && !recipesError && (
+              {recipes.length === 0 && !recipesError && (
                 <p className="col-span-full text-muted-foreground text-sm">
                   No recipes match your search.
                 </p>
               )}
+            </div>
+          )}
+
+          {/* 페이지네이션 — totalPages > 1 일 때만 노출 */}
+          {!recipesLoading && totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 mt-8">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={recipesPage <= 1}
+                onClick={() => handlePageChange(recipesPage - 1)}
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-foreground hover:bg-[#252525] rounded-full"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Prev
+              </Button>
+              <span className="text-sm text-muted-foreground tabular-nums">
+                Page {recipesPage} / {totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={recipesPage >= totalPages}
+                onClick={() => handlePageChange(recipesPage + 1)}
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-foreground hover:bg-[#252525] rounded-full"
+              >
+                Next
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
             </div>
           )}
         </section>
@@ -400,10 +541,14 @@ export default function KfoodKitPage() {
                 isPro ? "" : "blur-[4px] pointer-events-none"
               }`}
             >
-              <div className="flex items-center gap-3 mb-6">
+              <div className="flex items-center gap-3 mb-2">
                 <Bot className="w-6 h-6" style={{ color: "#FF4B6E" }} />
                 <h3 className="text-lg font-semibold text-white">Local Ingredient Finder</h3>
               </div>
+              <p className="text-muted-foreground text-sm mb-6">
+                Paste any Korean ingredient from a recipe above — we&apos;ll find substitutes
+                and where to buy it in your country.
+              </p>
 
               <form
                 onSubmit={handleFinderSubmit}
@@ -466,20 +611,47 @@ export default function KfoodKitPage() {
                 </div>
               ) : finderResult ? (
                 <div className="space-y-4">
-                  {/* 대체 재료 */}
+                  {/* 대체 재료 — 각 항목에 Add to Shopping List 버튼 */}
                   <div className="bg-[#252525] rounded-lg p-4">
                     <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
                       Substitutes
                     </p>
                     <ul className="space-y-2">
-                      {finderResult.substitutes.map((s, i) => (
-                        <li key={i} className="text-sm">
-                          <span className="text-foreground font-medium">{s.name}</span>
-                          {s.note && (
-                            <span className="text-muted-foreground"> — {s.note}</span>
-                          )}
-                        </li>
-                      ))}
+                      {finderResult.substitutes.map((s, i) => {
+                        const inList = shoppingItems.some(
+                          (item) => item.name.toLowerCase() === s.name.toLowerCase()
+                        )
+                        return (
+                          <li key={i} className="text-sm flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <span className="text-foreground font-medium">{s.name}</span>
+                              {s.note && (
+                                <span className="text-muted-foreground"> — {s.note}</span>
+                              )}
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={inList}
+                              onClick={() => handleAddToShoppingList(s.name)}
+                              className="flex-shrink-0 h-7 px-2.5 text-xs bg-transparent border-[#3a3a3a] text-foreground hover:bg-[#1a1a1a]"
+                            >
+                              {inList ? (
+                                <>
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Added
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-3 h-3 mr-1" />
+                                  Add to List
+                                </>
+                              )}
+                            </Button>
+                          </li>
+                        )
+                      })}
                     </ul>
                   </div>
 
@@ -542,52 +714,71 @@ export default function KfoodKitPage() {
           </div>
         </section>
 
-        {/* Shopping List (Pro Feature) — isPro 면 블러·오버레이 해제 */}
+        {/* My Shopping List — localStorage 영속화. 로그인·Pro 불필요. */}
         <section className="mb-16">
-          <h2 className="text-2xl font-semibold text-white mb-6">My Shopping List</h2>
-          <div className="relative">
-            <div className={`bg-[#1a1a1a] border border-border/30 rounded-xl p-6 ${isPro ? "" : "blur-[4px]"}`}>
-              <ul className="space-y-3">
-                <li className="flex items-center gap-3 text-foreground">
-                  <div className="w-5 h-5 rounded border border-border/50" />
-                  <span>Gochugaru (Korean chili flakes) - 200g</span>
-                </li>
-                <li className="flex items-center gap-3 text-foreground">
-                  <div className="w-5 h-5 rounded border border-border/50" />
-                  <span>Gochujang (Korean chili paste) - 1 jar</span>
-                </li>
-                <li className="flex items-center gap-3 text-foreground">
-                  <div className="w-5 h-5 rounded border border-border/50" />
-                  <span>Doenjang (Korean soybean paste) - 1 jar</span>
-                </li>
-                <li className="flex items-center gap-3 text-foreground">
-                  <div className="w-5 h-5 rounded border border-border/50" />
-                  <span>Tteok (rice cakes) - 500g</span>
-                </li>
-                <li className="flex items-center gap-3 text-foreground">
-                  <div className="w-5 h-5 rounded border border-border/50" />
-                  <span>Kimchi - 1 pack</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Upgrade Overlay */}
-            {!isPro && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
-                  <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
-                  <p className="text-white font-medium mb-2">Coming with Hallyu Pass</p>
-                  <p className="text-muted-foreground text-xs mb-4">Available at launch.</p>
-                  <Link href="/signup">
-                    <Button
-                      className="rounded-full font-medium text-white"
-                      style={{ backgroundColor: "#FF4B6E" }}
-                    >
-                      Notify me at launch
-                    </Button>
-                  </Link>
-                </div>
+          <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
+            <h2 className="text-2xl font-semibold text-white">My Shopping List</h2>
+            {shoppingItems.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearShoppingList}
+                className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+              >
+                Clear all
+              </button>
+            )}
+          </div>
+          <p className="text-muted-foreground text-sm mb-6">
+            Search for Korean ingredients above to build your shopping list.
+          </p>
+          <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
+            {shoppingItems.length === 0 ? (
+              <div className="text-center py-6">
+                <ShoppingCart className="w-8 h-8 mx-auto mb-3 text-muted-foreground/60" />
+                <p className="text-muted-foreground text-sm">
+                  Your list is empty. Use the Ingredient Finder above and tap{" "}
+                  <span className="text-foreground font-medium">Add to List</span> on any substitute.
+                </p>
               </div>
+            ) : (
+              <ul className="space-y-2">
+                {shoppingItems.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex items-center gap-3 group"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleToggleShoppingItem(item.id)}
+                      aria-label={item.checked ? `Uncheck ${item.name}` : `Check ${item.name}`}
+                      className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                        item.checked
+                          ? "border-[#FF4B6E] bg-[#FF4B6E]"
+                          : "border-border/50 hover:border-foreground/50"
+                      }`}
+                    >
+                      {item.checked && <Check className="w-3 h-3 text-white" />}
+                    </button>
+                    <span
+                      className={`flex-1 text-sm ${
+                        item.checked
+                          ? "line-through text-muted-foreground"
+                          : "text-foreground"
+                      }`}
+                    >
+                      {item.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveShoppingItem(item.id)}
+                      aria-label={`Remove ${item.name}`}
+                      className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                    >
+                      <XIcon className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </section>
@@ -597,6 +788,7 @@ export default function KfoodKitPage() {
       <RecipeDetailDialog
         recipeId={activeRecipeId}
         onClose={() => setActiveRecipeId(null)}
+        onCopyIngredient={handleCopyIngredient}
       />
 
       <FooterSection />
