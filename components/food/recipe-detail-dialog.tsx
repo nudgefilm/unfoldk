@@ -58,7 +58,7 @@ export function RecipeDetailDialog({
 }) {
   const [detail, setDetail] = useState<RecipeDetail | null>(null)
   const [loading, setLoading] = useState(false)
-  const [copiedIngredient, setCopiedIngredient] = useState<string | null>(null)  // 복사 직후 체크 아이콘 표시용
+  const [justCopiedTitle, setJustCopiedTitle] = useState(false)                  // 복사 직후 체크 아이콘 표시용
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -122,22 +122,52 @@ export function RecipeDetailDialog({
 
         {/* 콘텐츠 영역 — 이미지 아래 스크롤 가능. flex-1 로 남은 높이 차지. */}
         <div className="p-6 overflow-y-auto flex-1 min-h-0">
-          <DialogHeader className="mb-4">
-            <DialogTitle className="text-xl font-bold text-white leading-tight">
-              {detail
-                ? detail.title_en
-                  ? `${detail.title} (${detail.title_en})`
-                  : detail.title
-                : loading
-                  ? "Loading…"
-                  : "Recipe"}
-            </DialogTitle>
-            {detail?.description_en && (
-              <p className="text-muted-foreground text-sm mt-2 leading-relaxed">
-                {detail.description_en}
-              </p>
-            )}
-          </DialogHeader>
+          <TooltipProvider delayDuration={150}>
+            <DialogHeader className="mb-4">
+              <div className="flex items-start gap-2">
+                <DialogTitle className="text-xl font-bold text-white leading-tight flex-1">
+                  {detail
+                    ? detail.title_en
+                      ? `${detail.title} (${detail.title_en})`
+                      : detail.title
+                    : loading
+                      ? "Loading…"
+                      : "Recipe"}
+                </DialogTitle>
+                {/* 한글 음식명 복사 — Ingredient Finder 에 붙여넣기 용 (예: "부추김치"). */}
+                {detail && onCopyIngredient && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onCopyIngredient(detail.title)
+                          setJustCopiedTitle(true)
+                          setTimeout(() => setJustCopiedTitle(false), 1500)
+                        }}
+                        aria-label={`Copy ${detail.title}`}
+                        className="flex-shrink-0 mt-1 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {justCopiedTitle ? (
+                          <Check className="w-4 h-4" style={{ color: "#22c55e" }} />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      Copy to Ingredient Finder
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+              {detail?.description_en && (
+                <p className="text-muted-foreground text-sm mt-2 leading-relaxed">
+                  {detail.description_en}
+                </p>
+              )}
+            </DialogHeader>
+          </TooltipProvider>
 
           {loading && !detail && (
             <div className="flex items-center justify-center py-10">
@@ -175,59 +205,27 @@ export function RecipeDetailDialog({
                 )}
               </div>
 
-              {/* 재료 목록 (한글 원본) — onCopyIngredient 제공 시 복사 버튼 노출 */}
+              {/* 재료 목록 (한글 원본) */}
               {detail.ingredients.length > 0 && (
                 <section className="mb-6">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
                     재료 / INGREDIENTS
                   </h3>
-                  <TooltipProvider delayDuration={150}>
-                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
-                      {detail.ingredients.map((ing, i) => {
-                        const justCopied = copiedIngredient === ing.name
-                        return (
-                          <li
-                            key={i}
-                            className="text-sm text-foreground/90 flex items-center justify-between gap-3"
-                          >
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              {onCopyIngredient && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        onCopyIngredient(ing.name)
-                                        setCopiedIngredient(ing.name)
-                                        setTimeout(() => setCopiedIngredient(null), 1500)
-                                      }}
-                                      aria-label={`Copy ${ing.name}`}
-                                      className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                                    >
-                                      {justCopied ? (
-                                        <Check className="w-3.5 h-3.5" style={{ color: "#22c55e" }} />
-                                      ) : (
-                                        <Copy className="w-3.5 h-3.5" />
-                                      )}
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs">
-                                    Copy to Ingredient Finder
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                              <span className="truncate">{ing.name}</span>
-                            </div>
-                            {ing.capacity && (
-                              <span className="text-muted-foreground flex-shrink-0">
-                                {ing.capacity}
-                              </span>
-                            )}
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </TooltipProvider>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                    {detail.ingredients.map((ing, i) => (
+                      <li
+                        key={i}
+                        className="text-sm text-foreground/90 flex justify-between gap-3"
+                      >
+                        <span className="truncate">{ing.name}</span>
+                        {ing.capacity && (
+                          <span className="text-muted-foreground flex-shrink-0">
+                            {ing.capacity}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </section>
               )}
 
