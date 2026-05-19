@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, CalendarDays, Megaphone, Activity, Music, Flag, Film } from "lucide-react"
+import { LayoutDashboard, Users, CalendarDays, Megaphone, Activity, Music, Flag, Film, UtensilsCrossed } from "lucide-react"
 
 // 어드민 사이드바 — 활성 라우트 표시는 클라이언트 컴포넌트로 분리
 const links = [
@@ -13,6 +13,7 @@ const links = [
   { href: "/admin/reports", label: "Reports", icon: Flag },
   { href: "/admin/kpop", label: "KpopStats", icon: Music },
   { href: "/admin/dramas", label: "KdramaMatch", icon: Film },
+  { href: "/admin/food", label: "KfoodKit", icon: UtensilsCrossed },
   { href: "/admin/cron", label: "Cron 모니터", icon: Activity },
 ]
 
