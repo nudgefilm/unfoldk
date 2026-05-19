@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 type ImageSource = "mfds" | "unsplash" | "upload" | "manual" | null
 
@@ -24,14 +23,8 @@ export interface FoodAdminRow {
 }
 
 type Filter = "all" | "with" | "without"
-const STORAGE_BUCKET = "food-images"
 const MAX_BYTES = 5 * 1024 * 1024
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"])
-const MIME_EXT: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-}
 
 export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
   const { toast } = useToast()
@@ -225,31 +218,22 @@ function FoodImageEditDialog({
 
     setSaving(true)
     try {
-      const supabase = createSupabaseBrowserClient()
-      const ext = MIME_EXT[file.type] ?? "jpg"
-      // food-images/{recipe_id}.{ext} — 같은 recipe 재업로드 시 같은 경로 덮어쓰기
-      const path = `${row.id}.${ext}`
-      const { error: upErr } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(path, file, {
-          cacheControl: "3600",
-          upsert: true,
-          contentType: file.type,
-        })
-      if (upErr) throw new Error(upErr.message)
-
-      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path)
-      // 캐시 우회용 timestamp 쿼리 — 같은 경로 덮어쓰기 시 즉시 새 이미지 보이게
-      const finalUrl = `${pub.publicUrl}?v=${Date.now()}`
-
-      const res = await fetch(`/api/admin/food/${row.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_url: finalUrl, image_source: "upload" }),
+      // 서버 사이드 업로드 — service_role 로 Storage RLS 우회.
+      // (browser 직접 업로드 시 is_admin(auth.uid()) RLS 평가가 fail 하던 케이스 회피)
+      const formData = new FormData()
+      formData.append("file", file)
+      const res = await fetch(`/api/admin/food/${row.id}/image`, {
+        method: "POST",
+        body: formData,
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "PATCH 실패")
-      onSaved(row.id, finalUrl, "upload")
+      if (!res.ok) {
+        throw new Error(typeof json.error === "string" ? json.error : "업로드 실패")
+      }
+      if (typeof json.image_url !== "string") {
+        throw new Error("응답 image_url 누락")
+      }
+      onSaved(row.id, json.image_url, "upload")
     } catch (err) {
       onError(err instanceof Error ? err.message : String(err))
     } finally {
