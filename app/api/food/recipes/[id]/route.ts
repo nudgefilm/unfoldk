@@ -147,9 +147,27 @@ function normalizeInstructions(raw: unknown): InstructionCore[] {
 }
 
 // 영문 배열 (저장된 jsonb) 정규화 — string[] 가정. 길이는 호출자가 매칭.
+//
+// jsonb 컬럼이지만 일부 row 에서 JSON-직렬화된 string 으로 저장된 케이스 발견
+// (예: "[\"Onion\", \"Garlic\"]"). 어떤 write 경로가 미리 JSON.stringify 한 듯 —
+// 근본 원인은 별도 추적하되, 읽기 단에서 string 도 한 번 더 parse 해 복원.
 function normalizeStringArray(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return []
-  return raw.map((v) => (typeof v === "string" ? v : ""))
+  if (Array.isArray(raw)) {
+    return raw.map((v) => (typeof v === "string" ? v : ""))
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim()
+    if (trimmed.length === 0) return []
+    try {
+      const parsed: unknown = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) {
+        return parsed.map((v) => (typeof v === "string" ? v : ""))
+      }
+    } catch {
+      // 파싱 실패 — 빈 배열 fallback (응답에서 영문 없음 처리)
+    }
+  }
+  return []
 }
 
 export async function GET(
