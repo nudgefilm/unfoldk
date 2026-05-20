@@ -13,7 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { Clock, Flame, Users, Loader2, Copy, Check, Bookmark, BookmarkCheck, Play } from "lucide-react"
+import { Clock, Flame, Users, Loader2, Copy, Check, Bookmark, BookmarkCheck, Play, MapPin, Lock, ExternalLink } from "lucide-react"
 
 // KfoodKit — 레시피 상세 모달
 //
@@ -73,12 +73,37 @@ function extractYoutubeVideoId(url: string | null): string | null {
   return null
 }
 
+// "Find it in Korea" 맛집 카드 데이터 — /api/food/restaurants 응답 1건.
+interface RestaurantItem {
+  id: string
+  title: string
+  eng_title: string | null
+  addr1: string | null
+  image_url: string | null
+  overview_en: string | null
+  latitude: number | null
+  longitude: number | null
+  homepage: string | null
+}
+
+// Google Maps 검색 URL — 좌표 우선, 없으면 주소 fallback.
+function buildGoogleMapsUrl(r: RestaurantItem): string | null {
+  if (r.latitude !== null && r.longitude !== null) {
+    return `https://www.google.com/maps/search/?api=1&query=${r.latitude},${r.longitude}`
+  }
+  if (r.addr1) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.addr1)}`
+  }
+  return null
+}
+
 export function RecipeDetailDialog({
   recipeId,
   onClose,
   onCopyIngredient,
   isSaved = false,
   onToggleSave,
+  isPro = false,
 }: {
   recipeId: string | null
   onClose: () => void
@@ -88,22 +113,28 @@ export function RecipeDetailDialog({
   // 북마크 — 페이지가 비로그인/Free cap/optimistic toggle 모두 위임. 미제공 시 버튼 미노출.
   isSaved?: boolean
   onToggleSave?: (recipeId: string) => void
+  // "Find it in Korea" Google Maps 링크 — Pro 전용. Free 는 카드만 표시 + 잠금 안내.
+  isPro?: boolean
 }) {
   const [detail, setDetail] = useState<RecipeDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [justCopiedTitle, setJustCopiedTitle] = useState(false)                  // 복사 직후 체크 아이콘 표시용
   const [error, setError] = useState<string | null>(null)
+  // 한국 현지 맛집 (tour_spots content_type_id=39) — title 기반 lazy fetch. 결과 없으면 섹션 미노출.
+  const [restaurants, setRestaurants] = useState<RestaurantItem[]>([])
 
   useEffect(() => {
     if (!recipeId) {
       setDetail(null)
       setError(null)
+      setRestaurants([])
       return
     }
     let cancelled = false
     setLoading(true)
     setError(null)
     setDetail(null)
+    setRestaurants([])
     fetch(`/api/food/recipes/${recipeId}`)
       .then(async (res) => {
         const json = await res.json().catch(() => ({}))
@@ -126,6 +157,28 @@ export function RecipeDetailDialog({
       cancelled = true
     }
   }, [recipeId])
+
+  // detail 로드 후 — title 로 한국 현지 맛집 검색. 별도 effect (detail 변경 시 1회).
+  // 결과 없으면 restaurants 빈 배열 유지 → 섹션 미노출.
+  useEffect(() => {
+    if (!detail) return
+    let cancelled = false
+    const url = `/api/food/restaurants?food_name=${encodeURIComponent(detail.title)}&limit=3`
+    fetch(url, { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return
+        const json = (await res.json().catch(() => ({}))) as { items?: RestaurantItem[] }
+        if (!cancelled && Array.isArray(json.items)) {
+          setRestaurants(json.items)
+        }
+      })
+      .catch((err) => {
+        console.warn("[food/RecipeDetailDialog] restaurants fetch 실패:", err)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [detail])
 
   const open = recipeId !== null
 
@@ -356,6 +409,78 @@ export function RecipeDetailDialog({
                   </section>
                 )
               })()}
+
+              {/* Find it in Korea — tour_spots 음식점 매칭. 데이터 없으면 섹션 미노출.
+                  Free: 카드 정보 (이미지·이름·주소) 노출. Pro: Google Maps 한 클릭 링크. */}
+              {restaurants.length > 0 && (
+                <section className="mt-6">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                    Find it in Korea
+                  </h3>
+                  <ul className="space-y-3">
+                    {restaurants.map((r) => {
+                      const mapsUrl = buildGoogleMapsUrl(r)
+                      const nameDisplay = r.eng_title ? `${r.title} (${r.eng_title})` : r.title
+                      return (
+                        <li
+                          key={r.id}
+                          className="bg-[#1a1a1a] border border-border/30 rounded-lg overflow-hidden flex flex-col sm:flex-row"
+                        >
+                          {/* 이미지 — 16:9 (모바일) / 정사각 64x64 (sm+) */}
+                          <div className="aspect-video sm:aspect-square sm:w-20 sm:h-20 bg-[#252525] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                            {r.image_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={r.image_url}
+                                alt={r.title}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <MapPin className="w-5 h-5 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div className="p-3 sm:p-3 flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-foreground text-sm font-medium truncate">
+                                {nameDisplay}
+                              </p>
+                              {r.addr1 && (
+                                <p className="text-muted-foreground text-xs truncate mt-0.5">
+                                  {r.addr1}
+                                </p>
+                              )}
+                            </div>
+                            {/* Google Maps — Pro 만 외부 링크. Free 는 잠금 표시. */}
+                            {mapsUrl ? (
+                              isPro ? (
+                                <a
+                                  href={mapsUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-white whitespace-nowrap flex-shrink-0"
+                                  style={{ backgroundColor: "#FF4B6E" }}
+                                >
+                                  Open in Maps
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              ) : (
+                                <span
+                                  className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full border border-border/40 text-muted-foreground whitespace-nowrap flex-shrink-0"
+                                  title="Available with Hallyu Pass"
+                                >
+                                  <Lock className="w-3 h-3" />
+                                  Maps with Pass
+                                </span>
+                              )
+                            ) : null}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </section>
+              )}
 
               {/* 이미지 출처 — Unsplash 가이드라인상 의무 표기 */}
               {detail.image_source === "unsplash" && (

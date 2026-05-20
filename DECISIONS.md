@@ -21,6 +21,27 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-20 KfoodKit Phase 3 — 한국 맛집 연계 (tour_spots) + 주간 K푸드 챌린지
+
+- 결정 내용:
+  - **/api/food/restaurants** — `tour_spots(content_type_id=39)` 검색. `food_name` 파라미터로 `title` OR `overview_ko` ILIKE 매칭, `area_code` 옵션 필터, `image_url` 있는 곳 우선 정렬, 기본 limit 3. 신규 마이그레이션 0건 — 0027 (Curation K) 의 음식점 데이터 재활용.
+  - **레시피 모달 "Find it in Korea" 섹션** — detail 로드 후 `title` 로 자동 fetch. 결과 없으면 섹션 미노출. 카드는 이미지(16:9 모바일 / 정사각 sm+) + 한글(영문) 이름 + 주소. Google Maps 링크는 Pro 전용 — Free 는 "Maps with Pass" 잠금 표시. `buildGoogleMapsUrl` 은 좌표 우선, 없으면 주소 fallback.
+  - **/api/food/challenges (공개 GET)** — `week_start <= today <= week_end` 매칭 1건 + `food_name` 기반 매칭 레시피 id 동시 lookup. 응답 `{ challenge, recipeId }`. 클라가 Start 버튼 한 번에 모달 오픈 가능.
+  - **/api/admin/food/challenges (admin POST)** — `requireAdmin` 게이트 + zod 검증 (title/dates required, food_name·image_url·description optional). `week_start ≤ week_end` 추가 검증 (DB check 없음).
+  - **/admin/food 탭 wrapper** — `FoodAdminTabs` client 컴포넌트 (Recipes / Challenges 전환). server component `page.tsx` 가 두 데이터 모두 `Promise.all` 로 fetch 해 props 전달. `ChallengesAdmin` 은 진행 중 / 신규 폼 / 최근 10건 list (active 배지). 폼 제출 후 `router.refresh()`.
+  - **/food This Week's Challenge** — 정적 카드 ("Make Japchae", "1,240 fans joined") 폐기. `/api/food/challenges` 실데이터. challenge null 이면 섹션 미노출. Start 버튼은 `challengeRecipeId` 있을 때만 노출 + 클릭 시 `setActiveRecipeId` → 모달 오픈 (라우트 navigate 없음).
+- 이유:
+  - **tour_spots 재활용** — 0027 의 음식점 1,000+ 건 (TourAPI 4.0) 활용. Spoonacular 같은 외부 API 추가 도입 없이 한국 현지 연계라는 KfoodKit 차별화 기능 즉시 구현.
+  - **ILIKE 한국어 검색** — title (식당명) 에 음식명 매칭률 낮음. overview_ko (메뉴·소개) 까지 OR 검색하면 매칭률 보강. 향후 트라이그램·GIN 인덱스 도입 검토.
+  - **server-side recipe lookup** — 클라가 챌린지 응답 후 별도 fetch 하면 round-trip 2 회 + flicker. 서버에서 한 번에 lookup 해 응답에 포함.
+  - **admin 탭** — Recipes / Challenges 분리. 같은 페이지에 세로 배치보다 사용 동선 명확. server props + client tabs 패턴 (다른 admin 페이지 일관).
+  - **Pro 게이팅 Google Maps** — CLAUDE.md §6 Curation K 정책 ("Pro: Google Maps 연동") 일관. 카드 정보는 Free 에도 노출 (사용자가 주소 직접 검색 가능).
+- 대안으로 고려했던 것:
+  - Curation K 의 `/api/curation-k/food` 재활용 — 응답 schema 가 카테고리 통합용이라 무거움. 단순 ILIKE 검색은 별도 라우트가 가벼움.
+  - `food_recipes.tour_spot_ids` 컬럼 추가 — 미리 매칭 캐싱. 매칭 데이터 변경 빈도 낮아 lazy 검색으로 충분. 매번 ILIKE 비용은 작음 (limit 3).
+  - 챌린지 GET 응답에 매칭 레시피 전체 join — 응답 무거움 + 모달이 어차피 별도 lazy fetch. id 만 충분.
+  - Google Maps embed iframe — Maps Embed API 키 필요 + 모달 높이 증가. 새 탭 외부 링크가 단순.
+
 ## 2026-05-20 KfoodKit Phase 2 — 레시피 컬렉션 저장 + YouTube 요리 영상 lazy 연동
 
 - 결정 내용:

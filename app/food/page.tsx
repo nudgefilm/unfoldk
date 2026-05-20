@@ -169,6 +169,19 @@ export default function KfoodKitPage() {
   const [finderResult, setFinderResult] = useState<FinderResult | null>(null)
   const [finderError, setFinderError] = useState<string | null>(null)
 
+  // 주간 K푸드 챌린지 — /api/food/challenges. null = 로딩 또는 없음 (둘 다 섹션 미노출).
+  interface ChallengeState {
+    id: string
+    title: string
+    description: string | null
+    food_name: string | null
+    image_url: string | null
+    week_start: string
+    week_end: string
+  }
+  const [challenge, setChallenge] = useState<ChallengeState | null>(null)
+  const [challengeRecipeId, setChallengeRecipeId] = useState<string | null>(null)
+
   // My Shopping List — localStorage 영속화 (로그인 불필요)
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([])
   const [shoppingHydrated, setShoppingHydrated] = useState(false)         // hydration 완료 전엔 localStorage 쓰기 skip
@@ -189,6 +202,23 @@ export default function KfoodKitPage() {
       const row = profile as { plan_type?: string; is_admin?: boolean } | null
       setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
     })
+
+    // 주간 챌린지 fetch — 공개 GET. challenge null 이면 섹션 미노출.
+    fetch("/api/food/challenges", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return
+        const json = (await res.json().catch(() => ({}))) as {
+          challenge: ChallengeState | null
+          recipeId: string | null
+        }
+        if (json.challenge) {
+          setChallenge(json.challenge)
+          setChallengeRecipeId(json.recipeId ?? null)
+        }
+      })
+      .catch(() => {
+        // 네트워크 에러 — 섹션 미노출 (challenge null 유지)
+      })
 
     // 저장 레시피 id hydrate — 비로그인이면 401 반환되어 빈 Set 유지.
     fetch("/api/food/collections", { cache: "no-store" })
@@ -480,44 +510,46 @@ export default function KfoodKitPage() {
           </div>
         </section>
 
-        {/* Weekly Challenge Banner */}
-        <section className="mb-12">
-          <div 
-            className="bg-[#1a1a1a] rounded-xl p-6 border-l-4"
-            style={{ borderLeftColor: "#FF4B6E" }}
-          >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex items-start gap-4">
-                <div 
-                  className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
-                >
-                  <Trophy className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+        {/* Weekly Challenge Banner — /api/food/challenges 실데이터. 챌린지 없으면 섹션 미노출. */}
+        {challenge && (
+          <section className="mb-12">
+            <div
+              className="bg-[#1a1a1a] rounded-xl p-6 border-l-4"
+              style={{ borderLeftColor: "#FF4B6E" }}
+            >
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
+                  >
+                    <Trophy className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white mb-1">
+                      This Week&apos;s Challenge: {challenge.title}
+                    </h2>
+                    {challenge.description && (
+                      <p className="text-muted-foreground text-sm">{challenge.description}</p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white mb-1">
-                    This Week&apos;s Challenge: Make Japchae
-                  </h2>
-                  <p className="text-muted-foreground text-sm">
-                    From Itaewon Class · Difficulty: Intermediate
-                  </p>
-                  <p className="text-muted-foreground text-xs mt-2">
-                    1,240 fans joined
-                  </p>
-                </div>
+                {/* Start → 매칭 레시피 모달 오픈. recipeId 없으면 버튼 미노출. */}
+                {challengeRecipeId && (
+                  <Button
+                    type="button"
+                    onClick={() => setActiveRecipeId(challengeRecipeId)}
+                    className="rounded-full font-medium text-white whitespace-nowrap"
+                    style={{ backgroundColor: "#FF4B6E" }}
+                  >
+                    Start Challenge
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                )}
               </div>
-              <Link href="/food/challenge">
-                <Button 
-                  className="rounded-full font-medium text-white whitespace-nowrap"
-                  style={{ backgroundColor: "#FF4B6E" }}
-                >
-                  Start Challenge
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </Link>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Drama Food Cards Grid — food_recipes 실데이터 (MAFRA) */}
         <section className="mb-12" ref={recipesGridRef}>
@@ -1017,13 +1049,15 @@ export default function KfoodKitPage() {
       </main>
 
       {/* 레시피 상세 모달 — 카드 클릭 시 마운트, lazy fetch.
-          onToggleSave 는 로그인 시에만 전달 → 모달 안 북마크 버튼도 비로그인 미노출. */}
+          onToggleSave 는 로그인 시에만 전달 → 모달 안 북마크 버튼도 비로그인 미노출.
+          isPro → "Find it in Korea" Google Maps 한 클릭 링크 노출. */}
       <RecipeDetailDialog
         recipeId={activeRecipeId}
         onClose={() => setActiveRecipeId(null)}
         onCopyIngredient={handleCopyIngredient}
         isSaved={activeRecipeId ? savedRecipeIds.has(activeRecipeId) : false}
         onToggleSave={isLoggedIn ? handleToggleSave : undefined}
+        isPro={isPro}
       />
 
       {/* Toaster — root layout 미마운트 (admin 만 마운트). 비-admin 페이지엔 로컬 필요 (CLAUDE.md §7) */}
