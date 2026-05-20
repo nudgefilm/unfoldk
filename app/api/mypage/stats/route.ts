@@ -26,14 +26,9 @@ export async function GET() {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 })
   }
 
-  // 1. Artists Tracking — user_calendar_subscriptions row count (본인 트래킹 이벤트 수)
-  const artistsP = supabase
-    .from("user_calendar_subscriptions")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-
-  // 2. Events This Month 1단계 — 본인 구독 event_id 목록.
-  //    PostgREST 가 inner join 카운트를 한 쿼리로 못 줘서 2단계.
+  // 1+2. Artists Tracking + Events This Month — 본인 구독 event_id 목록 →
+  //      hallyu_calendar_events 에서 artist_or_drama distinct count + 이번 달 event_date 필터
+  //      (user_calendar_subscriptions 가 이벤트 단위라 distinct artist 로 의미 보정)
   const subsP = supabase
     .from("user_calendar_subscriptions")
     .select("event_id")
@@ -52,18 +47,13 @@ export async function GET() {
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
 
-  const [artistsRes, subsRes, streakRes, recipesRes] = await Promise.all([
-    artistsP,
+  const [subsRes, streakRes, recipesRes] = await Promise.all([
     subsP,
     streakP,
     recipesP,
   ])
 
   // 개별 stat 실패는 0 으로 폴백 — 한 stat 오류로 대시보드 전체 무너지지 않게.
-  // 단 다음 분기마다 console.warn 으로 흔적 남김.
-  if (artistsRes.error) {
-    console.warn("[/api/mypage/stats] artists count 실패:", artistsRes.error.message)
-  }
   if (subsRes.error) {
     console.warn("[/api/mypage/stats] subs select 실패:", subsRes.error.message)
   }
@@ -74,8 +64,9 @@ export async function GET() {
     console.warn("[/api/mypage/stats] recipes count 실패:", recipesRes.error.message)
   }
 
-  // Events This Month — 위 subs 결과로 2단계
-  // hallyu_calendar_events.event_date 가 이번 달 UTC 범위에 들어가는 것만.
+  // subs.event_id → events 조회 → distinct artist + 이번 달 필터.
+  // 한 사용자의 구독 행 수는 보통 수십 이내라 메모리 처리 OK.
+  let artistsTracking = 0
   let eventsThisMonth = 0
   type SubsRow = { event_id: string }
   const eventIds = ((subsRes.data ?? []) as SubsRow[])
@@ -89,20 +80,30 @@ export async function GET() {
     ).toISOString()
     const eventsRes = await supabase
       .from("hallyu_calendar_events")
-      .select("id", { count: "exact", head: true })
+      .select("id, artist_or_drama, event_date")
       .in("id", eventIds)
-      .gte("event_date", start)
-      .lt("event_date", end)
     if (eventsRes.error) {
-      console.warn("[/api/mypage/stats] events this-month count 실패:", eventsRes.error.message)
+      console.warn("[/api/mypage/stats] events select 실패:", eventsRes.error.message)
     } else {
-      eventsThisMonth = eventsRes.count ?? 0
+      type EventRow = { id: string; artist_or_drama: string | null; event_date: string }
+      const rows = (eventsRes.data ?? []) as EventRow[]
+      // distinct artist_or_drama — null/빈 문자열은 카운트 제외 ("Unknown" 같은 비명시 이벤트 미반영)
+      const artistSet = new Set<string>()
+      for (const r of rows) {
+        const name = r.artist_or_drama?.trim()
+        if (name) artistSet.add(name)
+      }
+      artistsTracking = artistSet.size
+      // 이번 달 (UTC) event_date 필터
+      eventsThisMonth = rows.filter(
+        (r) => r.event_date >= start && r.event_date < end
+      ).length
     }
   }
 
   const streakRow = streakRes.data as { streak_days?: number } | null
   const stats: MyStats = {
-    artistsTracking: artistsRes.count ?? 0,
+    artistsTracking,
     eventsThisMonth,
     streakDays: streakRow?.streak_days ?? 0,
     savedRecipes: recipesRes.count ?? 0,
