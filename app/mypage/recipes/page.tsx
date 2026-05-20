@@ -13,6 +13,8 @@ import { MypageShell } from "@/components/mypage/mypage-shell"
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/components/ui/use-toast"
 import { RecipeDetailDialog } from "@/components/food/recipe-detail-dialog"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { hasProAccess } from "@/lib/auth/plan"
 
 interface RecipeJoin {
   id: string
@@ -66,6 +68,24 @@ function MyRecipesBody() {
   const [items, setItems] = useState<CollectionItem[]>([])
   const [loading, setLoading] = useState(true)
   const [activeRecipeId, setActiveRecipeId] = useState<string | null>(null)
+  // Pro 권한 — monthly/annual/admin 통합 (hasProAccess). /food/page.tsx 패턴 동일.
+  // 현재 본 페이지의 UI 분기엔 직접 사용처 없으나, 향후 Pro 전용 액션 추가 인프라.
+  const [, setIsPro] = useState(false)
+
+  useEffect(() => {
+    // 마운트 시 plan_type + is_admin 조회 → isPro 계산
+    const supabase = createSupabaseBrowserClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data: profile } = await supabase
+        .from("users")
+        .select("plan_type, is_admin")
+        .eq("id", user.id)
+        .single()
+      const row = profile as { plan_type?: string; is_admin?: boolean } | null
+      setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
+    })
+  }, [])
 
   useEffect(() => {
     let cancelled = false
