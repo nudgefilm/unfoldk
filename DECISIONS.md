@@ -21,6 +21,16 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-20 KfoodKit Phase 3 — "Find it in Korea" 섹션 rollback
+
+- 결정 내용:
+  - `components/food/recipe-detail-dialog.tsx` 의 "Find it in Korea" 섹션 + 관련 helper (`RestaurantItem`, `buildGoogleMapsUrl`), `restaurants` state, 추가 useEffect, `isPro` prop 모두 제거.
+  - `app/api/food/restaurants/route.ts` 삭제.
+  - `app/food/page.tsx` 의 `isPro` prop 전달 제거.
+  - 주간 K푸드 챌린지 (food_challenges) 와 admin 챌린지 탭은 **유지** — 같은 Phase 3 commit 의 다른 트랙.
+- 이유: 사용자 판단으로 해당 기능 미배포 (UX·매칭 품질·전략 트레이드오프). tour_spots 데이터 자체는 Curation K 가 그대로 사용.
+- 대안으로 고려했던 것: 라우트만 비활성화하고 컴포넌트 남기기 — dead code 누적 회피 위해 전체 제거.
+
 ## 2026-05-20 KfoodKit Phase 3 — 한국 맛집 연계 (tour_spots) + 주간 K푸드 챌린지
 
 - 결정 내용:

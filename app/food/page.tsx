@@ -1049,15 +1049,13 @@ export default function KfoodKitPage() {
       </main>
 
       {/* 레시피 상세 모달 — 카드 클릭 시 마운트, lazy fetch.
-          onToggleSave 는 로그인 시에만 전달 → 모달 안 북마크 버튼도 비로그인 미노출.
-          isPro → "Find it in Korea" Google Maps 한 클릭 링크 노출. */}
+          onToggleSave 는 로그인 시에만 전달 → 모달 안 북마크 버튼도 비로그인 미노출. */}
       <RecipeDetailDialog
         recipeId={activeRecipeId}
         onClose={() => setActiveRecipeId(null)}
         onCopyIngredient={handleCopyIngredient}
         isSaved={activeRecipeId ? savedRecipeIds.has(activeRecipeId) : false}
         onToggleSave={isLoggedIn ? handleToggleSave : undefined}
-        isPro={isPro}
       />
 
       {/* Toaster — root layout 미마운트 (admin 만 마운트). 비-admin 페이지엔 로컬 필요 (CLAUDE.md §7) */}
