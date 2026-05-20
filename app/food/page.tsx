@@ -10,7 +10,6 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 import { RecipeDetailDialog } from "@/components/food/recipe-detail-dialog"
 import { WeeklyPicksSection } from "@/components/food/weekly-picks-section"
-import { StartModal } from "@/components/start-modal"
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/components/ui/use-toast"
 
@@ -121,8 +120,7 @@ export default function KfoodKitPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")              // 300ms 후 API 호출
   const [isPro, setIsPro] = useState(false)                               // monthly/annual/admin 통합 판별
-  const [isLoggedIn, setIsLoggedIn] = useState(false)                     // 북마크 클릭 분기 (비로그인 → StartModal)
-  const [startModalOpen, setStartModalOpen] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)                     // 북마크 노출 가드 — 비로그인은 버튼 자체 숨김
 
   // 저장된 레시피 id Set — 카드/모달의 북마크 상태. 로그인 시 마운트 후 GET 으로 채움.
   // optimistic 업데이트 + 서버 응답으로 보정.
@@ -300,13 +298,9 @@ export default function KfoodKitPage() {
     setShoppingItems([])
   }
 
-  // 북마크 토글 — 비로그인은 StartModal, 로그인은 optimistic + API.
+  // 북마크 토글 — 로그인 사용자 전용 (비로그인은 버튼 자체 미노출이라 도달 안 함).
   // Free 5 cap 도달 (서버 403 free_limit_reached) 시 toast 안내 + Set 롤백.
   const handleToggleSave = async (recipeId: string) => {
-    if (!isLoggedIn) {
-      setStartModalOpen(true)
-      return
-    }
     const wasSaved = savedRecipeIds.has(recipeId)
 
     // optimistic 반영
@@ -563,34 +557,36 @@ export default function KfoodKitPage() {
                       ) : (
                         <span className="text-muted-foreground text-4xl">🍜</span>
                       )}
-                      {/* 북마크 — button 안 button HTML 위반 회피 위해 div role="button".
-                          stopPropagation 으로 카드 클릭(모달 오픈) 차단. */}
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        aria-label={
-                          savedRecipeIds.has(recipe.id) ? "Remove from saved" : "Save recipe"
-                        }
-                        onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleToggleSave(recipe.id)
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
+                      {/* 북마크 — 로그인 사용자만 노출. button 안 button HTML 위반 회피 위해
+                          div role="button". stopPropagation 으로 카드 클릭(모달 오픈) 차단. */}
+                      {isLoggedIn && (
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          aria-label={
+                            savedRecipeIds.has(recipe.id) ? "Remove from saved" : "Save recipe"
+                          }
+                          onClick={(e) => {
                             e.preventDefault()
                             e.stopPropagation()
                             handleToggleSave(recipe.id)
-                          }
-                        }}
-                        className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center hover:bg-black/75 transition-colors cursor-pointer"
-                      >
-                        {savedRecipeIds.has(recipe.id) ? (
-                          <BookmarkCheck className="w-4 h-4" style={{ color: "#FF4B6E" }} />
-                        ) : (
-                          <Bookmark className="w-4 h-4 text-white" />
-                        )}
-                      </div>
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleToggleSave(recipe.id)
+                            }
+                          }}
+                          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center hover:bg-black/75 transition-colors cursor-pointer"
+                        >
+                          {savedRecipeIds.has(recipe.id) ? (
+                            <BookmarkCheck className="w-4 h-4" style={{ color: "#FF4B6E" }} />
+                          ) : (
+                            <Bookmark className="w-4 h-4 text-white" />
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="p-4">
@@ -963,17 +959,15 @@ export default function KfoodKitPage() {
         </section>
       </main>
 
-      {/* 레시피 상세 모달 — 카드 클릭 시 마운트, lazy fetch */}
+      {/* 레시피 상세 모달 — 카드 클릭 시 마운트, lazy fetch.
+          onToggleSave 는 로그인 시에만 전달 → 모달 안 북마크 버튼도 비로그인 미노출. */}
       <RecipeDetailDialog
         recipeId={activeRecipeId}
         onClose={() => setActiveRecipeId(null)}
         onCopyIngredient={handleCopyIngredient}
         isSaved={activeRecipeId ? savedRecipeIds.has(activeRecipeId) : false}
-        onToggleSave={handleToggleSave}
+        onToggleSave={isLoggedIn ? handleToggleSave : undefined}
       />
-
-      {/* 북마크 비로그인 클릭 시 OAuth 진입 — 모달은 in-place, navigate 없음 */}
-      <StartModal open={startModalOpen} onOpenChange={setStartModalOpen} />
 
       {/* Toaster — root layout 미마운트 (admin 만 마운트). 비-admin 페이지엔 로컬 필요 (CLAUDE.md §7) */}
       <Toaster />
