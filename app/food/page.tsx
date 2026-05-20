@@ -109,6 +109,31 @@ const difficultyColors: Record<string, string> = {
 const RECIPES_PAGE_SIZE = 12
 const SHOPPING_LIST_KEY = "kfoodkit-shopping-list"
 
+// 페이지네이션 표시 항목 — 항상 첫·마지막 페이지 + 현재 ±2 + 사이 공백은 ellipsis.
+// edge 보정: current<=4 면 앞 5개 / current>=total-3 이면 뒤 5개 몰아 표시 (5개 페이지 유지).
+type PaginationItem = number | "ellipsis-left" | "ellipsis-right"
+function getPaginationItems(current: number, total: number): PaginationItem[] {
+  if (total <= 1) return [1]
+  let start: number
+  let end: number
+  if (current <= 4) {
+    start = 2
+    end = Math.min(total - 1, 5)
+  } else if (current >= total - 3) {
+    start = Math.max(2, total - 4)
+    end = total - 1
+  } else {
+    start = current - 2
+    end = current + 2
+  }
+  const items: PaginationItem[] = [1]
+  if (start > 2) items.push("ellipsis-left")
+  for (let i = start; i <= end; i++) items.push(i)
+  if (end < total - 1) items.push("ellipsis-right")
+  items.push(total)
+  return items
+}
+
 interface ShoppingItem {
   id: string
   name: string
@@ -644,9 +669,9 @@ export default function KfoodKitPage() {
             </div>
           )}
 
-          {/* 페이지네이션 — totalPages > 1 일 때만 노출 */}
+          {/* 페이지네이션 — 첫·마지막 페이지 항상 + 현재 ±2 + ellipsis. brand color 강조. */}
           {!recipesLoading && totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3 mt-8">
+            <div className="flex items-center justify-center gap-2 mt-8 flex-wrap">
               <Button
                 type="button"
                 variant="outline"
@@ -657,9 +682,41 @@ export default function KfoodKitPage() {
                 <ChevronLeft className="w-4 h-4 mr-1" />
                 Prev
               </Button>
-              <span className="text-sm text-muted-foreground tabular-nums">
-                Page {recipesPage} / {totalPages}
-              </span>
+              {getPaginationItems(recipesPage, totalPages).map((item, idx) => {
+                if (item === "ellipsis-left" || item === "ellipsis-right") {
+                  return (
+                    <span
+                      key={`${item}-${idx}`}
+                      aria-hidden
+                      className="px-2 text-muted-foreground select-none tabular-nums"
+                    >
+                      …
+                    </span>
+                  )
+                }
+                const isCurrent = item === recipesPage
+                return (
+                  <Button
+                    key={item}
+                    type="button"
+                    variant="outline"
+                    onClick={() => handlePageChange(item)}
+                    aria-current={isCurrent ? "page" : undefined}
+                    className={
+                      isCurrent
+                        ? "rounded-full min-w-10 px-3 text-white border-transparent tabular-nums"
+                        : "bg-[#1a1a1a] border-[#2a2a2a] text-foreground hover:bg-[#252525] rounded-full min-w-10 px-3 tabular-nums"
+                    }
+                    style={
+                      isCurrent
+                        ? { backgroundColor: "#FF4B6E", borderColor: "#FF4B6E" }
+                        : undefined
+                    }
+                  >
+                    {item}
+                  </Button>
+                )
+              })}
               <Button
                 type="button"
                 variant="outline"
