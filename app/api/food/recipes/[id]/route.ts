@@ -16,8 +16,14 @@ import { translateRecipeContent } from "@/lib/claude/recipe-content-translate"
 // 두 번역 호출은 parallel — 첫 응답 ~1-2s 추가 (캐싱 후 0ms).
 //
 // 공개 API — Pro 게이팅 없음.
+//
+// 캐시 정책: force-dynamic + 응답 헤더 no-store.
+// 첫 호출에서 번역 실패 또는 진행 중 시점 응답이 브라우저에 캐싱되면
+// DB 백필 후에도 클라이언트가 stale 응답을 재사용하는 회귀가 발생.
 
 export const dynamic = "force-dynamic"
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" }
 
 const ParamsSchema = z.object({
   id: z.string().uuid("id must be uuid"),
@@ -127,7 +133,7 @@ export async function GET(
   const params = await context.params
   const parsed = ParamsSchema.safeParse(params)
   if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_id" }, { status: 400 })
+    return NextResponse.json({ error: "invalid_id" }, { status: 400, headers: NO_STORE_HEADERS })
   }
 
   const supabase = await createSupabaseServerClient()
@@ -140,10 +146,10 @@ export async function GET(
     .maybeSingle()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: 500, headers: NO_STORE_HEADERS })
   }
   if (!data) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 })
+    return NextResponse.json({ error: "not_found" }, { status: 404, headers: NO_STORE_HEADERS })
   }
 
   type Row = {
@@ -270,5 +276,5 @@ export async function GET(
     ingredients: ingredientsWithEn,
     instructions: instructionsWithEn,
   }
-  return NextResponse.json(detail)
+  return NextResponse.json(detail, { headers: NO_STORE_HEADERS })
 }
