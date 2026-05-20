@@ -31,13 +31,14 @@ const sidebarLinks = [
   { icon: Settings, label: "Settings", href: "/mypage/settings", active: false },
 ]
 
-// 다른 stat 은 아직 placeholder — Saved Recipes 만 실데이터 (user_food_collections).
-// 후속 task 로 나머지도 실데이터 연결 예정.
-const STATIC_STATS = [
-  { label: "Artists Tracking", value: "12" },
-  { label: "Events This Month", value: "5" },
-  { label: "Korean Lessons", value: "23", suffix: "day streak", hasFlame: true },
-] as const
+// 대시보드 4 stat — 모두 실데이터 (`/api/mypage/stats` 1 round-trip)
+// 로딩 중 "—" / 0건이면 "0".
+interface MyStats {
+  artistsTracking: number
+  eventsThisMonth: number
+  streakDays: number
+  savedRecipes: number
+}
 
 const upcomingEvents = [
   { id: 1, title: "BTS Concert", date: 10, month: "MAY", type: "Concert" },
@@ -57,8 +58,8 @@ export default function MyPage() {
   const [userInitial, setUserInitial] = useState<string>("")
   const [userAvatar, setUserAvatar] = useState<string | null>(null)
   const [userPlan, setUserPlan] = useState<string>("Free")
-  // Saved Recipes 카운트 — null = 로딩 / 숫자 = 본인 user_food_collections 수
-  const [savedRecipesCount, setSavedRecipesCount] = useState<number | null>(null)
+  // 4 stat — null = 로딩 / MyStats = 채워짐. 실패 시 모두 0 으로.
+  const [stats, setStats] = useState<MyStats | null>(null)
 
   useEffect(() => {
     // Supabase 세션 로드 후 Google 프로필 + plan_type 동기화
@@ -92,21 +93,34 @@ export default function MyPage() {
         setUserPlan(planLabel(profile?.plan_type))
       }
 
-      // Saved Recipes 카운트 — /api/food/collections GET items.length.
-      // 별도 count 엔드포인트 없이 기존 GET 재활용 (RLS 본인 행만 반환).
+      // 4 stat 통합 fetch — /api/mypage/stats
       try {
-        const res = await fetch("/api/food/collections", { cache: "no-store" })
+        const res = await fetch("/api/mypage/stats", { cache: "no-store" })
         if (!res.ok) {
-          if (!cancelled) setSavedRecipesCount(0)
+          if (!cancelled) {
+            setStats({
+              artistsTracking: 0,
+              eventsThisMonth: 0,
+              streakDays: 0,
+              savedRecipes: 0,
+            })
+          }
           return
         }
-        const json = (await res.json().catch(() => ({}))) as { items?: unknown[] }
-        if (!cancelled) {
-          setSavedRecipesCount(Array.isArray(json.items) ? json.items.length : 0)
+        const json = (await res.json().catch(() => null)) as MyStats | null
+        if (!cancelled && json) {
+          setStats(json)
         }
       } catch (err) {
-        console.warn("[mypage] saved recipes count 실패:", err)
-        if (!cancelled) setSavedRecipesCount(0)
+        console.warn("[mypage] stats fetch 실패:", err)
+        if (!cancelled) {
+          setStats({
+            artistsTracking: 0,
+            eventsThisMonth: 0,
+            streakDays: 0,
+            savedRecipes: 0,
+          })
+        }
       }
     }
 
@@ -116,18 +130,25 @@ export default function MyPage() {
     }
   }, [])
 
-  // STATIC_STATS + 실시간 Saved Recipes 카운트 합성
+  // stats → 4 stat 카드 — 로딩 중 "—" / 채워지면 그 값.
+  const showStat = (v: number | undefined) =>
+    stats === null ? "—" : String(v ?? 0)
+
   const activityStats: Array<{
     label: string
     value: string
     suffix?: string
     hasFlame?: boolean
   }> = [
-    ...STATIC_STATS,
+    { label: "Artists Tracking", value: showStat(stats?.artistsTracking) },
+    { label: "Events This Month", value: showStat(stats?.eventsThisMonth) },
     {
-      label: "Saved Recipes",
-      value: savedRecipesCount === null ? "—" : String(savedRecipesCount),
+      label: "Korean Lessons",
+      value: showStat(stats?.streakDays),
+      suffix: "day streak",
+      hasFlame: true,
     },
+    { label: "Saved Recipes", value: showStat(stats?.savedRecipes) },
   ]
 
   return (
