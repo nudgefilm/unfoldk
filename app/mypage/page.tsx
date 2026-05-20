@@ -31,12 +31,13 @@ const sidebarLinks = [
   { icon: Settings, label: "Settings", href: "/mypage/settings", active: false },
 ]
 
-const activityStats = [
+// 다른 stat 은 아직 placeholder — Saved Recipes 만 실데이터 (user_food_collections).
+// 후속 task 로 나머지도 실데이터 연결 예정.
+const STATIC_STATS = [
   { label: "Artists Tracking", value: "12" },
   { label: "Events This Month", value: "5" },
   { label: "Korean Lessons", value: "23", suffix: "day streak", hasFlame: true },
-  { label: "Saved Recipes", value: "8" },
-]
+] as const
 
 const upcomingEvents = [
   { id: 1, title: "BTS Concert", date: 10, month: "MAY", type: "Concert" },
@@ -56,6 +57,8 @@ export default function MyPage() {
   const [userInitial, setUserInitial] = useState<string>("")
   const [userAvatar, setUserAvatar] = useState<string | null>(null)
   const [userPlan, setUserPlan] = useState<string>("Free")
+  // Saved Recipes 카운트 — null = 로딩 / 숫자 = 본인 user_food_collections 수
+  const [savedRecipesCount, setSavedRecipesCount] = useState<number | null>(null)
 
   useEffect(() => {
     // Supabase 세션 로드 후 Google 프로필 + plan_type 동기화
@@ -88,6 +91,23 @@ export default function MyPage() {
       if (!cancelled) {
         setUserPlan(planLabel(profile?.plan_type))
       }
+
+      // Saved Recipes 카운트 — /api/food/collections GET items.length.
+      // 별도 count 엔드포인트 없이 기존 GET 재활용 (RLS 본인 행만 반환).
+      try {
+        const res = await fetch("/api/food/collections", { cache: "no-store" })
+        if (!res.ok) {
+          if (!cancelled) setSavedRecipesCount(0)
+          return
+        }
+        const json = (await res.json().catch(() => ({}))) as { items?: unknown[] }
+        if (!cancelled) {
+          setSavedRecipesCount(Array.isArray(json.items) ? json.items.length : 0)
+        }
+      } catch (err) {
+        console.warn("[mypage] saved recipes count 실패:", err)
+        if (!cancelled) setSavedRecipesCount(0)
+      }
     }
 
     load()
@@ -95,6 +115,20 @@ export default function MyPage() {
       cancelled = true
     }
   }, [])
+
+  // STATIC_STATS + 실시간 Saved Recipes 카운트 합성
+  const activityStats: Array<{
+    label: string
+    value: string
+    suffix?: string
+    hasFlame?: boolean
+  }> = [
+    ...STATIC_STATS,
+    {
+      label: "Saved Recipes",
+      value: savedRecipesCount === null ? "—" : String(savedRecipesCount),
+    },
+  ]
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0d0d0f" }}>
