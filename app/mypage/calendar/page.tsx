@@ -321,9 +321,13 @@ function FallbackView({
 }
 
 function EventCard({ event }: { event: CalendarEvent }) {
+  // /calendar 로 이동하되 ?event=<id>&month=<YYYY-MM> — calendar 페이지가 month 로 viewDate
+  // 보정 후 events 로드되면 매칭 이벤트 모달 자동 오픈. month 가 다른 달이어도 자연스럽게 전환.
+  const monthSlug = event.event_date.slice(0, 7)            // "2026-05"
+  const href = `/calendar?event=${encodeURIComponent(event.id)}&month=${encodeURIComponent(monthSlug)}`
   return (
     <Link
-      href="/calendar"
+      href={href}
       className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex items-start gap-4 hover:bg-[#2a2a2c] hover:border-primary/40 transition-colors"
     >
       <div

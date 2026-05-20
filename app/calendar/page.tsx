@@ -743,6 +743,9 @@ export default function HallyuCalendarPage() {
   const [isPro, setIsPro] = useState(false)                      // monthly/annual/admin 통합 판별
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isAuthReady, setIsAuthReady] = useState(false)
+  // mypage/calendar 카드 → /calendar?event=<id>&month=<YYYY-MM> 진입 시 모달 자동 오픈용 pending id.
+  // events 로드된 후 매칭되면 selectedEvent 로 승격 + null 로 초기화.
+  const [pendingEventId, setPendingEventId] = useState<string | null>(null)
   // My Fan Events 비로그인 클릭 시 인플레이스 OAuth 모달
   const [fanEventsStartOpen, setFanEventsStartOpen] = useState(false)
   // Upcoming 아코디언에서 비로그인 액션(Add to GCal / Reminder) 시도 시 OAuth 모달
@@ -774,6 +777,48 @@ export default function HallyuCalendarPage() {
       setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
     })
   }, [])
+
+  // mypage/calendar → /calendar?event=<id>&month=<YYYY-MM> 진입 처리.
+  // 1) month 가 있으면 viewDate 보정 (다른 달 이벤트도 자연스럽게 전환).
+  // 2) event id 를 pendingEventId 로 보관 — events 로드 후 별도 useEffect 가 모달 오픈.
+  // 3) URL 에서 param 제거 — 새로고침·뒤로가기 시 모달이 재오픈되지 않게.
+  // useSearchParams 대신 window.location.search 직접 파싱 (Suspense 경계 부담 회피, StartModal 동일 패턴).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const eventParam = params.get("event")
+    const monthParam = params.get("month")
+    let dirty = false
+
+    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+      const [y, m] = monthParam.split("-").map(Number)
+      if (y && m >= 1 && m <= 12) {
+        setViewDate(new Date(y, m - 1, 1))
+      }
+      params.delete("month")
+      dirty = true
+    }
+    if (eventParam) {
+      setPendingEventId(eventParam)
+      params.delete("event")
+      dirty = true
+    }
+    if (dirty) {
+      const search = params.toString()
+      const url = window.location.pathname + (search ? `?${search}` : "")
+      window.history.replaceState({}, "", url)
+    }
+  }, [])
+
+  // pendingEventId 가 있고 events 가 로드되면 매칭 이벤트 모달 오픈.
+  // events.length=0 케이스 (정말 빈 달 또는 fetch 진행 중) 는 무시 — 다음 events 갱신 때 다시 평가.
+  useEffect(() => {
+    if (!pendingEventId || events.length === 0) return
+    const match = events.find((e) => e.id === pendingEventId)
+    if (match) {
+      setSelectedEvent(match)
+      setPendingEventId(null)
+    }
+  }, [pendingEventId, events])
 
   // My Fan Events 클릭 — 인증 ready + 비로그인이면 navigation 차단하고 StartModal 오픈.
   // 로딩 중 / 로그인 됨 → Link 정상 navigate (Free 포함 모든 plan 진입 가능 — 별도 제한 없음).
