@@ -4,7 +4,7 @@
 
 ---
 
-## 현재 상태 (2026-05-20 세션 19 / KfoodKit M+4 출시 — 537 레시피 + 이미지 backfill 3-phase + 어드민 콘솔 + 6 services live)
+## 현재 상태 (2026-05-20 세션 19 / KfoodKit Phase 1~3 + 페이지네이션 · 마이페이지 stat · 캘린더 모달 자동 오픈)
 
 > KfoodKit 을 "soon" 상태에서 **live 출시 단계로 전환**. 단일 세션 안에서 5 단계 인프라 + UX 구축:
 > ① **데이터 소스 확정** — Spoonacular($29/월) → 농림수산식품교육문화정보원 무료 API 로 전환, 실제 엔드포인트 검증해 `http://211.237.50.150:7080/openapi/{KEY}/json/{GRID_ID}/{startRow}/{endRow}` 패턴으로 wrapper 작성. 3 grid (기본 537 / 재료 6,104 / 과정 3,022) 전체 fetch + RECIPE_ID 메모리 join. 데이터 0건 → 537 영구 고정 캐탈로그.
@@ -20,7 +20,11 @@
 > - 이미지 비율 통일: 카드·모달·어드민 모두 `aspect-video` (16:9) + `object-cover` (모달 콘텐츠 가독성 우선).
 > - 6 services live 카피 정합 (terms / subscription / payment success / start / roadmap-modal / early-access notify 이메일 / header SERVICES_META).
 >
-> commits: `f385d9c` → `14e99e1` → `34de258` → `3238a58` → `f380148` → `947db7e` → `00bca32` → `1513907` → `ec4d2f0` → `de03329` → `cabad5b` → `62a5c87` → `2068b5d` → `5e459ec` → `662c6bc` → `c502c05` → `2c8c25b` → `d3bcff6` → `bde76b8`.
+> commits (M+4 출시): `f385d9c` → `14e99e1` → `34de258` → `3238a58` → `f380148` → `947db7e` → `00bca32` → `1513907` → `ec4d2f0` → `de03329` → `cabad5b` → `62a5c87` → `2068b5d` → `5e459ec` → `662c6bc` → `c502c05` → `2c8c25b` → `d3bcff6` → `bde76b8` → `d073ac8` → `942c501` → `8bc07ce`.
+>
+> **세션 후반** — KfoodKit Phase 2 (컬렉션 + YouTube), Phase 3 (주간 챌린지 — 맛집 연계 트랙은 같은 세션 안에서 다시 롤백), 페이지네이션 숫자버튼, 마이페이지 4 stat 실데이터, 내 캘린더 → calendar 모달 자동 오픈, 재료/조리법 영문 lazy 번역 (캐싱 회귀·DB string 저장 케이스까지 fix).
+>
+> commits (후반): `018dd52` → `db63556` → `e564edf` → `23789f1` → `999522b` → `fce68c5` → `c7f0cce` → `f338d35` → `d5eadec` → `7ce4028` → `7e0be58` → `ac0cd71` → `ce1154d` → `fe76095`.
 
 ### 완료
 
@@ -113,6 +117,59 @@
 - 모달 상단은 시도 차원에서 `aspect-[4/3]` → `aspect-video` 회귀 (콘텐츠 영역 가독성).
 - 어드민 테이블 컬럼 순서·너비 재정렬: `seq(w-16) · image(w-28) · name · en · source(w-24) · action(w-20)`.
 
+#### M. 재료/조리법 영문 번역 lazy 생성 + 캐싱 회귀 fix
+
+- **0035_food_recipes_content_translations.sql** — `ingredients_en` / `instructions_en` jsonb + `idx_food_recipes_content_translate_pending` (둘 중 하나라도 NULL 인 row 빠른 조회).
+- `lib/claude/recipe-content-translate.ts` — 한 호출에 재료 배열 + 조리 과정 배열 번역, tool_use schema 로 인덱스·길이 보존. 모르는 한식 표현은 Romanized (gochujang, doenjang).
+- `/api/food/recipes/[id]` — title/description 번역 task 와 parallel 호출. 응답 직전 인덱스 매칭으로 `name_en` / `instruction_en` 노출.
+- **회귀 fix 3종**:
+  · 응답 4개 모두 (200/400/404/500) `Cache-Control: no-store, max-age=0` 명시 — `force-dynamic` 만으론 브라우저 fetch 캐시 차단 못함.
+  · `normalizeStringArray` 가 jsonb 컬럼이 JSON-직렬화된 string (`'["A","B"]'::jsonb`) 로 들어온 케이스도 JSON.parse 로 복원. (외부 경로 — Supabase Dashboard Table Editor 등 — 으로 들어간 row 추정. write path 에는 stringify 코드 없음.)
+  · 진단 (`debug` 응답 필드 + console.log) 으로 원인 좁힌 후 임시 코드 모두 제거.
+
+#### N. KfoodKit Phase 2 — 컬렉션 저장 + YouTube 요리 영상
+
+- **`/api/food/collections`** GET/POST/DELETE — 0030 `user_food_collections` + RLS 그대로. Free 5 cap (server-side count, Pro·admin 우회), unique 충돌 멱등 `{ ok: true, already: true }`. 신규 마이그레이션 0건.
+- **/food 카드·모달 북마크** — 카드 우상단 (button-in-button 회피 위해 div role="button" + stopPropagation), 모달 헤더 Tooltip. **비로그인 시 버튼 자체 미노출** (가입 유도 노이즈 제거 — 클릭 시 StartModal 띄우는 기존 방식 폐기). Free cap 도달 → toast "Coming with Hallyu Pass — unlimited saves at launch.". optimistic + 롤백.
+- **`/mypage/recipes` 실데이터** — Coming Soon 폐기. `/mypage/dramas` 패턴 (MypageShell + EmptyState + Toaster + 모달 재사용). 본인 plan_type/is_admin → `hasProAccess` 로 isPro 추적 인프라 보강 (옵션 1 — dialog prop 전달은 보류).
+- **YouTube 요리 영상 lazy** — `lib/api/youtube.ts` `searchCookingVideo(titleEn)` 추가 (search.list 100 units, videoEmbeddable=true, safeSearch=moderate). `/api/food/recipes/[id]` 가 번역 완료 후 sequential 호출 → `food_recipes.youtube_url` (0030 컬럼) write-back. 모달은 `img.youtube.com/vi/{id}/mqdefault.jpg` 썸네일 + Play 오버레이 + 새 탭 (embed 안 함, 저작권 안전).
+
+#### O. KfoodKit Phase 3 — 주간 K푸드 챌린지
+
+- **`/api/food/challenges` (공개 GET)** — `week_start ≤ today ≤ week_end` 매칭 1건 + `food_name` 기반 매칭 레시피 id 서버측 lookup. 응답 `{ challenge, recipeId }` — Start 버튼이 한 번에 모달 오픈.
+- **`/api/admin/food/challenges` (admin POST)** — `requireAdmin` + zod (title/dates required), `week_start ≤ week_end` app-level 검증.
+- **`/admin/food` 탭 wrapper** — `FoodAdminTabs` (client) 로 Recipes / Challenges 전환. server props + `ChallengesAdmin` (진행 중 + 신규 폼 + 최근 10건 + active 배지). 폼 제출 후 `router.refresh()`.
+- **/food This Week's Challenge** — 정적 placeholder ("Make Japchae", "1,240 fans joined") 폐기. 챌린지 null 이면 섹션 미노출. Start 버튼은 `challengeRecipeId` 있을 때만 + 클릭 시 `setActiveRecipeId` → 모달 오픈 (라우트 navigate 없음).
+- **롤백** — "Find it in Korea" 트랙 (`/api/food/restaurants` + recipe-detail-dialog 맛집 섹션 + isPro prop) 은 같은 세션 안에서 사용자 판단으로 전체 제거. tour_spots 데이터 자체는 Curation K 가 그대로 사용.
+
+#### P. /food 페이지네이션 숫자버튼
+
+- "Page N / Total" 텍스트 + Prev/Next → 숫자 버튼 그리드. 항상 첫·마지막 페이지 노출 + 현재 ±2 + ellipsis. edge 보정: `current ≤ 4` 면 앞 5개 / `current ≥ total-3` 면 뒤 5개 (5개 숫자 일관). 현재 페이지 brand `#FF4B6E` + 흰 글씨. `getPaginationItems(current, total)` 헬퍼는 `PaginationItem = number | "ellipsis-left" | "ellipsis-right"` 유니언 반환.
+
+#### Q. 마이페이지 — 대시보드 4 stat 실데이터 + Saved Recipes 카운트 + 캘린더 모달 자동 오픈
+
+- **`/api/mypage/stats`** (신규) — 4 stat 한 round-trip:
+  · Artists Tracking — `user_calendar_subscriptions` event_id → `hallyu_calendar_events.artist_or_drama` **distinct count** (이벤트 단위 구독을 아티스트 단위로 의미 보정).
+  · Events This Month — 본인 구독 중 이번 달 (UTC) event_date 매칭.
+  · Korean Lessons — `user_streaks.streak_days` (없으면 0).
+  · Saved Recipes — `user_food_collections` row count.
+  · 개별 stat 실패는 `console.warn` + 0 폴백 (한 stat 오류로 대시보드 전체 무너지지 않게).
+- `/mypage/page.tsx` — 정적 placeholder 4 stat ("12", "5", "23", "8") 폐기. 로딩 중 "—" / 채워지면 숫자.
+- **`/mypage/calendar` → calendar 모달 자동 오픈** — EventCard `href={/calendar?event=<id>&month=<YYYY-MM>}`. calendar 페이지 마운트 시 month 로 viewDate 보정 + event id 를 pendingEventId 로 보관 + URL search params 즉시 제거 (새로고침 시 재오픈 방지). events 로드 후 별도 effect 가 매칭 → `EventDetailModal` 자동 오픈. 다른 달 이벤트도 자연스럽게 month 전환.
+
+#### R. Free 정책 — Phase 2/3 카피 일관
+
+- KfoodKit 컬렉션 — Free 5 / Pro 무제한 (CLAUDE.md §6 "결제 연동 전 임시 Free 확대 정책" 표 그대로). cap 메시지 "Coming with Hallyu Pass" 패턴.
+- 다음 결제 가동 시 KfoodKit My Shopping List Pro 잠금 복원 함께 검토 (carry-over).
+
+#### S. PROGRESS / DECISIONS 아카이브 분리
+
+- 세션 1~17 누적 내용을 `PROGRESS_ARCHIVE.md` / `DECISIONS_ARCHIVE.md` 로 분리 (commit `8bc07ce`). 현재 PROGRESS.md / DECISIONS.md 는 세션 18~ 만 유지 — 세션 시작 시 읽는 부담 감소.
+
+#### T. HangeulGo 표현 수 0 이슈 해결 확인
+
+- 페이지 진입 시 표현 미노출 보고는 세션 17 의 `learning-progress` 영구화 + mastered 우회 로직으로 해결된 상태. 운영 모니터링 결과 120건/일 정상 노출 확인 — 별도 조치 불필요.
+
 ### 신규 의존성
 
 - `html2canvas` — Shopping List PNG 다운로드용.
@@ -134,22 +191,20 @@
 2. **Vercel env 등록** — `MAFRA_API_KEY` / `MFDS_API_KEY` (이미 .env.local 채워짐).
 3. **`/admin/cron` KfoodKit 카드 수동 트리거 3~4회** — 영문 backfill cap 30/run 누적으로 537건 모두 채울 때까지. Unsplash fallback 도 cap 40/run.
 
-### 다음 세션 후보 (carry-over)
+### 다음 세션 후보
 
-- **세션 18 carry-over 전체 유지** —
-  - famous-dramas ↔ dramas 매칭 실측 검증 (어드민 cron 수동 실행 → `auto_added_dramas` 카운트 확인)
-  - top.gg 심사 통과 후 봇 페이지 운영
-  - /calendar / /today / /notify 슬래시 명령 추가
-  - **세션 14 carry-over**: KdramaMatch Phase 2 잔여 / Curation K Phase 2 잔여 / 결제 가동 시 복원 / 세션 13 잔여
-  - 블로그 cron 운영 안정화
-- **KfoodKit Phase 2** — 드라마-음식 연계 (`drama_foods` Claude 자동 추출, 0030 테이블 비어있음). KdramaMatch dramas DB 기준 Claude 가 드라마별 등장 음식 자동 생성.
-- **KfoodKit My Shopping List 정책 재검토** — 현재 전유저 사용 (CLAUDE.md §6 표 "Pro 유지" 와 상충). 결제 가동 시 Pro 잠금 복원할지 결정.
-- **모달 attribution 가이드라인** — Unsplash 외 mfds/manual/upload 출처도 표기 의무화할지 검토.
+- **블로그 이미지 중복 개선** — Unsplash per_page 15 + 최근 30 포스트 슬러그 제외 (H 항목) 적용 후에도 중복 case 모니터링. 매칭 룰 보강 또는 별도 캐시 고려.
+- **푸터 국가 통계** — 사용자 분포 stat (가입 국가) Footer 노출 검토.
+- **KdramaMatch Phase 2 (백로그)** — TMDB 추가 enrichment (배우·OTT·예고편), Claude 에피소드 요약·캐릭터 관계도 Pro 잠금 해제, 시청 기록·평점 개인화.
+- **결제 가동 시 복원** — LMS 연동 후 CLAUDE.md §6 "결제 연동 전 임시 Free 확대 정책" 표 전체 원복. KfoodKit My Shopping List Pro 잠금 + Phase 2 컬렉션 Free cap 카피 ("Upgrade — $15/month" 복원) 도 같이 검토.
+- **top.gg 심사 결과 대기** — 통과 시 봇 페이지 운영 + /calendar / /today / /notify 슬래시 명령 추가.
+
+이전 세션 carry-over 유지: famous-dramas ↔ dramas 매칭 실측 검증 · 모달 attribution 가이드라인 (mfds/manual/upload 표기 검토) · 블로그 cron 운영 안정화 · 세션 13 carry-over (메인 페이지 hang + Ghost Globe 미작동).
 
 ### 블로커
 
-- **top.gg 심사 1~2주 대기** — 외부 의존 (세션 15 carry-over)
-- 세션 13 carry-over — 메인 페이지 hang + Ghost Globe 미작동
+- **top.gg 심사 대기** — 외부 의존 (세션 15 carry-over).
+- **어드민 food 이미지 업로드 진행 중** — 관리자가 537 카탈로그 수동 큐레이션 누적 중. cron 자동 backfill (mfds/unsplash) 와 병행.
 
 ---
 
