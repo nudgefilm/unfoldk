@@ -21,6 +21,24 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-05-20 KfoodKit Phase 2 — 레시피 컬렉션 저장 + YouTube 요리 영상 lazy 연동
+
+- 결정 내용:
+  - **컬렉션 API** — `/api/food/collections` GET/POST/DELETE. 0030 의 `user_food_collections` + RLS 활용 (신규 마이그레이션 0건). Free 5 cap 은 POST 시 server-side `select count` 로 검증 (Pro/admin 우회), unique(user_id, recipe_id) 충돌은 멱등 `{ ok: true, already: true }` 반환.
+  - **북마크 UI** — `/food` 카드 이미지 영역 우상단 + `RecipeDetailDialog` 헤더에 동일 토글 버튼. 비로그인 클릭 → in-place StartModal. Free cap 도달 → toast "Coming with Hallyu Pass — unlimited saves at launch." (결제 연동 전 정책 일관). optimistic 토글 + 서버 거부 시 롤백. 카드 button-in-button HTML 위반 회피 위해 카드 안의 북마크는 `div role="button"` + stopPropagation.
+  - **/mypage/recipes 실데이터** — Coming Soon 폐기. `/mypage/dramas` 패턴 (MypageShell + EmptyState + Toaster + 모달 재사용). 카드 클릭 → `RecipeDetailDialog`, 우상단 북마크 클릭 → 즉시 해제 (이미 저장 상태).
+  - **YouTube 요리 영상 lazy** — `lib/api/youtube.ts` `searchCookingVideo(titleEn)` 추가. q=`${titleEn} Korean recipe cooking`, type=video, maxResults=1, videoEmbeddable=true, relevanceLanguage=en, safeSearch=moderate. `/api/food/recipes/[id]` 가 번역 task `Promise.all` 완료 후 sequential 로 호출 (title_en 의존) → `food_recipes.youtube_url` (0030 컬럼) write-back. 모달은 `img.youtube.com/vi/{id}/mqdefault.jpg` 썸네일 + Play 오버레이 + 새 탭 watch URL.
+- 이유:
+  - **Free 5 cap** — CLAUDE.md §6 "결제 연동 전 임시 Free 확대 정책" 표의 "KfoodKit 컬렉션 Free 5 / Pro 무제한" spec 그대로 — 임시 확대 적용 안 되는 항목. 락인 효과 + 결제 가동 후 Pro 차별화 라인 보존.
+  - **YouTube lazy + DB 캐싱** — `search.list` 100 units/call. 537 레시피 일괄 backfill 시 53,700 units = 일 쿼터 (10,000) 5배 초과. lazy 만 호출 (모달 첫 오픈) + DB 캐싱으로 실제 트래픽 비례 cap. embed 금지 + 외부 링크만 (저작권·UX 균형).
+  - **videoEmbeddable=true** — 향후 embed 도입 옵션 보존. 현재는 새 탭만이지만 검색 단에서 미리 필터.
+  - **북마크 button-in-button 회피** — `<button>` 안에 `<button>` 은 HTML5 invalid. 카드 자체가 `<button>` 인데 내부 북마크가 자식 button 이면 a11y/focus 깨짐. div role="button" 으로 시맨틱은 약하지만 표준 준수.
+- 대안으로 고려했던 것:
+  - 컬렉션: Free cap 을 RLS 트리거로 강제 — 클라이언트가 명확한 403 에러 받기 어려움 + 어드민 검토용 read 정책과 충돌 → 앱 레벨 cap 유지 (DB 무제한 그대로).
+  - YouTube embed — 모달 안 iframe 으로 직접 재생. 저작권 측면 안전성 보장 안 됨 (광고·제약 채널) + 모달 높이 증가. 새 탭 외부 링크가 안전.
+  - 썸네일 별도 컬럼 (`youtube_thumbnail`) 저장 — 단순 URL 패턴이라 클라이언트 추출로 충분. 컬럼 증가 비용 없음.
+  - cron 배치 backfill — 일 쿼터 초과 위험 + 트래픽 없는 레시피까지 비용 발생. lazy 가 ROI 최적.
+
 ## 2026-05-20 KfoodKit M+4 출시 — 데이터 인프라 + 이미지 backfill 3-phase + 어드민 콘솔
 
 - 결정 내용:

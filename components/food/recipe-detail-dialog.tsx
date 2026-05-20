@@ -13,7 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { Clock, Flame, Users, Loader2, Copy, Check } from "lucide-react"
+import { Clock, Flame, Users, Loader2, Copy, Check, Bookmark, BookmarkCheck, Play } from "lucide-react"
 
 // KfoodKit — 레시피 상세 모달
 //
@@ -41,6 +41,7 @@ interface RecipeDetail {
   ready_in_minutes: number | null
   servings: number | null
   nutrition: NutritionShape | null
+  youtube_url: string | null
   ingredients: Array<{
     name: string
     name_en: string | null
@@ -55,16 +56,38 @@ interface RecipeDetail {
   }>
 }
 
+// YouTube watch URL 에서 videoId 추출 — 썸네일 (img.youtube.com/vi/{id}/mqdefault.jpg) 조립용.
+// 지원: https://www.youtube.com/watch?v=ID / https://youtu.be/ID
+function extractYoutubeVideoId(url: string | null): string | null {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    if (u.hostname === "youtu.be") return u.pathname.slice(1) || null
+    if (u.hostname.endsWith("youtube.com")) {
+      const v = u.searchParams.get("v")
+      if (v) return v
+    }
+  } catch {
+    // 잘못된 URL — null 반환
+  }
+  return null
+}
+
 export function RecipeDetailDialog({
   recipeId,
   onClose,
   onCopyIngredient,
+  isSaved = false,
+  onToggleSave,
 }: {
   recipeId: string | null
   onClose: () => void
   // 재료 옆 복사 버튼 클릭 시 호출 — 페이지가 navigator.clipboard 위임.
   // 미제공 시 버튼 자체 미노출.
   onCopyIngredient?: (name: string) => void
+  // 북마크 — 페이지가 비로그인/Free cap/optimistic toggle 모두 위임. 미제공 시 버튼 미노출.
+  isSaved?: boolean
+  onToggleSave?: (recipeId: string) => void
 }) {
   const [detail, setDetail] = useState<RecipeDetail | null>(null)
   const [loading, setLoading] = useState(false)
@@ -143,6 +166,28 @@ export function RecipeDetailDialog({
                       ? "Loading…"
                       : "Recipe"}
                 </DialogTitle>
+                {/* 북마크 — 비로그인/Free cap/optimistic 모두 페이지에서 처리. */}
+                {detail && onToggleSave && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => onToggleSave(detail.id)}
+                        aria-label={isSaved ? "Remove from saved" : "Save recipe"}
+                        className="flex-shrink-0 mt-1 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {isSaved ? (
+                          <BookmarkCheck className="w-4 h-4" style={{ color: "#FF4B6E" }} />
+                        ) : (
+                          <Bookmark className="w-4 h-4" />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      {isSaved ? "Saved" : "Save recipe"}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
                 {/* 한글 음식명 복사 — Ingredient Finder 에 붙여넣기 용 (예: "부추김치"). */}
                 {detail && onCopyIngredient && (
                   <Tooltip>
@@ -274,6 +319,43 @@ export function RecipeDetailDialog({
                   </ol>
                 </section>
               )}
+
+              {/* YouTube 요리 영상 — youtube_url 캐싱됨 + videoId 추출 성공 시 노출.
+                  썸네일 클릭 → 새 탭으로 YouTube. (저작권상 외부 링크만 — embed 안 함) */}
+              {(() => {
+                const videoId = extractYoutubeVideoId(detail.youtube_url)
+                if (!detail.youtube_url || !videoId) return null
+                const thumb = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+                return (
+                  <section className="mt-6">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                      Watch on YouTube
+                    </h3>
+                    <a
+                      href={detail.youtube_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block relative rounded-lg overflow-hidden bg-[#252525] aspect-video group"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={thumb}
+                        alt={`YouTube — ${detail.title_en ?? detail.title}`}
+                        referrerPolicy="no-referrer"
+                        className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/30 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                        <div
+                          className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
+                          style={{ backgroundColor: "#FF4B6E" }}
+                        >
+                          <Play className="w-6 h-6 text-white" fill="white" />
+                        </div>
+                      </div>
+                    </a>
+                  </section>
+                )
+              })()}
 
               {/* 이미지 출처 — Unsplash 가이드라인상 의무 표기 */}
               {detail.image_source === "unsplash" && (

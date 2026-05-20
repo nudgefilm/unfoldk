@@ -4,12 +4,15 @@ import { useEffect, useRef, useState } from "react"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Trophy, ChevronRight, ChevronLeft, Lock, Bot, Sparkles, Clock, Flame, Plus, Check, ShoppingCart, X as XIcon, Download } from "lucide-react"
+import { Search, Trophy, ChevronRight, ChevronLeft, Lock, Bot, Sparkles, Clock, Flame, Plus, Check, ShoppingCart, X as XIcon, Download, Bookmark, BookmarkCheck } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 import { RecipeDetailDialog } from "@/components/food/recipe-detail-dialog"
 import { WeeklyPicksSection } from "@/components/food/weekly-picks-section"
+import { StartModal } from "@/components/start-modal"
+import { Toaster } from "@/components/ui/toaster"
+import { useToast } from "@/components/ui/use-toast"
 
 // AI Ingredient Finder — 한류 팬 밀집 20개국. 지역별 <optgroup> 그룹화.
 // 이모지 + ISO alpha-2 코드. /api/food/ingredient-finder 에 country 로 전송.
@@ -114,9 +117,16 @@ interface ShoppingItem {
 }
 
 export default function KfoodKitPage() {
+  const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")              // 300ms 후 API 호출
   const [isPro, setIsPro] = useState(false)                               // monthly/annual/admin 통합 판별
+  const [isLoggedIn, setIsLoggedIn] = useState(false)                     // 북마크 클릭 분기 (비로그인 → StartModal)
+  const [startModalOpen, setStartModalOpen] = useState(false)
+
+  // 저장된 레시피 id Set — 카드/모달의 북마크 상태. 로그인 시 마운트 후 GET 으로 채움.
+  // optimistic 업데이트 + 서버 응답으로 보정.
+  const [savedRecipeIds, setSavedRecipeIds] = useState<Set<string>>(new Set())
 
   // 레시피 카탈로그 (Popular K-Drama Recipes 섹션) — 서버 페이지네이션
   const [recipes, setRecipes] = useState<RecipeListItem[]>([])
@@ -142,11 +152,12 @@ export default function KfoodKitPage() {
   const shoppingBoxRef = useRef<HTMLDivElement | null>(null)              // PNG 캡처 target
   const [savingImage, setSavingImage] = useState(false)
 
-  // 마운트 시 plan 권한 확인 — Pro 잠금 가드용
+  // 마운트 시 plan 권한 확인 — Pro 잠금 가드용 + 저장 레시피 hydrate
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return
+      setIsLoggedIn(true)
       const { data: profile } = await supabase
         .from("users")
         .select("plan_type, is_admin")
@@ -155,6 +166,22 @@ export default function KfoodKitPage() {
       const row = profile as { plan_type?: string; is_admin?: boolean } | null
       setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
     })
+
+    // 저장 레시피 id hydrate — 비로그인이면 401 반환되어 빈 Set 유지.
+    fetch("/api/food/collections", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return
+        const json = (await res.json().catch(() => ({}))) as {
+          items?: Array<{ recipe: { id: string } | null }>
+        }
+        const ids = (json.items ?? [])
+          .map((it) => it.recipe?.id)
+          .filter((id): id is string => typeof id === "string")
+        setSavedRecipeIds(new Set(ids))
+      })
+      .catch(() => {
+        // 비로그인 / 네트워크 에러 — 빈 Set 유지
+      })
   }, [])
 
   // 검색 디바운스 — 입력 후 300ms 안정화되면 API 재호출. 페이지 자동 1로 리셋.
@@ -271,6 +298,70 @@ export default function KfoodKitPage() {
 
   const handleClearShoppingList = () => {
     setShoppingItems([])
+  }
+
+  // 북마크 토글 — 비로그인은 StartModal, 로그인은 optimistic + API.
+  // Free 5 cap 도달 (서버 403 free_limit_reached) 시 toast 안내 + Set 롤백.
+  const handleToggleSave = async (recipeId: string) => {
+    if (!isLoggedIn) {
+      setStartModalOpen(true)
+      return
+    }
+    const wasSaved = savedRecipeIds.has(recipeId)
+
+    // optimistic 반영
+    setSavedRecipeIds((prev) => {
+      const next = new Set(prev)
+      if (wasSaved) next.delete(recipeId)
+      else next.add(recipeId)
+      return next
+    })
+
+    try {
+      if (wasSaved) {
+        const res = await fetch(
+          `/api/food/collections?recipe_id=${encodeURIComponent(recipeId)}`,
+          { method: "DELETE" }
+        )
+        if (!res.ok) throw new Error("delete_failed")
+      } else {
+        const res = await fetch("/api/food/collections", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recipe_id: recipeId }),
+        })
+        if (!res.ok) {
+          const json = (await res.json().catch(() => ({}))) as { error?: string; limit?: number }
+          if (res.status === 403 && json.error === "free_limit_reached") {
+            // 롤백
+            setSavedRecipeIds((prev) => {
+              const next = new Set(prev)
+              next.delete(recipeId)
+              return next
+            })
+            toast({
+              title: `Free saves are full (${json.limit ?? 5}).`,
+              description: "Coming with Hallyu Pass — unlimited saves at launch.",
+            })
+            return
+          }
+          throw new Error(json.error ?? "save_failed")
+        }
+      }
+    } catch (err) {
+      console.error("[food] toggle save 실패:", err)
+      // 롤백 — 서버 거부 시 원복
+      setSavedRecipeIds((prev) => {
+        const next = new Set(prev)
+        if (wasSaved) next.add(recipeId)
+        else next.delete(recipeId)
+        return next
+      })
+      toast({
+        title: "Couldn't update your saved recipes.",
+        description: "Please try again.",
+      })
+    }
   }
 
   // 재료명 클립보드 복사 — 모달에서 호출. navigator.clipboard 지원 안 되면 silent fail.
@@ -458,8 +549,9 @@ export default function KfoodKitPage() {
                     onClick={() => setActiveRecipeId(recipe.id)}
                     className="text-left bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors"
                   >
-                    {/* 이미지 — 16:9 (aspect-video) 비율 통일. object-cover 로 영역 채움. */}
-                    <div className="aspect-video bg-[#252525] flex items-center justify-center overflow-hidden">
+                    {/* 이미지 — 16:9 (aspect-video) 비율 통일. object-cover 로 영역 채움.
+                        `relative` 는 우상단 북마크 absolute 위치용 — 시각 변경 없음. */}
+                    <div className="aspect-video bg-[#252525] flex items-center justify-center overflow-hidden relative">
                       {recipe.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -471,6 +563,34 @@ export default function KfoodKitPage() {
                       ) : (
                         <span className="text-muted-foreground text-4xl">🍜</span>
                       )}
+                      {/* 북마크 — button 안 button HTML 위반 회피 위해 div role="button".
+                          stopPropagation 으로 카드 클릭(모달 오픈) 차단. */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-label={
+                          savedRecipeIds.has(recipe.id) ? "Remove from saved" : "Save recipe"
+                        }
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleToggleSave(recipe.id)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleToggleSave(recipe.id)
+                          }
+                        }}
+                        className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center hover:bg-black/75 transition-colors cursor-pointer"
+                      >
+                        {savedRecipeIds.has(recipe.id) ? (
+                          <BookmarkCheck className="w-4 h-4" style={{ color: "#FF4B6E" }} />
+                        ) : (
+                          <Bookmark className="w-4 h-4 text-white" />
+                        )}
+                      </div>
                     </div>
 
                     <div className="p-4">
@@ -848,7 +968,15 @@ export default function KfoodKitPage() {
         recipeId={activeRecipeId}
         onClose={() => setActiveRecipeId(null)}
         onCopyIngredient={handleCopyIngredient}
+        isSaved={activeRecipeId ? savedRecipeIds.has(activeRecipeId) : false}
+        onToggleSave={handleToggleSave}
       />
+
+      {/* 북마크 비로그인 클릭 시 OAuth 진입 — 모달은 in-place, navigate 없음 */}
+      <StartModal open={startModalOpen} onOpenChange={setStartModalOpen} />
+
+      {/* Toaster — root layout 미마운트 (admin 만 마운트). 비-admin 페이지엔 로컬 필요 (CLAUDE.md §7) */}
+      <Toaster />
 
       <FooterSection />
     </div>
