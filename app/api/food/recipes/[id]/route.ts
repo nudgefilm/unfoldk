@@ -20,10 +20,36 @@ import { translateRecipeContent } from "@/lib/claude/recipe-content-translate"
 // 캐시 정책: force-dynamic + 응답 헤더 no-store.
 // 첫 호출에서 번역 실패 또는 진행 중 시점 응답이 브라우저에 캐싱되면
 // DB 백필 후에도 클라이언트가 stale 응답을 재사용하는 회귀가 발생.
+//
+// 임시 진단: 응답에 `debug` 필드 포함 — 번역 실행 여부·에러·write-back 상태.
+// 브라우저 Network 탭에서 바로 확인. 동작 안정화 후 제거 예정.
 
 export const dynamic = "force-dynamic"
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" }
+
+interface DebugInfo {
+  ingredientsEnRaw: string                  // SELECT 후 row 원본 형태 (typeof + null/array/length)
+  instructionsEnRaw: string
+  needsContentTranslate: boolean            // ingredients_en/instructions_en 둘 중 하나라도 null 이면 true
+  contentTranslateRan: boolean
+  contentTranslateError: string | null
+  contentTranslateOutputLen: { ing: number; ins: number } | null
+  needsTitleTranslate: boolean
+  titleTranslateRan: boolean
+  titleTranslateError: string | null
+  writeBackKeys: string[]
+  writeBackError: string | null
+  finalIngredientsEnSample: string | null   // 응답 직전 첫 항목 (확정값 확인용)
+  finalInstructionsEnSample: string | null
+}
+
+function describeRaw(v: unknown): string {
+  if (v === null) return "null"
+  if (v === undefined) return "undefined"
+  if (Array.isArray(v)) return `array(${v.length})`
+  return `${typeof v}:${String(v).slice(0, 40)}`
+}
 
 const ParamsSchema = z.object({
   id: z.string().uuid("id must be uuid"),
@@ -146,7 +172,23 @@ export async function GET(
     .maybeSingle()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500, headers: NO_STORE_HEADERS })
+    // 0035 마이그레이션 미적용이면 PostgREST 가 'column "ingredients_en" does not exist' 류 메시지 반환.
+    const msg = error.message.toLowerCase()
+    const isColumnMissing =
+      msg.includes("column") &&
+      (msg.includes("ingredients_en") || msg.includes("instructions_en"))
+    console.error("[food/recipes/[id]] SELECT 실패", {
+      id: parsed.data.id,
+      message: error.message,
+      isColumnMissing,
+    })
+    return NextResponse.json(
+      {
+        error: error.message,
+        hint: isColumnMissing ? "migration_0035_not_applied" : null,
+      },
+      { status: 500, headers: NO_STORE_HEADERS }
+    )
   }
   if (!data) {
     return NextResponse.json({ error: "not_found" }, { status: 404, headers: NO_STORE_HEADERS })
@@ -178,6 +220,33 @@ export async function GET(
   let ingredients_en = row.ingredients_en === null ? null : normalizeStringArray(row.ingredients_en)
   let instructions_en = row.instructions_en === null ? null : normalizeStringArray(row.instructions_en)
 
+  const debug: DebugInfo = {
+    ingredientsEnRaw: describeRaw(row.ingredients_en),
+    instructionsEnRaw: describeRaw(row.instructions_en),
+    needsContentTranslate: ingredients_en === null || instructions_en === null,
+    contentTranslateRan: false,
+    contentTranslateError: null,
+    contentTranslateOutputLen: null,
+    needsTitleTranslate: !title_en,
+    titleTranslateRan: false,
+    titleTranslateError: null,
+    writeBackKeys: [],
+    writeBackError: null,
+    finalIngredientsEnSample: null,
+    finalInstructionsEnSample: null,
+  }
+
+  console.log("[food/recipes/[id]] GET 진입", {
+    id: row.id,
+    title: row.title,
+    ingredientsEnRaw: debug.ingredientsEnRaw,
+    instructionsEnRaw: debug.instructionsEnRaw,
+    needsTitleTranslate: debug.needsTitleTranslate,
+    needsContentTranslate: debug.needsContentTranslate,
+    ingredientCount: ingredients.length,
+    instructionCount: instructions.length,
+  })
+
   // ─── lazy 번역 단계 ──────────────────────────────────────────
   // (1) title/description, (2) ingredients/instructions — 각각 누락 시 병렬 호출.
   const admin = createSupabaseAdminClient()
@@ -188,6 +257,7 @@ export async function GET(
   if (!title_en) {
     tasks.push(
       (async () => {
+        debug.titleTranslateRan = true
         try {
           const summaryKo =
             typeof row.nutrition?.summary === "string" ? row.nutrition.summary : null
@@ -204,10 +274,9 @@ export async function GET(
           updatePayload.title_en = title_en
           updatePayload.description_en = description_en
         } catch (err) {
-          console.warn(
-            "[food/recipes/[id]] title translate 실패:",
-            err instanceof Error ? err.message : String(err)
-          )
+          const msg = err instanceof Error ? err.message : String(err)
+          debug.titleTranslateError = msg
+          console.error("[food/recipes/[id]] title translate 실패:", msg)
         }
       })()
     )
@@ -216,7 +285,13 @@ export async function GET(
   if (ingredients_en === null || instructions_en === null) {
     tasks.push(
       (async () => {
+        debug.contentTranslateRan = true
         try {
+          console.log("[food/recipes/[id]] content translate 시작", {
+            id: row.id,
+            ingredientCount: ingredients.length,
+            instructionCount: instructions.length,
+          })
           const result = await translateRecipeContent({
             ingredients_ko: ingredients.map((i) => i.name),
             instructions_ko: instructions.map((s) => s.instruction),
@@ -225,11 +300,18 @@ export async function GET(
           instructions_en = result.instructions_en
           updatePayload.ingredients_en = ingredients_en
           updatePayload.instructions_en = instructions_en
+          debug.contentTranslateOutputLen = {
+            ing: result.ingredients_en.length,
+            ins: result.instructions_en.length,
+          }
+          console.log("[food/recipes/[id]] content translate 성공", {
+            id: row.id,
+            ...debug.contentTranslateOutputLen,
+          })
         } catch (err) {
-          console.warn(
-            "[food/recipes/[id]] content translate 실패:",
-            err instanceof Error ? err.message : String(err)
-          )
+          const msg = err instanceof Error ? err.message : String(err)
+          debug.contentTranslateError = msg
+          console.error("[food/recipes/[id]] content translate 실패:", msg)
         }
       })()
     )
@@ -238,12 +320,19 @@ export async function GET(
   if (tasks.length > 0) {
     await Promise.all(tasks)
     if (Object.keys(updatePayload).length > 0) {
+      debug.writeBackKeys = Object.keys(updatePayload)
       const { error: upErr } = await admin
         .from("food_recipes")
         .update(updatePayload)
         .eq("id", row.id)
       if (upErr) {
-        console.warn("[food/recipes/[id]] cache write back 실패:", upErr.message)
+        debug.writeBackError = upErr.message
+        console.error("[food/recipes/[id]] cache write back 실패:", upErr.message)
+      } else {
+        console.log("[food/recipes/[id]] cache write back 성공", {
+          id: row.id,
+          keys: debug.writeBackKeys,
+        })
       }
     }
   }
@@ -262,6 +351,11 @@ export async function GET(
     tip: s.tip,
   }))
 
+  debug.finalIngredientsEnSample =
+    ingredientsWithEn.find((i) => i.name_en)?.name_en ?? null
+  debug.finalInstructionsEnSample =
+    instructionsWithEn.find((s) => s.instruction_en)?.instruction_en ?? null
+
   const detail: RecipeDetail = {
     id: row.id,
     mafra_rcp_seq: row.mafra_rcp_seq,
@@ -276,5 +370,7 @@ export async function GET(
     ingredients: ingredientsWithEn,
     instructions: instructionsWithEn,
   }
-  return NextResponse.json(detail, { headers: NO_STORE_HEADERS })
+  // detail 와 debug 를 같은 응답에 합쳐 반환. 클라이언트 (recipe-detail-dialog)
+  // 는 debug 필드를 무시하므로 schema 영향 없음.
+  return NextResponse.json({ ...detail, debug }, { headers: NO_STORE_HEADERS })
 }
