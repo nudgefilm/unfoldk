@@ -1,0 +1,34 @@
+# UnfoldK
+
+> All-in-one Hallyu platform for global K-pop, K-drama, and Korean culture fans — one subscription unlocks calendar tracking, drama discovery, Korean language learning, recipes, and travel guides.
+
+UnfoldK (https://www.unfoldk.com) is operated by **UNFOLD LAB**, an indie developer based in Korea. The platform serves global K-culture fans (primarily English-speaking and Southeast Asia) with six interconnected services. Free signup, with a **Hallyu Pass** subscription unlocking Pro features across all services.
+
+- Brand: UnfoldK ("Unfold Korea")
+- Operator: UNFOLD LAB — Korea-based indie developer
+- Target audience: Global K-culture fans (worldwide)
+- Pricing: Free tier available. Hallyu Pass subscription ($15/month or $120/year) unlocks all Pro features.
+
+## Services
+
+- [HallyuCalendar](https://www.unfoldk.com/calendar): K-pop comeback schedules and Hallyu event calendar — track artist releases, drama premieres, and global concerts in one feed.
+- [KdramaMatch](https://www.unfoldk.com/drama): K-drama discovery, personalized recommendations, and episode tracking with watchlists.
+- [HangeulGo](https://www.unfoldk.com/korean): Daily Korean language learning grounded in K-drama dialogue and real expressions.
+- [KfoodKit](https://www.unfoldk.com/food): Browse 537 Korean recipes and find substitute ingredients available in your country.
+- [Curation K](https://www.unfoldk.com/curation-k): K-drama and K-pop filming locations plus curated Korea travel guides.
+- [HallyuCalendar Events](https://www.unfoldk.com/calendar): Global Hallyu concert and event alerts — never miss a show in your city.
+
+## Key Pages
+
+- [Home](https://www.unfoldk.com/): Platform overview and signup.
+- [About](https://www.unfoldk.com/about): Company mission and team behind UnfoldK.
+- [Blog](https://www.unfoldk.com/blog): K-culture insights, drama recaps, and platform updates.
+- [Contact](https://www.unfoldk.com/contact): Get in touch with the UNFOLD LAB team.
+- [Privacy Policy](https://www.unfoldk.com/privacy)
+- [Terms of Service](https://www.unfoldk.com/terms)
+
+## Optional
+
+- [Cookie Policy](https://www.unfoldk.com/cookie)
+- [GDPR](https://www.unfoldk.com/gdpr)
+- [Careers](https://www.unfoldk.com/careers)
