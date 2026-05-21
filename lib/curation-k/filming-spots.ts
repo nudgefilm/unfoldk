@@ -47,8 +47,9 @@ export interface FilmingSpotsIngestResult {
   spotsInserted: number
   spotsConfirmed: number
   spotsPending: number
-  pendingRetried: number   // 이번 run 에서 재시도한 pending row 수
-  pendingPromoted: number  // 그 중 confirmed 승격 성공 수
+  pendingRetried: number          // 이번 run 에서 재시도한 pending row 수
+  pendingPromoted: number         // 그 중 confirmed 승격 성공 수
+  descriptionsBackfilled: number  // 이번 run 에서 spot_description NULL → 채워진 row 수 (빈 문자열 저장 포함)
   errors: string[]
   details: Array<{
     drama: string
@@ -332,6 +333,68 @@ async function mapToTourAPI(spotName: string, region: string | null) {
   return null
 }
 
+// ─── 단발 description 생성 (backfill 전용) ──────────────────────────────────
+// 기존 spot_description NULL row 보충용. drama_title + spot_name 1쌍으로 단발 호출.
+// tool_use 안 씀 — 1~2문장 텍스트만 필요하니 overkill.
+// 반환 규약:
+//   - string (비어있거나 정상) → DB 저장. 빈 문자열도 저장해야 NULL 차단 → 다음 cron 에서 재호출 X.
+//   - null → API 일시 에러 (rate limit / network). 호출자가 skip → NULL 유지 → 다음 cron 재시도.
+const BACKFILL_DESC_SYSTEM_PROMPT = `You are a K-drama filming location curator for UnfoldK.
+
+Given a Korean drama title and a filming spot name, write 1–2 concise English sentences describing the iconic scene or context filmed at this location — what fans recognize when they visit. Keep spoiler-light.
+
+Strict rules:
+- Output the description text only. No preamble, no quotes, no explanation.
+- If you don't have reliable knowledge of this specific drama or location, output the single character: 모름
+- Maximum 2 sentences. Keep concise.`
+
+async function generateSpotDescription(
+  dramaTitle: string,
+  spotName: string
+): Promise<string | null> {
+  let response: Anthropic.Message
+  try {
+    response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 256,
+      system: [
+        {
+          type: "text",
+          text: BACKFILL_DESC_SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      messages: [
+        {
+          role: "user",
+          content: `K-drama: "${dramaTitle}"\nFilming spot: "${spotName}"\n\nWrite the description.`,
+        },
+      ],
+    })
+  } catch (err) {
+    console.warn(
+      `[filming-spots] generateSpotDescription 호출 실패 "${dramaTitle} / ${spotName}":`,
+      err instanceof Error ? err.message : String(err)
+    )
+    return null
+  }
+
+  const textBlock = response.content.find(
+    (b): b is Anthropic.TextBlock => b.type === "text"
+  )
+  const raw = textBlock?.text?.trim() ?? ""
+
+  // 거부 / 모름 / 너무 짧음 → 빈 문자열 (NULL 차단해 재호출 방지)
+  if (raw.length === 0) return ""
+  if (raw === "모름") return ""
+  if (raw.length < 20) return ""
+  if (/^(i don't|i do not|i cannot|i can't|i'm not|sorry|unfortunately|i have no)/i.test(raw)) {
+    return ""
+  }
+
+  return raw.slice(0, 600)
+}
+
 export async function runFilmingSpotsIngest(): Promise<FilmingSpotsIngestResult> {
   const result: FilmingSpotsIngestResult = {
     source: "filming-spots",
@@ -342,6 +405,7 @@ export async function runFilmingSpotsIngest(): Promise<FilmingSpotsIngestResult>
     spotsPending: 0,
     pendingRetried: 0,
     pendingPromoted: 0,
+    descriptionsBackfilled: 0,
     errors: [],
     details: [],
   }
@@ -529,6 +593,57 @@ export async function runFilmingSpotsIngest(): Promise<FilmingSpotsIngestResult>
   } catch (err) {
     result.errors.push(
       `pending 재시도 블록 예외: ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
+
+  // ─── description backfill — spot_description NULL row 보충 ───────────────
+  // description 추출 코드 추가 이전에 ingest 된 기존 row (61건 예상) 가 NULL.
+  // 매 cron 10건씩 단발 호출 → 며칠 내 완결. 완결 후엔 NULL row 없어 0 호출 → no-op.
+  // Claude 가 모르는 케이스도 빈 문자열로 저장해 NULL 차단 → 무한 재호출 방지.
+  // dummy row (__no_spots_found__) 는 명시 제외.
+  const DESCRIPTION_BACKFILL_CAP = 10
+  try {
+    const { data: missingDesc, error: descErr } = await supabase
+      .from("filming_spots")
+      .select("id, drama_title, spot_name")
+      .is("spot_description", null)
+      .neq("spot_name", "__no_spots_found__")
+      .order("created_at", { ascending: true })
+      .limit(DESCRIPTION_BACKFILL_CAP)
+
+    if (descErr) {
+      result.errors.push(`description backfill 조회 실패: ${descErr.message}`)
+    } else {
+      type DescRow = { id: string; drama_title: string; spot_name: string }
+      const rows = (missingDesc ?? []) as DescRow[]
+
+      for (const row of rows) {
+        try {
+          const desc = await generateSpotDescription(row.drama_title, row.spot_name)
+          if (desc === null) continue // API 일시 에러 → NULL 유지, 다음 run 재시도
+
+          const { error: upErr } = await supabase
+            .from("filming_spots")
+            .update({ spot_description: desc })
+            .eq("id", row.id)
+
+          if (upErr) {
+            result.errors.push(
+              `description update 실패 ${row.drama_title} / ${row.spot_name}: ${upErr.message}`
+            )
+            continue
+          }
+          result.descriptionsBackfilled++
+        } catch (err) {
+          result.errors.push(
+            `description backfill 예외 ${row.spot_name}: ${err instanceof Error ? err.message : String(err)}`
+          )
+        }
+      }
+    }
+  } catch (err) {
+    result.errors.push(
+      `description backfill 블록 예외: ${err instanceof Error ? err.message : String(err)}`
     )
   }
 
