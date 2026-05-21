@@ -39,6 +39,7 @@ const ROUTES = [
   "ingest-korean-phrases",
   "ingest-food-recipes",
   "send-reminders",
+  "backfill-filming-descriptions",
 ] as const
 
 // 라우트별 한국어 표시명 — 카드 제목에 노출. 식별자는 그대로 두고 라벨만 매핑.
@@ -50,6 +51,7 @@ const ROUTE_DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
   "ingest-korean-phrases": "HangeulGo — 드라마 표현 생성",
   "ingest-food-recipes": "KfoodKit — 레시피 수집",
   "send-reminders": "send-reminders",
+  "backfill-filming-descriptions": "Curation K — 촬영지 설명 backfill",
 }
 
 // 라우트별 수동 트리거 버튼 정의 — 미지정 라우트는 단일 기본 "수동 실행" 버튼.
@@ -112,7 +114,9 @@ async function load(): Promise<LoadResult> {
               ? "생성 표현 수"
               : route === "ingest-food-recipes"
                 ? "레시피 + 이미지 매칭"
-                : "수집 이벤트"
+                : route === "backfill-filming-descriptions"
+                  ? "description 보충 수"
+                  : "수집 이벤트"
 
     const displayName = ROUTE_DISPLAY_NAMES[route]
     const actions = ROUTE_ACTIONS[route]
@@ -197,6 +201,10 @@ async function load(): Promise<LoadResult> {
     } else if (route === "send-reminders" && data.result_json) {
       const summary = (data.result_json as { summary?: { sent?: number } }).summary
       metric = (summary?.sent ?? 0).toLocaleString()
+    } else if (route === "backfill-filming-descriptions" && data.result_json) {
+      // FilmingDescriptionsBackfillResult — updated 가 카드 메트릭 (실제 채워진 row 수).
+      const r = data.result_json as { updated?: number }
+      metric = (r.updated ?? 0).toLocaleString()
     }
 
     summaries.push({

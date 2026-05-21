@@ -28,6 +28,7 @@ const PostSchema = z.object({
     "ingest-korean-phrases",
     "ingest-food-recipes",
     "send-reminders",
+    "backfill-filming-descriptions",
   ]),
   // 선택적 쿼리 파라미터 — cron 라우트가 옵션을 받을 때 (e.g. ingest-curation-k?include_filming=true)
   // 값은 모두 문자열로 직렬화. 키·값 길이는 64자 cap.

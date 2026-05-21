@@ -44,6 +44,10 @@
     {
       "path": "/api/cron/ingest-food-recipes",
       "schedule": "0 6 1 * *"
+    },
+    {
+      "path": "/api/cron/backfill-filming-descriptions",
+      "schedule": "30 4 * * *"
     }
   ]
 }

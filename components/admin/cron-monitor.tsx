@@ -286,6 +286,15 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
     return `발송 ${num(summary?.sent)}건 · ${time}`
   }
 
+  if (route === "backfill-filming-descriptions") {
+    // FilmingDescriptionsBackfillResult — scanned/updated/apiErrors/errors.
+    const errors = Array.isArray(r.errors) ? r.errors.length : 0
+    const errPart = errors > 0 ? ` · errors ${errors}` : ""
+    const apiErr = num(r.apiErrors)
+    const apiErrPart = apiErr > 0 ? ` · api-err ${apiErr}` : ""
+    return `backfill ${num(r.updated)}건 (스캔 ${num(r.scanned)})${apiErrPart}${errPart} · ${time}`
+  }
+
   return `${route} · ${time}`
 }
 
