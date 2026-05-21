@@ -2470,9 +2470,12 @@ function SpotDetailDialog({
 
   const fullAddress = [spot.address, spot.addr2].filter(Boolean).join(" ").trim()
   const hasGps = spot.latitude !== null && spot.longitude !== null
+  // Google Maps 링크 — GPS 우선, 없으면 주소로 fallback, 둘 다 없으면 버튼 미노출
   const mapsUrl = hasGps
-    ? `https://maps.google.com/?q=${spot.latitude},${spot.longitude}`
-    : null
+    ? `https://www.google.com/maps?q=${spot.latitude},${spot.longitude}`
+    : fullAddress
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`
+      : null
 
   // 탭별 모달 본문 description 선택
   //   filming  → spot_description (Claude 추출 촬영 장면)
@@ -2627,7 +2630,7 @@ function SpotDetailDialog({
               </a>
             )}
 
-            {hasGps && mapsUrl && (
+            {mapsUrl && (
               isPro ? (
                 <a
                   href={mapsUrl}
