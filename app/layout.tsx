@@ -37,6 +37,11 @@ export const metadata: Metadata = {
     description: 'Your Pass to Korean Culture',
     images: ['https://www.unfoldk.com/og-image.png'],
   },
+  verification: {
+    other: {
+      'msvalidate.01': '1443F8775AAEF86D67C4DFE27F6ACD60',
+    },
+  },
 }
 
 export default function RootLayout({
