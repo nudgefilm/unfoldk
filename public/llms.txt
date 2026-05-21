@@ -11,12 +11,12 @@ UnfoldK (https://www.unfoldk.com) is operated by **UNFOLD LAB**, an indie develo
 
 ## Services
 
-- [HallyuCalendar](https://www.unfoldk.com/calendar): K-pop comeback schedules and Hallyu event calendar — track artist releases, drama premieres, and global concerts in one feed.
+- [HallyuCalendar](https://www.unfoldk.com/calendar): K-pop comeback schedules and global Hallyu event calendar — track artist releases, drama premieres, and worldwide concerts in one feed.
 - [KdramaMatch](https://www.unfoldk.com/drama): K-drama discovery, personalized recommendations, and episode tracking with watchlists.
 - [HangeulGo](https://www.unfoldk.com/korean): Daily Korean language learning grounded in K-drama dialogue and real expressions.
 - [KfoodKit](https://www.unfoldk.com/food): Browse 537 Korean recipes and find substitute ingredients available in your country.
 - [Curation K](https://www.unfoldk.com/curation-k): K-drama and K-pop filming locations plus curated Korea travel guides.
-- [HallyuCalendar Events](https://www.unfoldk.com/calendar): Global Hallyu concert and event alerts — never miss a show in your city.
+- [KpopStats](https://www.unfoldk.com/kpop): K-pop artist global charts and statistics — YouTube subscribers, Last.fm listeners, weekly trends.
 
 ## Key Pages
 
