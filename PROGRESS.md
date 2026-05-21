@@ -4,6 +4,124 @@
 
 ---
 
+## 현재 상태 (2026-05-21 세션 20 / KfoodKit·Curation K 운영 안정화 + HallyuBot·LMS 외부 트랙 + SEO/AI 검색 기초 인프라)
+
+> 운영 관점 마감 세션. 신규 기능 개발은 최소화하고 ① KfoodKit·Curation K 데이터 backfill 상태 확정, ② HallyuBot top.gg 제출, ③ Lemon Squeezy 재심사 답변, ④ Discord 커뮤니티 홍보 자산, ⑤ Google·Bing 검색 등록 + AI 검색 (llms.txt) 인프라 + 블로그 페이지네이션을 한 묶음으로 정리. 블로커 트랙 (top.gg / LMS / Google 색인) 은 모두 외부 응답 대기로 전환.
+>
+> commits: `86f16b3` → `c5eda19` → `dbe50aa` → `f01bf0b` → `1fc94f8` → `c5cba28` → `6e7d25d` → `bb49344` → `24d26a4`.
+
+### 완료
+
+#### A. KfoodKit 상태 확인
+
+- 마이그레이션 5개 (`0030_kfoodkit.sql` ~ `0034_food_admin.sql`) 전체 적용 확인.
+- `0035_food_recipes_content_translations.sql` 까지 적용 완료. 세션 19 인프라 동결 상태 검증.
+- `title_en` 537/537 완료 — 모든 레시피 영문 제목 노출.
+- `ingredients_en` 530/537 — 잔여 7개는 `/api/food/recipes/[id]` lazy 번역으로 자연 채워질 예정. 별도 cron 트리거 불필요.
+
+#### B. filming_spots description backfill — 별도 cron 분리
+
+- **증상** — Curation K 통합 cron (`/api/cron/curation-k-festivals` / `/api/cron/curation-k-spots`) 가 300초 timeout 으로 중간에 잘리며 `spot_description` backfill 이 매번 미완 (48/61 까지만 처리).
+- **확진** — Vercel Functions 로그에서 `Vercel Runtime Timeout Error: Task timed out after 300 seconds` 직접 확인. Vercel 함수 maxDuration 300s 한계 + Claude Haiku 호출 + TourAPI enrichment + filming description 생성이 한 cron 안에서 직렬 실행. festival·tour·filming 트랙 중 가장 마지막인 description backfill 이 timeout 에 잘림.
+- **해결** — `app/api/cron/backfill-filming-descriptions/route.ts` 신설. filming description 만 단일 책임으로 분리하고 vercel.json schedule `30 4 * * *` (UTC 04:30 = KST 13:30) 추가.
+- 잔여 13개는 내일 (2026-05-22 KST 13:30) 첫 실행에서 자동 처리 예정 (cap/run 충분).
+
+#### C. Curation K — SpotDetailDialog Google Maps 버튼 주소 fallback
+
+- 좌표 (`latitude`/`longitude`) 가 있는 spot 만 Google Maps 버튼 노출되던 상태에서, 좌표 없는 spot 도 주소 (`addr1` + `addr2`) 기반 검색 URL fallback 으로 GMaps 연결.
+  · 좌표 있음 → `https://maps.google.com/?q={lat},{lng}`
+  · 좌표 없음 → `https://maps.google.com/?q={encodeURIComponent(addr1 + addr2)}`
+- 한국어 주소 텍스트는 GMaps 검색이 자동 정규화 — 별도 영문 변환 없이 유지.
+- Pro 게이팅 (`isPro` blur 오버레이) 은 그대로 — fallback 도 동일하게 Pro 가시화 조건 적용.
+
+#### D. HallyuBot — top.gg 제출
+
+- **에셋** — 배너 (1280×720) + 아바타 (512×512). 핑크 그라데이션 (#FF4B6E 베이스) + UnfoldK 원형 로고. brand 색 일관성 (DECISIONS.md §브랜드 컬러).
+- **Discord Developer Portal** — 아바타 교체 완료. 채널·서버 알림에서 신규 아바타 노출.
+- **top.gg 심사 제출** — 봇 설명·태그·초대 링크·소유자 본인 인증 완료. 심사 응답 1~2주 대기 (외부 의존).
+
+#### E. Lemon Squeezy 재심사 요청
+
+- **이전 거절 사유** — "서비스 불가" (LMS 측 판정).
+- **재답변** — SaaS 디지털 플랫폼임을 명시 + Stripe 한국 법인 결제 미지원 사유 (운영사 UNFOLD LAB 가 한국 법인) 첨부. K-culture 글로벌 구독 모델 + 한류 팬 타겟 영문 설명 포함.
+- 응답 대기 중. 거절 시 fallback 으로 Paddle 전환 검토 (carry-over).
+
+#### F. Discord 커뮤니티 홍보 자산 준비
+
+- **서버 유형별 포스팅 템플릿 4종** — K-pop / K-drama / 한국어 학습 / 종합 한류. 각 템플릿이 해당 커뮤니티 관심사에 맞는 UnfoldK 서비스 (KpopStats / KdramaMatch / HangeulGo / 통합) 를 첫 줄에 노출하도록 작성.
+- **관리자 DM 영문 최종본** — Jaewoo (운영자) 서명. 봇 초대 권유 + 무료 채용 ROI 강조.
+- **HallyuBot OAuth2 초대 링크** — 권한 scope 확정 + 생성 완료. 4 템플릿에 같은 링크 임베드.
+
+#### G. SEO 등록 — Google Search Console + Bing Webmaster Tools
+
+- **Google Search Console** — 소유권 확인 (Verification meta tag) 완료. sitemap 제출까지 완료, 색인 생성 1~2주 대기.
+- **`app/sitemap.ts` 신설** — Next.js Metadata Sitemap API. 15페이지 등록:
+  · priority 1.0 weekly: `/`
+  · 0.9 daily: `/calendar` `/kpop`
+  · 0.9 weekly: `/drama` `/korean` `/food` `/curation-k`
+  · 0.8 weekly: `/blog`
+  · 0.7 monthly: `/about`
+  · 0.5 monthly: `/careers` `/contact`
+  · 0.3 yearly: `/privacy` `/terms` `/cookie` `/gdpr`
+- **`app/robots.ts` 신설** — User-Agent `*` allow `/`, disallow `/admin` `/api` `/mypage`, sitemap 위치 명시.
+- **Bing Webmaster Tools** — `<meta name="msvalidate.01" …>` 를 `app/layout.tsx` Metadata API `verification.other` 필드로 주입. 소유권 확인 + sitemap 제출 완료.
+
+#### H. AI 검색 최적화 — llms.txt
+
+- **`public/llms.txt` 신설** — single source of truth. 영문 Markdown. 6개 서비스 (HallyuCalendar · KdramaMatch · HangeulGo · KfoodKit · Curation K · KpopStats) + 주요 페이지 URL + 운영사·가격·타겟 정보 포함.
+- **`app/llms-txt/route.ts` 동적 라우트** — `public/llms.txt` 를 fs 로 읽어 `text/plain` 반환 + `Cache-Control: public, max-age=3600, s-maxage=86400`. 정적·동적 두 엔드포인트 모두 동일 콘텐츠 보장.
+- 노출 URL: `/llms.txt` (정적) + `/llms-txt` (동적).
+- **사후 정정** — 초안에 `HallyuCalendar Events` 가 1번과 중복으로 들어가 있어 6번 항목을 `KpopStats` 로 교체 (`24d26a4`).
+
+#### I. 블로그 페이지네이션
+
+- `app/blog/page.tsx` 페이지네이션 추가 — `POSTS_PER_PAGE=12`. `?page=N` 쿼리 방식 (뒤로가기·공유·SEO 호환).
+- food 페이지 `getPaginationItems(current, total)` 헬퍼 패턴 그대로 이식 — 첫·마지막 페이지 + 현재 ±2 + ellipsis, edge 보정 (current ≤ 4 / current ≥ total-3).
+- 현재 페이지: `<span aria-current="page">` + brand `#FF4B6E` + 흰 글씨 (클릭 불가, 의미 명확). Prev/Next 끝 도달 시 `<span aria-disabled>` 비활성.
+- 1페이지는 `?page=1` 대신 canonical `/blog` URL — 중복 인덱싱 방지.
+- App Router `<Link>` 기본 `scroll=true` 가 query-only 변경에도 동작 → 페이지 변경 시 상단 자동 이동 (별도 코드 불필요).
+- `export const dynamic = "force-static"` 제거 — `searchParams` 사용으로 자동 dynamic 전환. async server component + `searchParams: Promise<{ page?: string }>` (Next.js 15.2 시그니처).
+- 현재 블로그 포스트 7개 — 12개 초과 시 페이지네이션 자동 노출.
+
+### 신규 의존성
+
+- 없음.
+
+### 환경변수
+
+- 신규 없음.
+
+### 사용자 액션 필요
+
+1. **Vercel 운영 env 확인** — Bing meta tag·sitemap·robots·llms.txt 는 모두 코드 레벨, env 의존성 없음. 배포 후 다음 도메인 응답 확인:
+   · `https://www.unfoldk.com/sitemap.xml` (15페이지)
+   · `https://www.unfoldk.com/robots.txt` (sitemap 라인 포함)
+   · `https://www.unfoldk.com/llms.txt` + `/llms-txt`
+   · `<head>` 에 `<meta name="msvalidate.01" content="1443F8775AAEF86D67C4DFE27F6ACD60">` 포함
+2. **filming_spots backfill cron 모니터링** — 내일 (2026-05-22) KST 13:30 첫 실행 후 `/admin/cron` Curation K 카드 또는 Supabase `select count(*) from filming_spots where spot_description is null` 으로 잔여 0 확인.
+3. **top.gg 심사 결과 회신 수신 시** — 통과면 봇 공개 페이지 운영 + 슬래시 명령 (/calendar /today /notify) 추가 (carry-over).
+4. **LMS 재심사 결과 회신 시** — 통과면 결제 가동 + CLAUDE.md §6 "결제 연동 전 임시 Free 확대 정책" 표 일괄 복원. 거절이면 Paddle 전환 (별도 세션).
+
+### 다음 세션 후보
+
+- **filming_spots backfill 잔여 13개 처리 검증** — 2026-05-22 cron 실행 후 누적 0 확인.
+- **Google 색인 생성 모니터링** — 1~2주 내 `site:unfoldk.com` 결과 노출 시작. 부진하면 sitemap priority/changeFrequency 조정.
+- **블로그 이미지 중복 개선** (세션 19 carry-over) — Unsplash per_page 15 + 최근 30 포스트 슬러그 제외 적용 후에도 중복 case 모니터링. 매칭 룰 보강 또는 별도 캐시 고려.
+- **푸터 국가 통계** (세션 19 carry-over) — 사용자 분포 stat 노출 검토.
+- **KdramaMatch Phase 2** (세션 19 carry-over) — TMDB 추가 enrichment, Claude 에피소드 요약·캐릭터 관계도 Pro 잠금 해제.
+- **결제 가동 시 복원** (세션 19 carry-over) — LMS 통과 시 CLAUDE.md §6 임시 정책 표 전체 원복 + KfoodKit My Shopping List Pro 잠금 + 컬렉션 Free cap 카피 회귀.
+
+이전 세션 carry-over 유지: famous-dramas ↔ dramas 매칭 실측 검증 · 모달 attribution 가이드라인 (mfds/manual/upload 표기 검토) · 블로그 cron 운영 안정화 · 세션 13 carry-over (메인 페이지 hang + Ghost Globe 미작동).
+
+### 블로커
+
+- **top.gg 심사 1~2주 대기** — 외부 의존 (세션 15 carry-over 연장).
+- **LMS 재심사 결과 대기** — 외부 의존. 거절 시 Paddle 전환 트랙 발동.
+- **Google 색인 생성 1~2주 대기** — 외부 의존 (신규).
+- 세션 13 carry-over — 메인 페이지 hang + Ghost Globe 미작동.
+
+---
+
 ## 현재 상태 (2026-05-20 세션 19 / KfoodKit Phase 1~3 + 페이지네이션 · 마이페이지 stat · 캘린더 모달 자동 오픈)
 
 > KfoodKit 을 "soon" 상태에서 **live 출시 단계로 전환**. 단일 세션 안에서 5 단계 인프라 + UX 구축:
