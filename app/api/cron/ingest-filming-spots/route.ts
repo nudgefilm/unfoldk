@@ -4,7 +4,7 @@ import { verifyCronAuth } from "@/lib/cron/auth"
 import { recordCronLog } from "@/lib/cron/log"
 import { runFilmingSpotsIngest } from "@/lib/curation-k/filming-spots"
 
-export const maxDuration = 120
+export const maxDuration = 300
 export const dynamic = "force-dynamic"
 
 // /api/cron/ingest-filming-spots — 매일 03:00 UTC (= 12:00 KST)

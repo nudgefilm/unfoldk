@@ -6,7 +6,7 @@ import { runTicketmasterIngest } from "@/lib/ingest/ticketmaster"
 // HallyuCalendar (M+0) — Ticketmaster 글로벌 K팝 공연 인제스트
 // vercel.json: 매일 UTC 06:30 (= KST 15:30)
 // 수동 호출: Authorization: Bearer ${CRON_SECRET}
-export const maxDuration = 120
+export const maxDuration = 300
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {

@@ -19,19 +19,25 @@ export const maxDuration = 300
 //   3. 본 enum
 //   4. components/admin/cron-monitor.tsx summarizeRunResult
 //   네 곳을 함께 갱신해야 어드민 수동 실행이 정상 동작 (enum 누락 시 zod 400 → "Object Object").
+
+// 270s — 300s 만료 직전에 먼저 끊어 클라이언트에 명확한 응답 반환.
+// 타임아웃 시 { ok: true, timedOut: true } 반환 → UI 가 "백그라운드 실행 중" toast 노출.
+const INNER_TIMEOUT_MS = 270_000
+
 const PostSchema = z.object({
   route: z.enum([
     "ingest-all",
     "ingest-ticketmaster",
     "ingest-kpop-stats",
     "ingest-tmdb-dramas",
-    "ingest-curation-k",
+    "ingest-tour-spots",
+    "ingest-filming-kpop",
     "ingest-korean-phrases",
     "ingest-food-recipes",
     "send-reminders",
     "backfill-filming-descriptions",
   ]),
-  // 선택적 쿼리 파라미터 — cron 라우트가 옵션을 받을 때 (e.g. ingest-curation-k?include_filming=true)
+  // 선택적 쿼리 파라미터 — cron 라우트가 옵션을 받을 때 (e.g. ingest-tour-spots?only_festivals=true)
   // 값은 모두 문자열로 직렬화. 키·값 길이는 64자 cap.
   params: z
     .record(z.string().max(64), z.string().max(64))
@@ -47,8 +53,6 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
   const parsed = PostSchema.safeParse(body)
   if (!parsed.success) {
-    // flatten 객체를 그대로 반환하면 클라이언트가 .toString() 으로 "[object Object]" 변환
-    // → 사람이 읽을 수 있는 문자열로 압축 (route 값 문제가 가장 흔함)
     const issues = parsed.error.issues
       .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
       .join("; ")
@@ -66,18 +70,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "CRON_SECRET 미설정" }, { status: 500 })
   }
 
-  // 베이스 URL: 프로덕션은 NEXT_PUBLIC_APP_URL, 로컬은 요청 origin
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin
   const params = parsed.data.params ?? {}
   const qs = new URLSearchParams(params).toString()
   const targetUrl = `${appUrl}/api/cron/${parsed.data.route}${qs ? `?${qs}` : ""}`
 
   const t0 = Date.now()
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), INNER_TIMEOUT_MS)
+
   try {
     const res = await fetch(targetUrl, {
       headers: { Authorization: `Bearer ${cronSecret}` },
       cache: "no-store",
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
     const json = await res.json().catch(() => ({}))
     return NextResponse.json({
       ok: res.ok,
@@ -86,6 +94,16 @@ export async function POST(request: Request) {
       result: json,
     })
   } catch (err) {
+    clearTimeout(timeoutId)
+    // AbortError = 270s 타임아웃 — cron 자체는 백그라운드에서 계속 실행 중
+    if (err instanceof Error && err.name === "AbortError") {
+      return NextResponse.json({
+        ok: true,
+        timedOut: true,
+        elapsedMs: Date.now() - t0,
+        result: null,
+      })
+    }
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "fetch 실패" },
       { status: 500 }

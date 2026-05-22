@@ -53,6 +53,19 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
       //   - HTTP 非200 또는 admin 프록시 실패 = "실행 실패" 라벨
       // 주의: HTTP 200 이지만 cron 함수 내부에서 result.error 가 set 된 경우,
       //       제목은 "실행 완료" 유지 + description 에 오류 사유 노출 (DB 로그도 "failed" 기록됨).
+      // 270s 타임아웃 — cron 자체는 백그라운드에서 계속 실행 중
+      if (json.timedOut) {
+        toast({
+          title: "실행 시간 초과",
+          description: "백그라운드에서 계속 실행 중일 수 있습니다. 잠시 후 페이지를 새로고침하세요.",
+        })
+        return
+      }
+
+      // 성공 판별 정책 (모든 cron 통일):
+      //   - HTTP 200 (json.ok=true) = 함수 정상 종료 → "실행 완료" 라벨
+      //     data-level 오류는 result.error 로 description 에 노출
+      //   - HTTP 非200 또는 admin 프록시 실패 = "실행 실패" 라벨
       const httpFailed = !res.ok || !json.ok
       const dataLevelError = pickErrorString(json.result)
       const outerError = pickErrorString(json.error)
@@ -66,7 +79,6 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
 
       const summary = summarizeRunResult(route, json.result, json.elapsedMs)
       if (dataLevelError) {
-        // HTTP 200 + data-level error — 함수 자체는 동작했지만 인제스트 결과에 오류
         console.warn(`[admin/cron] ${route} data-level 오류:`, json.result)
         toast({
           title: "실행 완료 (데이터 오류)",
@@ -202,31 +214,32 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
 
   const r = result as Record<string, unknown>
 
-  if (route === "ingest-curation-k") {
-    // CombinedResult — { stage, total_upserted, total_translated, total_enriched, categories[], filming, kpop, errors }
-    const stage = typeof r.stage === "string" ? r.stage : "all"
+  if (route === "ingest-tour-spots") {
+    // TourSpotsIngestResult — { total_upserted, total_translated, total_enriched, categories[], errors }
     const upserted = num(r.total_upserted)
     const translated = num(r.total_translated)
     const enriched = num(r.total_enriched)
     const cats = Array.isArray(r.categories) ? r.categories : []
     const skipped = cats.filter((c) => (c as { skipped?: unknown }).skipped === true).length
-    const filming = r.filming as { spotsInserted?: number } | null | undefined
-    const kpop = r.kpop as { spotsUpserted?: number } | null | undefined
-    const filmPart =
-      filming && typeof filming === "object"
-        ? ` · 촬영지 신규 ${num(filming.spotsInserted)}`
-        : ""
-    const kpopPart =
-      kpop && typeof kpop === "object"
-        ? ` · K-Pop 성지 신규 ${num(kpop.spotsUpserted)}`
-        : ""
     const enrichedPart = enriched > 0 ? ` · enrich ${enriched}` : ""
     const translatedPart = translated > 0 ? ` · 번역 ${translated}` : ""
     const skipPart = skipped > 0 ? ` · skip ${skipped}` : ""
     const errors = Array.isArray(r.errors) ? r.errors.length : 0
     const errPart = errors > 0 ? ` · errors ${errors}` : ""
-    const stagePart = stage !== "all" ? ` [${stage}]` : ""
-    return `${upserted}건 수집${stagePart}${enrichedPart}${translatedPart}${skipPart}${filmPart}${kpopPart}${errPart} · ${time}`
+    return `${upserted}건 수집${enrichedPart}${translatedPart}${skipPart}${errPart} · ${time}`
+  }
+
+  if (route === "ingest-filming-kpop") {
+    // CombinedResult — { filming, kpop, errors }
+    const filming = r.filming as { spotsInserted?: number } | null | undefined
+    const kpop = r.kpop as { spotsUpserted?: number; claude?: { upserted?: number } | null } | null | undefined
+    const filmCount = filming && typeof filming === "object" ? num(filming.spotsInserted) : 0
+    const kpopCount = kpop && typeof kpop === "object" ? num(kpop.spotsUpserted) : 0
+    const claudeCount = kpop?.claude && typeof kpop.claude === "object" ? num(kpop.claude.upserted) : 0
+    const claudePart = claudeCount > 0 ? ` · Claude +${claudeCount}` : ""
+    const errors = Array.isArray(r.errors) ? r.errors.length : 0
+    const errPart = errors > 0 ? ` · errors ${errors}` : ""
+    return `촬영지 ${filmCount}건 · K팝 성지 ${kpopCount}건${claudePart}${errPart} · ${time}`
   }
 
   if (route === "ingest-ticketmaster") {

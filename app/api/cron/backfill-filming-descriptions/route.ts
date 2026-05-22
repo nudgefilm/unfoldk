@@ -4,7 +4,7 @@ import { verifyCronAuth } from "@/lib/cron/auth"
 import { recordCronLog } from "@/lib/cron/log"
 import { runFilmingDescriptionsBackfill } from "@/lib/curation-k/backfill-filming-descriptions"
 
-export const maxDuration = 120
+export const maxDuration = 300
 export const dynamic = "force-dynamic"
 
 // /api/cron/backfill-filming-descriptions — 매일 04:30 UTC (= 13:30 KST)

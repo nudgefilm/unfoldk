@@ -30,13 +30,14 @@ interface RouteSummary {
 
 // KOPIS 는 2026-05-16 폐기 (글로벌 유저 부적합). 과거 cron_logs 의 'ingest-kopis' 행은
 // 화면에 노출 안 됨 — 필요 시 SQL 로 정리.
-// ingest-filming-spots 는 2026-05-18 ingest-curation-k 에 흡수 (?include_filming=true 로 수동 실행).
+// ingest-curation-k 는 2026-05-22 ingest-tour-spots + ingest-filming-kpop 으로 분리됨.
 const ROUTES = [
   "ingest-all",
   "ingest-ticketmaster",
   "ingest-kpop-stats",
   "ingest-tmdb-dramas",
-  "ingest-curation-k",
+  "ingest-tour-spots",
+  "ingest-filming-kpop",
   "ingest-korean-phrases",
   "ingest-food-recipes",
   "send-reminders",
@@ -49,7 +50,8 @@ const ROUTE_DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
   "ingest-ticketmaster": "ingest-ticketmaster",
   "ingest-kpop-stats": "KpopStats — 아티스트 통계 수집",
   "ingest-tmdb-dramas": "KdramaMatch — TMDB 드라마 수집",
-  "ingest-curation-k": "Curation K 통합 수집",
+  "ingest-tour-spots": "Curation K — TourAPI 수집",
+  "ingest-filming-kpop": "Curation K — 촬영지 + K팝 성지",
   "ingest-korean-phrases": "HangeulGo — 드라마 표현 생성",
   "ingest-food-recipes": "KfoodKit — 레시피 수집",
   "send-reminders": "send-reminders",
@@ -57,9 +59,12 @@ const ROUTE_DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
 }
 
 // 라우트별 수동 트리거 버튼 정의 — 미지정 라우트는 단일 기본 "수동 실행" 버튼.
-// ingest-curation-k (2026-05-19): tour_spots + filming_spots + kpop_spots 항상 전체
-// 실행하도록 통합 → 분기 옵션 제거.
-const ROUTE_ACTIONS: Partial<Record<(typeof ROUTES)[number], CronAction[]>> = {}
+const ROUTE_ACTIONS: Partial<Record<(typeof ROUTES)[number], CronAction[]>> = {
+  "ingest-tour-spots": [
+    { label: "축제만 (빠른)", params: { only_festivals: "true" } },
+    { label: "전체 카테고리" },
+  ],
+}
 
 type LoadResult =
   | { ok: true; summaries: RouteSummary[]; logs: CronLogRow[] }
@@ -99,28 +104,24 @@ async function load(): Promise<LoadResult> {
       return { ok: false, error: formatPostgrestError(sumError) }
     }
 
-    // 라우트별 메트릭 라벨:
-    //   send-reminders     → 발송 수
-    //   curation-k         → tour_spots 신규/변경
-    //   tmdb-dramas        → 드라마 수집
-    //   korean-phrases     → 생성 표현 수
-    //   나머지 ingest-*     → 수집 이벤트
     const metricLabel =
       route === "send-reminders"
         ? "발송 수"
-        : route === "ingest-curation-k"
+        : route === "ingest-tour-spots"
           ? "tour_spots 신규/변경"
-          : route === "ingest-tmdb-dramas"
-            ? "드라마 수집"
-            : route === "ingest-kpop-stats"
-              ? "아티스트 갱신"
-              : route === "ingest-korean-phrases"
-                ? "생성 표현 수"
-                : route === "ingest-food-recipes"
-                  ? "레시피 + 이미지 매칭"
-                  : route === "backfill-filming-descriptions"
-                    ? "description 보충 수"
-                    : "수집 이벤트"
+          : route === "ingest-filming-kpop"
+            ? "촬영지 + K팝 성지 신규"
+            : route === "ingest-tmdb-dramas"
+              ? "드라마 수집"
+              : route === "ingest-kpop-stats"
+                ? "아티스트 갱신"
+                : route === "ingest-korean-phrases"
+                  ? "생성 표현 수"
+                  : route === "ingest-food-recipes"
+                    ? "레시피 + 이미지 매칭"
+                    : route === "backfill-filming-descriptions"
+                      ? "description 보충 수"
+                      : "수집 이벤트"
 
     const displayName = ROUTE_DISPLAY_NAMES[route]
     const actions = ROUTE_ACTIONS[route]
@@ -157,24 +158,17 @@ async function load(): Promise<LoadResult> {
     } else if (route === "ingest-ticketmaster" && data.result_json) {
       const r = data.result_json as { upserted?: number }
       metric = (r.upserted ?? 0).toLocaleString()
-    } else if (route === "ingest-curation-k" && data.result_json) {
-      // CombinedResult — stage 따라 메트릭 선택.
-      //   festivals → tour_spots 신규/변경 row 합 (FESTIVAL 카테고리만)
-      //   all       → tour_spots 신규/변경 row 합 + filming + kpop
+    } else if (route === "ingest-tour-spots" && data.result_json) {
+      const r = data.result_json as { total_upserted?: number }
+      metric = (r.total_upserted ?? 0).toLocaleString()
+    } else if (route === "ingest-filming-kpop" && data.result_json) {
       const r = data.result_json as {
-        stage?: string
-        total_upserted?: number
         filming?: { spotsInserted?: number } | null
         kpop?: { spotsUpserted?: number } | null
       }
-      const tour = r.total_upserted ?? 0
-      if (r.stage === "festivals") {
-        metric = tour.toLocaleString()
-      } else {
-        const film = r.filming?.spotsInserted ?? 0
-        const kpop = r.kpop?.spotsUpserted ?? 0
-        metric = (tour + film + kpop).toLocaleString()
-      }
+      const film = r.filming?.spotsInserted ?? 0
+      const kpop = r.kpop?.spotsUpserted ?? 0
+      metric = (film + kpop).toLocaleString()
     } else if (route === "ingest-kpop-stats" && data.result_json) {
       // KpopStatsIngestResult — upserted = 오늘 kpop_stats_daily 갱신 row 수 (= 활성 아티스트).
       const r = data.result_json as { upserted?: number }

@@ -19,7 +19,7 @@ import {
 //   1) MAFRA 전체 537건 + 재료 6,104 + 과정 3,022 페치 → food_recipes upsert
 //   2) MFDS COOKRCP01 매칭 (P1) + Claude 정규화 후 재매칭 (P2) + Unsplash fallback (P3)
 //   3) title_en/description_en 배치 backfill (cap 30/run, 누적)
-export const maxDuration = 240
+export const maxDuration = 300
 export const dynamic = "force-dynamic"
 
 interface CombinedPayload {
