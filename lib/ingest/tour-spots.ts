@@ -39,7 +39,11 @@ import {
 
 const client = new Anthropic()
 
-const ITEMS_PER_AREA = 30
+// TourAPI 최대값 100. 비축제는 area당 100건으로 충분.
+// 축제는 인기 지역 수백 건 가능 → 아래 페이지네이션 루프로 전부 수집.
+const ITEMS_PER_AREA = 100
+// 축제 지역당 최대 페이지 수 (안전 cap) — 100 × 10 = 지역당 최대 1,000건
+const MAX_FESTIVAL_PAGES_PER_AREA = 10
 // 통합 cap — 한 row 가 title + overview 둘 다 번역해도 1 카운트.
 // row 당 최대 Claude 호출 2건 → cron 한 번에 최대 600 Claude 호출.
 // 2026-05-22 100 → 300 상향 — backfill 클리어 속도를 끌어올리려는 목적.
@@ -246,16 +250,23 @@ async function runCategory(
 
   for (const areaCode of ALL_AREA_CODES) {
     try {
-      let items: TourItem[]
+      const items: TourItem[] = []
       if (config.contentTypeId === CONTENT_TYPE.FESTIVAL) {
-        const res = await searchFestival({
-          eventStartDate: eventStart,
-          eventEndDate: eventEnd,
-          areaCode,
-          numOfRows: ITEMS_PER_AREA,
-          pageNo: 1,
-        })
-        items = res.items
+        // 축제는 인기 지역에 수백 건이 등록돼 있을 수 있어 페이지네이션 필요.
+        // 응답이 ITEMS_PER_AREA 미만이면 마지막 페이지 → 루프 종료.
+        let pageNo = 1
+        while (pageNo <= MAX_FESTIVAL_PAGES_PER_AREA) {
+          const res = await searchFestival({
+            eventStartDate: eventStart,
+            eventEndDate: eventEnd,
+            areaCode,
+            numOfRows: ITEMS_PER_AREA,
+            pageNo,
+          })
+          items.push(...res.items)
+          if (res.items.length < ITEMS_PER_AREA) break
+          pageNo++
+        }
       } else {
         const res = await areaBasedList({
           contentTypeId: config.contentTypeId,
@@ -263,7 +274,7 @@ async function runCategory(
           numOfRows: ITEMS_PER_AREA,
           pageNo: 1,
         })
-        items = res.items
+        items.push(...res.items)
       }
       result.fetched += items.length
 
