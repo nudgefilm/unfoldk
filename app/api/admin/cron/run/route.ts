@@ -47,6 +47,7 @@ const PostSchema = z.object({
 export async function POST(request: Request) {
   const auth = await requireAdmin()
   if (!auth.ok) {
+    console.warn("[admin/cron/run] auth 실패:", auth.reason)
     return NextResponse.json({ error: auth.reason }, { status: auth.reason === "unauthenticated" ? 401 : 403 })
   }
 
@@ -56,6 +57,7 @@ export async function POST(request: Request) {
     const issues = parsed.error.issues
       .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
       .join("; ")
+    console.warn("[admin/cron/run] zod parse 실패:", issues, "| receivedRoute:", (body as { route?: unknown })?.route)
     return NextResponse.json(
       {
         error: `invalid_body: ${issues}`,
@@ -67,6 +69,7 @@ export async function POST(request: Request) {
 
   const cronSecret = process.env.CRON_SECRET
   if (!cronSecret) {
+    console.error("[admin/cron/run] CRON_SECRET 미설정")
     return NextResponse.json({ error: "CRON_SECRET 미설정" }, { status: 500 })
   }
 
@@ -74,6 +77,8 @@ export async function POST(request: Request) {
   const params = parsed.data.params ?? {}
   const qs = new URLSearchParams(params).toString()
   const targetUrl = `${appUrl}/api/cron/${parsed.data.route}${qs ? `?${qs}` : ""}`
+
+  console.log("[admin/cron/run] fetch 시작 →", targetUrl)
 
   const t0 = Date.now()
   const controller = new AbortController()
@@ -86,6 +91,7 @@ export async function POST(request: Request) {
       signal: controller.signal,
     })
     clearTimeout(timeoutId)
+    console.log("[admin/cron/run] fetch 완료 status:", res.status, "elapsed:", Date.now() - t0, "ms")
     const json = await res.json().catch(() => ({}))
     return NextResponse.json({
       ok: res.ok,
@@ -97,6 +103,7 @@ export async function POST(request: Request) {
     clearTimeout(timeoutId)
     // AbortError = 270s 타임아웃 — cron 자체는 백그라운드에서 계속 실행 중
     if (err instanceof Error && err.name === "AbortError") {
+      console.log("[admin/cron/run] 270s 타임아웃 — cron 백그라운드 실행 중")
       return NextResponse.json({
         ok: true,
         timedOut: true,
@@ -104,6 +111,7 @@ export async function POST(request: Request) {
         result: null,
       })
     }
+    console.error("[admin/cron/run] fetch 예외:", err instanceof Error ? err.message : err)
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "fetch 실패" },
       { status: 500 }

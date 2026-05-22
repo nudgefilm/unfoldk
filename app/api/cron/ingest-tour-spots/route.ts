@@ -16,13 +16,17 @@ export const dynamic = "force-dynamic"
 //   매주 월요일 03:30 UTC → 전체 5개 카테고리
 
 export async function GET(request: Request) {
+  console.log("[cron/ingest-tour-spots] GET 수신:", request.url)
+
   const auth = verifyCronAuth(request)
   if (!auth.ok) {
+    console.warn("[cron/ingest-tour-spots] auth 실패:", auth.reason)
     return NextResponse.json({ error: auth.reason, debug: auth.debug }, { status: 401 })
   }
 
   const { searchParams } = new URL(request.url)
   const onlyFestivals = searchParams.get("only_festivals") === "true"
+  console.log("[cron/ingest-tour-spots] auth ok | onlyFestivals:", onlyFestivals)
 
   let result: Awaited<ReturnType<typeof runTourSpotsIngest>>
   try {
