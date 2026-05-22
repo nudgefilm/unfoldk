@@ -2571,9 +2571,11 @@ function SpotDetailDialog({
         if (!open) onClose()
       }}
     >
-      <DialogContent className="bg-[#141416] border-[#2a2a2a] text-foreground max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-        {/* 이미지 갤러리 — key 없이 src 직접 교체 (unmount 재로딩 회피) */}
-        <div className="relative bg-[#252525] aspect-[16/9] flex items-center justify-center overflow-hidden">
+      <DialogContent className="bg-[#141416] border-[#2a2a2a] text-foreground max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        {/* 이미지 갤러리 — 모달 상단 고정 (스크롤 대상 아님).
+            flex-shrink-0 로 본문이 길어져도 이미지 영역 압축 안 됨.
+            key 없이 src 직접 교체 (unmount 재로딩 회피). */}
+        <div className="relative bg-[#252525] aspect-[16/9] flex-shrink-0 flex items-center justify-center overflow-hidden">
           {images.length > 0 ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -2646,7 +2648,9 @@ function SpotDetailDialog({
           )}
         </div>
 
-        <div className="p-6">
+        {/* 본문 — 이 영역만 스크롤. flex-1 + min-h-0 조합이 flex 자식 overflow-y-auto 를 살림.
+            (min-h-0 없으면 flex item 이 콘텐츠 높이 기준으로 펴져 부모 max-h 를 초과해 잘림) */}
+        <div className="p-6 flex-1 min-h-0 overflow-y-auto">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-bold text-white leading-tight">
               {spot.title}
