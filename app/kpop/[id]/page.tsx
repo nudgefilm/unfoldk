@@ -3,12 +3,12 @@ import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { ChevronLeft, TrendingUp, Calendar as CalendarIcon, Youtube, Users } from "lucide-react"
 import { FooterSection } from "@/components/footer-section"
-import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/toaster"
 import { ReportButton } from "@/components/common/report-button"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { getEventTypeColor, getEventTypeColorAlpha } from "@/lib/calendar/event-type-colors"
+import { TrackArtistButton } from "./track-artist-button"
 
 // /kpop/[id] — 아티스트 상세 페이지 (Server Component)
 // 차트 행 / Trending 카드에서 navigation. SEO 친화 + 첫 로드 빠른 SSR.
@@ -169,11 +169,8 @@ export default async function ArtistDetailPage({
     .limit(5)
   const upcoming = (eventsData ?? []) as UpcomingEventRow[]
 
-  // 4) 로그인 여부 — "Track this artist" CTA 분기 (Spotlight 와 동일 규칙).
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  const isLoggedIn = !!user
+  // Track this artist CTA 는 client island (track-artist-button.tsx) 가 자체적으로
+  // auth 상태를 fetch — 서버 측에서 isLoggedIn 분기 불필요.
 
   const trendPath = buildTrendPath(history)
 
@@ -263,16 +260,10 @@ export default async function ArtistDetailPage({
                 )}
               </div>
             </div>
-            {!isLoggedIn && (
-              <Link href="/" className="flex-shrink-0">
-                <Button
-                  className="px-6 py-2 rounded-full font-medium text-white whitespace-nowrap"
-                  style={{ backgroundColor: "#FF4B6E" }}
-                >
-                  Track this artist
-                </Button>
-              </Link>
-            )}
+            {/* Track this artist — client island.
+                비로그인=StartModal, 미구독=POST(일괄 구독), 구독중=DELETE(일괄 해제).
+                매칭 로직은 아래 Upcoming Events 와 동일 (artist_or_drama ILIKE). */}
+            <TrackArtistButton artistId={artist.id} artistName={artist.name} />
           </div>
         </section>
 
