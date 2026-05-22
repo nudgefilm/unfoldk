@@ -34,6 +34,7 @@ interface RouteSummary {
 const ROUTES = [
   "ingest-all",
   "ingest-ticketmaster",
+  "ingest-kpop-stats",
   "ingest-tmdb-dramas",
   "ingest-curation-k",
   "ingest-korean-phrases",
@@ -46,6 +47,7 @@ const ROUTES = [
 const ROUTE_DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
   "ingest-all": "ingest-all",
   "ingest-ticketmaster": "ingest-ticketmaster",
+  "ingest-kpop-stats": "KpopStats — 아티스트 통계 수집",
   "ingest-tmdb-dramas": "KdramaMatch — TMDB 드라마 수집",
   "ingest-curation-k": "Curation K 통합 수집",
   "ingest-korean-phrases": "HangeulGo — 드라마 표현 생성",
@@ -110,13 +112,15 @@ async function load(): Promise<LoadResult> {
           ? "tour_spots 신규/변경"
           : route === "ingest-tmdb-dramas"
             ? "드라마 수집"
-            : route === "ingest-korean-phrases"
-              ? "생성 표현 수"
-              : route === "ingest-food-recipes"
-                ? "레시피 + 이미지 매칭"
-                : route === "backfill-filming-descriptions"
-                  ? "description 보충 수"
-                  : "수집 이벤트"
+            : route === "ingest-kpop-stats"
+              ? "아티스트 갱신"
+              : route === "ingest-korean-phrases"
+                ? "생성 표현 수"
+                : route === "ingest-food-recipes"
+                  ? "레시피 + 이미지 매칭"
+                  : route === "backfill-filming-descriptions"
+                    ? "description 보충 수"
+                    : "수집 이벤트"
 
     const displayName = ROUTE_DISPLAY_NAMES[route]
     const actions = ROUTE_ACTIONS[route]
@@ -171,6 +175,10 @@ async function load(): Promise<LoadResult> {
         const kpop = r.kpop?.spotsUpserted ?? 0
         metric = (tour + film + kpop).toLocaleString()
       }
+    } else if (route === "ingest-kpop-stats" && data.result_json) {
+      // KpopStatsIngestResult — upserted = 오늘 kpop_stats_daily 갱신 row 수 (= 활성 아티스트).
+      const r = data.result_json as { upserted?: number }
+      metric = (r.upserted ?? 0).toLocaleString()
     } else if (route === "ingest-tmdb-dramas" && data.result_json) {
       // DramaIngestResult — upserted = 이번 실행 upsert 된 drama 수.
       // calendarLinked 는 부가 정보라 카드엔 노출 안 함 (toast 영역에서 노출 가능).

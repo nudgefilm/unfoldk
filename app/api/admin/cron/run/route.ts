@@ -23,6 +23,7 @@ const PostSchema = z.object({
   route: z.enum([
     "ingest-all",
     "ingest-ticketmaster",
+    "ingest-kpop-stats",
     "ingest-tmdb-dramas",
     "ingest-curation-k",
     "ingest-korean-phrases",

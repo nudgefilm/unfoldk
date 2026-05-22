@@ -238,6 +238,22 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
     return `드라마 ${num(r.upserted)}건 (스캔 ${num(r.scanned)} · 캘린더 매핑 ${num(r.calendarLinked)}) · ${time}`
   }
 
+  if (route === "ingest-kpop-stats") {
+    // KpopStatsIngestResult — upserted=오늘 stats row, YT/Last.fm 페치 수,
+    // 자동 채널 매핑, thumbnail backfill, K-pop 차트 rank 매핑 수.
+    const errors = Array.isArray(r.errors) ? r.errors.length : 0
+    const errPart = errors > 0 ? ` · errors ${errors}` : ""
+    const mapped = num(r.channelsAutoMapped)
+    const mapPart = mapped > 0 ? ` · 채널 자동매핑 ${mapped}` : ""
+    const thumb = num(r.thumbnailsBackfilled)
+    const thumbPart = thumb > 0 ? ` · thumb +${thumb}` : ""
+    return (
+      `stats ${num(r.upserted)}건 ` +
+      `(YT ${num(r.youtubeFetched)} · Last.fm ${num(r.lastfmFetched)} · rank ${num(r.ranksFetched)})` +
+      `${mapPart}${thumbPart}${errPart} · ${time}`
+    )
+  }
+
   if (route === "ingest-korean-phrases") {
     // KoreanPhrasesIngestResult — generated/skipped/unknown_dramas/auto_added_dramas/errors.
     const errors = Array.isArray(r.errors) ? r.errors.length : 0
