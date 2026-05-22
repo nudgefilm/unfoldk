@@ -44,17 +44,26 @@ function countryFlag(code: string | undefined): string {
   )
 }
 
-// 국가 필터 칩. ONLINE = venueCountryCode 가 비어있는 이벤트 (드라마/컴백/온라인 콘서트).
-// 추가 국가는 chip 만 늘리면 됨 — 필터 로직은 venueCountryCode 비교 단일 분기.
-const COUNTRY_FILTERS = [
-  { code: "ALL", label: "All", flag: "" },
-  { code: "US", label: "US", flag: "🇺🇸" },
-  { code: "GB", label: "UK", flag: "🇬🇧" },
-  { code: "JP", label: "JP", flag: "🇯🇵" },
-  { code: "BR", label: "BR", flag: "🇧🇷" },
-  { code: "ONLINE", label: "Online", flag: "🌐" },
+// 권역 필터 칩. ONLINE = venueCountryCode 가 비어있는 이벤트 (드라마/컴백/온라인 콘서트).
+// countries 배열 inclusion 으로 매칭. 신규 국가는 해당 권역 배열에 추가만 하면 됨.
+// 권역 분류는 ISO 3166-1 alpha-2 기준 — UK 는 GB, 일본은 JP, 한국은 KR.
+const REGION_FILTERS = [
+  { code: "ALL",         label: "All",         flag: "",   countries: [] as readonly string[] },
+  { code: "AMERICAS",    label: "Americas",    flag: "🌎", countries: ["US", "CA", "BR", "MX", "AR", "CL", "CO"] as readonly string[] },
+  { code: "EUROPE",      label: "Europe",      flag: "🌍", countries: ["GB", "DE", "FR", "ES", "IT", "NL", "PL", "SE", "NO", "DK", "BE"] as readonly string[] },
+  { code: "ASIA",        label: "Asia",        flag: "🌏", countries: ["JP", "KR", "TH", "SG", "PH", "MY", "ID", "TW", "HK"] as readonly string[] },
+  { code: "MIDDLE_EAST", label: "Middle East", flag: "🕌", countries: ["AE", "SA", "TR", "IL", "QA", "KW"] as readonly string[] },
+  { code: "ONLINE",      label: "Online",      flag: "🌐", countries: [] as readonly string[] },
 ] as const
-type CountryFilterCode = (typeof COUNTRY_FILTERS)[number]["code"]
+type RegionCode = (typeof REGION_FILTERS)[number]["code"]
+
+// 단일 이벤트가 권역에 매칭되는지 — 필터 로직과 visible chip 계산에서 공용.
+function eventMatchesRegion(e: CalendarEvent, region: RegionCode): boolean {
+  if (region === "ALL") return true
+  if (region === "ONLINE") return !e.venueCountryCode
+  const cfg = REGION_FILTERS.find((r) => r.code === region)
+  return !!cfg && !!e.venueCountryCode && cfg.countries.includes(e.venueCountryCode)
+}
 
 // Ticketmaster 이벤트에서만 Get Tickets 버튼 노출 — 다른 소스는 url 없거나 의미 다름.
 function shouldShowGetTickets(event: CalendarEvent): boolean {
@@ -788,9 +797,9 @@ function UpcomingAccordionItem({
 
 export default function HallyuCalendarPage() {
   const [activeTab, setActiveTab] = useState<string>("All")
-  // 국가별 필터 — venue_country_code 기준. "ONLINE" = venueCountryCode 미존재 이벤트
-  // (드라마/컴백/온라인 콘서트). "ALL" 은 필터 미적용.
-  const [activeCountry, setActiveCountry] = useState<CountryFilterCode>("ALL")
+  // 권역 필터 — venue_country_code 가 권역 배열에 포함되는지로 매칭.
+  // "ONLINE" = venue 정보 없는 이벤트 (드라마·컴백·스트리밍). "ALL" 은 필터 미적용.
+  const [activeRegion, setActiveRegion] = useState<RegionCode>("ALL")
   const [viewDate, setViewDate] = useState<Date>(() => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth(), 1)
@@ -957,14 +966,29 @@ export default function HallyuCalendarPage() {
     }
   }
 
-  // 타입 탭 + 국가 칩 필터 결합. 두 조건 모두 통과한 이벤트만 남김.
-  // ONLINE 칩 = 공연장 정보 없음 (드라마 프리미어·컴백·스트리밍 등).
-  const filteredEvents = events.filter((e) => {
-    if (activeTab !== "All" && e.type !== activeTab) return false
-    if (activeCountry === "ALL") return true
-    if (activeCountry === "ONLINE") return !e.venueCountryCode
-    return e.venueCountryCode === activeCountry
-  })
+  // 타입 탭 통과 이벤트 — 권역 chip 카운트와 최종 필터 모두 여기서 시작.
+  const eventsByTypeOnly = events.filter(
+    (e) => activeTab === "All" || e.type === activeTab
+  )
+
+  // 권역별 0건 칩 미노출 — 빈 필터 클릭 후 결과 0건 UX 방지.
+  //   ALL 은 항상 노출 (이벤트 0건이어도 reset 진입점).
+  //   그 외는 현재 type 탭 기준 1건이라도 있을 때만 노출.
+  const visibleRegions = REGION_FILTERS.filter(
+    (r) => r.code === "ALL" || eventsByTypeOnly.some((e) => eventMatchesRegion(e, r.code))
+  )
+
+  // 사용자가 선택한 권역이 탭 전환 등으로 0건이 되면 ALL 로 자동 복귀 — 빈 결과 화면 방지.
+  useEffect(() => {
+    if (activeRegion === "ALL") return
+    const stillVisible = visibleRegions.some((r) => r.code === activeRegion)
+    if (!stillVisible) setActiveRegion("ALL")
+    // visibleRegions 의 reference 가 매 렌더 새로 만들어지지만 setActiveRegion 은
+    // 이미 ALL 일 때 no-op 라 무한 루프 위험 없음.
+  }, [activeRegion, visibleRegions])
+
+  // 최종 필터 — 타입 + 권역 합성.
+  const filteredEvents = eventsByTypeOnly.filter((e) => eventMatchesRegion(e, activeRegion))
 
   const getEventsForDay = (day: number) => {
     return filteredEvents.filter(e => e.date === day)
@@ -1092,19 +1116,19 @@ export default function HallyuCalendarPage() {
             </div>
           </div>
 
-          {/* Country Filter Row — venue_country_code 기반.
-              ALL=전체 / 국가 코드=ISO 매칭 / ONLINE=venue 없는 이벤트 (컴백·드라마 등).
-              아직 분리 컬럼 backfill 전 (Ticketmaster cron 1회 대기) 인 행은 일시적으로
-              "Online" 으로 분류됨 — 데이터 정상화되면 자동 정정. */}
+          {/* Region Filter Row — venue_country_code 권역 매칭 (REGION_FILTERS).
+              ALL=전체 / Americas·Europe·Asia·Middle East=권역 배열 inclusion /
+              ONLINE=venue 없는 이벤트 (컴백·드라마·스트리밍).
+              현재 type 탭 기준 0건 권역은 chip 자체 미노출 (visibleRegions). */}
           <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: "none" }}>
-            {COUNTRY_FILTERS.map((f) => {
-              const isActive = activeCountry === f.code
+            {visibleRegions.map((f) => {
+              const isActive = activeRegion === f.code
               return (
                 <button
                   key={f.code}
                   type="button"
-                  onClick={() => setActiveCountry(f.code)}
+                  onClick={() => setActiveRegion(f.code)}
                   className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                     isActive
                       ? "text-white"
