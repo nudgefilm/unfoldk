@@ -18,14 +18,18 @@ export const dynamic = "force-dynamic"
 // /api/cron/ingest-curation-k
 //
 // 2026-05-19 cron 회귀 — 매일 03:00 (전체) + 04:00 (secondary) → 월 1회 + 일 1회 (축제만).
+// 2026-05-22 전체 실행 주기 변경 — 월 1회 → 주 1회 (매주 월요일 03:00 UTC).
+//   tour-spots 의 카테고리별 intervalDays 가드 (관광지·문화시설·숙박·음식점=30일) 는 그대로라
+//   해당 4개 카테고리는 여전히 30일에 1번만 실제 수집. filming/kpop secondary 와 카테고리
+//   행 0건일 때의 강제 실행 케이스를 위해 cron 빈도를 주 1회로 끌어올린 것.
 //
 //   ?only_festivals=true → tour_spots FESTIVAL(15) 만 + 해당 카테고리 enrichment·번역.
 //                          secondary (filming/kpop) skip — Claude 비용 절감.
-//   (미지정)              → 전체 (tour 5 카테고리 + secondary). 어드민 수동·월 1회.
+//   (미지정)              → 전체 (tour 5 카테고리 + secondary). 어드민 수동·주 1회 자동.
 //
 // 자동 cron (vercel.json):
-//   매일 03:00 UTC      → ?only_festivals=true (축제는 시간 민감해 매일 따라잡음)
-//   매월 1일 03:00 UTC   → 전체 (나머지 카테고리 + filming + kpop)
+//   매일 03:00 UTC          → ?only_festivals=true (축제는 시간 민감해 매일 따라잡음)
+//   매주 월요일 03:00 UTC   → 전체 (나머지 카테고리 + filming + kpop)
 //
 // 각 단계 독립 try/catch — 한 단계 실패해도 나머지 진행.
 
