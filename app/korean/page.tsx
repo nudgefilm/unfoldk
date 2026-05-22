@@ -435,6 +435,11 @@ export default function HangeulGoPage() {
       window.location.href = "/login?redirect=/korean"
       return
     }
+    // Optimistic +1 — fallback sentinel(비-UUID) 은 서버가 skip 하므로 제외
+    if (phrase?.id && !phrase.id.startsWith("fallback-")) {
+      setTotalMasteredOverall((prev) => prev + 1)
+    }
+
     // 현재 phrase 를 mastered 기록 — 비-UUID (fallback sentinel) 은 서버가 skip
     if (phrase?.id) {
       try {

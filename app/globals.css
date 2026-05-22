@@ -53,4 +53,8 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* 사이트 전체 버튼 클릭 피드백 — shadcn Button 외 <button> 직접 사용 태그도 커버 */
+  button:not(:disabled) {
+    @apply transition-all active:scale-95 active:opacity-80;
+  }
 }
