@@ -4,19 +4,16 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { translateRecipe } from "@/lib/claude/recipe-translate"
 import { translateRecipeContent } from "@/lib/claude/recipe-content-translate"
-import { searchCookingVideo } from "@/lib/api/youtube"
 
 // /api/food/recipes/[id] — 레시피 상세
 //
-// 응답에 재료(jsonb) + 과정(jsonb) 포함. lazy 번역·검색:
+// 응답에 재료(jsonb) + 과정(jsonb) 포함. lazy 번역:
 //   - title_en / description_en  → Claude Haiku translateRecipe
 //   - ingredients_en[]            → translateRecipeContent (재료 영문명, 같은 인덱스)
 //   - instructions_en[]           → translateRecipeContent (단계 영문 텍스트, 같은 인덱스)
-//   - youtube_url                 → searchCookingVideo (`${title_en} Korean recipe cooking`)
 // 없으면 첫 GET 에서 생성·DB 캐싱. 다음 요청부터 즉시 응답.
 //
 // 두 번역 호출은 parallel — 첫 응답 ~1-2s 추가 (캐싱 후 0ms).
-// youtube_url 은 title_en 의존이라 번역 완료 후 sequential.
 //
 // 공개 API — Pro 게이팅 없음.
 //
@@ -56,7 +53,6 @@ export interface RecipeDetail {
   ready_in_minutes: number | null
   servings: number | null
   nutrition: NutritionShape | null
-  youtube_url: string | null                   // lazy 캐싱 — title_en 확정 후 1회 검색
   // 재료·조리법 한글 원본 + 같은 인덱스의 영문 (있으면).
   ingredients: Array<{
     name: string
@@ -162,7 +158,7 @@ export async function GET(
   const { data, error } = await supabase
     .from("food_recipes")
     .select(
-      "id, mafra_rcp_seq, title, title_en, description_en, image_url, image_source, ready_in_minutes, servings, nutrition, youtube_url, ingredients, ingredients_en, instructions, instructions_en"
+      "id, mafra_rcp_seq, title, title_en, description_en, image_url, image_source, ready_in_minutes, servings, nutrition, ingredients, ingredients_en, instructions, instructions_en"
     )
     .eq("id", parsed.data.id)
     .maybeSingle()
@@ -185,7 +181,6 @@ export async function GET(
     ready_in_minutes: number | null
     servings: number | null
     nutrition: NutritionShape | null
-    youtube_url: string | null
     ingredients: unknown
     ingredients_en: unknown
     instructions: unknown
@@ -200,7 +195,6 @@ export async function GET(
   let description_en = row.description_en
   let ingredients_en = row.ingredients_en === null ? null : normalizeStringArray(row.ingredients_en)
   let instructions_en = row.instructions_en === null ? null : normalizeStringArray(row.instructions_en)
-  let youtube_url = row.youtube_url
 
   // ─── lazy 번역 단계 ──────────────────────────────────────────
   // (1) title/description, (2) ingredients/instructions — 각각 누락 시 병렬 호출.
@@ -272,24 +266,6 @@ export async function GET(
     }
   }
 
-  // ─── youtube_url lazy 검색 ───────────────────────────────────
-  // title_en 의존이라 번역 task 완료 후에 sequential 호출. 비용: search.list 100 units.
-  // 검색 실패 / 결과 0건이면 null 유지 — 다음 GET 에서 재시도.
-  // (재시도 비용이 부담되면 별도 "no_result" sentinel 도입 검토. 현재는 단순화.)
-  if (!youtube_url && title_en) {
-    const video = await searchCookingVideo(title_en)
-    if (video?.watchUrl) {
-      youtube_url = video.watchUrl
-      const { error: ytErr } = await admin
-        .from("food_recipes")
-        .update({ youtube_url })
-        .eq("id", row.id)
-      if (ytErr) {
-        console.warn("[food/recipes/[id]] youtube_url write back 실패:", ytErr.message)
-      }
-    }
-  }
-
   // ─── 응답 조립 — 영문 배열을 한글 배열과 인덱스 매칭 ────────
   const ingredientsWithEn: RecipeDetail["ingredients"] = ingredients.map((i, idx) => ({
     name: i.name,
@@ -315,7 +291,6 @@ export async function GET(
     ready_in_minutes: row.ready_in_minutes,
     servings: row.servings,
     nutrition: row.nutrition,
-    youtube_url,
     ingredients: ingredientsWithEn,
     instructions: instructionsWithEn,
   }
