@@ -1,11 +1,15 @@
 // Curation K — TourAPI 5개 카테고리 통합 수집 + Claude 영문 번역
 //
 // 카테고리:
-//   12: 관광지       — intervalDays 30
-//   14: 문화시설     — intervalDays 30
+//   12: 관광지       — intervalDays 7
+//   14: 문화시설     — intervalDays 7
 //   15: 축제·행사    — intervalDays 1 (당해년도 1/1 ~ 오늘 + 18개월)
-//   32: 숙박         — intervalDays 30
-//   39: 음식점       — intervalDays 30
+//   32: 숙박         — intervalDays 7
+//   39: 음식점       — intervalDays 7
+//
+// 2026-05-22: 비축제 4종을 30일 → 7일로 단축. vercel.json 의 ingest-curation-k 전체
+// cron 도 같은 날 월 1회 → 매주 월요일 03:00 UTC 로 변경 — cron 진입 빈도와 카테고리
+// intervalDays 가드를 함께 주 1회로 맞추기 위함.
 //
 // 수집 로직:
 //   1) cron_logs 에서 본 카테고리 마지막 성공 시각 조회
@@ -56,10 +60,10 @@ interface CategoryConfig {
 // 실행 순서 — 사용자 요청 spec: [15, 12, 14, 32, 39]
 const CATEGORIES: readonly CategoryConfig[] = [
   { contentTypeId: CONTENT_TYPE.FESTIVAL, name: "축제·행사", intervalDays: 1 },
-  { contentTypeId: CONTENT_TYPE.TOURIST_SPOT, name: "관광지", intervalDays: 30 },
-  { contentTypeId: CONTENT_TYPE.CULTURAL, name: "문화시설", intervalDays: 30 },
-  { contentTypeId: CONTENT_TYPE.LODGING, name: "숙박", intervalDays: 30 },
-  { contentTypeId: CONTENT_TYPE.RESTAURANT, name: "음식점", intervalDays: 30 },
+  { contentTypeId: CONTENT_TYPE.TOURIST_SPOT, name: "관광지", intervalDays: 7 },
+  { contentTypeId: CONTENT_TYPE.CULTURAL, name: "문화시설", intervalDays: 7 },
+  { contentTypeId: CONTENT_TYPE.LODGING, name: "숙박", intervalDays: 7 },
+  { contentTypeId: CONTENT_TYPE.RESTAURANT, name: "음식점", intervalDays: 7 },
 ] as const
 
 // AREA_CODE 전체 순회 — 광역시도 17개
