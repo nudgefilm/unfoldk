@@ -61,7 +61,7 @@ export async function GET(request: Request) {
   // source_api 는 Featured 섹션의 Ticketmaster 우선 정렬에 사용
   const { data, error } = await queryClient
     .from("hallyu_calendar_events")
-    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium, thumbnail_url, source_api, url, created_at")
+    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium, thumbnail_url, source_api, url, venue_name, venue_city, venue_country_code, created_at")
     .gte("event_date", startOfMonth.toISOString())
     .lt("event_date", startOfNextMonth.toISOString())
     .order("event_date", { ascending: true })
@@ -87,6 +87,11 @@ export async function GET(request: Request) {
       // 외부 티켓 예매 페이지 — Ticketmaster ev.url. UI 'Get Tickets' 버튼 표시 조건.
       // source_api='ticketmaster' 일 때만 의미 있음 (KOPIS 폐기 — 2026-05-16).
       url: row.url ?? undefined,
+      // venue 분리 컬럼 (0037 마이그레이션 + Ticketmaster ingest). Ticketmaster
+      // 콘서트·팬미팅에만 채워짐. 그 외 source_api 는 null.
+      venueName: row.venue_name ?? undefined,
+      venueCity: row.venue_city ?? undefined,
+      venueCountryCode: row.venue_country_code ?? undefined,
       createdAt: row.created_at,
     }
   })

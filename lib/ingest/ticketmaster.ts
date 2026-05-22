@@ -159,9 +159,6 @@ export async function runTicketmasterIngest(): Promise<TicketmasterIngestResult>
       const venue = ev._embedded?.venues?.[0]
       const attraction = ev._embedded?.attractions?.[0]
       const artistName = attraction?.name ?? ev.name
-      const venueDesc = [venue?.name, venue?.city?.name, venue?.country?.name]
-        .filter(Boolean)
-        .join(" · ")
 
       return {
         type: classifyType(ev.name),
@@ -169,7 +166,14 @@ export async function runTicketmasterIngest(): Promise<TicketmasterIngestResult>
         artist_or_drama: artistName,
         event_date: dateTime,
         event_time_label: toTimeLabel(ev.dates?.start?.localTime),
-        description: venueDesc || null,
+        // 2026-05-22 venue 정보를 별도 컬럼으로 분리 (0037 마이그레이션). description 은
+        // 이제 다른 source_api 의 Claude 한 줄 요약과 의미 충돌 없게 명시적 null 로 비움.
+        // upsert ignoreDuplicates:false 이므로 기존 행의 description="venue 합성 문자열"
+        // 도 다음 cron 에서 자동 정리됨.
+        description: null,
+        venue_name: venue?.name ?? null,
+        venue_city: venue?.city?.name ?? null,
+        venue_country_code: venue?.country?.countryCode ?? null,
         source_api: "ticketmaster" as const,
         source_id: ev.id,
         thumbnail_url: pickBestImage(ev.images),

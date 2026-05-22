@@ -21,13 +21,40 @@ interface CalendarEvent {
   type: EventType
   time?: string
   artist?: string
-  description?: string                   // Claude 가 생성한 한 줄 설명 (영어)
+  description?: string                   // Claude 가 생성한 한 줄 설명 (TMDB·YouTube·manual). Ticketmaster 는 0037 이후 null.
   isPremium?: boolean
   thumbnailUrl?: string                  // DB hallyu_calendar_events.thumbnail_url
   sourceApi?: string                     // 'ticketmaster' | 'tmdb' | 'youtube' | 'lastfm' — Featured 우선순위
   url?: string                           // 외부 티켓 예매 페이지 (Ticketmaster). sourceApi='ticketmaster' 일 때만 의미.
+  // 공연장 분리 컬럼 (Ticketmaster 만 채워짐, 0037 마이그레이션).
+  venueName?: string
+  venueCity?: string
+  venueCountryCode?: string              // ISO 3166-1 alpha-2 (US, GB, JP, BR ...)
   createdAt?: string                     // ISO string — Featured 정렬 키 (등록순)
 }
+
+// ISO 3166-1 alpha-2 → flag emoji (regional indicator symbols).
+// "US" → 🇺🇸 / "GB" → 🇬🇧 / "JP" → 🇯🇵.
+// 잘못된 코드 길이는 빈 문자열 반환 — UI 가 자연스럽게 fallback.
+function countryFlag(code: string | undefined): string {
+  if (!code || code.length !== 2) return ""
+  const A = 0x1f1e6 - "A".charCodeAt(0) // regional indicator 'A' offset
+  return String.fromCodePoint(
+    ...[...code.toUpperCase()].map((c) => A + c.charCodeAt(0))
+  )
+}
+
+// 국가 필터 칩. ONLINE = venueCountryCode 가 비어있는 이벤트 (드라마/컴백/온라인 콘서트).
+// 추가 국가는 chip 만 늘리면 됨 — 필터 로직은 venueCountryCode 비교 단일 분기.
+const COUNTRY_FILTERS = [
+  { code: "ALL", label: "All", flag: "" },
+  { code: "US", label: "US", flag: "🇺🇸" },
+  { code: "GB", label: "UK", flag: "🇬🇧" },
+  { code: "JP", label: "JP", flag: "🇯🇵" },
+  { code: "BR", label: "BR", flag: "🇧🇷" },
+  { code: "ONLINE", label: "Online", flag: "🌐" },
+] as const
+type CountryFilterCode = (typeof COUNTRY_FILTERS)[number]["code"]
 
 // Ticketmaster 이벤트에서만 Get Tickets 버튼 노출 — 다른 소스는 url 없거나 의미 다름.
 function shouldShowGetTickets(event: CalendarEvent): boolean {
@@ -253,7 +280,22 @@ function EventDetailModal({
           <span className="text-foreground font-medium">{event.artist || "Unknown"}</span>
         </div>
 
-        {/* Description — Claude 가 생성한 한 줄 설명 (있을 때만 노출) */}
+        {/* Venue 정보 — Ticketmaster 콘서트·팬미팅에만. venue_name 기준 노출 분기. */}
+        {event.venueName && (
+          <p className="text-muted-foreground text-sm leading-relaxed mb-2 flex items-start gap-1.5">
+            <span aria-hidden>📍</span>
+            <span>
+              {[event.venueName, event.venueCity].filter(Boolean).join(" · ")}
+              {event.venueCountryCode && (
+                <span className="ml-2">
+                  {countryFlag(event.venueCountryCode)} {event.venueCountryCode}
+                </span>
+              )}
+            </span>
+          </p>
+        )}
+
+        {/* Description — Claude 가 생성한 한 줄 설명 (TMDB·YouTube·manual). Ticketmaster 는 비어있음. */}
         {event.description && (
           <p className="text-muted-foreground text-sm leading-relaxed mb-6">
             {event.description}
@@ -628,6 +670,20 @@ function UpcomingAccordionItem({
       {/* Expanded body */}
       {isExpanded && !isBlurred && (
         <div className="px-4 pb-4 pt-3 border-t border-border/20 space-y-4">
+          {/* Venue — Ticketmaster 콘서트·팬미팅 만. EventDetailModal 과 동일 포맷. */}
+          {event.venueName && (
+            <p className="text-muted-foreground text-sm leading-relaxed flex items-start gap-1.5">
+              <span aria-hidden>📍</span>
+              <span>
+                {[event.venueName, event.venueCity].filter(Boolean).join(" · ")}
+                {event.venueCountryCode && (
+                  <span className="ml-2">
+                    {countryFlag(event.venueCountryCode)} {event.venueCountryCode}
+                  </span>
+                )}
+              </span>
+            </p>
+          )}
           {event.description && (
             <p className="text-muted-foreground text-sm leading-relaxed">{event.description}</p>
           )}
@@ -732,6 +788,9 @@ function UpcomingAccordionItem({
 
 export default function HallyuCalendarPage() {
   const [activeTab, setActiveTab] = useState<string>("All")
+  // 국가별 필터 — venue_country_code 기준. "ONLINE" = venueCountryCode 미존재 이벤트
+  // (드라마/컴백/온라인 콘서트). "ALL" 은 필터 미적용.
+  const [activeCountry, setActiveCountry] = useState<CountryFilterCode>("ALL")
   const [viewDate, setViewDate] = useState<Date>(() => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth(), 1)
@@ -898,9 +957,14 @@ export default function HallyuCalendarPage() {
     }
   }
 
-  const filteredEvents = activeTab === "All"
-    ? events
-    : events.filter(e => e.type === activeTab)
+  // 타입 탭 + 국가 칩 필터 결합. 두 조건 모두 통과한 이벤트만 남김.
+  // ONLINE 칩 = 공연장 정보 없음 (드라마 프리미어·컴백·스트리밍 등).
+  const filteredEvents = events.filter((e) => {
+    if (activeTab !== "All" && e.type !== activeTab) return false
+    if (activeCountry === "ALL") return true
+    if (activeCountry === "ONLINE") return !e.venueCountryCode
+    return e.venueCountryCode === activeCountry
+  })
 
   const getEventsForDay = (day: number) => {
     return filteredEvents.filter(e => e.date === day)
@@ -1026,6 +1090,38 @@ export default function HallyuCalendarPage() {
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
+          </div>
+
+          {/* Country Filter Row — venue_country_code 기반.
+              ALL=전체 / 국가 코드=ISO 매칭 / ONLINE=venue 없는 이벤트 (컴백·드라마 등).
+              아직 분리 컬럼 backfill 전 (Ticketmaster cron 1회 대기) 인 행은 일시적으로
+              "Online" 으로 분류됨 — 데이터 정상화되면 자동 정정. */}
+          <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden"
+            style={{ scrollbarWidth: "none" }}>
+            {COUNTRY_FILTERS.map((f) => {
+              const isActive = activeCountry === f.code
+              return (
+                <button
+                  key={f.code}
+                  type="button"
+                  onClick={() => setActiveCountry(f.code)}
+                  className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                    isActive
+                      ? "text-white"
+                      : "border-border/40 bg-[#1a1a1a] text-muted-foreground hover:border-border/70 hover:text-foreground"
+                  }`}
+                  style={
+                    isActive
+                      ? { backgroundColor: "#FF4B6E", borderColor: "#FF4B6E" }
+                      : undefined
+                  }
+                  aria-pressed={isActive}
+                >
+                  {f.flag && <span>{f.flag}</span>}
+                  <span>{f.label}</span>
+                </button>
+              )
+            })}
           </div>
         </section>
 
@@ -1193,6 +1289,12 @@ export default function HallyuCalendarPage() {
                     >
                       {monthShort} {event.date} · {event.type}
                     </p>
+                    {/* Venue 부제 — Ticketmaster city + flag. 없으면 줄 자체 미노출. */}
+                    {event.venueCity && (
+                      <p className="text-xs mt-1 text-muted-foreground truncate">
+                        {countryFlag(event.venueCountryCode)} {event.venueCity}
+                      </p>
+                    )}
                   </div>
                 </button>
               ))}
