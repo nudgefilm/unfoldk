@@ -29,7 +29,17 @@ const MAX_CHANNEL_MAPPING_PER_RUN = 50
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { getChannelStats, searchChannelByName } from "@/lib/api/youtube"
-import { getArtistInfo } from "@/lib/api/lastfm"
+import { getArtistInfo, getTopKpopArtists } from "@/lib/api/lastfm"
+
+// 주간 K-pop 차트 fetch 시 받아올 최대 인원수. Last.fm tag.getTopArtists
+// 한 콜로 가져옴 — 시드 25명 + 신규 시드 (255명) 모두 커버하려면 200 정도.
+const TAG_TOP_LIMIT = 200
+
+// rank 매칭용 정규화 — lowercase + 알파넘만 (공백·괄호·괘선 무시).
+// Last.fm canonical name 과 lastfm_name·name 모두 같은 키로 변환.
+function normalizeForRank(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "")
+}
 
 export interface KpopStatsIngestResult {
   source: "kpop-stats"
@@ -59,6 +69,7 @@ export interface KpopStatsIngestResult {
       | "update_zero_rows"
       | "update_error"
   }>
+  ranksFetched: number             // tag.getTopArtists 로 매핑된 아티스트 수
   upserted: number
   errors: string[]
   note?: string
@@ -105,6 +116,7 @@ export async function runKpopStatsIngest(
       channelsReturned: 0,
       missingChannelIds: [],
       thumbnailDebug: [],
+      ranksFetched: 0,
       upserted: 0,
       errors: [`artists fetch 실패: ${artistsErr.message}`],
     }
@@ -125,6 +137,7 @@ export async function runKpopStatsIngest(
       channelsReturned: 0,
       missingChannelIds: [],
       thumbnailDebug: [],
+      ranksFetched: 0,
       upserted: 0,
       errors: [],
       note: "대상 아티스트 없음",
@@ -187,7 +200,12 @@ export async function runKpopStatsIngest(
 
   let ytStatsMap = new Map<
     string,
-    { subscribers: number | null; totalViews: number | null; thumbnailUrl: string | null }
+    {
+      subscribers: number | null
+      totalViews: number | null
+      thumbnailUrl: string | null
+      videoCount: number | null
+    }
   >()
   let youtubeFetched = 0
   if (ytChannelIds.length > 0) {
@@ -199,6 +217,7 @@ export async function runKpopStatsIngest(
           subscribers: s.subscribers,
           totalViews: s.totalViews,
           thumbnailUrl: s.thumbnailUrl,
+          videoCount: s.videoCount,
         })
       }
     } catch (err) {
@@ -363,6 +382,28 @@ export async function runKpopStatsIngest(
   }
   const lastfmFetched = lastfmStatsMap.size
 
+  // 3.5 K-pop 주간 차트 — Last.fm tag.getTopArtists?tag=k-pop.
+  //     한 콜로 상위 200명 받아 (rank = index+1) 정규화 키 맵 생성.
+  //     아티스트 매칭은 lastfm_name → name 순으로 시도 (둘 다 정규화).
+  //     실패해도 rank 만 null 빠지고 전체 ingest 는 계속.
+  const rankMap = new Map<string, number>()
+  let ranksFetched = 0
+  try {
+    const topRanked = await getTopKpopArtists(TAG_TOP_LIMIT)
+    topRanked.forEach((t, idx) => {
+      const key = normalizeForRank(t.name)
+      if (key && !rankMap.has(key)) rankMap.set(key, idx + 1)
+    })
+    ranksFetched = rankMap.size
+    console.log(
+      `[ingest-kpop-stats] tag.getTopArtists?tag=k-pop limit=${TAG_TOP_LIMIT} → ${ranksFetched}명 rank 확보`
+    )
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    errors.push(`Last.fm tag.getTopArtists 실패: ${msg}`)
+    console.warn("[ingest-kpop-stats] tag.getTopArtists 실패 — rank null 로 진행:", msg)
+  }
+
   // 4. 7일전 total_views 와 비교해 weekly_views 계산
   //    오늘 stats row 가 만들어지기 전이라 어제 row 의 weekly_views 는
   //    "지난 7일 누적"으로 의미상 충분.
@@ -401,15 +442,25 @@ export async function runKpopStatsIngest(
         ? Math.max(0, todayTotal - olderTotal)
         : null
 
+    // 주간 차트 rank — lastfm_name 우선, 없으면 name 으로 정규화 후 lookup.
+    // 두 키 모두 0이면 (빈 문자열 정규화 결과) lookup skip.
+    const k1 = a.lastfm_name ? normalizeForRank(a.lastfm_name) : ""
+    const k2 = normalizeForRank(a.name)
+    const rank =
+      (k1 ? rankMap.get(k1) : undefined) ??
+      (k2 ? rankMap.get(k2) : undefined) ??
+      null
+
     return {
       artist_id: a.id,
       date: todayStr,
       youtube_subscribers: yt?.subscribers ?? null,
       youtube_total_views: todayTotal,
       youtube_weekly_views: weeklyViews,
+      youtube_video_count: yt?.videoCount ?? null,
       lastfm_listeners: lfm?.listeners ?? null,
       lastfm_playcount: lfm?.playcount ?? null,
-      lastfm_weekly_rank: null,                 // tag.gettopartists 연동은 추후
+      lastfm_weekly_rank: rank,
     }
   })
 
@@ -432,6 +483,11 @@ export async function runKpopStatsIngest(
     ytThumbnailsAvailable,
     thumbnailsAlreadySet,
     thumbnailsBackfilled,
+    channelsRequested,
+    channelsReturned,
+    missingChannelIds,
+    thumbnailDebug,
+    ranksFetched,
     upserted: upsertData?.length ?? 0,
     errors,
   }

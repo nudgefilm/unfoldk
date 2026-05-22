@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
-import { ChevronLeft, TrendingUp, Calendar as CalendarIcon } from "lucide-react"
+import { ChevronLeft, TrendingUp, Calendar as CalendarIcon, Youtube, Users } from "lucide-react"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/toaster"
@@ -40,6 +40,7 @@ interface ArtistRow {
   youtube_channel_id: string | null
   lastfm_name: string | null
   is_active: boolean
+  member_count: number | null
 }
 
 interface DailyStatsRow {
@@ -47,8 +48,10 @@ interface DailyStatsRow {
   youtube_subscribers: number | null
   youtube_total_views: number | null
   youtube_weekly_views: number | null
+  youtube_video_count: number | null
   lastfm_listeners: number | null
   lastfm_playcount: number | null
+  lastfm_weekly_rank: number | null
 }
 
 interface UpcomingEventRow {
@@ -124,7 +127,7 @@ export default async function ArtistDetailPage({
   // 1) 아티스트 — anon select 정책 통과 (is_active = true 만 보임)
   const { data: artistData } = await supabase
     .from("kpop_artists")
-    .select("id, name, name_ko, debut_year, thumbnail_url, youtube_channel_id, lastfm_name, is_active")
+    .select("id, name, name_ko, debut_year, thumbnail_url, youtube_channel_id, lastfm_name, is_active, member_count")
     .eq("id", id)
     .maybeSingle()
 
@@ -142,7 +145,7 @@ export default async function ArtistDetailPage({
 
   const { data: historyData } = await admin
     .from("kpop_stats_daily")
-    .select("date, youtube_subscribers, youtube_total_views, youtube_weekly_views, lastfm_listeners, lastfm_playcount")
+    .select("date, youtube_subscribers, youtube_total_views, youtube_weekly_views, youtube_video_count, lastfm_listeners, lastfm_playcount, lastfm_weekly_rank")
     .eq("artist_id", id)
     .gte("date", cutoff)
     .order("date", { ascending: true })
@@ -221,7 +224,43 @@ export default async function ArtistDetailPage({
                       Debut {artist.debut_year}
                     </span>
                   )}
+                  {/* Solo / N members — kpop_artists.member_count.
+                      NULL 은 미분류 (어드민 backfill 대기) — chip 자체 미노출. */}
+                  {artist.member_count !== null && (
+                    <span className="px-3 py-1 rounded-full bg-[#252525] text-muted-foreground text-xs inline-flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      {artist.member_count === 1
+                        ? "Solo"
+                        : `${artist.member_count} members`}
+                    </span>
+                  )}
+                  {/* 주간 K-pop 차트 순위 — Last.fm tag.getTopArtists 매핑.
+                      rank null 이면 chip 미노출. 브랜드 컬러로 강조. */}
+                  {latest?.lastfm_weekly_rank != null && (
+                    <span
+                      className="px-3 py-1 rounded-full text-xs font-medium"
+                      style={{
+                        backgroundColor: "rgba(255, 75, 110, 0.15)",
+                        color: "#FF4B6E",
+                      }}
+                    >
+                      #{latest.lastfm_weekly_rank} K-pop this week
+                    </span>
+                  )}
                 </div>
+                {/* YouTube 채널 외부 링크 — youtube_channel_id 있을 때만.
+                    채널 URL 패턴: youtube.com/channel/<UCxxx>. */}
+                {artist.youtube_channel_id && (
+                  <a
+                    href={`https://www.youtube.com/channel/${artist.youtube_channel_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full text-xs font-medium border border-border/40 bg-[#1a1a1a] hover:border-border/70 transition-colors text-foreground"
+                  >
+                    <Youtube className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
+                    Watch on YouTube
+                  </a>
+                )}
               </div>
             </div>
             {!isLoggedIn && (
@@ -237,10 +276,11 @@ export default async function ArtistDetailPage({
           </div>
         </section>
 
-        {/* Stats Boxes */}
+        {/* Stats Boxes — YouTube 3개 + Last.fm 2개 = 5개.
+            grid-cols 단계 변동: 모바일 2 → md 3 → lg 5 (한 줄). */}
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-white mb-4">Stats</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-5">
               <p className="text-muted-foreground text-sm mb-1">YouTube Subscribers</p>
               <p className="text-2xl font-bold text-white">
@@ -254,9 +294,21 @@ export default async function ArtistDetailPage({
               </p>
             </div>
             <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-5">
+              <p className="text-muted-foreground text-sm mb-1">Total Videos</p>
+              <p className="text-2xl font-bold text-white">
+                {formatBigNumber(latest?.youtube_video_count)}
+              </p>
+            </div>
+            <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-5">
               <p className="text-muted-foreground text-sm mb-1">Last.fm Listeners</p>
               <p className="text-2xl font-bold text-white">
                 {formatBigNumber(latest?.lastfm_listeners)}
+              </p>
+            </div>
+            <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-5">
+              <p className="text-muted-foreground text-sm mb-1">Last.fm Plays</p>
+              <p className="text-2xl font-bold text-white">
+                {formatBigNumber(latest?.lastfm_playcount)}
               </p>
             </div>
           </div>
