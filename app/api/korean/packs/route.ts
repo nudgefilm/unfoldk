@@ -28,6 +28,7 @@ interface PackApi {
   phraseCount: number
   difficulty: "beginner" | "intermediate" | "advanced" | null
   progressPercent: number
+  masteredCount: number               // user_learning_progress.status='mastered' 카운트. 비로그인 시 0.
 }
 
 interface DramaRow {
@@ -179,6 +180,7 @@ export async function GET() {
       phraseCount,
       difficulty,
       progressPercent,
+      masteredCount: mastered,
     }
   })
 

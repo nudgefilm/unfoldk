@@ -31,7 +31,18 @@ interface PackApi {
   phraseCount: number
   difficulty: "beginner" | "intermediate" | "advanced" | null
   progressPercent: number
+  masteredCount: number               // 사용자가 mastered 한 phrase 수. 비로그인 시 0.
 }
+
+// 레벨 필터 칩. "ALL" 은 항상 노출 (reset 진입점), 나머지는 해당 레벨 팩이 0건이면 미노출.
+// "Mixed" (difficulty=null) 팩은 단일 레벨 필터에 매칭 안 됨 — All 에서만 노출 (의도된 동작).
+const PACK_LEVEL_FILTERS = [
+  { code: "ALL",          label: "All" },
+  { code: "beginner",     label: "Beginner" },
+  { code: "intermediate", label: "Intermediate" },
+  { code: "advanced",     label: "Advanced" },
+] as const
+type PackLevelCode = (typeof PACK_LEVEL_FILTERS)[number]["code"]
 
 interface QuizApi {
   phraseId: string
@@ -109,6 +120,8 @@ export default function HangeulGoPage() {
   // 3. 드라마 팩
   const [packs, setPacks] = useState<PackApi[]>([])
   const [packsLoading, setPacksLoading] = useState(true)
+  // 레벨 필터 — Beginner/Intermediate/Advanced. Mixed (null) 은 ALL 에서만 노출.
+  const [activePackLevel, setActivePackLevel] = useState<PackLevelCode>("ALL")
 
   // 4. 퀴즈
   const [quiz, setQuiz] = useState<QuizApi | null>(null)
@@ -160,6 +173,35 @@ export default function HangeulGoPage() {
       ro.disconnect()
     }
   }, [packs, updatePacksScrollState])
+
+  // ─── 팩 필터 / 진도 대시보드 derived ──────────────────────────
+  // 레벨 chip 0건 미노출 — ALL 은 항상 노출, 나머지는 해당 difficulty 팩 1건 이상일 때만.
+  const visiblePackLevels = PACK_LEVEL_FILTERS.filter(
+    (l) => l.code === "ALL" || packs.some((p) => p.difficulty === l.code)
+  )
+
+  // 선택한 레벨이 데이터 변동으로 사라지면 ALL 로 자동 복귀 — 빈 결과 화면 회피.
+  useEffect(() => {
+    if (activePackLevel === "ALL") return
+    const stillVisible = visiblePackLevels.some((l) => l.code === activePackLevel)
+    if (!stillVisible) setActivePackLevel("ALL")
+  }, [activePackLevel, visiblePackLevels])
+
+  const filteredPacks =
+    activePackLevel === "ALL"
+      ? packs
+      : packs.filter((p) => p.difficulty === activePackLevel)
+
+  // 학습 진도 대시보드 메트릭 — 로그인 유저에게만 노출.
+  // completedPacks: phraseCount > 0 이고 progressPercent === 100 (모든 phrase mastered).
+  // totalMastered: 모든 팩의 mastered phrase 합산.
+  const dashboardStats = {
+    totalPacks: packs.length,
+    completedPacks: packs.filter(
+      (p) => p.phraseCount > 0 && p.progressPercent === 100
+    ).length,
+    totalMastered: packs.reduce((sum, p) => sum + (p.masteredCount ?? 0), 0),
+  }
 
   // ─── 인증 + Pro 권한
   useEffect(() => {
@@ -463,6 +505,40 @@ export default function HangeulGoPage() {
           </p>
         </section>
 
+        {/* Learning Progress Dashboard — 로그인 유저 전용.
+            packs.length === 0 일 땐 의미 없는 0/0 카드 노출 회피.
+            totalMastered 는 모든 팩의 user_learning_progress.status='mastered' 합산. */}
+        {isAuthenticated === true && packs.length > 0 && (
+          <section className="mb-12">
+            <h2 className="text-xl font-semibold text-foreground mb-4">Your Progress</h2>
+            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 sm:p-5">
+                <p className="text-muted-foreground text-xs sm:text-sm mb-1">Total Packs</p>
+                <p className="text-2xl sm:text-3xl font-bold text-white">
+                  {dashboardStats.totalPacks}
+                </p>
+              </div>
+              <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 sm:p-5">
+                <p className="text-muted-foreground text-xs sm:text-sm mb-1">Completed</p>
+                <p
+                  className="text-2xl sm:text-3xl font-bold"
+                  style={{ color: "#FF4B6E" }}
+                >
+                  {dashboardStats.completedPacks}
+                </p>
+              </div>
+              <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 sm:p-5">
+                <p className="text-muted-foreground text-xs sm:text-sm mb-1">
+                  Phrases Mastered
+                </p>
+                <p className="text-2xl sm:text-3xl font-bold text-white">
+                  {dashboardStats.totalMastered}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Today's Lesson Card */}
         <section className="mb-16">
           <div className="max-w-[640px] mx-auto bg-[#1a1a1a] border border-border/30 rounded-2xl p-8">
@@ -630,13 +706,42 @@ export default function HangeulGoPage() {
           ) : packs.length === 0 ? (
             <p className="text-muted-foreground text-sm">No learning packs yet.</p>
           ) : (
+            <>
+            {/* 레벨 필터 칩 — visiblePackLevels 만 렌더 (해당 difficulty 팩 0건이면 chip 자체 미노출).
+                ALL 은 항상 노출 — reset 진입점. Mixed (null difficulty) 팩은 ALL 에서만 노출. */}
+            <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden"
+              style={{ scrollbarWidth: "none" }}>
+              {visiblePackLevels.map((l) => {
+                const isActive = activePackLevel === l.code
+                return (
+                  <button
+                    key={l.code}
+                    type="button"
+                    onClick={() => setActivePackLevel(l.code)}
+                    className={`flex-shrink-0 inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                      isActive
+                        ? "text-white"
+                        : "border-border/40 bg-[#1a1a1a] text-muted-foreground hover:border-border/70 hover:text-foreground"
+                    }`}
+                    style={
+                      isActive
+                        ? { backgroundColor: "#FF4B6E", borderColor: "#FF4B6E" }
+                        : undefined
+                    }
+                    aria-pressed={isActive}
+                  >
+                    {l.label}
+                  </button>
+                )
+              })}
+            </div>
             <div className="relative group">
             <div
               ref={packsScrollRef}
               className="flex gap-4 overflow-x-auto pb-4 -mx-5 px-5 [&::-webkit-scrollbar]:hidden"
               style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
-              {packs.map((pack) => {
+              {filteredPacks.map((pack) => {
                 const dColor = difficultyColor(pack.difficulty)
                 // 오늘의 표현 드라마와 일치 시 카드 하이라이트 (primary 테두리 + ring + 우상단 Today 배지)
                 const isTodaysDrama = !!phrase?.dramaId && phrase.dramaId === pack.id
@@ -734,6 +839,7 @@ export default function HangeulGoPage() {
               </button>
             )}
             </div>
+            </>
           )}
         </section>
 
