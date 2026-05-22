@@ -41,8 +41,10 @@ const client = new Anthropic()
 
 const ITEMS_PER_AREA = 30
 // 통합 cap — 한 row 가 title + overview 둘 다 번역해도 1 카운트.
-// row 당 최대 Claude 호출 2건 → cron 한 번에 최대 200 Claude 호출.
-const MAX_TRANSLATIONS_PER_RUN = 100
+// row 당 최대 Claude 호출 2건 → cron 한 번에 최대 600 Claude 호출.
+// 2026-05-22 100 → 300 상향 — backfill 클리어 속도를 끌어올리려는 목적.
+// Claude Haiku 4.5 비용: 1000 title ~$0.17, 1000 overview ~$3. 300/run 도 무시할 수준.
+const MAX_TRANSLATIONS_PER_RUN = 300
 // detailCommon2 enrichment cap — overview_ko 가 비어있는 row 에 대해 detail fetch.
 // TourAPI 호출 비용만 들고 Claude 호출 없음. 한 번에 최대 50건 (~25초).
 const MAX_DETAIL_ENRICHMENTS_PER_RUN = 50
@@ -604,9 +606,16 @@ async function translatePendingRows(
 }
 
 // ─── 메인 진입점 ──────────────────────────────────────────────
-// onlyFestivals=true: 축제·행사 (15) 카테고리만 수집 + 해당 카테고리 enrichment·번역만 처리.
-// 일 cron 슬롯 (`?only_festivals=true`) 에서 사용 — 축제는 시간 민감 (D-1 등록 가능) 이라
-// 매일 따라잡되, 나머지 카테고리는 월 1회 (전체 cron) 에서 일괄 처리.
+// onlyFestivals=true: 축제·행사 (15) 카테고리만 fetch + 해당 카테고리 enrichment.
+//   ↑ TourAPI 호출 비용이 큰 단계만 제한. 번역은 분리.
+//
+// 번역 단계 (translatePendingRows) 는 onlyFestivals 와 무관하게 항상 전체
+// 카테고리 대상 — Claude Haiku 단독이라 외부 API 쿼터 영향 없음. backfill
+// 페이스를 끌어올리기 위해 일 cron 슬롯에서도 5 카테고리 모두 처리.
+// (2026-05-22 분리. 이전엔 fetch·enrich·번역이 모두 same filter 였음)
+//
+// 일 cron 슬롯 (`?only_festivals=true`) — 축제는 시간 민감 (D-1 등록 가능)
+// 이라 매일 따라잡고, 나머지 카테고리는 주 1회 (전체 cron) 에서 일괄 fetch.
 export async function runTourSpotsIngest(
   options: { onlyFestivals?: boolean } = {}
 ): Promise<TourSpotsIngestResult> {
@@ -657,9 +666,11 @@ export async function runTourSpotsIngest(
     )
   }
 
-  // 번역은 모든 카테고리 수집·enrichment 끝낸 후 한 번에 cap 만큼만
+  // 번역은 모든 카테고리 수집·enrichment 끝낸 후 한 번에 cap 만큼만.
+  // contentTypeFilter 를 의도적으로 전달 안 함 — onlyFestivals 일 때도 5 카테고리 전체
+  // 백필 (Claude Haiku 단독, 외부 쿼터 무관). fetch/번역 분리 정책.
   try {
-    const tr = await translatePendingRows(supabase, MAX_TRANSLATIONS_PER_RUN, contentTypeFilter)
+    const tr = await translatePendingRows(supabase, MAX_TRANSLATIONS_PER_RUN)
     result.total_translated = tr.translated
     for (const cat of result.categories) {
       cat.translated = tr.byCategory.get(cat.category) ?? 0
