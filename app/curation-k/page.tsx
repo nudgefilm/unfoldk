@@ -2888,9 +2888,10 @@ function KpopSpotDetailDialog({
         if (!open) onClose()
       }}
     >
-      <DialogContent className="bg-[#141416] border-[#2a2a2a] text-foreground max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-        {/* 이미지 */}
-        <div className="relative bg-[#252525] aspect-[16/9] flex items-center justify-center overflow-hidden">
+      <DialogContent className="bg-[#141416] border-[#2a2a2a] text-foreground max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        {/* 이미지 — 모달 상단 고정 (flex-shrink-0).
+            본문 길어져도 압축 안 됨. SpotDetailDialog 와 동일 패턴. */}
+        <div className="relative bg-[#252525] aspect-[16/9] flex-shrink-0 flex items-center justify-center overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageSrc}
@@ -2913,7 +2914,9 @@ function KpopSpotDetailDialog({
           </span>
         </div>
 
-        <div className="p-6">
+        {/* 본문 — flex-1 min-h-0 overflow-y-auto 로 본문만 스크롤.
+            min-h-0 없으면 flex 자식이 콘텐츠 높이로 펴져 부모 max-h 초과. */}
+        <div className="p-6 flex-1 min-h-0 overflow-y-auto">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-bold text-white leading-tight">
               {spot.spot_name}
