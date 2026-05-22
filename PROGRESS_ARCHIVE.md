@@ -1,7 +1,48 @@
 # PROGRESS_ARCHIVE.md — 과거 세션 진행 기록
 
-> 세션 17 이전의 진행 상태 블록을 보관. PROGRESS.md 는 최근 3 세션만 유지.
+> 세션 18 이전의 진행 상태 블록을 보관. PROGRESS.md 는 최근 3 세션만 유지.
 > 이 파일은 참조용 — 현재 작업 중인 세션 정보는 PROGRESS.md 참조.
+
+---
+
+## 현재 상태 (2026-05-18 세션 17 / AI → UnfoldK 카피 리브랜딩 + HangeulGo Got it 영구화 + LMS 새 탭·no-store·Redeem 모달)
+
+> 사용자 노출 카피의 서비스 주체를 일관되게 "UnfoldK" 로 정렬 (벤더명·"AI" 단독 노출 제거 + CLAUDE.md 규칙 박제). HangeulGo "Got it" 후 페이지 재진입 시 같은 표현이 다시 나오던 UX 결함을 user_learning_progress 영구화로 해결. Lemon Squeezy 결제는 새 탭 오픈 + redirect 응답 Cache-Control: no-store 로 다른 계정 이메일 cross-contamination 차단. Subscription 페이지 쿠폰 입력은 /redeem 페이지 전체 이동 → 모달로 전환 (폼 컴포넌트 재사용).
+>
+> commit: `1b587b8` → `032b59d` → `300bee0` → `8c4e746` → `41fc932`.
+
+### 완료
+
+#### A. AI → UnfoldK 카피 일괄 리브랜딩 (`1b587b8`)
+- **CLAUDE.md §6 신규 규칙 박제** — 사용자 노출 텍스트의 서비스 주체는 항상 "UnfoldK". 벤더명 (`Claude`/`Anthropic`/`Haiku`/`Sonnet`/`GPT`/`OpenAI`) 노출 금지. "AI" 단독 표기도 `AI picks` → `UnfoldK picks` / `AI-curated X` → `UnfoldK-curated X` 등 재라벨. 예외 명시 (코드 주석 / lib·app/api 내부 / admin UI / 법무 표기).
+- **JSX 카피 치환 (10개 파일)** — about / drama / food / korean / curation-k / mypage/dramas / terms / header / bento-section / pricing-section. "AI Drama Summary" → "UnfoldK Drama Summary" / "AI Grammar Explanation" → "UnfoldK Grammar Explanation" / "AI-powered drama recommendations" → "UnfoldK drama recommendations" 등.
+- **dead 컴포넌트 삭제** — `components/bento/ai-code-reviews.tsx` (어디서도 import 안 되는 v0 템플릿 잔존).
+- **검증** — 사용자 노출 영역의 `(AI|Claude|Anthropic|Haiku|Sonnet|GPT|OpenAI|ChatGPT)` grep 결과 모두 코드 주석 또는 admin UI (예외 범위). CLAUDE.md §6 의 자가 점검 grep 으로 회귀 방지.
+
+#### B. HangeulGo Got it 영구화 (`032b59d`)
+- **증상** — 페이지 진입 시 항상 같은 오늘의 표현 노출. Got it 후 새로고침해도 동일.
+- **원인** — `phrase-of-day` GET 이 항상 `featured_date` 캐시 hit 반환. `seenPhraseIds` 가 in-memory `useState` 라 새로고침 시 휘발.
+- **`/api/korean/learning-progress` (신규 POST)** — phrase_id + status='mastered' 영구 기록. user_learning_progress 테이블 활용 (0026 마이그레이션). 비-UUID (fallback sentinel) skip 응답 — idempotent.
+- **`/api/korean/phrase-of-day` GET 확장** — 로그인 유저의 mastered phrase id 목록을 모드 A·B 양쪽에서 자동 참조. 모드 A (오늘의 featured): 캐시 hit row 가 mastered 면 자동으로 모드 B (mastered 제외 랜덤) 로 우회. 모드 B (랜덤): 클라이언트 `seenPhraseIds` + 본인 mastered 자동 머지.
+- **`app/korean/page.tsx` `handleMarkLearned`** — streak POST 옆에 learning-progress POST 추가. Got it 클릭 → 영구 mastered → 다음 진입 시 다른 표현.
+
+#### C. Lemon Squeezy 결제 새 탭 오픈 (`300bee0`)
+- **수정** — `app/start/page.tsx`: `window.location.href` → `window.open(url, "_blank", "noopener,noreferrer")` + 원래 탭은 `/mypage` 로 이동. `app/mypage/subscription/page.tsx`: Monthly/Annual `<a>` 2개에 `target="_blank" rel="noopener noreferrer"` 추가.
+
+#### D. LMS 체크아웃 redirect 응답 Cache-Control: no-store (`8c4e746`)
+- **원인** — `NextResponse.redirect()` 기본 307 이 Cache-Control 없어 브라우저가 이전 사용자 이메일 임베드 Location 캐시. **수정** — `/api/lemonsqueezy/checkout` 4개 redirect 경로에 `Cache-Control: no-store` 일괄 명시.
+
+#### E. Subscription 페이지 Redeem code 모달 + 폼 컴포넌트 재사용 (`41fc932`)
+- **`components/redeem-coupon-form.tsx` 신규** — 폼 + 결과 화면 재사용 컴포넌트. props: `onSuccess` / `hideOuterCard` / `hideGoToSubscription`.
+- **`app/redeem/page.tsx`** — inline 폼 제거, `<RedeemCouponForm />` 사용.
+- **`app/mypage/subscription/page.tsx` FreeUserView** — shadcn `<Dialog>` 모달 트리거. 쿠폰 성공 시 1.8초 노출 후 모달 닫기 + `router.refresh()`.
+
+### 다음 세션 후보 (carry-over)
+- **세션 16 carry-over 전체 유지** — famous-dramas ↔ dramas 매칭 실측 검증 / top.gg 심사 / /calendar · /today · /notify 슬래시 명령 / KdramaMatch Phase 2 잔여 / Curation K Phase 2 / 결제 가동 시 복원 / 블로그 cron 운영 안정화
+
+### 블로커
+- **top.gg 심사 1~2주 대기**
+- 세션 13 carry-over — 메인 페이지 hang + Ghost Globe 미작동
 
 ---
 

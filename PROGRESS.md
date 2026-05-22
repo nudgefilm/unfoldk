@@ -4,6 +4,71 @@
 
 ---
 
+## 현재 상태 (2026-05-23 세션 21 / Curation K 운영 안정화 — cron timeout 근본 해결 + 축제 탭 개선 + Pro 킬러 기능 로드맵 확정)
+
+> 운영 관점 집중 세션. ① Nearby Places 섹션을 전 탭 모달에 공통 확장, ② 어드민 cron "축제만(빠른)" 버튼 무응답 원인을 Vercel 내부 HTTP fetch 차단으로 확진 → 직접 핸들러 import 방식으로 교체, ③ translatePendingRows 배치 처리 전환으로 300s timeout 근본 해결, ④ 축제 탭 2건만 표시되던 날짜 필터 버그 수정 + 상태 배지·정렬 개선. 후반에 Pro 킬러 기능 5종 로드맵 확정.
+>
+> commits: `ba354a5` → `e63b17d` → `7a4fc7f` → `11b49e2` → `6555ba4` → `7de74b5`.
+
+### 완료
+
+#### A. Curation K — Nearby Places 섹션 전 탭 모달 확장
+
+- 기존: filming 탭 모달에만 NearbyPlacesSection 노출.
+- **확장**: Attractions / Food / Stays / Culture / K-Pop Pilgrimage 모달 전체 적용.
+- `/api/curation-k/nearby-spots` API 를 `?filming_spot_id=` 외에 `?lat=&lng=&exclude_type=` 직접 파라미터도 수용하도록 재작성.
+- `exclude_type` — 현재 탭과 동일 content_type_id 를 Nearby 결과에서 제외 (자기 카테고리 중복 방지). 탭별 매핑: `TAB_EXCLUDE_TYPE = { attractions:12, culture:14, stays:32, food:39 }`.
+- `KpopSpotDetailDialog` — 기존 조건부 early return 전에 훅 선언이 없던 구조 → `useState`/`useEffect` 훅을 상단으로 이동 후 `NearbyPlacesSection` 추가.
+- GPS 없는 spot 이나 festivals 탭은 Nearby 섹션 미노출 (기존 정책 유지).
+
+#### B. 어드민 cron 프록시 — Vercel 내부 HTTP fetch 차단 우회
+
+- **증상**: 어드민에서 "축제만(빠른)" 클릭 시 Vercel 로그에 아무것도 찍히지 않음.
+- **원인**: `app/api/admin/cron/run` 가 동일 Vercel 배포의 `www.unfoldk.com/api/cron/...` URL 로 HTTP fetch → Vercel 이 same-project 내부 호출 차단.
+- **해결**: `app/api/admin/cron/run/route.ts` 를 외부 fetch 방식에서 **직접 핸들러 import** 방식으로 전면 교체. 10개 cron 라우트 GET handler 를 import 후 synthetic `Request` (`https://internal/...` URL + `Authorization: Bearer {CRON_SECRET}`) 로 직접 호출. `verifyCronAuth` 가 헤더만 검사해 domain-agnostic 동작 보장.
+- `components/admin/cron-monitor.tsx` — `timedOut` 분기 제거 (더 이상 발생 불가).
+
+#### C. translatePendingRows 배치 처리 전환 — 300s timeout 근본 해결
+
+- **원인**: `translatePendingRows` 가 row 당 Claude 1~2회 순차 호출. 300건 × 1.5s = 900s → timeout 필연.
+- **해결**: `BATCH_SIZE=20` 으로 단일 Claude 호출. 300건 ÷ 20 = 15 호출 × ~5s ≈ 75s. 300s 내 완주.
+- `BATCH_TRANSLATE_TOOL` — `items[]` 배열 스키마 (id / title_en / overview_en). 응답 ID 키 매핑 후 row 별 DB 업데이트.
+- 개별 `translateTitle` / `translateOverview` 함수 제거. `MAX_TRANSLATIONS_FESTIVALS=30` 및 `translationCap` 변수 제거 — 배치 처리로 cap 분리 불필요. `MAX_TRANSLATIONS_PER_RUN=300` 단일 적용.
+- 축제만 + 전체 카테고리 모두 timeout 없이 완주 확인 (어드민에서 직접 테스트).
+
+#### D. 축제 탭 2건만 표시 문제 수정
+
+- **원인**: `spots/route.ts` 가 `event_end_date >= today` 필터 적용 → 진행 중인 2건만 노출. `stats/route.ts` (히어로 맵 카운트) 는 날짜 필터 없이 전체 집계 → 불일치.
+- **수정**: 날짜 필터 제거. stats API 와 동일하게 전체 festivals 노출. `ymdToday()` 미사용 함수 제거.
+
+#### E. 축제 탭 상태 배지 + 정렬 개선
+
+- **정렬** (`spots/route.ts`): festivals 탭은 전체 fetch 후 JS 정렬 (PostgREST computed sort 불가). 정렬 기준: 진행 중(0) → 예정(1, 가까운 순) → 종료(2, 최근 종료 순). `.limit(2000)` cap, `s-maxage=60`.
+- **상태 배지** (`page.tsx`): `getFestivalStatus()` 헬퍼 추가. YYYYMMDD 문자 비교.
+  - 진행 중 → `#22c55e` 녹색 "진행 중"
+  - 예정 60일 이내 → `#fb923c` 주황 "D-N"
+  - 예정 60일 초과 → `#fb923c` 주황 "예정"
+  - 종료 → `#6b7280` 회색 "종료"
+- `TourRow` + `mapTourRow` 헬퍼로 festivals/일반 탭 공통 매핑 코드 중복 제거.
+
+## Pro 기능 로드맵 → PRO_ROADMAP.md 참조
+
+### 다음 세션 후보
+
+- **Pro 킬러 기능 ① 개인화 알림 Pro 게이팅** — 구독 아티스트 D-7/D-1/당일 알림 Pro 전용 강화.
+- **filming_spots backfill 잔여 확인** — `SELECT COUNT(*) FROM filming_spots WHERE spot_description IS NULL` 으로 0 확인.
+- **Google 색인 모니터링** — `site:unfoldk.com` 결과 노출 여부.
+
+세션 20 carry-over 유지: famous-dramas ↔ dramas 매칭 검증 · 블로그 이미지 중복 개선 · 푸터 국가 통계 · KdramaMatch Phase 2 · 결제 가동 시 복원 · top.gg 심사 대기 · 세션 13 carry-over.
+
+### 블로커
+
+- **top.gg 심사 대기** — 외부 의존 (세션 15 carry-over 연장).
+- **LMS 재심사 대기** — 외부 의존. 거절 시 Paddle 전환.
+- **Google 색인 생성 대기** — 1~2주.
+
+---
+
 ## 현재 상태 (2026-05-21 세션 20 / KfoodKit·Curation K 운영 안정화 + HallyuBot·LMS 외부 트랙 + SEO/AI 검색 기초 인프라)
 
 > 운영 관점 마감 세션. 신규 기능 개발은 최소화하고 ① KfoodKit·Curation K 데이터 backfill 상태 확정, ② HallyuBot top.gg 제출, ③ Lemon Squeezy 재심사 답변, ④ Discord 커뮤니티 홍보 자산, ⑤ Google·Bing 검색 등록 + AI 검색 (llms.txt) 인프라 + 블로그 페이지네이션을 한 묶음으로 정리. 블로커 트랙 (top.gg / LMS / Google 색인) 은 모두 외부 응답 대기로 전환.
@@ -391,62 +456,4 @@
 - **top.gg 심사 1~2주 대기** — 외부 의존 (세션 15 carry-over)
 - 세션 13 carry-over — 메인 페이지 hang + Ghost Globe 미작동
 
----
-
-## 현재 상태 (2026-05-18 세션 17 / AI → UnfoldK 카피 리브랜딩 + HangeulGo Got it 영구화 + LMS 새 탭·no-store·Redeem 모달)
-
-> 사용자 노출 카피의 서비스 주체를 일관되게 "UnfoldK" 로 정렬 (벤더명·"AI" 단독 노출 제거 + CLAUDE.md 규칙 박제). HangeulGo "Got it" 후 페이지 재진입 시 같은 표현이 다시 나오던 UX 결함을 user_learning_progress 영구화로 해결. Lemon Squeezy 결제는 새 탭 오픈 + redirect 응답 Cache-Control: no-store 로 다른 계정 이메일 cross-contamination 차단. Subscription 페이지 쿠폰 입력은 /redeem 페이지 전체 이동 → 모달로 전환 (폼 컴포넌트 재사용).
->
-> commit: `1b587b8` → `032b59d` → `300bee0` → `8c4e746` → `41fc932`.
-
-### 완료
-
-#### A. AI → UnfoldK 카피 일괄 리브랜딩 (`1b587b8`)
-- **CLAUDE.md §6 신규 규칙 박제** — 사용자 노출 텍스트의 서비스 주체는 항상 "UnfoldK". 벤더명 (`Claude`/`Anthropic`/`Haiku`/`Sonnet`/`GPT`/`OpenAI`) 노출 금지. "AI" 단독 표기도 `AI picks` → `UnfoldK picks` / `AI-curated X` → `UnfoldK-curated X` 등 재라벨. 예외 명시 (코드 주석 / lib·app/api 내부 / admin UI / 법무 표기).
-- **JSX 카피 치환 (10개 파일)** — about / drama / food / korean / curation-k / mypage/dramas / terms / header / bento-section / pricing-section. "AI Drama Summary" → "UnfoldK Drama Summary" / "AI Grammar Explanation" → "UnfoldK Grammar Explanation" / "AI-powered drama recommendations" → "UnfoldK drama recommendations" 등.
-- **dead 컴포넌트 삭제** — `components/bento/ai-code-reviews.tsx` (어디서도 import 안 되는 v0 템플릿 잔존).
-- **검증** — 사용자 노출 영역의 `(AI|Claude|Anthropic|Haiku|Sonnet|GPT|OpenAI|ChatGPT)` grep 결과 모두 코드 주석 또는 admin UI (예외 범위). CLAUDE.md §6 의 자가 점검 grep 으로 회귀 방지.
-
-#### B. HangeulGo Got it 영구화 (`032b59d`)
-- **증상** — 페이지 진입 시 항상 같은 오늘의 표현 노출. Got it 후 새로고침해도 동일.
-- **원인** — `phrase-of-day` GET 이 항상 `featured_date` 캐시 hit 반환. `seenPhraseIds` 가 in-memory `useState` 라 새로고침 시 휘발.
-- **`/api/korean/learning-progress` (신규 POST)** — phrase_id + status='mastered' 영구 기록. user_learning_progress 테이블 활용 (0026 마이그레이션). 비-UUID (fallback sentinel) skip 응답 — idempotent.
-- **`/api/korean/phrase-of-day` GET 확장** —
-  - 로그인 유저의 mastered phrase id 목록을 모드 A·B 양쪽에서 자동 참조 (`getMasteredPhraseIds` 헬퍼).
-  - 모드 A (오늘의 featured): 캐시 hit row 가 mastered 면 자동으로 모드 B (mastered 제외 랜덤) 로 우회.
-  - 모드 B (랜덤): 클라이언트 `seenPhraseIds` + 본인 mastered 자동 머지 (`extraExcludeIds` 파라미터).
-- **`app/korean/page.tsx` `handleMarkLearned`** — streak POST 옆에 learning-progress POST 추가. Got it 클릭 → 영구 mastered → 다음 진입 시 다른 표현.
-- **비로그인 동작 무변경** — in-memory `seenPhraseIds` 그대로.
-
-#### C. Lemon Squeezy 결제 새 탭 오픈 (`300bee0`)
-- **증상** — 결제 버튼 클릭 시 현재 탭이 LMS 호스팅 페이지로 전환 (전체 페이지) → UnfoldK 컨텍스트 이탈.
-- **수정** — `app/start/page.tsx`: `window.location.href` → `window.open(url, "_blank", "noopener,noreferrer")` + 원래 탭은 `/mypage` 로 이동 (가입은 free 락인 완료 상태). `app/mypage/subscription/page.tsx`: Monthly/Annual `<a>` 2개에 `target="_blank" rel="noopener noreferrer"` 추가.
-- **서버 라우트 무변경** — `/api/lemonsqueezy/checkout` 은 그대로 302 redirect 유지. 새 탭이 라우트로 들어가서 LMS 로 이동. 결제 완료/실패와 무관하게 원래 탭은 UnfoldK 에 유지. webhook 이 결제 시 plan_type 업그레이드.
-- **검토했다가 폐기** — `lemon.js` 오버레이 통합 (`LemonSqueezy.Url.Open` + `?embed=1`). 새 탭 한 줄로 충분한데 과한 작업.
-
-#### D. LMS 체크아웃 redirect 응답 Cache-Control: no-store (`8c4e746`)
-- **증상** — 관리자 계정으로 결제 버튼 클릭했던 브라우저에서 일반 회원으로 갈아탄 뒤 같은 버튼 클릭 시 LMS 결제창에 관리자 이메일이 임베드되어 표시.
-- **원인** — `NextResponse.redirect()` 기본 307 응답이 Cache-Control 헤더 없음 → 브라우저가 같은 쿼리 (`?plan=monthly`) 로 재요청 시 캐시된 Location (이전 사용자 email 임베드) 을 그대로 따라감. 서버는 매번 `supabase.auth.getUser()` 로 새 이메일 가져오지만 브라우저가 서버까지 안 닿는 게 문제.
-- **수정** — `/api/lemonsqueezy/checkout` 의 4개 redirect 경로 (invalid_plan / no_user / checkout_unavailable / 정상 LMS URL) 에 일괄 `Cache-Control: no-store` 명시. `NO_STORE_HEADERS` 상수로 일관 적용.
-- **기존 캐시 잔재**는 코드 수정과 무관 — 시크릿 창 / 캐시 클리어로만 풀림. 앞으로 발생하는 요청부터 차단.
-
-#### E. Subscription 페이지 Redeem code 모달 + 폼 컴포넌트 재사용 (`41fc932`)
-- **`components/redeem-coupon-form.tsx` 신규** — 폼 + 결과 화면 재사용 컴포넌트. props: `onSuccess` / `hideOuterCard` / `hideGoToSubscription` 으로 페이지·모달 양쪽 컨텍스트에 맞춰 동작.
-- **`app/redeem/page.tsx`** — 기존 inline 폼 (180+ 줄) 제거, auth guard + 카드 wrapper 만 남기고 `<RedeemCouponForm />` 사용.
-- **`app/mypage/subscription/page.tsx` FreeUserView** — `<Link href="/redeem">` 제거. shadcn `<Dialog>` + `<DialogTrigger>` 로 모달 트리거. 쿠폰 성공 시 success view 1.8초 노출 후 모달 자동 닫기 + `router.refresh()` 로 plan_type 즉시 갱신.
-- 폼 로직·에러 메시지 매핑 (`ERROR_MESSAGES`) 은 컴포넌트 내부 단일 진실원 — 향후 카피 변경 시 한 곳만 수정.
-
-### 다음 세션 후보 (carry-over)
-- **세션 16 carry-over 전체 유지** —
-  - famous-dramas ↔ dramas 매칭 실측 검증 (어드민 cron 수동 실행 → `auto_added_dramas` 카운트 확인)
-  - top.gg 심사 통과 후 봇 페이지 운영
-  - /calendar / /today / /notify 슬래시 명령 추가
-  - **세션 14 carry-over**: KdramaMatch Phase 2 잔여 / Curation K Phase 2 / 결제 가동 시 복원 / 세션 13 잔여
-  - 블로그 cron 운영 안정화
-
-### 블로커
-- **top.gg 심사 1~2주 대기** — 외부 의존 (세션 15 carry-over)
-- 세션 13 carry-over — 메인 페이지 hang + Ghost Globe 미작동
-
----
 
