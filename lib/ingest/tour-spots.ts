@@ -44,11 +44,12 @@ const client = new Anthropic()
 const ITEMS_PER_AREA = 100
 // 축제 지역당 최대 페이지 수 (안전 cap) — 100 × 10 = 지역당 최대 1,000건
 const MAX_FESTIVAL_PAGES_PER_AREA = 10
-// 통합 cap — 한 row 가 title + overview 둘 다 번역해도 1 카운트.
-// row 당 최대 Claude 호출 2건 → cron 한 번에 최대 600 Claude 호출.
-// 2026-05-22 100 → 300 상향 — backfill 클리어 속도를 끌어올리려는 목적.
-// Claude Haiku 4.5 비용: 1000 title ~$0.17, 1000 overview ~$3. 300/run 도 무시할 수준.
+// 통합 cap — 배치 처리로 row 당 Claude 호출 분리 없음.
+// 300행 ÷ 20(배치) = 15 호출 × ~5s = ~75s. 300s timeout 충분히 내.
+// Claude Haiku 4.5 비용: 300 rows ~$0.5 이하.
 const MAX_TRANSLATIONS_PER_RUN = 300
+// 배치 크기 — 20건씩 단일 Claude 호출. max_tokens=8192 안전 범위.
+const BATCH_SIZE = 20
 // detailCommon2 enrichment cap — overview_ko 가 비어있는 row 에 대해 detail fetch.
 // TourAPI 호출 비용만 들고 Claude 호출 없음. 한 번에 최대 50건 (~25초).
 const MAX_DETAIL_ENRICHMENTS_PER_RUN = 50
@@ -315,120 +316,45 @@ async function runCategory(
   return result
 }
 
-// ─── Claude Haiku 번역 — overview_ko → overview_en ────────────
-const TRANSLATE_TOOL: Anthropic.Tool = {
-  name: "report_translation",
-  description:
-    "Translate the given Korean tourism description into natural, concise English for global Hallyu fans.",
+// ─── Claude Haiku 배치 번역 ────────────────────────────────────
+// BATCH_SIZE 건씩 단일 호출 — 순차 1건/호출 대비 ~20× 속도 향상.
+const BATCH_TRANSLATE_TOOL: Anthropic.Tool = {
+  name: "report_batch_translations",
+  description: "Submit English translations for a batch of Korean tourism spot entries.",
   input_schema: {
     type: "object",
     properties: {
-      english: {
-        type: "string",
-        description: "Natural English translation. Keep it concise (under 1500 chars).",
-      },
-    },
-    required: ["english"],
-  },
-}
-
-const TRANSLATE_SYSTEM_PROMPT = `You are a tourism description translator for UnfoldK, a Hallyu fan platform serving global K-drama and K-pop fans.
-
-Translate Korean tourism descriptions into clear, natural English. Rules:
-- Preserve factual information (place names, addresses, dates, history).
-- Keep tone informative and friendly — readers are travelers planning a trip.
-- Romanize Korean proper nouns if no standard English exists.
-- Strip HTML tags. Don't add information that wasn't in the original.
-- Output the translation only — no preamble, no quotes.`
-
-// ─── Claude Haiku 번역 — title(한글) → eng_title(영문 장소명) ───
-const TRANSLATE_TITLE_TOOL: Anthropic.Tool = {
-  name: "report_title",
-  description:
-    "Translate the given Korean place name into a concise English place name (proper nouns Romanized in standard form).",
-  input_schema: {
-    type: "object",
-    properties: {
-      english: {
-        type: "string",
-        description:
-          "Concise English place name. Romanize Korean proper nouns. No explanation, no parentheses, max 80 chars.",
-      },
-    },
-    required: ["english"],
-  },
-}
-
-const TRANSLATE_TITLE_SYSTEM_PROMPT = `You translate Korean place names into English for a Hallyu fan platform.
-
-Rules:
-- Output the place name only. No description, no parentheses, no quotes.
-- Romanize Korean proper nouns using the most common form (e.g., 경복궁 → Gyeongbokgung Palace).
-- Use standard English equivalents when they exist (e.g., 동대문 → Dongdaemun, 부산 → Busan).
-- Keep it concise — under 80 characters.
-- If the input is already English, return it unchanged.`
-
-async function translateTitle(koTitle: string): Promise<string | null> {
-  try {
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 128,
-      system: [
-        {
-          type: "text",
-          text: TRANSLATE_TITLE_SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" },
+      items: {
+        type: "array",
+        description: "One result per input item.",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "Item ID from input — return unchanged." },
+            title_en: {
+              type: "string",
+              description: "English place name (≤80 chars). Include only if title_ko was provided.",
+            },
+            overview_en: {
+              type: "string",
+              description: "English tourism description (≤500 chars). Include only if overview_ko was provided.",
+            },
+          },
+          required: ["id"],
         },
-      ],
-      tools: [TRANSLATE_TITLE_TOOL],
-      tool_choice: { type: "tool", name: TRANSLATE_TITLE_TOOL.name },
-      messages: [{ role: "user", content: koTitle.slice(0, 200) }],
-    })
-
-    const toolBlock = response.content.find(
-      (b): b is Anthropic.ToolUseBlock =>
-        b.type === "tool_use" && b.name === TRANSLATE_TITLE_TOOL.name
-    )
-    if (!toolBlock) return null
-    const input = toolBlock.input as { english?: unknown }
-    if (typeof input.english !== "string") return null
-    const out = input.english.trim()
-    return out.length > 0 ? out.slice(0, 80) : null
-  } catch (err) {
-    console.warn(
-      "[tour-spots] translateTitle 실패:",
-      err instanceof Error ? err.message : String(err)
-    )
-    return null
-  }
+      },
+    },
+    required: ["items"],
+  },
 }
 
-async function translateOverview(koText: string): Promise<string | null> {
-  try {
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
-      system: [
-        { type: "text", text: TRANSLATE_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
-      ],
-      tools: [TRANSLATE_TOOL],
-      tool_choice: { type: "tool", name: TRANSLATE_TOOL.name },
-      messages: [{ role: "user", content: koText.slice(0, 4000) }],
-    })
+const BATCH_TRANSLATE_SYSTEM = `You translate Korean tourism content into English for UnfoldK, a Hallyu fan platform.
 
-    const toolBlock = response.content.find(
-      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === TRANSLATE_TOOL.name
-    )
-    if (!toolBlock) return null
-    const input = toolBlock.input as { english?: unknown }
-    if (typeof input.english !== "string") return null
-    const out = input.english.trim()
-    return out.length > 0 ? out.slice(0, 4000) : null
-  } catch (err) {
-    console.warn("[tour-spots] translate 실패:", err instanceof Error ? err.message : String(err))
-    return null
-  }
-}
+For each input item:
+- title_en (only if title_ko given): English place name. Romanize Korean proper nouns (경복궁 → Gyeongbokgung Palace). ≤80 chars. Name only — no description or extra text.
+- overview_en (only if overview_ko given): Natural English tourism description. Preserve all facts. Friendly tone for travelers. Strip HTML tags. ≤500 chars.
+
+Return every item via the tool keyed by its original id. Only include title_en / overview_en for fields that were requested.`
 
 // ─── detailCommon2 enrichment ────────────────────────────────
 // list 엔드포인트는 overview 를 안 줘서 overview_ko 가 영구 null.
@@ -533,9 +459,9 @@ function hasHangul(s: string): boolean {
   return /[가-힣]/.test(s)
 }
 
-// title + overview 번역 처리.
-// cap 은 "row" 단위 — 한 row 가 title 만 / overview 만 / 둘 다 번역해도 1 카운트.
-// 우선순위: 두 필드 모두 누락된 row > overview 만 누락 row > title 만 누락 row.
+// title + overview 배치 번역.
+// cap 은 "row" 단위. BATCH_SIZE 건씩 Claude 단일 호출 — 순차 대비 ~20× 빠름.
+// 우선순위: 두 필드 모두 누락 > overview 만 누락 > title 만 누락.
 async function translatePendingRows(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
   cap: number,
@@ -543,13 +469,11 @@ async function translatePendingRows(
 ): Promise<TranslationStats> {
   const stats: TranslationStats = { translated: 0, byCategory: new Map(), errors: [] }
 
-  // PostgREST OR 필터로 한 번에 조회 — 두 케이스 union.
-  // eng_title 이 null 인 row 는 title 이 영문이어도 매칭되지만, 본문 루프에서 hasHangul 가드.
   let q = supabase
     .from("tour_spots")
     .select("id, content_type_id, title, eng_title, overview_ko, overview_en")
     .or("eng_title.is.null,and(overview_ko.not.is.null,overview_en.is.null)")
-    .limit(cap * 2) // cap 의 2배로 over-fetch 후 우선순위 정렬·자르기
+    .limit(cap * 2)
   if (contentTypeFilter !== undefined) q = q.eq("content_type_id", contentTypeFilter)
   const { data, error } = await q
 
@@ -568,65 +492,111 @@ async function translatePendingRows(
   }
   const allRows = (data ?? []) as Row[]
 
-  // 우선순위 점수: title 누락+overview 누락 = 2 / overview 만 누락 = 1 / title 만 누락 = 0
-  // 같은 점수 내에선 입력 순서 유지.
-  const scored = allRows.map((r) => {
-    const needTitle = r.eng_title === null && hasHangul(r.title)
-    const needOverview = r.overview_ko !== null && r.overview_en === null
-    let score = 0
-    if (needTitle && needOverview) score = 2
-    else if (needOverview) score = 1
-    else if (needTitle) score = 0
-    return { r, needTitle, needOverview, score }
-  }).filter((x) => x.needTitle || x.needOverview)
+  const scored = allRows
+    .map((r) => {
+      const needTitle = r.eng_title === null && hasHangul(r.title)
+      const needOverview = r.overview_ko !== null && r.overview_en === null
+      let score = 0
+      if (needTitle && needOverview) score = 2
+      else if (needOverview) score = 1
+      else if (needTitle) score = 0
+      return { r, needTitle, needOverview, score }
+    })
+    .filter((x) => x.needTitle || x.needOverview)
 
   scored.sort((a, b) => b.score - a.score)
   const rows = scored.slice(0, cap)
 
-  for (const { r, needTitle, needOverview } of rows) {
-    const updates: { eng_title?: string; overview_en?: string } = {}
+  // ── 배치 루프 ────────────────────────────────────────────────
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const batch = rows.slice(i, i + BATCH_SIZE)
 
-    if (needTitle) {
-      const eng = await translateTitle(r.title)
-      if (eng) updates.eng_title = eng
+    const lines: string[] = [`Translate these ${batch.length} Korean tourism entries:`]
+    for (const { r, needTitle, needOverview } of batch) {
+      const parts: string[] = [`id: ${r.id}`]
+      if (needTitle) parts.push(`title_ko: ${r.title.slice(0, 200)}`)
+      if (needOverview && r.overview_ko) parts.push(`overview_ko: ${r.overview_ko.slice(0, 1500)}`)
+      lines.push(parts.join(" | "))
     }
-    if (needOverview && r.overview_ko) {
-      const eng = await translateOverview(r.overview_ko)
-      if (eng) updates.overview_en = eng
-    }
+    lines.push("\nOutput all items through the tool.")
 
-    if (Object.keys(updates).length === 0) continue
+    const resultMap = new Map<string, { title_en?: string; overview_en?: string }>()
+    try {
+      const response = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 8192,
+        system: [
+          { type: "text", text: BATCH_TRANSLATE_SYSTEM, cache_control: { type: "ephemeral" } },
+        ],
+        tools: [BATCH_TRANSLATE_TOOL],
+        tool_choice: { type: "tool", name: BATCH_TRANSLATE_TOOL.name },
+        messages: [{ role: "user", content: lines.join("\n") }],
+      })
 
-    const { error: upErr } = await supabase
-      .from("tour_spots")
-      .update(updates)
-      .eq("id", r.id)
-
-    if (upErr) {
-      stats.errors.push(`번역 업데이트 실패 (${r.id}): ${upErr.message}`)
+      const toolBlock = response.content.find(
+        (b): b is Anthropic.ToolUseBlock =>
+          b.type === "tool_use" && b.name === BATCH_TRANSLATE_TOOL.name
+      )
+      if (toolBlock) {
+        const input = toolBlock.input as { items?: unknown }
+        if (Array.isArray(input.items)) {
+          for (const item of input.items as Array<Record<string, unknown>>) {
+            if (typeof item.id !== "string") continue
+            const entry: { title_en?: string; overview_en?: string } = {}
+            if (typeof item.title_en === "string" && item.title_en.trim()) {
+              entry.title_en = item.title_en.trim().slice(0, 80)
+            }
+            if (typeof item.overview_en === "string" && item.overview_en.trim()) {
+              entry.overview_en = item.overview_en.trim().slice(0, 4000)
+            }
+            resultMap.set(item.id, entry)
+          }
+        }
+      }
+    } catch (err) {
+      stats.errors.push(
+        `배치 번역 실패 (batch ${Math.floor(i / BATCH_SIZE) + 1}): ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      )
       continue
     }
-    stats.translated++
-    stats.byCategory.set(
-      r.content_type_id,
-      (stats.byCategory.get(r.content_type_id) ?? 0) + 1
-    )
+
+    // ── DB 업데이트 ────────────────────────────────────────────
+    for (const { r } of batch) {
+      const result = resultMap.get(r.id)
+      if (!result) continue
+      const updates: { eng_title?: string; overview_en?: string } = {}
+      if (result.title_en) updates.eng_title = result.title_en
+      if (result.overview_en) updates.overview_en = result.overview_en
+      if (Object.keys(updates).length === 0) continue
+
+      const { error: upErr } = await supabase
+        .from("tour_spots")
+        .update(updates)
+        .eq("id", r.id)
+
+      if (upErr) {
+        stats.errors.push(`번역 업데이트 실패 (${r.id}): ${upErr.message}`)
+        continue
+      }
+      stats.translated++
+      stats.byCategory.set(r.content_type_id, (stats.byCategory.get(r.content_type_id) ?? 0) + 1)
+    }
   }
 
   return stats
 }
 
 // ─── 메인 진입점 ──────────────────────────────────────────────
-// onlyFestivals=true: 축제·행사 (15) 카테고리만 fetch + 해당 카테고리 enrichment.
-//   ↑ TourAPI 호출 비용이 큰 단계만 제한. 번역은 분리.
+// onlyFestivals=true (일 cron / 어드민 "축제만(빠른)"):
+//   - TourAPI fetch: 축제 카테고리(15)만
+//   - enrichOverviews + translatePendingRows: 축제 카테고리만 필터
 //
-// 번역 단계 (translatePendingRows) 는 onlyFestivals 와 무관하게 항상 전체
-// 카테고리 대상 — Claude Haiku 단독이라 외부 API 쿼터 영향 없음. backfill
-// 페이스를 끌어올리기 위해 일 cron 슬롯에서도 5 카테고리 모두 처리.
-// (2026-05-22 분리. 이전엔 fetch·enrich·번역이 모두 same filter 였음)
+// onlyFestivals=false (주 1회 전체 cron):
+//   - 5개 카테고리 전부 fetch + 전체 번역 backfill
 //
-// 일 cron 슬롯 (`?only_festivals=true`) — 축제는 시간 민감 (D-1 등록 가능)
-// 이라 매일 따라잡고, 나머지 카테고리는 주 1회 (전체 cron) 에서 일괄 fetch.
+// 번역은 배치 처리(BATCH_SIZE=20) — 300건 기준 ~75s, timeout 없음.
 export async function runTourSpotsIngest(
   options: { onlyFestivals?: boolean } = {}
 ): Promise<TourSpotsIngestResult> {
@@ -643,8 +613,11 @@ export async function runTourSpotsIngest(
   const categoriesToRun = options.onlyFestivals
     ? CATEGORIES.filter((c) => c.contentTypeId === CONTENT_TYPE.FESTIVAL)
     : CATEGORIES
+  // onlyFestivals=true 이면 enrich·번역도 축제 카테고리만 처리
   const contentTypeFilter = options.onlyFestivals ? CONTENT_TYPE.FESTIVAL : undefined
 
+  // ── 1. TourAPI fetch ────────────────────────────────────────
+  const t0 = Date.now()
   for (const config of categoriesToRun) {
     try {
       const cat = await runCategory(supabase, config)
@@ -664,9 +637,10 @@ export async function runTourSpotsIngest(
       })
     }
   }
+  console.log(`[tour-spots] fetch 완료 ${Date.now() - t0}ms | upserted=${result.total_upserted}`)
 
-  // overview_ko 가 비어있는 row 에 detailCommon2 호출로 채움.
-  // 번역 단계 전에 실행 — 같은 run 에서 이 row 들의 overview_en 도 만들어짐.
+  // ── 2. enrichOverviews — overview_ko 없는 row 에 detailCommon 호출 ──
+  const t1 = Date.now()
   try {
     const enr = await enrichOverviews(supabase, MAX_DETAIL_ENRICHMENTS_PER_RUN, contentTypeFilter)
     result.total_enriched = enr.enriched
@@ -676,12 +650,12 @@ export async function runTourSpotsIngest(
       `enrichment 단계 예외: ${err instanceof Error ? err.message : String(err)}`
     )
   }
+  console.log(`[tour-spots] enrich 완료 ${Date.now() - t1}ms | enriched=${result.total_enriched}`)
 
-  // 번역은 모든 카테고리 수집·enrichment 끝낸 후 한 번에 cap 만큼만.
-  // contentTypeFilter 를 의도적으로 전달 안 함 — onlyFestivals 일 때도 5 카테고리 전체
-  // 백필 (Claude Haiku 단독, 외부 쿼터 무관). fetch/번역 분리 정책.
+  // ── 3. translatePendingRows — Claude Haiku 배치 번역 ─────────
+  const t2 = Date.now()
   try {
-    const tr = await translatePendingRows(supabase, MAX_TRANSLATIONS_PER_RUN)
+    const tr = await translatePendingRows(supabase, MAX_TRANSLATIONS_PER_RUN, contentTypeFilter)
     result.total_translated = tr.translated
     for (const cat of result.categories) {
       cat.translated = tr.byCategory.get(cat.category) ?? 0
@@ -692,6 +666,7 @@ export async function runTourSpotsIngest(
       `번역 단계 예외: ${err instanceof Error ? err.message : String(err)}`
     )
   }
+  console.log(`[tour-spots] 번역 완료 ${Date.now() - t2}ms | translated=${result.total_translated}`)
 
   return result
 }
