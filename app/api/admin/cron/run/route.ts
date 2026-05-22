@@ -1,28 +1,29 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireAdmin } from "@/lib/admin/auth"
+// 각 cron route handler 직접 import — Vercel 내부 HTTP fetch 차단 우회.
+// 같은 프로젝트 내 함수끼리 외부 URL로 fetch하면 응답을 못 받는 경우가 있어
+// 직접 호출 방식으로 전환 (2026-05-23).
+import { GET as ingestAll } from "@/app/api/cron/ingest-all/route"
+import { GET as ingestTicketmaster } from "@/app/api/cron/ingest-ticketmaster/route"
+import { GET as ingestKpopStats } from "@/app/api/cron/ingest-kpop-stats/route"
+import { GET as ingestTmdbDramas } from "@/app/api/cron/ingest-tmdb-dramas/route"
+import { GET as ingestTourSpots } from "@/app/api/cron/ingest-tour-spots/route"
+import { GET as ingestFilmingKpop } from "@/app/api/cron/ingest-filming-kpop/route"
+import { GET as ingestKoreanPhrases } from "@/app/api/cron/ingest-korean-phrases/route"
+import { GET as ingestFoodRecipes } from "@/app/api/cron/ingest-food-recipes/route"
+import { GET as sendReminders } from "@/app/api/cron/send-reminders/route"
+import { GET as backfillFilmingDescriptions } from "@/app/api/cron/backfill-filming-descriptions/route"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
-// 어드민 모니터에서 cron 라우트를 수동 실행할 수 있게 프록시
-// 이유: 클라이언트는 CRON_SECRET을 알 수 없으므로 서버 측에서 헤더 주입
-//
-// HTTP status 통일 정책:
-//   - 모든 cron 라우트는 정상 종료 시 HTTP 200 반환 (data-level 실패는 result.error 로 표현)
-//   - HTTP 500 은 cron 함수 자체의 uncaught exception 만 의미
-//   - 본 프록시도 inner res.ok 를 그대로 ok 필드로 전달 → 어드민 모니터가 HTTP 200 기준으로 판별
-//
 // ⚠️ 신규 cron 라우트 추가 시:
 //   1. vercel.json crons 배열
 //   2. app/admin/cron/page.tsx ROUTES + ROUTE_DISPLAY_NAMES
-//   3. 본 enum
+//   3. 본 파일 import + CRON_HANDLERS 맵
 //   4. components/admin/cron-monitor.tsx summarizeRunResult
-//   네 곳을 함께 갱신해야 어드민 수동 실행이 정상 동작 (enum 누락 시 zod 400 → "Object Object").
-
-// 270s — 300s 만료 직전에 먼저 끊어 클라이언트에 명확한 응답 반환.
-// 타임아웃 시 { ok: true, timedOut: true } 반환 → UI 가 "백그라운드 실행 중" toast 노출.
-const INNER_TIMEOUT_MS = 270_000
+//   네 곳을 함께 갱신해야 어드민 수동 실행이 정상 동작.
 
 const PostSchema = z.object({
   route: z.enum([
@@ -43,6 +44,22 @@ const PostSchema = z.object({
     .record(z.string().max(64), z.string().max(64))
     .optional(),
 })
+
+type RouteKey = z.infer<typeof PostSchema>["route"]
+
+// route → handler 매핑. zod enum 과 반드시 동기화.
+const CRON_HANDLERS: Record<RouteKey, (req: Request) => Promise<Response>> = {
+  "ingest-all": ingestAll,
+  "ingest-ticketmaster": ingestTicketmaster,
+  "ingest-kpop-stats": ingestKpopStats,
+  "ingest-tmdb-dramas": ingestTmdbDramas,
+  "ingest-tour-spots": ingestTourSpots,
+  "ingest-filming-kpop": ingestFilmingKpop,
+  "ingest-korean-phrases": ingestKoreanPhrases,
+  "ingest-food-recipes": ingestFoodRecipes,
+  "send-reminders": sendReminders,
+  "backfill-filming-descriptions": backfillFilmingDescriptions,
+}
 
 export async function POST(request: Request) {
   const auth = await requireAdmin()
@@ -73,26 +90,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "CRON_SECRET 미설정" }, { status: 500 })
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin
-  const params = parsed.data.params ?? {}
-  const qs = new URLSearchParams(params).toString()
-  const targetUrl = `${appUrl}/api/cron/${parsed.data.route}${qs ? `?${qs}` : ""}`
+  const { route, params } = parsed.data
+  const qs = new URLSearchParams(params ?? {}).toString()
+  // 핸들러 내부에서 searchParams 를 읽기 위한 URL — domain 은 placeholder (verifyCronAuth 는 헤더만 검사).
+  const internalUrl = `https://internal/api/cron/${route}${qs ? `?${qs}` : ""}`
+  const internalReq = new Request(internalUrl, {
+    headers: { Authorization: `Bearer ${cronSecret}` },
+  })
 
-  console.log("[admin/cron/run] fetch 시작 →", targetUrl)
+  console.log("[admin/cron/run] 직접 호출 →", route, qs ? `(${qs})` : "")
 
   const t0 = Date.now()
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), INNER_TIMEOUT_MS)
-
   try {
-    const res = await fetch(targetUrl, {
-      headers: { Authorization: `Bearer ${cronSecret}` },
-      cache: "no-store",
-      signal: controller.signal,
-    })
-    clearTimeout(timeoutId)
-    console.log("[admin/cron/run] fetch 완료 status:", res.status, "elapsed:", Date.now() - t0, "ms")
+    const res = await CRON_HANDLERS[route](internalReq)
     const json = await res.json().catch(() => ({}))
+    console.log("[admin/cron/run] 완료 status:", res.status, "elapsed:", Date.now() - t0, "ms")
     return NextResponse.json({
       ok: res.ok,
       status: res.status,
@@ -100,20 +112,9 @@ export async function POST(request: Request) {
       result: json,
     })
   } catch (err) {
-    clearTimeout(timeoutId)
-    // AbortError = 270s 타임아웃 — cron 자체는 백그라운드에서 계속 실행 중
-    if (err instanceof Error && err.name === "AbortError") {
-      console.log("[admin/cron/run] 270s 타임아웃 — cron 백그라운드 실행 중")
-      return NextResponse.json({
-        ok: true,
-        timedOut: true,
-        elapsedMs: Date.now() - t0,
-        result: null,
-      })
-    }
-    console.error("[admin/cron/run] fetch 예외:", err instanceof Error ? err.message : err)
+    console.error("[admin/cron/run] 핸들러 예외:", err instanceof Error ? err.message : err)
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "fetch 실패" },
+      { error: err instanceof Error ? err.message : "핸들러 실행 실패" },
       { status: 500 }
     )
   }

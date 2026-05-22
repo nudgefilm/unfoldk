@@ -53,15 +53,6 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
       //   - HTTP 非200 또는 admin 프록시 실패 = "실행 실패" 라벨
       // 주의: HTTP 200 이지만 cron 함수 내부에서 result.error 가 set 된 경우,
       //       제목은 "실행 완료" 유지 + description 에 오류 사유 노출 (DB 로그도 "failed" 기록됨).
-      // 270s 타임아웃 — cron 자체는 백그라운드에서 계속 실행 중
-      if (json.timedOut) {
-        toast({
-          title: "실행 시간 초과",
-          description: "백그라운드에서 계속 실행 중일 수 있습니다. 잠시 후 페이지를 새로고침하세요.",
-        })
-        return
-      }
-
       // 성공 판별 정책 (모든 cron 통일):
       //   - HTTP 200 (json.ok=true) = 함수 정상 종료 → "실행 완료" 라벨
       //     data-level 오류는 result.error 로 description 에 노출
