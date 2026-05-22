@@ -2433,6 +2433,38 @@ function SpotCardSkeleton() {
 }
 
 // 카드 클릭 → 상세 모달
+// filming 탭 모달 하단에 들어가는 "Nearby Places" 섹션용 타입.
+// /api/curation-k/nearby-spots 응답과 동일 shape — 카테고리별 5개씩 cap.
+interface NearbyPlaceItem {
+  id: string
+  content_id: string
+  content_type_id: number
+  title: string
+  korean_title: string | null
+  address: string | null
+  image_url: string | null
+  latitude: number
+  longitude: number
+  distance_km: number
+  maps_url: string
+}
+interface NearbyPlacesResponse {
+  filming_spot: {
+    id: string
+    spot_name: string
+    drama_title: string
+    latitude: number | null
+    longitude: number | null
+  }
+  nearby: {
+    attractions: NearbyPlaceItem[]
+    culture: NearbyPlaceItem[]
+    stays: NearbyPlaceItem[]
+    food: NearbyPlaceItem[]
+  }
+  radius_used: 1 | 3 | 10 | null
+}
+
 function SpotDetailDialog({
   spot,
   tab,
@@ -2465,6 +2497,46 @@ function SpotDetailDialog({
   useEffect(() => {
     setImageIndex(0)
   }, [spot?.id])
+
+  // ─── Nearby Places (filming 탭 전용 — K-Travel Planner Phase 1) ──
+  // tab.key === "filming" 이고 spot 에 GPS 가 있을 때만 fetch.
+  // GPS 없거나 결과 0건이면 섹션 자체 렌더 안 함 (graceful).
+  const [nearbyData, setNearbyData] = useState<NearbyPlacesResponse | null>(null)
+  const [nearbyLoading, setNearbyLoading] = useState(false)
+
+  const filmingHasGps =
+    tab.key === "filming" && !!spot && spot.latitude !== null && spot.longitude !== null
+  const filmingSpotId = tab.key === "filming" ? spot?.id ?? null : null
+
+  useEffect(() => {
+    setNearbyData(null)
+    if (!filmingSpotId || !filmingHasGps) return
+
+    let cancelled = false
+    setNearbyLoading(true)
+    fetch(`/api/curation-k/nearby-spots?filming_spot_id=${filmingSpotId}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`status ${res.status}`)
+        return (await res.json()) as NearbyPlacesResponse
+      })
+      .then((data) => {
+        if (cancelled) return
+        setNearbyData(data)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        // 조용히 실패 — Nearby Places 는 보조 섹션이라 모달 자체는 정상 동작 유지.
+        console.warn("[SpotDetailDialog] nearby-spots fetch 실패:", err)
+        setNearbyData(null)
+      })
+      .finally(() => {
+        if (!cancelled) setNearbyLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [filmingSpotId, filmingHasGps])
 
   if (!spot) return null
 
@@ -2658,9 +2730,126 @@ function SpotDetailDialog({
               )
             )}
           </div>
+
+          {/* Nearby Places (K-Travel Planner Phase 1) — filming 탭 + GPS 있을 때만.
+              데이터 0건이면 섹션 자체 미노출. */}
+          {tab.key === "filming" && filmingHasGps && (
+            <NearbyPlacesSection
+              data={nearbyData}
+              loading={nearbyLoading}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// filming 탭 상세 모달 하단 — 촬영지 주변 tour_spots 거리 기반 매칭.
+// content_type_id 별 4 카테고리 (attractions/culture/stays/food) 로 분리해 노출.
+// 모든 버킷이 비어 있으면 null 반환 (섹션 자체 미노출).
+const NEARBY_BUCKET_META: ReadonlyArray<{
+  key: "attractions" | "culture" | "stays" | "food"
+  label: string
+  Icon: typeof Landmark
+  color: string
+}> = [
+  { key: "attractions", label: "Attractions", Icon: Landmark, color: "#22d3ee" },
+  { key: "food", label: "Food", Icon: UtensilsCrossed, color: "#facc15" },
+  { key: "stays", label: "Stays", Icon: Hotel, color: "#a78bfa" },
+  { key: "culture", label: "Culture", Icon: Palette, color: "#f472b6" },
+]
+
+function NearbyPlacesSection({
+  data,
+  loading,
+}: {
+  data: NearbyPlacesResponse | null
+  loading: boolean
+}) {
+  if (loading && !data) {
+    return (
+      <div className="mt-6 pt-5 border-t border-border/30">
+        <p className="text-xs text-muted-foreground">Loading nearby places…</p>
+      </div>
+    )
+  }
+  if (!data) return null
+
+  const totalCount =
+    data.nearby.attractions.length +
+    data.nearby.culture.length +
+    data.nearby.stays.length +
+    data.nearby.food.length
+  if (totalCount === 0) return null
+
+  return (
+    <div className="mt-6 pt-5 border-t border-border/30">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-white inline-flex items-center gap-1.5">
+          <MapPin className="w-4 h-4" style={{ color: "#FF4B6E" }} />
+          Nearby Places
+        </h3>
+        {data.radius_used !== null && (
+          <span className="text-[10px] text-muted-foreground">
+            within {data.radius_used} km
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        {NEARBY_BUCKET_META.map(({ key, label, Icon, color }) => {
+          const items = data.nearby[key]
+          if (items.length === 0) return null
+          return (
+            <div key={key}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <Icon className="w-3.5 h-3.5" style={{ color }} />
+                <span
+                  className="text-[11px] font-medium uppercase tracking-wide"
+                  style={{ color }}
+                >
+                  {label}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  · {items.length}
+                </span>
+              </div>
+              <ul className="space-y-1.5">
+                {items.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-foreground/90 truncate">{item.title}</p>
+                      {item.korean_title && (
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {item.korean_title}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                      {item.distance_km.toFixed(1)} km
+                    </span>
+                    <a
+                      href={item.maps_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-border/40 bg-[#1a1a1a] hover:border-border/70 transition-colors text-[10px] text-foreground/80"
+                      title="Open in Google Maps"
+                    >
+                      <MapPin className="w-3 h-3" />
+                      Map
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
