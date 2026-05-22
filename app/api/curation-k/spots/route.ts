@@ -111,11 +111,6 @@ export interface SpotItem {
   longitude: number | null
 }
 
-function ymdToday(): string {
-  const d = new Date()
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`
-}
-
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const parsed = QuerySchema.safeParse({
@@ -255,11 +250,9 @@ export async function GET(request: Request) {
   }
 
   if (tab === "festivals") {
-    // 축제·행사: 종료일이 오늘 이후 or null. 시작일 오름차순.
-    const today = ymdToday()
-    query = query
-      .or(`event_end_date.is.null,event_end_date.gte.${today}`)
-      .order("event_start_date", { ascending: true, nullsFirst: false })
+    // 날짜 필터 없이 전체 노출 — stats/route.ts 카운트와 일치.
+    // 최신 시작일 내림차순 → 예정·진행 중 축제가 상단, 지난 축제가 하단.
+    query = query.order("event_start_date", { ascending: false, nullsFirst: false })
   } else {
     // 일반 카테고리: 이미지 있는 항목 우선 → 최근 갱신순
     query = query
