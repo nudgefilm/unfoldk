@@ -193,12 +193,22 @@ export async function GET(request: Request) {
       const dist = haversineKm(lat0, lng0, tLat, tLng)
       if (dist > radius) continue // bounding box 통과했어도 실제 원형 반경 밖이면 제외
 
+      // 제목 표기 정규화:
+      //   - eng_title 이 비어 있거나 whitespace 만이면 null 로 취급 (?? 만으로는 통과돼 빈 bold 표시되던 버그).
+      //   - eng_title 이 title 과 동일하면 한글 부제 미노출 (중복 라인 방지).
+      //   - 둘 다 trim 해서 일관성 유지.
+      const titleKo = r.title.trim()
+      const engTrimmed = r.eng_title?.trim() ?? ""
+      const engValid = engTrimmed.length > 0 ? engTrimmed : null
+      const displayTitle = engValid ?? titleKo
+      const koreanSubtitle = engValid && engValid !== titleKo ? titleKo : null
+
       filtered.push({
         id: r.id,
         content_id: r.content_id,
         content_type_id: r.content_type_id,
-        title: (r.eng_title ?? r.title).trim(),
-        korean_title: r.eng_title ? r.title : null,
+        title: displayTitle,
+        korean_title: koreanSubtitle,
         address: r.addr1 ?? null,
         image_url: r.image_url,
         latitude: tLat,

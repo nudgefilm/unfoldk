@@ -295,11 +295,18 @@ export async function GET(request: Request) {
     event_end_date: string | null
   }
 
-  const items: SpotItem[] = ((data ?? []) as TourRow[]).map((r) => ({
+  const items: SpotItem[] = ((data ?? []) as TourRow[]).map((r) => {
+    // 제목 정규화 (nearby-spots/route.ts 와 동일 패턴):
+    //   - 빈 문자열/whitespace eng_title 은 null 로 취급 — ?? 만 쓰면 통과돼 카드 제목이 빈 굵은 줄로 나오던 버그.
+    //   - eng_title === title 중복일 땐 한글 부제 미노출 (모달 헤더 중복 회피).
+    const titleKo = r.title.trim()
+    const engTrimmed = r.eng_title?.trim() ?? ""
+    const engValid = engTrimmed.length > 0 ? engTrimmed : null
+    return ({
     id: r.id,
     content_id: r.content_id,
-    title: (r.eng_title ?? r.title).trim(),
-    korean_title: r.eng_title ? r.title : null,
+    title: engValid ?? titleKo,
+    korean_title: engValid && engValid !== titleKo ? titleKo : null,
     subtitle:
       tab === "festivals" && r.event_start_date
         ? formatFestivalDateRange(r.event_start_date, r.event_end_date)
@@ -322,7 +329,8 @@ export async function GET(request: Request) {
     badge: null,
     latitude: r.latitude,
     longitude: r.longitude,
-  }))
+    })
+  })
 
   return NextResponse.json(
     { items, total: count ?? null, page, pageSize, locked: false },
