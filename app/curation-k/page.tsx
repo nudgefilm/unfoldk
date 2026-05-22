@@ -393,6 +393,38 @@ interface SavedCourse {
   created_at: string
 }
 
+// ─── Plan Your Trip — 드라마별 1일 여행 코스 타입 ───────────────
+interface TravelCourseNearby {
+  title: string
+  address: string | null
+  distance_km: number
+  maps_url: string
+  image_url: string | null
+}
+
+interface TravelCourseStop {
+  order: number
+  spot_id: string
+  spot_name: string
+  spot_description: string | null
+  latitude: number
+  longitude: number
+  address: string | null
+  image_url: string | null
+  duration_min: number
+  visit_tip: string
+  nearby_food: TravelCourseNearby | null
+  nearby_stay: TravelCourseNearby | null
+}
+
+interface TravelCourse {
+  course_title: string
+  description: string
+  drama_title: string
+  stops: TravelCourseStop[]
+  gmaps_url: string
+}
+
 const TRAVEL_STYLE_OPTIONS: ReadonlyArray<{ value: TravelStyle; label: string }> = [
   { value: "relaxed", label: "Relaxed" },
   { value: "packed", label: "Packed" },
@@ -602,6 +634,14 @@ export default function CurationKPage() {
   const [generatedSaved, setGeneratedSaved] = useState(false)
   const [savedCourses, setSavedCourses] = useState<SavedCourse[]>([])
   const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null)
+
+  // ── Plan Your Trip (드라마별 1일 여행 코스) ───────────────────
+  const [travelCourseOpen, setTravelCourseOpen] = useState(false)
+  const [travelCourse, setTravelCourse] = useState<TravelCourse | null>(null)
+  const [travelCourseLoading, setTravelCourseLoading] = useState(false)
+  const [travelCourseError, setTravelCourseError] = useState<string | null>(null)
+  const [travelCourseSaving, setTravelCourseSaving] = useState(false)
+  const [travelCourseSaved, setTravelCourseSaved] = useState(false)
 
   // 페이지네이션 클릭 시 그리드 상단 스크롤. 초기 마운트는 건너뜀.
   const tabAnchorRef = useRef<HTMLDivElement>(null)
@@ -818,6 +858,51 @@ export default function CurationKPage() {
       if (expandedCourseId === courseId) setExpandedCourseId(null)
     } catch (err) {
       console.warn("[curation-k] course delete 예외:", err)
+    }
+  }
+
+  async function handlePlanTrip() {
+    if (!filterDrama || filterDrama === "all") return
+    setTravelCourseOpen(true)
+    setTravelCourseLoading(true)
+    setTravelCourse(null)
+    setTravelCourseError(null)
+    setTravelCourseSaved(false)
+    try {
+      const res = await fetch(
+        `/api/curation-k/travel-course?drama_title=${encodeURIComponent(filterDrama)}`
+      )
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setTravelCourseError(
+          (json as { detail?: string; error?: string })?.detail ??
+          (json as { detail?: string; error?: string })?.error ??
+          `Failed (HTTP ${res.status})`
+        )
+        return
+      }
+      setTravelCourse(json as TravelCourse)
+    } catch (err) {
+      setTravelCourseError(err instanceof Error ? err.message : "Failed to plan trip")
+    } finally {
+      setTravelCourseLoading(false)
+    }
+  }
+
+  async function handleSaveTravelCourse() {
+    if (!travelCourse || !isPro) return
+    setTravelCourseSaving(true)
+    try {
+      const res = await fetch("/api/curation-k/travel-course/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ course: travelCourse }),
+      })
+      if (res.ok) setTravelCourseSaved(true)
+    } catch (err) {
+      console.error("[curation-k] travel course save 실패:", err)
+    } finally {
+      setTravelCourseSaving(false)
     }
   }
 
@@ -1440,16 +1525,12 @@ export default function CurationKPage() {
 
             {activeTab === "filming" && (
               <div className="flex items-center gap-2">
-                <label className="text-muted-foreground text-xs uppercase tracking-wider inline-flex items-center gap-1">
+                <label className="text-muted-foreground text-xs uppercase tracking-wider">
                   Drama
-                  {!isPro && (
-                    <Lock className="w-3 h-3" style={{ color: "#FF4B6E" }} />
-                  )}
                 </label>
                 <Select
                   value={filterDrama}
                   onValueChange={setFilterDrama}
-                  disabled={!isPro}
                 >
                   <SelectTrigger
                     className="w-[240px] bg-[#1a1a1a] border-border/40 rounded-full text-sm disabled:opacity-50"
@@ -1467,6 +1548,18 @@ export default function CurationKPage() {
                   </SelectContent>
                 </Select>
               </div>
+            )}
+
+            {/* Plan Your Trip — filming 탭 + 드라마 선택 시 노출. 비로그인도 조회 가능. */}
+            {activeTab === "filming" && filterDrama !== "all" && (
+              <Button
+                onClick={handlePlanTrip}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-white flex-shrink-0"
+                style={{ backgroundColor: "#FF4B6E" }}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Plan Your Trip
+              </Button>
             )}
           </div>
 
@@ -1531,6 +1624,19 @@ export default function CurationKPage() {
           isPro={isPro}
           isAuthenticated={isAuthenticated}
           onClose={() => setSelectedSpot(null)}
+        />
+
+        {/* Plan Your Trip 모달 */}
+        <TravelCourseModal
+          open={travelCourseOpen}
+          course={travelCourse}
+          loading={travelCourseLoading}
+          error={travelCourseError}
+          isPro={isPro}
+          isSaving={travelCourseSaving}
+          isSaved={travelCourseSaved}
+          onClose={() => setTravelCourseOpen(false)}
+          onSave={handleSaveTravelCourse}
         />
 
         {/* ───── 3. K-Pop Pilgrimage Sites ─────────────────── */}
@@ -3212,4 +3318,216 @@ function prettySpotType(t: KpopSpotItem["spot_type"]): string {
     default:
       return t
   }
+}
+
+// ─── TravelCourseModal ─────────────────────────────────────────
+// Plan Your Trip — 드라마별 1일 여행 코스 모달.
+// 비로그인 조회 가능 / Pro 는 저장 버튼 노출.
+function TravelCourseModal({
+  open,
+  course,
+  loading,
+  error,
+  isPro,
+  isSaving,
+  isSaved,
+  onClose,
+  onSave,
+}: {
+  open: boolean
+  course: TravelCourse | null
+  loading: boolean
+  error: string | null
+  isPro: boolean
+  isSaving: boolean
+  isSaved: boolean
+  onClose: () => void
+  onSave: () => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent
+        className="max-w-2xl border-border/40 flex flex-col overflow-hidden"
+        style={{ backgroundColor: "#1a1a1a", maxHeight: "90vh" }}
+      >
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle className="text-white pr-8">
+            {loading
+              ? "Planning your trip…"
+              : course?.course_title ?? "Travel Course"}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6">
+          {/* Loading */}
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Sparkles
+                className="w-6 h-6 animate-pulse"
+                style={{ color: "#FF4B6E" }}
+              />
+              <p className="text-muted-foreground text-sm">
+                Generating your K-drama tour…
+              </p>
+            </div>
+          )}
+
+          {/* Error */}
+          {!loading && error && (
+            <p className="text-red-400 text-sm py-4">{error}</p>
+          )}
+
+          {/* Course content */}
+          {!loading && course && (
+            <>
+              {course.description && (
+                <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
+                  {course.description}
+                </p>
+              )}
+
+              <div className="space-y-5 pb-2">
+                {course.stops.map((stop, idx) => (
+                  <div key={stop.spot_id}>
+                    {/* 이동 시간 커넥터 */}
+                    {idx > 0 && (
+                      <div className="flex items-center gap-2 mb-3 ml-3.5">
+                        <div
+                          className="w-0.5 h-5 rounded-full"
+                          style={{ backgroundColor: "rgba(255,75,110,0.3)" }}
+                        />
+                        {stop.duration_min > 0 && (
+                          <span className="text-muted-foreground text-xs">
+                            ~{stop.duration_min} min
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex gap-3">
+                      {/* 순서 번호 */}
+                      <div
+                        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white mt-0.5"
+                        style={{ backgroundColor: "#FF4B6E" }}
+                      >
+                        {stop.order}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        {/* 촬영지 카드 */}
+                        <div
+                          className="border border-border/20 rounded-xl overflow-hidden"
+                          style={{ backgroundColor: "#141416" }}
+                        >
+                          {stop.image_url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={stop.image_url}
+                              alt={stop.spot_name}
+                              className="w-full h-28 object-cover"
+                            />
+                          )}
+                          <div className="p-3">
+                            <h3 className="text-white font-semibold text-sm">
+                              {stop.spot_name}
+                            </h3>
+                            {stop.address && (
+                              <p className="text-muted-foreground text-xs mt-0.5">
+                                {stop.address}
+                              </p>
+                            )}
+                            {stop.visit_tip && (
+                              <p className="text-muted-foreground text-xs mt-2 leading-relaxed">
+                                {stop.visit_tip}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 주변 추천 칩 */}
+                        {(stop.nearby_food || stop.nearby_stay) && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {stop.nearby_food && (
+                              <a
+                                href={stop.nearby_food.maps_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-border/30 hover:border-yellow-500/50 transition-colors"
+                                style={{
+                                  backgroundColor: "#1a1a1a",
+                                  color: "#facc15",
+                                }}
+                              >
+                                <UtensilsCrossed className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate max-w-[110px]">
+                                  {stop.nearby_food.title}
+                                </span>
+                                <span className="text-muted-foreground flex-shrink-0">
+                                  {stop.nearby_food.distance_km}km
+                                </span>
+                              </a>
+                            )}
+                            {stop.nearby_stay && (
+                              <a
+                                href={stop.nearby_stay.maps_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-border/30 hover:border-purple-400/50 transition-colors"
+                                style={{
+                                  backgroundColor: "#1a1a1a",
+                                  color: "#a78bfa",
+                                }}
+                              >
+                                <Hotel className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate max-w-[110px]">
+                                  {stop.nearby_stay.title}
+                                </span>
+                                <span className="text-muted-foreground flex-shrink-0">
+                                  {stop.nearby_stay.distance_km}km
+                                </span>
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 하단 액션 버튼 */}
+              <div className="flex items-center gap-3 mt-6 pt-4 border-t border-border/30 flex-wrap">
+                {course.gmaps_url && (
+                  <a
+                    href={course.gmaps_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 min-w-[160px]"
+                  >
+                    <Button
+                      className="w-full rounded-xl text-white flex items-center gap-2"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Open in Google Maps
+                    </Button>
+                  </a>
+                )}
+                {isPro && (
+                  <Button
+                    onClick={onSave}
+                    disabled={isSaving || isSaved}
+                    variant="outline"
+                    className="flex-shrink-0 rounded-xl border-border/50 disabled:opacity-60"
+                  >
+                    {isSaved ? "Saved ✓" : isSaving ? "Saving…" : "Save Course"}
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
 }
