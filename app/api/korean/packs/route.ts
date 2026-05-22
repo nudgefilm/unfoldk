@@ -73,7 +73,7 @@ export async function GET() {
   )
 
   if (phraseDramaIds.length === 0) {
-    return NextResponse.json({ packs: [] })
+    return NextResponse.json({ packs: [], totalMasteredOverall: 0 })
   }
 
   // 3. phrase-having dramas fetch — popularity 순. 포스터 없으면 carousel 에서 제외.
@@ -97,7 +97,7 @@ export async function GET() {
   const dramas = (dramaRows ?? []) as DramaRow[]
 
   if (dramas.length === 0) {
-    return NextResponse.json({ packs: [] })
+    return NextResponse.json({ packs: [], totalMasteredOverall: 0 })
   }
 
   const dramaIds = dramas.map((d) => d.id)
@@ -152,7 +152,19 @@ export async function GET() {
     }
   }
 
-  // 7. 응답 빌드
+  // 7. 전체 mastered 카운트 — drama_id IS NULL 인 표현도 포함
+  //    packs 기반 masteredCount 합산은 drama_id 있는 표현만 잡아 대시보드 숫자가 낮게 나오는 문제 보정.
+  let totalMasteredOverall = 0
+  if (user) {
+    const { count } = await supabase
+      .from("user_learning_progress")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "mastered")
+    totalMasteredOverall = count ?? 0
+  }
+
+  // 8. 응답 빌드
   const packs: PackApi[] = dramas.map((d) => {
     const stats = phrasesByDrama.get(d.id)
     const phraseCount = stats?.count ?? 0
@@ -184,5 +196,5 @@ export async function GET() {
     }
   })
 
-  return NextResponse.json({ packs })
+  return NextResponse.json({ packs, totalMasteredOverall })
 }

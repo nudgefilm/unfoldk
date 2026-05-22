@@ -120,6 +120,7 @@ export default function HangeulGoPage() {
   // 3. 드라마 팩
   const [packs, setPacks] = useState<PackApi[]>([])
   const [packsLoading, setPacksLoading] = useState(true)
+  const [totalMasteredOverall, setTotalMasteredOverall] = useState(0)
   // 레벨 필터 — Beginner/Intermediate/Advanced. Mixed (null) 은 ALL 에서만 노출.
   const [activePackLevel, setActivePackLevel] = useState<PackLevelCode>("ALL")
 
@@ -200,7 +201,7 @@ export default function HangeulGoPage() {
     completedPacks: packs.filter(
       (p) => p.phraseCount > 0 && p.progressPercent === 100
     ).length,
-    totalMastered: packs.reduce((sum, p) => sum + (p.masteredCount ?? 0), 0),
+    totalMastered: totalMasteredOverall,
   }
 
   // ─── 인증 + Pro 권한
@@ -278,7 +279,10 @@ export default function HangeulGoPage() {
     setPacksLoading(true)
     fetch("/api/korean/packs")
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { packs: PackApi[] }) => setPacks(body.packs ?? []))
+      .then((body: { packs: PackApi[]; totalMasteredOverall?: number }) => {
+        setPacks(body.packs ?? [])
+        setTotalMasteredOverall(body.totalMasteredOverall ?? 0)
+      })
       .catch((err) => {
         console.error("[korean] packs fetch 실패:", err)
         setPacks([])
