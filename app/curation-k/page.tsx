@@ -2539,7 +2539,7 @@ function SpotCardSkeleton() {
 }
 
 // 카드 클릭 → 상세 모달
-// filming 탭 모달 하단에 들어가는 "Nearby Places" 섹션용 타입.
+// 모달 하단 "Nearby Places" 섹션용 타입.
 // /api/curation-k/nearby-spots 응답과 동일 shape — 카테고리별 5개씩 cap.
 interface NearbyPlaceItem {
   id: string
@@ -2555,13 +2555,6 @@ interface NearbyPlaceItem {
   maps_url: string
 }
 interface NearbyPlacesResponse {
-  filming_spot: {
-    id: string
-    spot_name: string
-    drama_title: string
-    latitude: number | null
-    longitude: number | null
-  }
   nearby: {
     attractions: NearbyPlaceItem[]
     culture: NearbyPlaceItem[]
@@ -2569,6 +2562,15 @@ interface NearbyPlacesResponse {
     food: NearbyPlaceItem[]
   }
   radius_used: 1 | 3 | 10 | null
+}
+
+// 탭별 Nearby 에서 제외할 content_type_id (자기 탭과 동일 카테고리 중복 방지).
+// festivals·filming·kpop 은 제외 없음 (filming = 촬영지라 카테고리 겹침 없음).
+const TAB_EXCLUDE_TYPE: Partial<Record<string, number>> = {
+  attractions: 12,
+  culture: 14,
+  stays: 32,
+  food: 39,
 }
 
 function SpotDetailDialog({
@@ -2604,23 +2606,28 @@ function SpotDetailDialog({
     setImageIndex(0)
   }, [spot?.id])
 
-  // ─── Nearby Places (filming 탭 전용 — K-Travel Planner Phase 1) ──
-  // tab.key === "filming" 이고 spot 에 GPS 가 있을 때만 fetch.
+  // ─── Nearby Places — festivals 탭 제외 + GPS 있을 때 모든 탭에 노출 ──
   // GPS 없거나 결과 0건이면 섹션 자체 렌더 안 함 (graceful).
   const [nearbyData, setNearbyData] = useState<NearbyPlacesResponse | null>(null)
   const [nearbyLoading, setNearbyLoading] = useState(false)
 
-  const filmingHasGps =
-    tab.key === "filming" && !!spot && spot.latitude !== null && spot.longitude !== null
-  const filmingSpotId = tab.key === "filming" ? spot?.id ?? null : null
+  const spotHasGps = !!spot && spot.latitude !== null && spot.longitude !== null
+  const nearbyEnabled = tab.key !== "festivals" && spotHasGps
 
   useEffect(() => {
     setNearbyData(null)
-    if (!filmingSpotId || !filmingHasGps) return
+    if (!nearbyEnabled || !spot) return
+
+    const qs = new URLSearchParams({
+      lat: String(spot.latitude!),
+      lng: String(spot.longitude!),
+    })
+    const excludeType = TAB_EXCLUDE_TYPE[tab.key]
+    if (excludeType !== undefined) qs.set("exclude_type", String(excludeType))
 
     let cancelled = false
     setNearbyLoading(true)
-    fetch(`/api/curation-k/nearby-spots?filming_spot_id=${filmingSpotId}`)
+    fetch(`/api/curation-k/nearby-spots?${qs}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`status ${res.status}`)
         return (await res.json()) as NearbyPlacesResponse
@@ -2642,7 +2649,7 @@ function SpotDetailDialog({
     return () => {
       cancelled = true
     }
-  }, [filmingSpotId, filmingHasGps])
+  }, [spot?.id, nearbyEnabled])
 
   if (!spot) return null
 
@@ -2841,9 +2848,8 @@ function SpotDetailDialog({
             )}
           </div>
 
-          {/* Nearby Places (K-Travel Planner Phase 1) — filming 탭 + GPS 있을 때만.
-              데이터 0건이면 섹션 자체 미노출. */}
-          {tab.key === "filming" && filmingHasGps && (
+          {/* Nearby Places — GPS 있고 festivals 제외한 모든 탭. 데이터 0건이면 미노출. */}
+          {nearbyEnabled && (
             <NearbyPlacesSection
               data={nearbyData}
               loading={nearbyLoading}
@@ -2978,13 +2984,61 @@ function KpopSpotDetailDialog({
   isAuthenticated: boolean | null
   onClose: () => void
 }) {
+  const [nearbyData, setNearbyData] = useState<NearbyPlacesResponse | null>(null)
+  const [nearbyLoading, setNearbyLoading] = useState(false)
+
+  const kpopLat =
+    spot == null
+      ? null
+      : typeof spot.latitude === "string"
+        ? Number(spot.latitude)
+        : spot.latitude
+  const kpopLng =
+    spot == null
+      ? null
+      : typeof spot.longitude === "string"
+        ? Number(spot.longitude)
+        : spot.longitude
+  const kpopHasGps =
+    kpopLat !== null &&
+    kpopLng !== null &&
+    Number.isFinite(kpopLat) &&
+    Number.isFinite(kpopLng)
+
+  useEffect(() => {
+    setNearbyData(null)
+    if (!spot || !kpopHasGps) return
+
+    let cancelled = false
+    setNearbyLoading(true)
+    fetch(`/api/curation-k/nearby-spots?lat=${kpopLat}&lng=${kpopLng}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`status ${res.status}`)
+        return (await res.json()) as NearbyPlacesResponse
+      })
+      .then((data) => {
+        if (cancelled) return
+        setNearbyData(data)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.warn("[KpopSpotDetailDialog] nearby-spots fetch 실패:", err)
+        setNearbyData(null)
+      })
+      .finally(() => {
+        if (!cancelled) setNearbyLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [spot?.id, kpopHasGps])
+
   if (!spot) return null
 
   const imageSrc = spot.image_url ?? PLACEHOLDER_IMAGES.kpop
-  const lat = typeof spot.latitude === "string" ? Number(spot.latitude) : spot.latitude
-  const lng = typeof spot.longitude === "string" ? Number(spot.longitude) : spot.longitude
-  const hasGps = lat !== null && lng !== null && Number.isFinite(lat) && Number.isFinite(lng)
-  const mapsUrl = hasGps ? `https://maps.google.com/?q=${lat},${lng}` : null
+  const hasGps = kpopHasGps
+  const mapsUrl = hasGps ? `https://maps.google.com/?q=${kpopLat},${kpopLng}` : null
   const accentColor = CATEGORY_COLOR_MAP.kpop
 
   return (
@@ -2995,8 +3049,7 @@ function KpopSpotDetailDialog({
       }}
     >
       <DialogContent className="bg-[#141416] border-[#2a2a2a] text-foreground max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-        {/* 이미지 — 모달 상단 고정 (flex-shrink-0).
-            본문 길어져도 압축 안 됨. SpotDetailDialog 와 동일 패턴. */}
+        {/* 이미지 — 모달 상단 고정 (flex-shrink-0). SpotDetailDialog 와 동일 패턴. */}
         <div className="relative bg-[#252525] aspect-[16/9] flex-shrink-0 flex items-center justify-center overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -3020,8 +3073,7 @@ function KpopSpotDetailDialog({
           </span>
         </div>
 
-        {/* 본문 — flex-1 min-h-0 overflow-y-auto 로 본문만 스크롤.
-            min-h-0 없으면 flex 자식이 콘텐츠 높이로 펴져 부모 max-h 초과. */}
+        {/* 본문 — flex-1 min-h-0 overflow-y-auto 로 본문만 스크롤. */}
         <div className="p-6 flex-1 min-h-0 overflow-y-auto">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-bold text-white leading-tight">
@@ -3093,6 +3145,14 @@ function KpopSpotDetailDialog({
               )
             )}
           </div>
+
+          {/* Nearby Places — GPS 있을 때. 데이터 0건이면 미노출. */}
+          {kpopHasGps && (
+            <NearbyPlacesSection
+              data={nearbyData}
+              loading={nearbyLoading}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>

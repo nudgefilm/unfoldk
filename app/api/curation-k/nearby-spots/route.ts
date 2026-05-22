@@ -2,29 +2,34 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
-// /api/curation-k/nearby-spots — filming_spot 주변 tour_spots 거리 기반 매칭
+// /api/curation-k/nearby-spots — 특정 지점 주변 tour_spots 거리 기반 매칭
 //
-// Phase 1 K-Travel Planner — "촬영지 가면 근처에 뭐가 있나" 한 컷에 보여주기.
+// Phase 1 K-Travel Planner — "여기 가면 근처에 뭐가 있나" 한 컷에 보여주기.
 //
-// 쿼리:
-//   ?filming_spot_id=<uuid>   필수. filming_spots 의 GPS 가 검색 원점.
+// 쿼리 (둘 중 하나 필수):
+//   ?filming_spot_id=<uuid>           filming_spots GPS 를 원점으로 사용 (하위 호환).
+//   ?lat=<number>&lng=<number>        GPS 직접 지정 — 모든 탭 공통.
+//
+// 선택 파라미터:
+//   ?exclude_type=<content_type_id>   해당 버킷 결과 제외.
+//     (예: Food 탭 모달 ?exclude_type=39 → food 버킷 미노출)
 //
 // 동적 반경 확장:
-//   1) 1km → 매칭 5건 미만이면 3km
-//   2) 3km → 5건 미만이면 10km
-//   각 단계 sum (4개 버킷 합계) 기준. radius_used 는 실제로 멈춘 반경.
+//   1km → 버킷 합계 5건 미만이면 3km → 5건 미만이면 10km.
 //
 // 분류 (content_type_id → 버킷):
 //   12 → attractions / 14 → culture / 32 → stays / 39 → food
-//   15 (축제·행사) 는 제외 — "주변 즐길거리" 가 아니라 시간 제약 콘텐츠라 별도 모듈에서 처리.
+//   15 (축제·행사) 는 제외 — 시간 제약 콘텐츠라 별도 모듈에서 처리.
 //
-// 거리 계산: Haversine (PostGIS 없이 순수 JS). bounding box 로 1차 가지치기 후 정확 거리 계산.
-// 보안: filming_spots RLS 가 status='confirmed' 만 노출 → pending/dummy 는 자동 404.
+// 거리 계산: Haversine + bounding box 1차 가지치기.
 
 export const revalidate = 600
 
 const QuerySchema = z.object({
-  filming_spot_id: z.string().uuid(),
+  filming_spot_id: z.string().uuid().optional(),
+  lat: z.coerce.number().optional(),
+  lng: z.coerce.number().optional(),
+  exclude_type: z.coerce.number().int().optional(),
 })
 
 const RADIUS_STEPS_KM = [1, 3, 10] as const
@@ -50,7 +55,7 @@ function haversineKm(
   lat2: number,
   lon2: number
 ): number {
-  const R = 6371 // 지구 반경 km
+  const R = 6371
   const toRad = (d: number) => (d * Math.PI) / 180
   const dLat = toRad(lat2 - lat1)
   const dLon = toRad(lon2 - lon1)
@@ -75,13 +80,6 @@ interface NearbyItem {
 }
 
 interface NearbyResponse {
-  filming_spot: {
-    id: string
-    spot_name: string
-    drama_title: string
-    latitude: number | null
-    longitude: number | null
-  }
   nearby: Record<Bucket, NearbyItem[]>
   radius_used: 1 | 3 | 10 | null
 }
@@ -97,52 +95,65 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const parsed = QuerySchema.safeParse({
     filming_spot_id: url.searchParams.get("filming_spot_id") ?? undefined,
+    lat: url.searchParams.get("lat") ?? undefined,
+    lng: url.searchParams.get("lng") ?? undefined,
+    exclude_type: url.searchParams.get("exclude_type") ?? undefined,
   })
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
-  const { filming_spot_id } = parsed.data
+
+  const { filming_spot_id, lat: latParam, lng: lngParam, exclude_type } = parsed.data
+
+  // filming_spot_id 또는 lat+lng 중 하나 필수
+  if (!filming_spot_id && (latParam === undefined || lngParam === undefined)) {
+    return NextResponse.json(
+      { error: "filming_spot_id 또는 lat+lng 쌍이 필요합니다" },
+      { status: 400 }
+    )
+  }
 
   const supabase = await createSupabaseServerClient()
 
-  // ─── 1. filming_spot 조회 — RLS 가 confirmed 만 통과 ────────
-  const { data: filming, error: filmingError } = await supabase
-    .from("filming_spots")
-    .select("id, spot_name, drama_title, latitude, longitude")
-    .eq("id", filming_spot_id)
-    .neq("spot_name", "__no_spots_found__")
-    .maybeSingle()
+  let lat0: number
+  let lng0: number
 
-  if (filmingError) {
-    console.error("[curation-k/nearby-spots] filming 조회 실패:", filmingError.message)
-    return NextResponse.json({ error: "query_failed" }, { status: 500 })
-  }
-  if (!filming) {
-    return NextResponse.json({ error: "filming_spot_not_found" }, { status: 404 })
-  }
+  if (filming_spot_id) {
+    // filming_spots GPS 조회 — RLS 가 status='confirmed' 만 통과
+    const { data: filming, error: filmingError } = await supabase
+      .from("filming_spots")
+      .select("latitude, longitude")
+      .eq("id", filming_spot_id)
+      .neq("spot_name", "__no_spots_found__")
+      .maybeSingle()
 
-  const lat0 = filming.latitude == null ? null : Number(filming.latitude)
-  const lng0 = filming.longitude == null ? null : Number(filming.longitude)
-
-  // ─── 2. GPS 없으면 빈 버킷 graceful 응답 ────────────────────
-  if (lat0 === null || lng0 === null || Number.isNaN(lat0) || Number.isNaN(lng0)) {
-    const body: NearbyResponse = {
-      filming_spot: {
-        id: filming.id,
-        spot_name: filming.spot_name,
-        drama_title: filming.drama_title,
-        latitude: null,
-        longitude: null,
-      },
-      nearby: EMPTY_BUCKETS,
-      radius_used: null,
+    if (filmingError) {
+      console.error("[curation-k/nearby-spots] filming 조회 실패:", filmingError.message)
+      return NextResponse.json({ error: "query_failed" }, { status: 500 })
     }
-    return NextResponse.json(body, {
-      headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800" },
-    })
+    if (!filming) {
+      return NextResponse.json({ error: "filming_spot_not_found" }, { status: 404 })
+    }
+
+    const fLat = filming.latitude == null ? null : Number(filming.latitude)
+    const fLng = filming.longitude == null ? null : Number(filming.longitude)
+    if (fLat === null || fLng === null || Number.isNaN(fLat) || Number.isNaN(fLng)) {
+      return NextResponse.json(
+        { nearby: EMPTY_BUCKETS, radius_used: null } satisfies NearbyResponse,
+        { headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800" } }
+      )
+    }
+    lat0 = fLat
+    lng0 = fLng
+  } else {
+    lat0 = latParam!
+    lng0 = lngParam!
+    if (Number.isNaN(lat0) || Number.isNaN(lng0)) {
+      return NextResponse.json({ error: "invalid lat/lng" }, { status: 400 })
+    }
   }
 
-  // ─── 3. 반경 확장 루프 ─────────────────────────────────────
+  // ─── 반경 확장 루프 ──────────────────────────────────────────────
   type Candidate = NearbyItem
   let candidates: Candidate[] = []
   let radiusUsed: 1 | 3 | 10 = RADIUS_STEPS_KM[RADIUS_STEPS_KM.length - 1] as 10
@@ -193,10 +204,7 @@ export async function GET(request: Request) {
       const dist = haversineKm(lat0, lng0, tLat, tLng)
       if (dist > radius) continue // bounding box 통과했어도 실제 원형 반경 밖이면 제외
 
-      // 제목 표기 정규화:
-      //   - eng_title 이 비어 있거나 whitespace 만이면 null 로 취급 (?? 만으로는 통과돼 빈 bold 표시되던 버그).
-      //   - eng_title 이 title 과 동일하면 한글 부제 미노출 (중복 라인 방지).
-      //   - 둘 다 trim 해서 일관성 유지.
+      // 제목 표기 정규화: eng_title 우선, 비어 있으면 null 취급 (빈 bold 표시 버그 방지).
       const titleKo = r.title.trim()
       const engTrimmed = r.eng_title?.trim() ?? ""
       const engValid = engTrimmed.length > 0 ? engTrimmed : null
@@ -224,7 +232,7 @@ export async function GET(request: Request) {
     if (filtered.length >= MIN_RESULTS_BEFORE_EXPAND) break
   }
 
-  // ─── 4. 버킷별 그룹핑 + 거리 순 정렬 + cap ──────────────────
+  // ─── 버킷별 그룹핑 + 거리 순 정렬 + cap ──────────────────────────
   candidates.sort((a, b) => a.distance_km - b.distance_km)
 
   const nearby: Record<Bucket, NearbyItem[]> = {
@@ -240,18 +248,13 @@ export async function GET(request: Request) {
     nearby[bucket].push(item)
   }
 
-  const body: NearbyResponse = {
-    filming_spot: {
-      id: filming.id,
-      spot_name: filming.spot_name,
-      drama_title: filming.drama_title,
-      latitude: lat0,
-      longitude: lng0,
-    },
-    nearby,
-    radius_used: radiusUsed,
+  // exclude_type — 현재 탭 카테고리를 Nearby 에서 제외 (자기 탭 스팟과 중복 방지)
+  if (exclude_type !== undefined) {
+    const excludeBucket = CONTENT_TYPE_TO_BUCKET[exclude_type]
+    if (excludeBucket) nearby[excludeBucket] = []
   }
 
+  const body: NearbyResponse = { nearby, radius_used: radiusUsed }
   return NextResponse.json(body, {
     headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800" },
   })
