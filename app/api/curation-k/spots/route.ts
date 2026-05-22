@@ -111,6 +111,11 @@ export interface SpotItem {
   longitude: number | null
 }
 
+function ymdToday(): string {
+  const d = new Date()
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const parsed = QuerySchema.safeParse({
@@ -249,25 +254,6 @@ export async function GET(request: Request) {
     query = query.eq("area_code", area_code)
   }
 
-  if (tab === "festivals") {
-    // 날짜 필터 없이 전체 노출 — stats/route.ts 카운트와 일치.
-    // 최신 시작일 내림차순 → 예정·진행 중 축제가 상단, 지난 축제가 하단.
-    query = query.order("event_start_date", { ascending: false, nullsFirst: false })
-  } else {
-    // 일반 카테고리: 이미지 있는 항목 우선 → 최근 갱신순
-    query = query
-      .order("image_url", { ascending: false, nullsFirst: false })
-      .order("modified_time", { ascending: false, nullsFirst: false })
-  }
-
-  query = query.range(offset, rangeEnd)
-
-  const { data, error, count } = await query
-  if (error) {
-    console.error("[curation-k/spots] tour 조회 실패:", error.message)
-    return NextResponse.json({ error: "query_failed" }, { status: 500 })
-  }
-
   type TourRow = {
     id: string
     content_id: string
@@ -288,42 +274,95 @@ export async function GET(request: Request) {
     event_end_date: string | null
   }
 
-  const items: SpotItem[] = ((data ?? []) as TourRow[]).map((r) => {
-    // 제목 정규화 (nearby-spots/route.ts 와 동일 패턴):
-    //   - 빈 문자열/whitespace eng_title 은 null 로 취급 — ?? 만 쓰면 통과돼 카드 제목이 빈 굵은 줄로 나오던 버그.
-    //   - eng_title === title 중복일 땐 한글 부제 미노출 (모달 헤더 중복 회피).
+  const mapTourRow = (r: TourRow): SpotItem => {
+    // eng_title 빈 문자열·whitespace → null (카드 제목 빈 줄 방지)
     const titleKo = r.title.trim()
     const engTrimmed = r.eng_title?.trim() ?? ""
     const engValid = engTrimmed.length > 0 ? engTrimmed : null
-    return ({
-    id: r.id,
-    content_id: r.content_id,
-    title: engValid ?? titleKo,
-    korean_title: engValid && engValid !== titleKo ? titleKo : null,
-    subtitle:
-      tab === "festivals" && r.event_start_date
+    return {
+      id: r.id,
+      content_id: r.content_id,
+      title: engValid ?? titleKo,
+      korean_title: engValid && engValid !== titleKo ? titleKo : null,
+      // event_start_date 가 있는 행(festivals)만 날짜 subtitle 노출. 다른 탭은 null.
+      subtitle: r.event_start_date
         ? formatFestivalDateRange(r.event_start_date, r.event_end_date)
         : null,
-    address: r.addr1 ?? null,
-    addr2: r.addr2,
-    overview_en: r.overview_en,
-    overview_ko: r.overview_ko,
-    image_url: r.image_url,
-    image_url2: r.image_url2,
-    homepage: r.homepage,
-    drama_id: null,
-    drama_title: null,
-    spot_description: null,
-    event_start_date: r.event_start_date,
-    event_end_date: r.event_end_date,
-    region: null,
-    area_code: r.area_code,
-    content_type_id: r.content_type_id,
-    badge: null,
-    latitude: r.latitude,
-    longitude: r.longitude,
+      address: r.addr1 ?? null,
+      addr2: r.addr2,
+      overview_en: r.overview_en,
+      overview_ko: r.overview_ko,
+      image_url: r.image_url,
+      image_url2: r.image_url2,
+      homepage: r.homepage,
+      drama_id: null,
+      drama_title: null,
+      spot_description: null,
+      event_start_date: r.event_start_date,
+      event_end_date: r.event_end_date,
+      region: null,
+      area_code: r.area_code,
+      content_type_id: r.content_type_id,
+      badge: null,
+      latitude: r.latitude,
+      longitude: r.longitude,
+    }
+  }
+
+  // ── festivals: 전체 fetch → JS 정렬(진행 중 → 예정 → 종료) → 수동 페이지네이션 ──
+  if (tab === "festivals") {
+    const today = ymdToday()
+    // PostgREST 기본 limit 1000 회피 — 2000 cap
+    const { data: festData, error: festError } = await query.limit(2000)
+    if (festError) {
+      console.error("[curation-k/spots] festivals 조회 실패:", festError.message)
+      return NextResponse.json({ error: "query_failed" }, { status: 500 })
+    }
+
+    const allRows = (festData ?? []) as TourRow[]
+
+    // 0=진행 중 / 1=예정 / 2=종료 / 3=날짜 없음
+    const statusRank = (r: TourRow): number => {
+      const s = r.event_start_date ?? ""
+      const e = r.event_end_date ?? ""
+      if (!s) return 3
+      if (s <= today && (!e || e >= today)) return 0
+      if (s > today) return 1
+      return 2
+    }
+
+    allRows.sort((a, b) => {
+      const ra = statusRank(a), rb = statusRank(b)
+      if (ra !== rb) return ra - rb
+      // 예정: 가까운 순
+      if (ra === 1) return (a.event_start_date ?? "").localeCompare(b.event_start_date ?? "")
+      // 종료: 최근 종료 순
+      if (ra === 2) return (b.event_end_date ?? "").localeCompare(a.event_end_date ?? "")
+      return (a.event_start_date ?? "").localeCompare(b.event_start_date ?? "")
     })
-  })
+
+    const total = allRows.length
+    const items = allRows.slice(offset, offset + pageSize).map(mapTourRow)
+
+    return NextResponse.json(
+      { items, total, page, pageSize, locked: false },
+      { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } }
+    )
+  }
+
+  // ── 일반 카테고리: 이미지 있는 항목 우선 → 최근 갱신순 ──────────
+  query = query
+    .order("image_url", { ascending: false, nullsFirst: false })
+    .order("modified_time", { ascending: false, nullsFirst: false })
+    .range(offset, rangeEnd)
+
+  const { data, error, count } = await query
+  if (error) {
+    console.error("[curation-k/spots] tour 조회 실패:", error.message)
+    return NextResponse.json({ error: "query_failed" }, { status: 500 })
+  }
+
+  const items = ((data ?? []) as TourRow[]).map(mapTourRow)
 
   return NextResponse.json(
     { items, total: count ?? null, page, pageSize, locked: false },

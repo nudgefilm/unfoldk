@@ -2304,6 +2304,29 @@ function EmptyCard({ message }: { message: string }) {
   )
 }
 
+// YYYYMMDD 두 필드 기준 축제 상태 계산.
+// 반환값의 color 는 SpotCard badge overlay 에 직접 사용.
+function getFestivalStatus(
+  startDate: string | null,
+  endDate: string | null
+): { text: string; color: string } | null {
+  if (!startDate) return null
+  const now = new Date()
+  const ymd = (d: Date) =>
+    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`
+  const todayStr = ymd(now)
+  const isOngoing = startDate <= todayStr && (!endDate || endDate >= todayStr)
+  if (isOngoing) return { text: "진행 중", color: "#22c55e" }
+  const isEnded = !!endDate && endDate < todayStr
+  if (isEnded) return { text: "종료", color: "#6b7280" }
+  // 예정 — D-N (60일 이내) 또는 "예정"
+  const sy = parseInt(startDate.slice(0, 4))
+  const sm = parseInt(startDate.slice(4, 6)) - 1
+  const sd = parseInt(startDate.slice(6, 8))
+  const diffDays = Math.ceil((new Date(sy, sm, sd).getTime() - now.getTime()) / 86400000)
+  return { text: diffDays <= 60 ? `D-${diffDays}` : "예정", color: "#fb923c" }
+}
+
 function SpotCard({
   image,
   title,
@@ -2479,21 +2502,27 @@ function SpotsTabPanel({
   return (
     <div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {items.map((item) => (
-          <SpotCard
-            key={item.id}
-            image={item.image_url}
-            title={item.title}
-            subtitle={item.subtitle ?? item.overview_en ?? ""}
-            region={item.region}
-            address={item.address}
-            badge={item.drama_title ?? item.badge}
-            badgeColor={tab.color}
-            fallbackIcon={<tab.Icon className="w-6 h-6 text-muted-foreground" />}
-            fallbackImage={PLACEHOLDER_IMAGES[tab.key]}
-            onClick={() => onSelectSpot(item)}
-          />
-        ))}
+        {items.map((item) => {
+          const festStatus =
+            tab.key === "festivals"
+              ? getFestivalStatus(item.event_start_date, item.event_end_date)
+              : null
+          return (
+            <SpotCard
+              key={item.id}
+              image={item.image_url}
+              title={item.title}
+              subtitle={item.subtitle ?? item.overview_en ?? ""}
+              region={item.region}
+              address={item.address}
+              badge={festStatus?.text ?? item.drama_title ?? item.badge}
+              badgeColor={festStatus?.color ?? tab.color}
+              fallbackIcon={<tab.Icon className="w-6 h-6 text-muted-foreground" />}
+              fallbackImage={PLACEHOLDER_IMAGES[tab.key]}
+              onClick={() => onSelectSpot(item)}
+            />
+          )
+        })}
       </div>
 
       {(canPrev || canNext) && (
