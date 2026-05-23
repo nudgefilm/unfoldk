@@ -23,9 +23,9 @@
 
 ## ③ 여행 코스 저장·공유 (예상 2~3시간)
 
-- [ ] Free: AI 코스 조회만 가능
-- [ ] Pro: 코스 저장 (DB 영속화) + 공유 링크 생성 + PDF 다운로드
-- [ ] 공유 URL: `/curation-k/course/{id}` (비로그인 조회 가능)
+- [x] Free: AI 코스 조회만 가능
+- [x] Pro: 코스 저장 (DB 영속화) + 공유 링크 생성 + PDF 다운로드
+- [x] 공유 URL: `/curation-k/course/{id}` (비로그인 조회 가능)
 - **가치 제안**: K-Travel Planner 인프라 (travel_courses 테이블) 그대로 활용
 - **관련 파일**: `app/api/curation-k/travel-course/`, `app/curation-k/page.tsx`
 
@@ -63,7 +63,7 @@
 |------|------|--------|
 | ① 개인화 알림 Pro 게이팅 | ✅ 완료 | 2026-05-23 |
 | ② HangeulGo 무제한 | ✅ 완료 | 2026-05-23 |
-| ③ 여행 코스 저장·공유 | ⬜ 미시작 | — |
+| ③ 여행 코스 저장·공유 | ✅ 완료 | 2026-05-23 |
 | ④ K-Drama 맞춤 추천 | ⬜ 미시작 | — |
 | ⑤ 주간 한류 리포트 | ⬜ 미시작 | — |
 

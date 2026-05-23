@@ -53,15 +53,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 })
   }
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select("plan_type, is_admin")
-    .eq("id", user.id)
-    .maybeSingle()
-  const row = profile as { plan_type?: string; is_admin?: boolean } | null
-  if (!hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin })) {
-    return NextResponse.json({ error: "pro_required" }, { status: 403 })
-  }
+  // 결제 연동 후 아래 주석 해제 — Pro 전용 저장 게이팅 // 2026-05-16 임시 정책
+  // const { data: profile } = await supabase
+  //   .from("users").select("plan_type, is_admin").eq("id", user.id).maybeSingle()
+  // const row = profile as { plan_type?: string; is_admin?: boolean } | null
+  // if (!hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin })) {
+  //   return NextResponse.json({ error: "pro_required" }, { status: 403 })
+  // }
 
   let body: unknown
   try {

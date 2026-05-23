@@ -50,6 +50,9 @@ import {
   PartyPopper,
   ExternalLink,
   Trash2,
+  Link2,
+  Download,
+  Check,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -642,6 +645,7 @@ export default function CurationKPage() {
   const [travelCourseError, setTravelCourseError] = useState<string | null>(null)
   const [travelCourseSaving, setTravelCourseSaving] = useState(false)
   const [travelCourseSaved, setTravelCourseSaved] = useState(false)
+  const [savedTravelCourseId, setSavedTravelCourseId] = useState<string | null>(null)
 
   // 페이지네이션 클릭 시 그리드 상단 스크롤. 초기 마운트는 건너뜀.
   const tabAnchorRef = useRef<HTMLDivElement>(null)
@@ -868,6 +872,7 @@ export default function CurationKPage() {
     setTravelCourse(null)
     setTravelCourseError(null)
     setTravelCourseSaved(false)
+    setSavedTravelCourseId(null)
     try {
       const res = await fetch(
         `/api/curation-k/travel-course?drama_title=${encodeURIComponent(filterDrama)}`
@@ -890,7 +895,7 @@ export default function CurationKPage() {
   }
 
   async function handleSaveTravelCourse() {
-    if (!travelCourse || !isPro) return
+    if (!travelCourse) return
     setTravelCourseSaving(true)
     try {
       const res = await fetch("/api/curation-k/travel-course/save", {
@@ -898,12 +903,26 @@ export default function CurationKPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ course: travelCourse }),
       })
-      if (res.ok) setTravelCourseSaved(true)
+      if (res.ok) {
+        const body = (await res.json()) as { course_id: string }
+        setTravelCourseSaved(true)
+        setSavedTravelCourseId(body.course_id)
+      }
     } catch (err) {
       console.error("[curation-k] travel course save 실패:", err)
     } finally {
       setTravelCourseSaving(false)
     }
+  }
+
+  function handleShareTravelCourse() {
+    if (!savedTravelCourseId) return
+    const url = `${window.location.origin}/curation-k/course/${savedTravelCourseId}`
+    navigator.clipboard.writeText(url).catch(() => {})
+  }
+
+  function handlePdfDownloadTravelCourse() {
+    window.print()
   }
 
   // 지도 도시 클릭 → 지역 필터 set + 탭 그리드 스크롤.
@@ -1635,8 +1654,11 @@ export default function CurationKPage() {
           isPro={isPro}
           isSaving={travelCourseSaving}
           isSaved={travelCourseSaved}
+          savedCourseId={savedTravelCourseId}
           onClose={() => setTravelCourseOpen(false)}
           onSave={handleSaveTravelCourse}
+          onShare={handleShareTravelCourse}
+          onPdfDownload={handlePdfDownloadTravelCourse}
         />
 
         {/* ───── 3. K-Pop Pilgrimage Sites ─────────────────── */}
@@ -3420,8 +3442,11 @@ function TravelCourseModal({
   isPro,
   isSaving,
   isSaved,
+  savedCourseId,
   onClose,
   onSave,
+  onShare,
+  onPdfDownload,
 }: {
   open: boolean
   course: TravelCourse | null
@@ -3430,9 +3455,29 @@ function TravelCourseModal({
   isPro: boolean
   isSaving: boolean
   isSaved: boolean
+  savedCourseId: string | null
   onClose: () => void
   onSave: () => void
+  onShare: () => void
+  onPdfDownload: () => void
 }) {
+  const [showUpgrade, setShowUpgrade] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  function handleAction(action: "save" | "share" | "pdf") {
+    if (!isPro) { setShowUpgrade(true); return }
+    setShowUpgrade(false)
+    if (action === "save") {
+      onSave()
+    } else if (action === "share") {
+      onShare()
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    } else {
+      onPdfDownload()
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
@@ -3585,32 +3630,66 @@ function TravelCourseModal({
               </div>
 
               {/* 하단 액션 버튼 */}
-              <div className="flex items-center gap-3 mt-6 pt-4 border-t border-border/30 flex-wrap">
-                {course.gmaps_url && (
-                  <a
-                    href={course.gmaps_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 min-w-[160px]"
-                  >
-                    <Button
-                      className="w-full rounded-xl text-white flex items-center gap-2"
-                      style={{ backgroundColor: "#FF4B6E" }}
+              <div className="mt-6 pt-4 border-t border-border/30 space-y-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {course.gmaps_url && (
+                    <a
+                      href={course.gmaps_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 min-w-[160px]"
                     >
-                      <ExternalLink className="w-4 h-4" />
-                      Open in Google Maps
-                    </Button>
-                  </a>
-                )}
-                {isPro && (
+                      <Button
+                        className="w-full rounded-xl text-white flex items-center gap-2"
+                        style={{ backgroundColor: "#FF4B6E" }}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Open in Google Maps
+                      </Button>
+                    </a>
+                  )}
                   <Button
-                    onClick={onSave}
+                    onClick={() => handleAction("save")}
                     disabled={isSaving || isSaved}
                     variant="outline"
                     className="flex-shrink-0 rounded-xl border-border/50 disabled:opacity-60"
                   >
                     {isSaved ? "Saved ✓" : isSaving ? "Saving…" : "Save Course"}
                   </Button>
+                  <Button
+                    onClick={() => handleAction("share")}
+                    disabled={!savedCourseId}
+                    variant="outline"
+                    className="flex-shrink-0 rounded-xl border-border/50 disabled:opacity-60"
+                  >
+                    {linkCopied ? (
+                      <><Check className="w-4 h-4 mr-1.5" />Copied!</>
+                    ) : (
+                      <><Link2 className="w-4 h-4 mr-1.5" />Share</>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => handleAction("pdf")}
+                    variant="outline"
+                    className="flex-shrink-0 rounded-xl border-border/50"
+                  >
+                    <Download className="w-4 h-4 mr-1.5" />
+                    PDF
+                  </Button>
+                </div>
+                {showUpgrade && (
+                  <div
+                    className="flex items-center justify-center gap-2 p-3 rounded-xl"
+                    style={{
+                      backgroundColor: "rgba(255, 75, 110, 0.1)",
+                      border: "1px solid rgba(255, 75, 110, 0.25)",
+                    }}
+                  >
+                    <Lock className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />
+                    <p className="text-sm font-medium" style={{ color: "#FF4B6E" }}>
+                      Coming with Hallyu Pass
+                    </p>
+                  </div>
                 )}
               </div>
             </>
