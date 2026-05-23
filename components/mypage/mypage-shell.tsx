@@ -41,6 +41,7 @@ const sidebarLinks = [
   { icon: Newspaper, label: "Weekly Reports", href: "/mypage/reports" },
   { icon: CreditCard, label: "Subscription", href: "/mypage/subscription" },
   { icon: Settings, label: "Settings", href: "/mypage/settings" },
+
 ]
 
 type SidebarLabel = (typeof sidebarLinks)[number]["label"]

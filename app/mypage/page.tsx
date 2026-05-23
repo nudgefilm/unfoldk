@@ -16,7 +16,8 @@ import {
   Settings,
   ChevronRight,
   Flame,
-  PartyPopper
+  PartyPopper,
+  Newspaper,
 } from "lucide-react"
 
 const sidebarLinks = [
@@ -27,6 +28,7 @@ const sidebarLinks = [
   { icon: Languages, label: "Learning Progress", href: "/mypage/learning", active: false },
   { icon: UtensilsCrossed, label: "Saved Recipes", href: "/mypage/recipes", active: false },
   { icon: PartyPopper, label: "My Fan Events", href: "/mypage/fan-events", active: false },
+  { icon: Newspaper, label: "Weekly Reports", href: "/mypage/reports", active: false },
   { icon: CreditCard, label: "Subscription", href: "/mypage/subscription", active: false },
   { icon: Settings, label: "Settings", href: "/mypage/settings", active: false },
 ]
