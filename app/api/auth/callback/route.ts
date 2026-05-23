@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 // OAuth 콜백 — Google 로그인 성공 시 Supabase 가 ?code=... 로 redirect
 // code → session 교환 후 신규/기존 유저 분기:
@@ -72,12 +73,33 @@ export async function GET(request: NextRequest) {
   //    이 시점엔 행이 존재한다고 가정. 만약 없으면(예: 트리거 누락) 신규로 간주해 /start 로 보냄.
   const { data: profile, error: profileError } = await supabase
     .from("users")
-    .select("agreed_to_terms")
+    .select("agreed_to_terms, country")
     .eq("id", user.id)
     .maybeSingle()
 
   if (profileError) {
     console.error("[auth/callback] users 조회 실패:", profileError.message)
+  }
+
+  // country 보정 — 매 로그인 시 x-vercel-ip-country 있고 DB country 가 NULL 이면 저장.
+  // complete-signup 에서 못 잡은 케이스 (로컬 dev 테스트·0028 이전 가입자) 를 로그인 시 보완.
+  // 기존에 이미 채워진 country 는 덮어쓰지 않음 (.is("country", null) 가드).
+  const rawIpCountry = request.headers.get("x-vercel-ip-country")
+  if (
+    rawIpCountry &&
+    /^[A-Z]{2}$/.test(rawIpCountry.toUpperCase()) &&
+    profile !== null &&
+    !profile.country
+  ) {
+    const admin = createSupabaseAdminClient()
+    const { error: countryErr } = await admin
+      .from("users")
+      .update({ country: rawIpCountry.toUpperCase() })
+      .eq("id", user.id)
+      .is("country", null)
+    if (countryErr) {
+      console.warn("[auth/callback] country 업데이트 실패:", countryErr.message)
+    }
   }
 
   const isExistingMember = profile?.agreed_to_terms === true

@@ -13,7 +13,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 // service_role 사용 — users 글로벌 카운트는 RLS 우회 필요 (anon 은 본인만 읽음).
 // PII 누출 없음: 본 응답은 집계 정보만.
 
-export const revalidate = 86400
+export const revalidate = 3600
 
 interface StatsResponse {
   total_members: number
@@ -77,7 +77,7 @@ export async function GET() {
 
   return NextResponse.json(body, {
     headers: {
-      "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=172800",
+      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=7200",
     },
   })
 }

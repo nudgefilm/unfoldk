@@ -5,16 +5,11 @@ import { Twitter, Instagram } from "lucide-react"
 import Link from "next/link"
 import { CookieConsentBanner, COOKIE_CONSENT_KEY } from "./cookie-consent-banner"
 
-// ISO 3166-1 alpha-2 (예 "US") → 국기 이모지. 외부 라이브러리 없이 codePoint 변환.
-// Regional Indicator Symbols (0x1F1E6 = 🇦) base 에 A=0 offset 더해 두 글자 조합.
-function flagEmoji(code: string): string {
-  if (!/^[A-Z]{2}$/.test(code)) return ""
-  const A = 0x1f1e6
-  return String.fromCodePoint(
-    code.charCodeAt(0) - 65 + A,
-    code.charCodeAt(1) - 65 + A
+// ISO 3166-1 alpha-2 (예 "US") → 국기 이모지. 각 문자를 Regional Indicator Symbol 로 변환.
+const toFlag = (code: string) =>
+  code.toUpperCase().replace(/./g, (c) =>
+    String.fromCodePoint(0x1f1e6 - 65 + c.charCodeAt(0))
   )
-}
 
 interface StatsResponse {
   total_members: number
@@ -22,17 +17,19 @@ interface StatsResponse {
   top_countries: Array<{ country: string; count: number }>
 }
 
-// 마퀴 트랙 — 배열 2회 반복 + translateX(-50%) 로 끊김 없는 무한 스크롤.
-// 국가 수가 적을 때도 viewport 폭 충족 위해 최소 8회까지 패딩 반복.
+// 마퀴 트랙 — distinct country 1개씩 + translateX(-50%) seamless 루프.
+// source 는 API 에서 이미 distinct 이지만 안전하게 country 코드 기준 중복 제거 후 2배 복제.
 function buildMarqueeItems(
   source: Array<{ country: string; count: number }>
 ): Array<{ country: string; count: number }> {
   if (source.length === 0) return []
-  const minRepeat = Math.max(2, Math.ceil(8 / source.length))
-  const repeated: typeof source = []
-  for (let i = 0; i < minRepeat; i++) repeated.push(...source)
-  // 마퀴 seamless wrap 을 위한 한 번 더 복제 (앞쪽 절반 == 뒤쪽 절반)
-  return [...repeated, ...repeated]
+  const seen = new Set<string>()
+  const unique = source.filter((c) => {
+    if (seen.has(c.country)) return false
+    seen.add(c.country)
+    return true
+  })
+  return [...unique, ...unique]
 }
 
 export function FooterSection() {
@@ -216,7 +213,7 @@ export function FooterSection() {
                   className="inline-block text-xl mx-1.5 leading-none"
                   title={`${c.country} · ${c.count.toLocaleString()}`}
                 >
-                  {flagEmoji(c.country)}
+                  {toFlag(c.country)}
                 </span>
               ))}
             </div>
