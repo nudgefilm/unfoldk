@@ -56,7 +56,7 @@ export function PricingSection() {
         
         {/* Free Plan Card */}
         <div
-          className="flex-1 p-6 overflow-hidden rounded-xl flex flex-col justify-start items-start gap-6 bg-gradient-to-b from-gray-50/5 to-gray-50/0"
+          className="flex-1 p-6 overflow-hidden rounded-xl flex flex-col justify-between items-start bg-gradient-to-b from-gray-50/5 to-gray-50/0"
           style={{ outline: "1px solid hsl(var(--border))", outlineOffset: "-1px" }}
         >
           <div className="self-stretch flex flex-col justify-start items-start gap-6">
@@ -125,7 +125,7 @@ export function PricingSection() {
 
         {/* Hallyu Pass Card */}
         <div
-          className="flex-1 p-6 overflow-hidden rounded-xl flex flex-col justify-start items-start gap-6 shadow-[0px_4px_8px_-2px_rgba(0,0,0,0.10)]"
+          className="flex-1 p-6 overflow-hidden rounded-xl flex flex-col justify-between items-start shadow-[0px_4px_8px_-2px_rgba(0,0,0,0.10)]"
           style={{ backgroundColor: "#FF4B6E" }}
         >
           <div className="self-stretch flex flex-col justify-start items-start gap-6">

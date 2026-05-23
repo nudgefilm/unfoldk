@@ -35,15 +35,15 @@ export default function LandingPage() {
           >
             <PricingSection />
           </AnimatedSection>
+          <AnimatedSection id="faq-section" className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24" delay={0.2}>
+            <FAQSection />
+          </AnimatedSection>
           <AnimatedSection
             id="early-access-section"
             className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24"
             delay={0.2}
           >
             <EarlyAccessSection />
-          </AnimatedSection>
-          <AnimatedSection id="faq-section" className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24" delay={0.2}>
-            <FAQSection />
           </AnimatedSection>
           <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24" delay={0.2}>
             <CTASection />
