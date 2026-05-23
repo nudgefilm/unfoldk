@@ -11,14 +11,14 @@ const faqData = [
       "UnfoldK is a subscription platform for global Hallyu fans — anyone who loves K-pop, K-dramas, Korean food, or the Korean language. If you follow Korean culture from outside Korea, this is built for you.",
   },
   {
-    question: "What's included in Hallyu Pass?",
+    question: "Does it work for BTS, BLACKPINK, and other groups?",
     answer:
-      "Hallyu Pass gives you full Pro access to all six services: HallyuCalendar, KpopStats, KdramaMatch, HangeulGo, KfoodKit, and Curation K. One subscription, one account, everything included.",
+      "Yes — HallyuCalendar and KpopStats cover all K-pop artists. Set alerts for comebacks, album drops, and concerts for any artist you follow.",
   },
   {
-    question: "Is there a free plan?",
+    question: "Does it include Netflix and Disney+ K-dramas?",
     answer:
-      "Yes. The Free plan gives you limited access to all six services — enough to explore before committing. No credit card required to sign up.",
+      "Yes — KdramaMatch pulls from all major platforms including Netflix, Disney+, tvN, and more. Filter by platform to find what's available in your region.",
   },
   {
     question: "How does Google Calendar sync work?",
@@ -31,9 +31,9 @@ const faqData = [
       "Yes. You can cancel your subscription anytime from your account settings. If you're on an annual plan, you'll retain access until the end of your billing period.",
   },
   {
-    question: "Is my data safe?",
+    question: "How often is the content updated?",
     answer:
-      "We comply with GDPR and CCPA. We never sell your data and only collect what's needed to run the service. Full details are in our Privacy Policy.",
+      "K-pop charts and comebacks update daily. Drama listings refresh weekly. Korean lessons and recipes are updated regularly.",
   },
 ]
 

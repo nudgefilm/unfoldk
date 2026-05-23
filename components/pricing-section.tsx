@@ -27,19 +27,15 @@ export function PricingSection() {
 
   const freeFeatures = [
     "Basic access to all 6 services",
-    "Track up to 3 artists",
-    "1 Korean lesson per day",
-    "1 recipe per week",
+    "Up to 5 K-drama recommendations",
+    "1 Korean expression per day",
+    "Save up to 5 recipes",
   ]
 
   const proFeatures = [
-    "Full access to all 6 services Pro",
+    "Full access to all 6 services",
+    "Never miss a comeback — real-time alerts",
     "Unlimited artist tracking",
-    "Google Calendar sync",
-    "iCal share link",
-    "Real-time push alerts",
-    "UnfoldK grammar explanations",
-    "UnfoldK local ingredient suggestions",
   ]
 
   return (
@@ -233,6 +229,7 @@ export function PricingSection() {
                 </div>
               ))}
             </div>
+            <p className="text-xs text-white/50">+ Google Calendar sync, iCal share, grammar explanations, and more</p>
           </div>
         </div>
       </div>
