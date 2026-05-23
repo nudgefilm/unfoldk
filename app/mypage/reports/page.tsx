@@ -91,6 +91,7 @@ function ReportsBody() {
   const [loading, setLoading] = useState(true)
   const [reports, setReports] = useState<WeeklyReportRow[]>([])
   const [reportsLoading, setReportsLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
@@ -108,15 +109,18 @@ function ReportsBody() {
 
       if (pro) {
         setReportsLoading(true)
-        supabase
+        const { data: rows, error: reportsErr } = await supabase
           .from("weekly_reports")
           .select("id, week_start, content_json, created_at")
           .order("week_start", { ascending: false })
           .limit(10)
-          .then(({ data: rows }) => {
-            setReports((rows ?? []) as WeeklyReportRow[])
-            setReportsLoading(false)
-          })
+        if (reportsErr) {
+          console.error("[mypage/reports] weekly_reports 조회 실패:", reportsErr.message, reportsErr.code)
+          setFetchError(reportsErr.message)
+        } else {
+          setReports((rows ?? []) as WeeklyReportRow[])
+        }
+        setReportsLoading(false)
       }
     })
   }, [])
@@ -165,6 +169,16 @@ function ReportsBody() {
         {[...Array(3)].map((_, i) => (
           <div key={i} className="h-20 rounded-2xl bg-muted/20 animate-pulse" />
         ))}
+      </div>
+    )
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <Newspaper className="w-10 h-10 text-muted-foreground mb-4" />
+        <p className="text-foreground font-medium mb-2">Could not load reports</p>
+        <p className="text-muted-foreground text-sm">Please try refreshing the page.</p>
       </div>
     )
   }
