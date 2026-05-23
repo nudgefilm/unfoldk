@@ -200,35 +200,44 @@ export function FooterSection() {
           />
         )}
 
-        {/* 라인 2 — 국기. 1개면 정적 표시, 2개 이상이면 마퀴 애니메이션. */}
-        {stats && stats.top_countries.length === 1 && (
-          <div aria-hidden="true" className="mt-3">
-            <span
-              className="inline-block text-xl mx-1.5 leading-none"
-              title={`${stats.top_countries[0].country} · ${stats.top_countries[0].count.toLocaleString()}`}
-            >
-              {toFlag(stats.top_countries[0].country)}
-            </span>
-          </div>
-        )}
-        {stats && stats.top_countries.length > 1 && (
-          <div
-            aria-hidden="true"
-            className="mt-3 overflow-hidden uf-marquee-wrap"
-          >
-            <div className="uf-marquee-track">
-              {buildMarqueeItems(stats.top_countries).map((c, i) => (
+        {/* 라인 2 — 국기. unique 1개면 정적 표시, 2개 이상이면 마퀴 애니메이션.
+            top_countries 에 중복 country 코드가 올 수 있으므로 raw length 가 아닌
+            dedup 후 개수로 분기. */}
+        {stats && stats.top_countries.length > 0 && (() => {
+          const seen = new Set<string>()
+          const unique = stats.top_countries.filter((c) => {
+            if (seen.has(c.country)) return false
+            seen.add(c.country)
+            return true
+          })
+          if (unique.length === 1) {
+            return (
+              <div aria-hidden="true" className="mt-3">
                 <span
-                  key={`${c.country}-${i}`}
                   className="inline-block text-xl mx-1.5 leading-none"
-                  title={`${c.country} · ${c.count.toLocaleString()}`}
+                  title={`${unique[0].country} · ${unique[0].count.toLocaleString()}`}
                 >
-                  {toFlag(c.country)}
+                  {toFlag(unique[0].country)}
                 </span>
-              ))}
+              </div>
+            )
+          }
+          return (
+            <div aria-hidden="true" className="mt-3 overflow-hidden uf-marquee-wrap">
+              <div className="uf-marquee-track">
+                {[...unique, ...unique].map((c, i) => (
+                  <span
+                    key={`${c.country}-${i}`}
+                    className="inline-block text-xl mx-1.5 leading-none"
+                    title={`${c.country} · ${c.count.toLocaleString()}`}
+                  >
+                    {toFlag(c.country)}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
 
       {/* 마퀴 keyframes — 별도 CSS 파일 회피 위해 컴포넌트 인라인 */}
