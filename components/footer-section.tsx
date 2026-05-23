@@ -200,8 +200,18 @@ export function FooterSection() {
           />
         )}
 
-        {/* 라인 2 — 국기 마퀴. top_countries 가 채워질 때만 노출. */}
-        {stats && stats.top_countries.length > 0 && (
+        {/* 라인 2 — 국기. 1개면 정적 표시, 2개 이상이면 마퀴 애니메이션. */}
+        {stats && stats.top_countries.length === 1 && (
+          <div aria-hidden="true" className="mt-3">
+            <span
+              className="inline-block text-xl mx-1.5 leading-none"
+              title={`${stats.top_countries[0].country} · ${stats.top_countries[0].count.toLocaleString()}`}
+            >
+              {toFlag(stats.top_countries[0].country)}
+            </span>
+          </div>
+        )}
+        {stats && stats.top_countries.length > 1 && (
           <div
             aria-hidden="true"
             className="mt-3 overflow-hidden uf-marquee-wrap"
