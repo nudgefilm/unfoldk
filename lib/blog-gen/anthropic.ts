@@ -15,7 +15,13 @@
 //   - 실패는 throw — 호출자(run.ts) 가 GitHub push 까지 진행 안 함
 
 import Anthropic from "@anthropic-ai/sdk"
-import { TOPIC_POOL, type TopicId } from "./topics"
+import {
+  TOPIC_POOL,
+  type TopicId,
+  buildExcludeInstruction,
+  allTopicsExcluded,
+  pickFallbackTopic,
+} from "./topics"
 
 const client = new Anthropic()
 
@@ -111,22 +117,42 @@ export class BlogGenerationError extends Error {
   }
 }
 
-function userPrompt(todayIso: string): string {
+function userPrompt(todayIso: string, excludeTopicIds: string[]): string {
   const topicList = TOPIC_POOL.map(
     (t) => `  - ${t.id} — ${t.label}\n      Guidance: ${t.englishPrompt}`
   ).join("\n")
+
+  // 모든 토픽이 최근에 사용됐으면 가장 오래된 토픽을 강제 지정 (fallback)
+  if (allTopicsExcluded(excludeTopicIds)) {
+    const fallback = pickFallbackTopic(excludeTopicIds)
+    return `Today's date: ${todayIso}
+
+All topics were used recently. You must write about this topic today: ${fallback.id} (${fallback.label}).
+Guidance: ${fallback.englishPrompt}
+
+Topic pool for reference:
+${topicList}
+
+Write the post for topic "${fallback.id}" and submit via the publish_blog_post tool. Remember the critical rules in your instructions.`
+  }
+
+  const excludeInstruction = buildExcludeInstruction(excludeTopicIds)
   return `Today's date: ${todayIso}
 
 Topic pool (pick exactly one):
 ${topicList}
-
+${excludeInstruction}
 Pick the topic that feels freshest today, then write the post and submit via the publish_blog_post tool. Remember the critical rules in your instructions: no invented facts, MDX-safe markdown, and end with a soft link back to the most relevant UnfoldK service.`
 }
 
 // kebab-case 검증 — Anthropic schema pattern 만으론 LLM 위반 가능, 코드 측 한 번 더 확인.
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
-export async function generateBlogPost(todayIso: string): Promise<GeneratedPost> {
+export async function generateBlogPost(
+  todayIso: string,
+  options?: { excludeTopicIds?: string[] }
+): Promise<GeneratedPost> {
+  const excludeTopicIds = options?.excludeTopicIds ?? []
   let response: Anthropic.Message
   try {
     response = await client.messages.create({
@@ -145,7 +171,7 @@ export async function generateBlogPost(todayIso: string): Promise<GeneratedPost>
       messages: [
         {
           role: "user",
-          content: userPrompt(todayIso),
+          content: userPrompt(todayIso, excludeTopicIds),
         },
       ],
     })

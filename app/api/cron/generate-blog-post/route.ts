@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { verifyCronAuth } from "@/lib/cron/auth"
 import { runBlogGenerationCron } from "@/lib/blog-gen/run"
+import { listRecentTopicIds } from "@/lib/blog-gen/topics"
 
 // Vercel Cron — vercel.json 매일 08:00 UTC.
 // 흐름:
@@ -24,7 +25,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await runBlogGenerationCron()
+    // 최근 5개 포스트의 topicId 수집 — 실패 시 빈 배열로 진행 (중복 회피 비활성)
+    const excludeTopicIds = await listRecentTopicIds(5).catch((err: unknown) => {
+      console.warn("[cron/generate-blog-post] topicId 수집 실패:", err instanceof Error ? err.message : String(err))
+      return [] as string[]
+    })
+
+    const result = await runBlogGenerationCron({ excludeTopicIds })
 
     if (result.ok) {
       // 멱등 skip 도 200 (cron 재실행 시 명확한 신호)

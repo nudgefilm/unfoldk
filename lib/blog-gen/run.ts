@@ -53,6 +53,7 @@ function buildFrontmatter(args: {
   image: string
   imageCredit: string
   readingTimeMinutes: number
+  topicId: string
 }): string {
   const tagsLine = args.tags.map(yamlString).join(", ")
   return [
@@ -65,6 +66,7 @@ function buildFrontmatter(args: {
     `image: ${yamlString(args.image)}`,
     `imageCredit: ${yamlString(args.imageCredit)}`,
     `readingTime: ${args.readingTimeMinutes}`,
+    `topicId: ${yamlString(args.topicId)}`,
     "draft: false",
     "---",
     "",
@@ -85,7 +87,8 @@ function buildFilePath(dateIso: string, slug: string): string {
   return `content/blog/${dateIso}-${slug}.mdx`
 }
 
-export async function runBlogGenerationCron(): Promise<RunResult> {
+export async function runBlogGenerationCron(options?: { excludeTopicIds?: string[] }): Promise<RunResult> {
+  const excludeTopicIds = options?.excludeTopicIds ?? []
   // 오늘 날짜 (UTC) — cron 이 UTC 기준이라 KST 자정 경계 회피
   const now = new Date()
   const todayIso = now.toISOString().slice(0, 10) // YYYY-MM-DD
@@ -118,7 +121,7 @@ export async function runBlogGenerationCron(): Promise<RunResult> {
   // 2. Haiku 본문 생성
   let post: GeneratedPost
   try {
-    post = await generateBlogPost(todayIso)
+    post = await generateBlogPost(todayIso, { excludeTopicIds })
   } catch (err) {
     const msg =
       err instanceof BlogGenerationError
@@ -171,6 +174,7 @@ export async function runBlogGenerationCron(): Promise<RunResult> {
     image: image.imageUrl,
     imageCredit: image.imageCredit,
     readingTimeMinutes,
+    topicId: post.topicId,
   })
   const mdxContent = `${frontmatter}${post.bodyMdx}\n`
 

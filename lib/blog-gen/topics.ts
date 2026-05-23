@@ -1,4 +1,4 @@
-// 블로그 자동 포스팅 — 토픽 풀
+// 블로그 자동 포스팅 — 토픽 풀 + 최근 사용 topicId 수집
 //
 // Haiku 가 매일 1개 선택 (스펙). 5개로 고정 — 늘리려면 reviewer 1차 통과 후 추가 권장
 // (퀄리티 분산 우려). 각 topic 은 영어 audience 기준 동작.
@@ -58,4 +58,98 @@ export type TopicId = (typeof TOPIC_POOL)[number]["id"]
 
 export function getTopicById(id: string): BlogTopic | null {
   return TOPIC_POOL.find((t) => t.id === id) ?? null
+}
+
+// ─── 최근 사용 topicId 수집 (GitHub Contents API) ───────────────────────────
+// used-images.ts 의 GitHub 호출 패턴과 동일. 별도 파일로 분리하지 않고 토픽 관련
+// 로직을 한 곳에 집중.
+
+interface GHDirEntry {
+  name: string
+  type: string
+  download_url: string | null
+}
+
+async function fetchBlogDirEntries(): Promise<GHDirEntry[]> {
+  const token = process.env.GITHUB_TOKEN
+  const repo = process.env.GITHUB_REPO
+  const branch = process.env.GITHUB_BRANCH ?? "main"
+  if (!token || !repo) return []
+
+  const url = `https://api.github.com/repos/${repo}/contents/content/blog?ref=${encodeURIComponent(branch)}`
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "unfoldk-blog-cron",
+    },
+    cache: "no-store",
+  })
+  if (res.status === 404) return []
+  if (!res.ok) return []
+  const json = (await res.json()) as unknown
+  if (!Array.isArray(json)) return []
+  return (json as GHDirEntry[]).filter((e) => e.type === "file" && e.name.endsWith(".mdx"))
+}
+
+// MDX frontmatter 의 topicId 라인 추출.
+// 형식: topicId: "kpop-comebacks-this-week" (run.ts 가 저장하는 형식)
+function extractTopicIdFromFrontmatter(mdx: string): string | null {
+  const fm = mdx.match(/^---\n([\s\S]*?)\n---/)
+  if (!fm) return null
+  const line = fm[1].match(/^topicId:\s*(.+)$/m)
+  if (!line) return null
+  const raw = line[1].trim().replace(/^["']|["']$/g, "")
+  return TOPIC_POOL.some((t) => t.id === raw) ? raw : null
+}
+
+// 최근 N 개 포스트의 topicId 목록 (최신순). 실패 시 빈 배열 — 생성 자체는 진행.
+export async function listRecentTopicIds(limit = 5): Promise<string[]> {
+  let entries: GHDirEntry[]
+  try {
+    entries = await fetchBlogDirEntries()
+  } catch {
+    return []
+  }
+
+  // YYYY-MM-DD-* 파일명 → desc 정렬로 최신순
+  entries.sort((a, b) => (a.name < b.name ? 1 : a.name > b.name ? -1 : 0))
+  const targets = entries.slice(0, limit)
+
+  const ids: string[] = []
+  await Promise.all(
+    targets.map(async (entry) => {
+      if (!entry.download_url) return
+      try {
+        const res = await fetch(entry.download_url, { cache: "no-store" })
+        if (!res.ok) return
+        const id = extractTopicIdFromFrontmatter(await res.text())
+        if (id) ids.push(id)
+      } catch {
+        // swallow — 중복 회피 실패해도 생성은 진행
+      }
+    })
+  )
+  return ids
+}
+
+// ─── Claude 프롬프트 헬퍼 ─────────────────────────────────────────────────────
+
+// 제외 토픽 지시문. excludeIds 가 비어있으면 빈 문자열 반환.
+export function buildExcludeInstruction(excludeIds: string[]): string {
+  if (excludeIds.length === 0) return ""
+  return `\nRecently used topics — do NOT pick these: ${excludeIds.join(", ")}. Choose a different topic from the pool.`
+}
+
+// 모든 토픽이 최근에 사용된 경우 가장 오래된 것을 fallback 으로 반환.
+// excludeIds 는 최신순이므로 마지막 항목이 가장 오래된 것.
+export function pickFallbackTopic(excludeIds: string[]): BlogTopic {
+  const oldestId = excludeIds[excludeIds.length - 1]
+  return TOPIC_POOL.find((t) => t.id === oldestId) ?? TOPIC_POOL[0]
+}
+
+// 모든 토픽이 제외 목록에 있는지 여부
+export function allTopicsExcluded(excludeIds: string[]): boolean {
+  return TOPIC_POOL.every((t) => excludeIds.includes(t.id))
 }
