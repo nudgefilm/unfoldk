@@ -49,10 +49,11 @@ function countryFlag(code: string | undefined): string {
 // 권역 분류는 ISO 3166-1 alpha-2 기준 — UK 는 GB, 일본은 JP, 한국은 KR.
 const REGION_FILTERS = [
   { code: "ALL",         label: "All",         flag: "",   countries: [] as readonly string[] },
-  { code: "AMERICAS",    label: "Americas",    flag: "🌎", countries: ["US", "CA", "BR", "MX", "AR", "CL", "CO"] as readonly string[] },
-  { code: "EUROPE",      label: "Europe",      flag: "🌍", countries: ["GB", "DE", "FR", "ES", "IT", "NL", "PL", "SE", "NO", "DK", "BE"] as readonly string[] },
-  { code: "ASIA",        label: "Asia",        flag: "🌏", countries: ["JP", "KR", "TH", "SG", "PH", "MY", "ID", "TW", "HK"] as readonly string[] },
-  { code: "MIDDLE_EAST", label: "Middle East", flag: "🕌", countries: ["AE", "SA", "TR", "IL", "QA", "KW"] as readonly string[] },
+  { code: "AMERICAS",    label: "Americas",    flag: "🌎", countries: ["US", "CA", "BR", "MX", "AR", "CL", "CO", "PE"] as readonly string[] },
+  { code: "EUROPE",      label: "Europe",      flag: "🌍", countries: ["GB", "FR", "DE", "IE", "NL", "IT", "ES", "DK", "BE", "NO", "CZ", "PL", "PT", "SE", "CH", "AT", "FI"] as readonly string[] },
+  { code: "ASIA",        label: "Asia",        flag: "🌏", countries: ["KR", "JP", "TH", "SG", "MY", "PH", "VN", "ID", "TW", "HK", "CN", "IN"] as readonly string[] },
+  { code: "OCEANIA",     label: "Oceania",     flag: "🦘", countries: ["AU", "NZ"] as readonly string[] },
+  { code: "MIDDLE_EAST", label: "Middle East", flag: "🕌", countries: ["AE", "SA", "QA", "KW", "BH", "OM", "JO", "IL"] as readonly string[] },
   { code: "ONLINE",      label: "Online",      flag: "🌐", countries: [] as readonly string[] },
 ] as const
 type RegionCode = (typeof REGION_FILTERS)[number]["code"]
