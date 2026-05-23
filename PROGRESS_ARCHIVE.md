@@ -1550,3 +1550,84 @@ limit 5;
 - 브랜치 네이밍을 `main`으로 통일
 
 <!-- 세션이 끝날 때마다 위 "현재 상태" 블록을 아래로 이동시키며 누적 -->
+
+---
+
+## 현재 상태 (2026-05-23 세션 21 / Curation K 운영 안정화 — cron timeout 근본 해결 + 축제 탭 개선 + Pro 킬러 기능 로드맵 확정)
+
+> 운영 관점 집중 세션. ① Nearby Places 섹션을 전 탭 모달에 공통 확장, ② 어드민 cron "축제만(빠른)" 버튼 무응답 원인을 Vercel 내부 HTTP fetch 차단으로 확진 → 직접 핸들러 import 방식으로 교체, ③ translatePendingRows 배치 처리 전환으로 300s timeout 근본 해결, ④ 축제 탭 2건만 표시되던 날짜 필터 버그 수정 + 상태 배지·정렬 개선. 후반에 Pro 킬러 기능 5종 로드맵 확정.
+>
+> commits: `ba354a5` → `e63b17d` → `7a4fc7f` → `11b49e2` → `6555ba4` → `7de74b5`.
+
+### 완료
+
+#### A. Curation K — Nearby Places 섹션 전 탭 모달 확장
+- 기존: filming 탭 모달에만 NearbyPlacesSection 노출.
+- 확장: Attractions / Food / Stays / Culture / K-Pop Pilgrimage 모달 전체 적용.
+- `/api/curation-k/nearby-spots` API 를 `?filming_spot_id=` 외에 `?lat=&lng=&exclude_type=` 직접 파라미터도 수용하도록 재작성.
+- `exclude_type` — 현재 탭과 동일 content_type_id 를 Nearby 결과에서 제외. 탭별 매핑: `TAB_EXCLUDE_TYPE = { attractions:12, culture:14, stays:32, food:39 }`.
+- `KpopSpotDetailDialog` — 훅을 상단으로 이동 후 `NearbyPlacesSection` 추가.
+
+#### B. 어드민 cron 프록시 — Vercel 내부 HTTP fetch 차단 우회
+- 원인: same-project 내부 HTTP fetch 차단.
+- 해결: 직접 핸들러 import + synthetic Request (`https://internal/...` URL + `Authorization: Bearer {CRON_SECRET}`).
+- `components/admin/cron-monitor.tsx` — `timedOut` 분기 제거.
+
+#### C. translatePendingRows 배치 처리 전환 — 300s timeout 근본 해결
+- BATCH_SIZE=20 단일 Claude 호출. 300건 ÷ 20 = 15 호출 × ~5s ≈ 75s.
+- 개별 translateTitle / translateOverview 제거. MAX_TRANSLATIONS_PER_RUN=300 단일 적용.
+
+#### D. 축제 탭 2건만 표시 문제 수정
+- 원인: event_end_date >= today 필터 → 진행 중 2건만 노출. 날짜 필터 제거.
+
+#### E. 축제 탭 상태 배지 + 정렬 개선
+- 정렬: 진행 중(0) → 예정(1, 가까운 순) → 종료(2, 최근 종료 순).
+- 상태 배지: getFestivalStatus() 헬퍼. 진행 중(녹색) / D-N(주황) / 예정(주황) / 종료(회색).
+
+---
+
+## 현재 상태 (2026-05-21 세션 20 / KfoodKit·Curation K 운영 안정화 + HallyuBot·LMS 외부 트랙 + SEO/AI 검색 기초 인프라)
+
+> 운영 관점 마감 세션. ① KfoodKit·Curation K 데이터 backfill 상태 확정, ② HallyuBot top.gg 제출, ③ Lemon Squeezy 재심사 답변, ④ Discord 커뮤니티 홍보 자산, ⑤ Google·Bing 검색 등록 + AI 검색 (llms.txt) 인프라 + 블로그 페이지네이션.
+>
+> commits: `86f16b3` → `c5eda19` → `dbe50aa` → `f01bf0b` → `1fc94f8` → `c5cba28` → `6e7d25d` → `bb49344` → `24d26a4`.
+
+### 완료 (요약)
+- KfoodKit 마이그레이션 0030~0035 전체 적용 확인. title_en 537/537 완료.
+- filming_spots description backfill 전용 cron 분리 (`/api/cron/backfill-filming-descriptions`).
+- Curation K SpotDetailDialog Google Maps 버튼 주소 fallback.
+- HallyuBot top.gg 심사 제출. Lemon Squeezy 재심사 요청.
+- Discord 커뮤니티 홍보 자산 4종 템플릿 + 관리자 DM 최종본.
+- Google Search Console + Bing Webmaster Tools 등록. `app/sitemap.ts` / `app/robots.ts` 신설.
+- `public/llms.txt` + `app/llms-txt/route.ts` — AI 검색 최적화.
+- 블로그 페이지네이션 (POSTS_PER_PAGE=12, ?page=N).
+
+---
+
+## 현재 상태 (2026-05-20 세션 19 / KfoodKit Phase 1~3 + 페이지네이션 · 마이페이지 stat · 캘린더 모달 자동 오픈)
+
+> KfoodKit "soon" → live 출시 전환. MAFRA 무료 API 확정 (537 레시피). 이미지 backfill 3-phase. /food 페이지 풀스택. Ingredient Finder 재설계. My Shopping List html2canvas PNG 다운로드. /admin/food 콘솔. 마이페이지 4 stat 실데이터. /mypage/calendar 모달 자동 오픈.
+>
+> commits (전반): `f385d9c` → `8bc07ce`. (후반): `018dd52` → `fe76095`.
+
+### 완료 (요약)
+- MAFRA API wrapper + 3 grid (537 레시피) 수집 + MFDS COOKRCP01 이미지 backfill 3-phase.
+- /food 페이지 풀스택: 페이지네이션 + 모달 + Ingredient Finder 재설계 + Shopping List PNG 다운로드.
+- /admin/food 콘솔: 필터·검색·썸네일·편집 다이얼로그 (Storage 업로드 / URL / 제거).
+- 6 services live 카피 정합 (KfoodKit "soon" → "live").
+- KfoodKit Phase 2: 컬렉션 저장 + YouTube 요리 영상. Phase 3: 주간 K푸드 챌린지.
+- 마이페이지 대시보드 4 stat 실데이터 (`/api/mypage/stats`).
+- /mypage/calendar 이벤트 클릭 → calendar 모달 자동 오픈.
+- PROGRESS / DECISIONS 아카이브 분리 (세션 1~17 → PROGRESS_ARCHIVE.md / DECISIONS_ARCHIVE.md).
+
+---
+
+## 현재 상태 (2026-05-19 세션 18 / Curation K 카드 모달 탭별 분기 + K-Pop 모달 신규 + About 페이지 카피 리뉴얼)
+
+> Curation K Phase 2 잔여 마감. SpotDetailDialog 탭별 분기. KpopSpotDetailDialog 신규. 이미지 갤러리 화살표 안정화. 0029 마이그레이션 + ingest 영구화. About 페이지 인디 개발자 소개 + Educational Access 섹션 신설.
+
+### 완료 (요약)
+- SpotDetailDialog 탭별 분기: filming(spot_description) / festivals(기간 칩) / 그 외(overview).
+- KpopSpotDetailDialog 신규: visit_reason + homepage + Google Maps(Pro).
+- 0029_curation_k_descriptions.sql: filming_spots.spot_description / kpop_spots.visit_reason · homepage 컬럼 추가.
+- About 페이지: 인디 개발자 소개 + "How it started" 교체 + Educational Access 섹션 신설 + COPY.md 동기화.
