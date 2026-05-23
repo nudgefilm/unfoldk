@@ -3,13 +3,34 @@
 import { useEffect, useRef, useState } from "react"
 import { Twitter, Instagram } from "lucide-react"
 import Link from "next/link"
+import twemoji from "twemoji"
 import { CookieConsentBanner, COOKIE_CONSENT_KEY } from "./cookie-consent-banner"
 
-// ISO 3166-1 alpha-2 (예 "US") → 국기 이모지. 각 문자를 Regional Indicator Symbol 로 변환.
+// ISO 3166-1 alpha-2 (예 "US") → 국기 이모지 문자. Regional Indicator Symbol 변환.
 const toFlag = (code: string) =>
   code.toUpperCase().replace(/./g, (c) =>
     String.fromCodePoint(0x1f1e6 - 65 + c.charCodeAt(0))
   )
+
+// Twemoji CDN <img> 렌더링 — Windows 국기 이모지 미지원 대응
+function TwemojiFlag({ code, title }: { code: string; title?: string }) {
+  const emoji = toFlag(code)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const html = (twemoji as any).parse(emoji, { folder: "svg", ext: ".svg" }) as string
+  const src = html.match(/src="([^"]+)"/)?.[1] ?? ""
+  if (!src) return <span className="text-xl leading-none">{emoji}</span>
+  return (
+    <img
+      src={src}
+      alt={code}
+      title={title}
+      width={20}
+      height={20}
+      className="inline-block align-middle"
+      draggable={false}
+    />
+  )
+}
 
 interface StatsResponse {
   total_members: number
@@ -213,12 +234,10 @@ export function FooterSection() {
           if (unique.length === 1) {
             return (
               <div aria-hidden="true" className="mt-3">
-                <span
-                  className="inline-block text-xl mx-1.5 leading-none"
+                <TwemojiFlag
+                  code={unique[0].country}
                   title={`${unique[0].country} · ${unique[0].count.toLocaleString()}`}
-                >
-                  {toFlag(unique[0].country)}
-                </span>
+                />
               </div>
             )
           }
@@ -226,12 +245,11 @@ export function FooterSection() {
             <div aria-hidden="true" className="mt-3 overflow-hidden uf-marquee-wrap">
               <div className="uf-marquee-track">
                 {[...unique, ...unique].map((c, i) => (
-                  <span
-                    key={`${c.country}-${i}`}
-                    className="inline-block text-xl mx-1.5 leading-none"
-                    title={`${c.country} · ${c.count.toLocaleString()}`}
-                  >
-                    {toFlag(c.country)}
+                  <span key={`${c.country}-${i}`} className="inline-block mx-1.5">
+                    <TwemojiFlag
+                      code={c.country}
+                      title={`${c.country} · ${c.count.toLocaleString()}`}
+                    />
                   </span>
                 ))}
               </div>
