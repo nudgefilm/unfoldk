@@ -42,6 +42,7 @@ const ROUTES = [
   "ingest-food-recipes",
   "send-reminders",
   "backfill-filming-descriptions",
+  "weekly-report",
 ] as const
 
 // 라우트별 한국어 표시명 — 카드 제목에 노출. 식별자는 그대로 두고 라벨만 매핑.
@@ -56,6 +57,7 @@ const ROUTE_DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
   "ingest-food-recipes": "KfoodKit — 레시피 수집",
   "send-reminders": "send-reminders",
   "backfill-filming-descriptions": "Curation K — 촬영지 설명 backfill",
+  "weekly-report": "주간 한류 리포트 생성",
 }
 
 // 라우트별 수동 트리거 버튼 정의 — 미지정 라우트는 단일 기본 "수동 실행" 버튼.
@@ -121,7 +123,9 @@ async function load(): Promise<LoadResult> {
                     ? "레시피 + 이미지 매칭"
                     : route === "backfill-filming-descriptions"
                       ? "description 보충 수"
-                      : "수집 이벤트"
+                      : route === "weekly-report"
+                        ? "생성된 주차"
+                        : "수집 이벤트"
 
     const displayName = ROUTE_DISPLAY_NAMES[route]
     const actions = ROUTE_ACTIONS[route]
@@ -207,6 +211,9 @@ async function load(): Promise<LoadResult> {
       // FilmingDescriptionsBackfillResult — updated 가 카드 메트릭 (실제 채워진 row 수).
       const r = data.result_json as { updated?: number }
       metric = (r.updated ?? 0).toLocaleString()
+    } else if (route === "weekly-report" && data.result_json) {
+      const r = data.result_json as { duplicate?: boolean; week_start?: string }
+      metric = r.duplicate ? "skip" : (r.week_start ?? "—")
     }
 
     summaries.push({

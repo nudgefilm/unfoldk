@@ -27,6 +27,7 @@ import {
   CreditCard,
   Settings,
   PartyPopper,
+  Newspaper,
 } from "lucide-react"
 
 const sidebarLinks = [
@@ -37,6 +38,7 @@ const sidebarLinks = [
   { icon: Languages, label: "Learning Progress", href: "/mypage/learning" },
   { icon: UtensilsCrossed, label: "Saved Recipes", href: "/mypage/recipes" },
   { icon: PartyPopper, label: "My Fan Events", href: "/mypage/fan-events" },
+  { icon: Newspaper, label: "Weekly Reports", href: "/mypage/reports" },
   { icon: CreditCard, label: "Subscription", href: "/mypage/subscription" },
   { icon: Settings, label: "Settings", href: "/mypage/settings" },
 ]
