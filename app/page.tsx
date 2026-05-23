@@ -3,7 +3,7 @@ import { FloatingCalendarWidget } from "@/components/floating-calendar-widget"
 import { BentoSection } from "@/components/bento-section"
 
 import { PricingSection } from "@/components/pricing-section"
-import { TestimonialGridSection } from "@/components/testimonial-grid-section"
+import { EarlyAccessSection } from "@/components/early-access-section"
 import { FAQSection } from "@/components/faq-section"
 import { CTASection } from "@/components/cta-section"
 import { FooterSection } from "@/components/footer-section"
@@ -36,11 +36,11 @@ export default function LandingPage() {
             <PricingSection />
           </AnimatedSection>
           <AnimatedSection
-            id="testimonials-section"
+            id="early-access-section"
             className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24"
             delay={0.2}
           >
-            <TestimonialGridSection />
+            <EarlyAccessSection />
           </AnimatedSection>
           <AnimatedSection id="faq-section" className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24" delay={0.2}>
             <FAQSection />
