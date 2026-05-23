@@ -15,8 +15,7 @@ const toFlag = (code: string) =>
 // Twemoji CDN <img> 렌더링 — Windows 국기 이모지 미지원 대응
 function TwemojiFlag({ code, title }: { code: string; title?: string }) {
   const emoji = toFlag(code)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const html = (twemoji as any).parse(emoji, { folder: "svg", ext: ".svg" }) as string
+  const html = (twemoji as unknown as { parse: (text: string, opts: Record<string, string>) => string }).parse(emoji, { folder: "svg", ext: ".svg" })
   const src = html.match(/src="([^"]+)"/)?.[1] ?? ""
   if (!src) return <span className="text-xl leading-none">{emoji}</span>
   return (
