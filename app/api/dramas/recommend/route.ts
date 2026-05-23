@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { recommendDramas } from "@/lib/claude/recommend-dramas"
+import {
+  recommendDramas,
+  recommendDramasPersonalized,
+  type WatchlistEntry,
+  type RatingEntry,
+} from "@/lib/claude/recommend-dramas"
 import { hasProAccess } from "@/lib/auth/plan"
 import { DRAMA_SELECT, mapDramaRow } from "@/lib/dramas/mapper"
 
@@ -53,6 +58,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
 
   let limit = ANON_LIMIT
+  let isPro = false
   if (user) {
     const { data: profile } = await supabase
       .from("users")
@@ -60,8 +66,8 @@ export async function POST(request: Request) {
       .eq("id", user.id)
       .maybeSingle()
     const row = profile as { plan_type?: string; is_admin?: boolean } | null
-    const isPaidActive = hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin })
-    limit = isPaidActive ? PAID_LIMIT : FREE_LIMIT
+    isPro = hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin })
+    limit = isPro ? PAID_LIMIT : FREE_LIMIT
   }
 
   // 3. 후보 60개 — genre/platform 으로 1차 필터링, 없으면 인기 전체
@@ -90,31 +96,78 @@ export async function POST(request: Request) {
 
   const mapped = candidates.map(mapDramaRow)
 
-  // 4. Claude 추천 호출
+  // candidate 공통 입력 — 개인화·일반 양쪽에서 재사용
+  const candidateInput = mapped.map((c) => ({
+    id: c.id,
+    title: c.title,
+    title_ko: c.titleKo,
+    genre: c.genre,
+    year: c.year,
+    platform: c.platform,
+    rating: c.rating,
+    overview: c.overview,
+  }))
+  const dramaById = new Map(mapped.map((c) => [c.id, c]))
+
+  // 결제 연동 후 아래 상수를 `isPro && !!user` 로 교체 // 2026-05-16 임시 정책
+  const usePersonalized: boolean = false // isPro && !!user
+
+  // 4. Claude 추천 호출 (개인화 or 일반)
+  if (usePersonalized && user) {
+    // [Pro] 시청 이력 + 평점 기반 개인화 추천
+    const { data: wRows } = await supabase
+      .from("user_watchlist")
+      .select("status, rating, drama:dramas(title)")
+      .eq("user_id", user.id)
+      .limit(100)
+    type WRow = { status: string; rating: number | null; drama: { title: string } | null }
+    const watchlistEntries: WatchlistEntry[] = ((wRows ?? []) as WRow[])
+      .filter((r) => r.drama?.title)
+      .map((r) => ({
+        dramaTitle: r.drama!.title,
+        status: r.status as WatchlistEntry["status"],
+      }))
+    const ratingEntries: RatingEntry[] = ((wRows ?? []) as WRow[])
+      .filter((r) => r.drama?.title && r.rating !== null)
+      .map((r) => ({ dramaTitle: r.drama!.title, rating: r.rating! }))
+
+    const personalized = await recommendDramasPersonalized({
+      genres,
+      moods,
+      platforms,
+      candidates: candidateInput,
+      watchlist: watchlistEntries,
+      ratings: ratingEntries,
+    })
+    const recs = personalized.items
+      .slice(0, limit)
+      .map((item) => {
+        const drama = dramaById.get(item.id)
+        if (!drama) return null
+        return { ...drama, reason: item.reason, personalizedReason: item.personalizedReason }
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null)
+    return NextResponse.json({
+      recommendations: recs,
+      limit,
+      source: personalized.source,
+      note: personalized.note,
+    })
+  }
+
+  // 5. 일반 추천 (Free / anon) — personalizedReason: null
   const result = await recommendDramas({
     genres,
     moods,
     platforms,
-    candidates: mapped.map((c) => ({
-      id: c.id,
-      title: c.title,
-      title_ko: c.titleKo,
-      genre: c.genre,
-      year: c.year,
-      platform: c.platform,
-      rating: c.rating,
-      overview: c.overview,
-    })),
+    candidates: candidateInput,
   })
-
-  // 5. id → drama row 매핑 + reason 합성, 한도 적용
-  const dramaById = new Map(mapped.map((c) => [c.id, c]))
   const recommendations = result.items
     .slice(0, limit)
     .map((item) => {
       const drama = dramaById.get(item.id)
       if (!drama) return null
-      return { ...drama, reason: item.reason }
+      return { ...drama, reason: item.reason, personalizedReason: null }
     })
     .filter((v): v is NonNullable<typeof v> => v !== null)
 

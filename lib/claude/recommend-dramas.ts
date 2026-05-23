@@ -151,6 +151,195 @@ Return up to 10 ranked recommendations as a JSON array.`
   }
 }
 
+// ─── 개인화 추천 (Pro) ───────────────────────────────────────
+
+export interface WatchlistEntry {
+  dramaTitle: string
+  status: "watching" | "want_to_watch" | "completed"
+}
+
+export interface RatingEntry {
+  dramaTitle: string
+  rating: number // 0–5
+}
+
+export interface PersonalizedRecommendInput {
+  genres: string[]
+  moods: string[]
+  platforms: string[]
+  candidates: RecommendCandidate[]
+  watchlist: WatchlistEntry[]
+  ratings: RatingEntry[]
+}
+
+export interface PersonalizedRecommendItem {
+  id: string
+  reason: string
+  personalizedReason: string
+}
+
+export interface PersonalizedRecommendResult {
+  items: PersonalizedRecommendItem[]
+  source: "claude" | "fallback"
+  note?: string
+}
+
+// 시청 이력 + 평점 → Claude 프롬프트 삽입용 컨텍스트 문자열.
+// 최대 15개 완료작 / 5개 시청 중 / 상위 10개 평점만 포함 (토큰 절약).
+export function buildPersonalizedPrompt(
+  watchlist: WatchlistEntry[],
+  ratings: RatingEntry[]
+): string {
+  const completed = watchlist.filter((w) => w.status === "completed")
+  const watching = watchlist.filter((w) => w.status === "watching")
+  const topRated = ratings
+    .filter((r) => r.rating >= 4)
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 10)
+
+  const lines: string[] = []
+  if (completed.length > 0)
+    lines.push(`Completed: ${completed.slice(0, 15).map((w) => w.dramaTitle).join(", ")}`)
+  if (watching.length > 0)
+    lines.push(`Watching now: ${watching.slice(0, 5).map((w) => w.dramaTitle).join(", ")}`)
+  if (topRated.length > 0)
+    lines.push(
+      `Highly rated (4+/5): ${topRated.map((r) => `${r.dramaTitle} (${r.rating}/5)`).join(", ")}`
+    )
+
+  return lines.length > 0 ? lines.join("\n") : "(No watch history yet)"
+}
+
+const PERSONALIZED_SYSTEM_PROMPT = `You are a K-drama recommender for UnfoldK, an English-language Hallyu service.
+
+You receive a user's taste profile — completed dramas, ratings, genre/mood preferences — plus a candidate list.
+Pick up to 30 best matches, ranked by personal fit.
+
+Output STRICT JSON only — an array of objects:
+[{"id":"<id>","reason":"<1-sentence, max 80 chars>","personalizedReason":"<2-sentence explanation referencing their watch history or ratings, max 200 chars>"}, ...]
+
+Rules:
+- Only use IDs from the provided candidate list — never invent IDs.
+- reason: concise generic match reason (≤80 chars).
+- personalizedReason: reference patterns from their completed/rated dramas (≤200 chars).
+- No markdown, no preamble — only the JSON array.
+- If no strong matches, return [].`
+
+export async function recommendDramasPersonalized(
+  input: PersonalizedRecommendInput
+): Promise<PersonalizedRecommendResult> {
+  if (input.candidates.length === 0) {
+    return { items: [], source: "fallback", note: "no candidates" }
+  }
+
+  const historyContext = buildPersonalizedPrompt(input.watchlist, input.ratings)
+
+  const candidatesPayload = input.candidates.slice(0, 60).map((c) => ({
+    id: c.id,
+    title: c.title,
+    genre: c.genre ?? "",
+    year: c.year ?? "",
+    rating: c.rating ?? "",
+    platform: c.platform ?? "",
+    overview: (c.overview ?? "").slice(0, 200),
+  }))
+
+  const userMessage = `Watch History:
+${historyContext}
+
+Genre preferences: ${input.genres.join(", ") || "(none)"}
+Mood preferences: ${input.moods.join(", ") || "(none)"}
+
+Candidates:
+${JSON.stringify(candidatesPayload)}
+
+Return up to 30 ranked personalized recommendations as a JSON array.`
+
+  try {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 4000, // 30 항목 × {id+reason+personalizedReason} ≈ 3.5K 토큰
+      system: [
+        {
+          type: "text",
+          text: PERSONALIZED_SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      messages: [{ role: "user", content: userMessage }],
+    })
+
+    const textBlock = response.content.find(
+      (b): b is Anthropic.TextBlock => b.type === "text"
+    )
+    if (!textBlock) {
+      return personalizedFallback(input, "no text block from claude")
+    }
+
+    const raw = textBlock.text.trim()
+    const cleaned = raw
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim()
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(cleaned)
+    } catch {
+      return personalizedFallback(input, "claude output not valid json")
+    }
+
+    if (!Array.isArray(parsed)) {
+      return personalizedFallback(input, "claude output not array")
+    }
+
+    const validIds = new Set(input.candidates.map((c) => c.id))
+    const items: PersonalizedRecommendItem[] = []
+    for (const entry of parsed) {
+      if (typeof entry !== "object" || entry === null) continue
+      const obj = entry as Record<string, unknown>
+      if (typeof obj.id !== "string" || !validIds.has(obj.id)) continue
+      const reason = typeof obj.reason === "string" ? obj.reason.slice(0, 200) : ""
+      const personalizedReason =
+        typeof obj.personalizedReason === "string"
+          ? obj.personalizedReason.slice(0, 300)
+          : ""
+      items.push({ id: obj.id, reason, personalizedReason })
+      if (items.length >= 30) break
+    }
+
+    if (items.length === 0) {
+      return personalizedFallback(input, "claude returned 0 valid items")
+    }
+
+    return { items, source: "claude" }
+  } catch (err) {
+    if (err instanceof Anthropic.APIError) {
+      console.error(
+        `[claude/recommend-dramas personalized] API error ${err.status}:`,
+        err.message
+      )
+    } else {
+      console.error(
+        "[claude/recommend-dramas personalized] 예외:",
+        err instanceof Error ? err.message : String(err)
+      )
+    }
+    return personalizedFallback(input, "claude error")
+  }
+}
+
+function personalizedFallback(
+  input: PersonalizedRecommendInput,
+  note: string
+): PersonalizedRecommendResult {
+  const base = fallbackRank(input, note)
+  return {
+    ...base,
+    items: base.items.map((item) => ({ ...item, personalizedReason: "" })),
+  }
+}
+
 // fallback: Claude 미작동 시 단순 매칭 — genre 일치 + rating 내림차순
 function fallbackRank(input: RecommendInput, note: string): RecommendResult {
   const wantedGenres = new Set(input.genres.map((g) => g.toLowerCase()))
