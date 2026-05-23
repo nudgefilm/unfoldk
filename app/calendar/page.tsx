@@ -105,10 +105,14 @@ function EventDetailModal({
   event,
   onClose,
   viewDate,
+  isPro,
+  onUpgradeNeeded,
 }: {
   event: CalendarEvent | null
   onClose: () => void
   viewDate: Date
+  isPro: boolean
+  onUpgradeNeeded: () => void
 }) {
   const router = useRouter()
   const [reminders, setReminders] = useState({
@@ -219,6 +223,7 @@ function EventDetailModal({
   }
 
   const toggleReminder = (key: keyof typeof reminders) => {
+    if (!isPro) { onUpgradeNeeded(); return }
     // 비로그인 사용자가 토글 시 → 로그인 페이지로 (원래 경로 보존)
     if (authChecked && !isLoggedIn) {
       router.push(`/login?redirect=/calendar`)
@@ -382,18 +387,22 @@ function EventDetailModal({
 
         {/* Reminder Toggles */}
         <div className="text-center">
-          <p className="text-muted-foreground text-sm mb-3">Set reminder:</p>
+          <p className="text-muted-foreground text-sm mb-3 flex items-center justify-center gap-1">
+            Set reminder:
+            {!isPro && <Lock className="w-3 h-3" />}
+          </p>
           <div className="flex items-center justify-center gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <span className="text-sm text-muted-foreground">D-7</span>
               <button
                 onClick={() => toggleReminder("d7")}
+                title={!isPro ? "Coming with Hallyu Pass" : undefined}
                 className={`w-10 h-5 rounded-full transition-colors relative ${
                   reminders.d7 ? "bg-primary" : "bg-[#333]"
                 }`}
                 style={reminders.d7 ? { backgroundColor: "#FF4B6E" } : {}}
               >
-                <span 
+                <span
                   className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
                     reminders.d7 ? "translate-x-5" : "translate-x-0.5"
                   }`}
@@ -404,12 +413,13 @@ function EventDetailModal({
               <span className="text-sm text-muted-foreground">D-1</span>
               <button
                 onClick={() => toggleReminder("d1")}
+                title={!isPro ? "Coming with Hallyu Pass" : undefined}
                 className={`w-10 h-5 rounded-full transition-colors relative ${
                   reminders.d1 ? "bg-primary" : "bg-[#333]"
                 }`}
                 style={reminders.d1 ? { backgroundColor: "#FF4B6E" } : {}}
               >
-                <span 
+                <span
                   className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
                     reminders.d1 ? "translate-x-5" : "translate-x-0.5"
                   }`}
@@ -420,12 +430,13 @@ function EventDetailModal({
               <span className="text-sm text-muted-foreground">Day of</span>
               <button
                 onClick={() => toggleReminder("dayOf")}
+                title={!isPro ? "Coming with Hallyu Pass" : undefined}
                 className={`w-10 h-5 rounded-full transition-colors relative ${
                   reminders.dayOf ? "bg-primary" : "bg-[#333]"
                 }`}
                 style={reminders.dayOf ? { backgroundColor: "#FF4B6E" } : {}}
               >
-                <span 
+                <span
                   className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
                     reminders.dayOf ? "translate-x-5" : "translate-x-0.5"
                   }`}
@@ -554,6 +565,7 @@ function UpcomingAccordionItem({
   isExpanded,
   onToggle,
   onLoginNeeded,
+  onUpgradeNeeded,
 }: {
   event: CalendarEvent
   index: number
@@ -565,11 +577,11 @@ function UpcomingAccordionItem({
   isExpanded: boolean
   onToggle: () => void
   onLoginNeeded: () => void
+  onUpgradeNeeded: () => void
 }) {
   // 결제 연동 전 임시 정책 (2026-05-16, DECISIONS.md) — 비로그인만 3개 blur.
   // 로그인 (Free 포함) 은 전체 노출. 결제 연동 후 isPro 기준으로 복원.
   const isBlurred = !isLoggedIn && index >= 3
-  void isPro
 
   // 리마인더 — 확장 시 처음 1회 fetch, 토글 시 300ms debounce save
   const [reminders, setReminders] = useState({ d7: false, d1: true, dayOf: true })
@@ -628,10 +640,8 @@ function UpcomingAccordionItem({
   }
 
   const toggleReminder = (key: keyof typeof reminders) => {
-    if (!isLoggedIn) {
-      onLoginNeeded()
-      return
-    }
+    if (!isLoggedIn) { onLoginNeeded(); return }
+    if (!isPro) { onUpgradeNeeded(); return }
     const next = { ...reminders, [key]: !reminders[key] }
     setReminders(next)
     scheduleSave(next)
@@ -752,7 +762,10 @@ function UpcomingAccordionItem({
           </Button>
 
           <div className="text-center">
-            <p className="text-muted-foreground text-sm mb-3">Set reminder:</p>
+            <p className="text-muted-foreground text-sm mb-3 flex items-center justify-center gap-1">
+              Set reminder:
+              {!isPro && <Lock className="w-3 h-3" />}
+            </p>
             <div className="flex items-center justify-center gap-4">
               {(["d7", "d1", "dayOf"] as const).map((key) => {
                 const labels: Record<typeof key, string> = {
@@ -769,6 +782,7 @@ function UpcomingAccordionItem({
                         e.stopPropagation()
                         toggleReminder(key)
                       }}
+                      title={!isPro ? "Coming with Hallyu Pass" : undefined}
                       className={`w-10 h-5 rounded-full transition-colors relative ${
                         reminders[key] ? "" : "bg-[#333]"
                       }`}
@@ -1023,7 +1037,7 @@ export default function HallyuCalendarPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Event Detail Modal */}
-      <EventDetailModal event={selectedEvent} onClose={closeModal} viewDate={viewDate} />
+      <EventDetailModal event={selectedEvent} onClose={closeModal} viewDate={viewDate} isPro={isPro} onUpgradeNeeded={() => setShowUpgradeModal(true)} />
       
       {/* Upgrade Modal */}
       <UpgradeModal 
@@ -1376,6 +1390,7 @@ export default function HallyuCalendarPage() {
                   setExpandedEventId(expandedEventId === event.id ? null : event.id)
                 }
                 onLoginNeeded={() => setAccordionStartOpen(true)}
+                onUpgradeNeeded={() => setShowUpgradeModal(true)}
               />
             ))}
 

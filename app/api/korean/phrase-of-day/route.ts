@@ -65,6 +65,35 @@ function formatPgError(
 // UUID v4 형식 검증 — exclude_ids 에서 fallback sentinel ("fallback-...") 같은 비-UUID 제거 용도.
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// 로그인 유저 플랜 판정 — plan_type·subscription_status·is_admin 조회.
+// 비로그인 또는 DB 조회 실패 시 { isPro: false } 안전 처리.
+async function getUserPlan(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>
+): Promise<{ isPro: boolean }> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { isPro: false }
+  const admin = createSupabaseAdminClient()
+  const { data } = await admin
+    .from("users")
+    .select("plan_type, subscription_status, is_admin")
+    .eq("id", user.id)
+    .maybeSingle()
+  if (!data) return { isPro: false }
+  const row = data as {
+    plan_type: string | null
+    subscription_status: string | null
+    is_admin: boolean | null
+  }
+  return {
+    isPro:
+      row.is_admin === true ||
+      ((row.plan_type === "monthly" || row.plan_type === "annual") &&
+        row.subscription_status === "active"),
+  }
+}
+
 // 로그인 유저의 mastered phrase id 목록을 조회.
 // 비로그인이면 빈 배열. user_learning_progress 미존재 / RLS 차단 시도 빈 배열로 안전 처리.
 async function getMasteredPhraseIds(
@@ -144,6 +173,9 @@ export async function GET(request: Request) {
 
   // exclude_ids 파라미터가 있으면 (빈 문자열 포함) 랜덤 모드 — 명시적 opt-in.
   if (excludeIdsParam !== null) {
+    // 결제 연동 후 아래 주석 해제 — Free 유저 하루 1개 게이팅 // 2026-05-16 임시 정책
+    // const { isPro } = await getUserPlan(supabase)
+    // if (!isPro) return NextResponse.json({ limited: true })
     return pickRandomPhrase(excludeIdsParam, masteredIds)
   }
 

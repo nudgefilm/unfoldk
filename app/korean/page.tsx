@@ -111,6 +111,7 @@ export default function HangeulGoPage() {
   const [phrase, setPhrase] = useState<KoreanPhraseApi | null>(null)
   const [phraseLoading, setPhraseLoading] = useState(true)
   const [phraseError, setPhraseError] = useState<string | null>(null)
+  const [phraseLimited, setPhraseLimited] = useState(false)
   const [showSynAnt, setShowSynAnt] = useState(false)
   const [seenPhraseIds, setSeenPhraseIds] = useState<string[]>([])
 
@@ -395,6 +396,12 @@ export default function HangeulGoPage() {
         phrase: KoreanPhraseApi | null
         exhausted?: boolean
         random?: boolean
+        limited?: boolean
+      }
+
+      if (body.limited) {
+        setPhraseLimited(true)
+        return
       }
 
       if (body.exhausted) {
@@ -553,6 +560,19 @@ export default function HangeulGoPage() {
           <div className="max-w-[640px] mx-auto bg-[#1a1a1a] border border-border/30 rounded-2xl p-8">
             {phraseLoading ? (
               <p className="text-center text-muted-foreground py-12">Loading today&apos;s phrase...</p>
+            ) : phraseLimited ? (
+              <div className="py-12 flex flex-col items-center text-center">
+                <div
+                  className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
+                  style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
+                >
+                  <Lock className="w-7 h-7" style={{ color: "#FF4B6E" }} />
+                </div>
+                <p className="text-foreground font-medium mb-2">Coming with Hallyu Pass</p>
+                <p className="text-muted-foreground text-sm">
+                  Upgrade to explore unlimited expressions
+                </p>
+              </div>
             ) : phraseError || !phrase ? (
               <p className="text-center text-muted-foreground py-12">
                 {phraseError ?? "No phrase available."}
@@ -846,6 +866,23 @@ export default function HangeulGoPage() {
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
+            )}
+            {!isPro && (
+              <div className="absolute inset-0 flex items-center justify-center z-20 rounded-xl"
+                style={{ backgroundColor: "rgba(13, 13, 15, 0.88)" }}>
+                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
+                  >
+                    <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+                  </div>
+                  <p className="text-foreground font-medium mb-2">Coming with Hallyu Pass</p>
+                  <p className="text-muted-foreground text-sm">
+                    Unlock all Drama Learning Packs with Hallyu Pass
+                  </p>
+                </div>
+              </div>
             )}
             </div>
             </>

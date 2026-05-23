@@ -7,17 +7,17 @@
 
 ## ① 개인화 알림 Pro 게이팅 (예상 1~2시간)
 
-- [ ] 내가 구독한 아티스트 컴백 D-7 / D-1 / 당일 이메일 알림
-- [ ] HallyuCalendar 구독 기능은 유지, **알림 발송은 Pro 전용**으로 강화
-- [ ] 비Pro 유저 알림 클릭 시 "Coming with Hallyu Pass" 안내
+- [x] 내가 구독한 아티스트 컴백 D-7 / D-1 / 당일 이메일 알림
+- [x] HallyuCalendar 구독 기능은 유지, **알림 발송은 Pro 전용**으로 강화
+- [x] 비Pro 유저 알림 클릭 시 "Coming with Hallyu Pass" 안내
 - **가치 제안**: "내 아티스트 소식을 절대 놓치지 않는다"
 - **관련 파일**: `lib/email/send-reminders.ts`, `app/api/cron/send-reminders/route.ts`
 
 ## ② HangeulGo 무제한 (예상 2~3시간)
 
-- [ ] Free: 하루 표현 1개 (rate-limit 서버 구현)
-- [ ] Pro: 드라마 팩 무제한 + 복습 기능 + 진도 리포트
-- [ ] 진도 리포트: 누적 학습 표현 수 / 스트릭 / 레벨
+- [x] Free: 하루 표현 1개 (rate-limit 서버 구현)
+- [x] Pro: 드라마 팩 무제한 + 복습 기능 + 진도 리포트
+- [x] 진도 리포트: 누적 학습 표현 수 / 스트릭 / 레벨
 - **가치 제안**: 학습 서비스 검증된 Pro 전환 모델 (streak 락인)
 - **관련 파일**: `app/korean/page.tsx`, `app/api/korean/phrase-of-day/route.ts`
 
@@ -38,14 +38,22 @@
 - **가치 제안**: 데이터가 쌓일수록 추천이 정확해지는 락인 효과
 - **관련 파일**: `lib/claude/recommend-dramas.ts`, `app/api/dramas/recommend/route.ts`
 
-## ⑤ 월간 한류 리포트 (예상 4~6시간)
+## ⑤ 주간 한류 리포트 (예상 4~6시간)
 
-- [ ] 매월 1일 자동 생성: "이달의 K-culture 트렌드" 리포트
-- [ ] 포함 항목: KpopStats 차트 변화 / 컴백 정리 / K-Drama 순위 / 인기 레시피
-- [ ] Claude Haiku 자동 생성 → `monthly_reports` 테이블 캐싱
-- [ ] Pro 전용 이메일 발송 + `/mypage` 내 리포트 아카이브 열람
-- **가치 제안**: "Pro 회원만 받는 큐레이션 뉴스레터" 지속 가치
-- **관련 파일**: 신규 (`app/api/cron/monthly-report/route.ts`)
+- [ ] 매주 월요일 자동 생성: "This Week in Hallyu" 원페이퍼 리포트
+- [ ] 7섹션 구성:
+  1. 이번 주 컴백 & 신보 (KpopStats 연계)
+  2. 지금 뜨는 드라마 TOP 3 + OTT 정보 (KdramaMatch 연계)
+  3. 이번 주 한국어 표현 1개 (HangeulGo 연계)
+  4. 이번 주 K-Food 1개 + 레시피 링크 (KfoodKit 연계)
+  5. 한국 여행 픽 — 촬영지/축제 1곳 (Curation K 연계)
+  6. 글로벌 팬 커뮤니티 트렌드 키워드
+  7. 다음 주 예고 (컴백 예정 / 드라마 첫방)
+- [ ] Claude Haiku 자동 생성 → weekly_reports 테이블 캐싱
+- [ ] Pro 전용 이메일 발송 + /mypage 내 리포트 아카이브 열람
+- [ ] 각 섹션에 해당 서비스 "자세히 보기 →" CTA 포함
+- **가치 제안**: "5분 안에 읽히는 이번 주 한류 전체 요약, Pro만 받는 큐레이션 뉴스레터"
+- **관련 파일**: 신규 (app/api/cron/weekly-report/route.ts)
 
 ---
 
@@ -53,10 +61,10 @@
 
 | 기능 | 상태 | 완료일 |
 |------|------|--------|
-| ① 개인화 알림 Pro 게이팅 | ⬜ 미시작 | — |
-| ② HangeulGo 무제한 | ⬜ 미시작 | — |
+| ① 개인화 알림 Pro 게이팅 | ✅ 완료 | 2026-05-23 |
+| ② HangeulGo 무제한 | ✅ 완료 | 2026-05-23 |
 | ③ 여행 코스 저장·공유 | ⬜ 미시작 | — |
 | ④ K-Drama 맞춤 추천 | ⬜ 미시작 | — |
-| ⑤ 월간 한류 리포트 | ⬜ 미시작 | — |
+| ⑤ 주간 한류 리포트 | ⬜ 미시작 | — |
 
 > 완료 시 위 표와 각 항목 체크박스를 함께 업데이트.
