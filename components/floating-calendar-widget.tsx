@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Calendar } from "lucide-react"
+import { Calendar, MessageCircle } from "lucide-react"
 import {
   getEventTypeColor,
   getEventTypeColorAlpha,
@@ -50,10 +50,10 @@ export function FloatingCalendarWidget() {
     .slice(0, 3)
 
   return (
-    <div className="fixed bottom-[90px] right-5 z-50">
+    <div className="fixed bottom-6 right-5 z-50 flex flex-col gap-3 items-end">
       {/* Expanded Calendar Card */}
       <div
-        className={`absolute bottom-16 right-0 w-80 origin-bottom-right transition-all duration-200 ${
+        className={`absolute bottom-[116px] right-0 w-80 origin-bottom-right transition-all duration-200 ${
           isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0 pointer-events-none"
         }`}
       >
@@ -140,7 +140,17 @@ export function FloatingCalendarWidget() {
         </div>
       </div>
 
-      {/* Square Button */}
+      {/* Chat Button */}
+      <button
+        onClick={() => (window as Window & { $crisp?: { push: (args: unknown[]) => void } }).$crisp?.push(["do", "chat:open"])}
+        className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all duration-200"
+        style={{ backgroundColor: "#FF4B6E" }}
+        aria-label="Open chat"
+      >
+        <MessageCircle className="w-6 h-6 text-white" />
+      </button>
+
+      {/* Calendar Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all duration-200 ${
