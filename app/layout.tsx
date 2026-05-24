@@ -89,7 +89,7 @@ export default function RootLayout({
           }}
         />
         <style>{`
-          .crisp-client .cc-kv6t {
+          #crisp-chatbox {
             bottom: 80px !important;
           }
         `}</style>
