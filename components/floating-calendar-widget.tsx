@@ -19,6 +19,13 @@ export function FloatingCalendarWidget() {
   // null = 로딩, [] = 비어있음 / 에러
   const [events, setEvents] = useState<CalendarEvent[] | null>(null)
 
+  const handleChatOpen = () => {
+    const w = window as Window & { $crisp?: { push: (args: unknown[]) => void } }
+    if (typeof window !== 'undefined' && w.$crisp) {
+      w.$crisp.push(["do", "chat:open"])
+    }
+  }
+
   useEffect(() => {
     const now = new Date()
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
@@ -142,7 +149,7 @@ export function FloatingCalendarWidget() {
 
       {/* Chat Button */}
       <button
-        onClick={() => (window as Window & { $crisp?: { push: (args: unknown[]) => void } }).$crisp?.push(["do", "chat:open"])}
+        onClick={handleChatOpen}
         className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all duration-200"
         style={{ backgroundColor: "#FF4B6E" }}
         aria-label="Open chat"
