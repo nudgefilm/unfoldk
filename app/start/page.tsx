@@ -1,5 +1,11 @@
 "use client"
 
+declare global {
+  interface Window {
+    fbq?: (...args: unknown[]) => void
+  }
+}
+
 // /start 페이지 — Google OAuth 후 신규 가입자 플랜·약관 동의 화면
 // callback 라우트가 users.agreed_to_terms = false 인 경우 ?new=true 로 보낸다.
 //
@@ -89,6 +95,9 @@ function StartPageInner() {
       setIsLoading(false)
       return
     }
+
+    // Meta Pixel — 가입 완료 이벤트
+    window.fbq?.('track', 'CompleteRegistration')
 
     if (planChoice === "free") {
       // 무료 플랜 — next 가 있으면 원래 경로, 없으면 /mypage
