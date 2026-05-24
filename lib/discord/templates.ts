@@ -18,43 +18,36 @@ export const EARLY_ACCESS_NOTE = `
 🚀 UnfoldK is in Early Access!
 ✅ Live now: Calendar · K-pop Stats · Curation K
 🔜 Coming soon: K-drama · Korean · K-food
-Join free → https://unfoldk.com
 `.trim()
 
 // 6 서비스 short blurb — 봇 응답 시 단일 메시지 임베드.
 export const SERVICE_BLURBS = {
   calendar: `📅 **HallyuCalendar** — Never miss a comeback, premiere, concert, or fan meet.
-Live YouTube + TMDB + Ticketmaster ingestion. Free + Hallyu Pass tiers.
-→ https://unfoldk.com/calendar`,
+Live YouTube + TMDB + Ticketmaster ingestion. Free + Hallyu Pass tiers.`,
 
   kpop: `🎵 **KpopStats** — Global K-pop charts that move.
-YouTube subscribers + weekly growth · Last.fm monthly listeners · trending Top.
-→ https://unfoldk.com/kpop`,
+YouTube subscribers + weekly growth · Last.fm monthly listeners · trending Top.`,
 
   drama: `🎬 **KdramaMatch** — AI-powered K-drama recommendations.
-Coming soon — sign up to be notified at launch.
-→ https://unfoldk.com/drama`,
+Coming soon — sign up to be notified at launch.`,
 
   korean: `🇰🇷 **HangeulGo** — Learn Korean from the K-dramas you watch.
-Coming soon — sign up to be notified at launch.
-→ https://unfoldk.com/korean`,
+Coming soon — sign up to be notified at launch.`,
 
   food: `🍱 **KfoodKit** — Cook the food from your favorite K-dramas.
-Coming soon — sign up to be notified at launch.
-→ https://unfoldk.com/food`,
+Coming soon — sign up to be notified at launch.`,
 
   curationk: `🗺️ **Curation K** — Korea, mapped for fans.
-Filming spots · K-pop pilgrimage · food · stays · My Hallyu Course.
-→ https://unfoldk.com/curation-k`,
+Filming spots · K-pop pilgrimage · food · stays · My Hallyu Course.`,
 } as const
 
 export type ServiceKey = keyof typeof SERVICE_BLURBS
 
 // 매주 1회 broadcast — 일반 채널용 short 프로모 메시지.
 export const WEEKLY_PROMO = `**Korea this week on UnfoldK**
-🎵 New K-pop chart trends → unfoldk.com/kpop
-📅 Upcoming comebacks & concerts → unfoldk.com/calendar
-🗺️ Drama filming spots map → unfoldk.com/curation-k
+🎵 New K-pop chart trends
+📅 Upcoming comebacks & concerts
+🗺️ Drama filming spots map
 
 ${EARLY_ACCESS_NOTE}`
 
@@ -68,4 +61,4 @@ ${EARLY_ACCESS_NOTE}
 Try \`/unfoldk help\` for commands.`
 
 // 봇 에러 표준 응답 (외부 API 실패 등) — 사용자에게 친절한 fallback.
-export const ERROR_FALLBACK = `Something went wrong fetching that. Try again in a minute, or visit https://unfoldk.com directly.`
+export const ERROR_FALLBACK = `Something went wrong fetching that. Try again in a minute.`

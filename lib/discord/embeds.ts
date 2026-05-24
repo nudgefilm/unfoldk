@@ -17,8 +17,7 @@ import type { TmdbTvShow } from "@/lib/api/tmdb"
 import type { KoreanPhrase } from "@/lib/discord/korean-phrases"
 
 const BRAND_COLOR = 0xff4b6e
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://unfoldk.com"
-const FOOTER_TEXT = "Powered by UnfoldK.com"
+const FOOTER_TEXT = "Powered by UnfoldK"
 
 function divider(): string {
   return "─────────────────────"
@@ -69,12 +68,9 @@ export function buildDailyScheduleEmbed(items: ScheduleItem[]): DiscordEmbed {
       divider(),
       ...lines,
       divider(),
-      `👉 Full schedule → ${APP_URL}/calendar`,
-      "",
       EARLY_ACCESS_NOTE,
     ].join("\n"),
     color: BRAND_COLOR,
-    url: `${APP_URL}/calendar`,
     footer: { text: FOOTER_TEXT },
     timestamp: new Date().toISOString(),
   }
@@ -94,12 +90,9 @@ export function buildKpopChartEmbed(items: ChartItem[]): DiscordEmbed {
       divider(),
       ...lines,
       divider(),
-      `👉 Full chart → ${APP_URL}/kpop`,
-      "",
       EARLY_ACCESS_NOTE,
     ].join("\n"),
     color: BRAND_COLOR,
-    url: `${APP_URL}/kpop`,
     footer: { text: FOOTER_TEXT },
     timestamp: new Date().toISOString(),
   }
@@ -119,12 +112,9 @@ export function buildDramaUpdatesEmbed(items: TmdbTvShow[]): DiscordEmbed {
       divider(),
       ...lines,
       divider(),
-      `👉 Browse all dramas → ${APP_URL}/drama`,
-      "",
       EARLY_ACCESS_NOTE,
     ].join("\n"),
     color: BRAND_COLOR,
-    url: `${APP_URL}/drama`,
     footer: { text: FOOTER_TEXT },
     timestamp: new Date().toISOString(),
   }
@@ -140,12 +130,9 @@ export function buildKoreanPhraseEmbed(p: KoreanPhrase): DiscordEmbed {
       `"${p.english}"`,
       `From: ${p.source}`,
       divider(),
-      `👉 Learn more → ${APP_URL}/korean`,
-      "",
       EARLY_ACCESS_NOTE,
     ].join("\n"),
     color: BRAND_COLOR,
-    url: `${APP_URL}/korean`,
     footer: { text: FOOTER_TEXT },
     timestamp: new Date().toISOString(),
   }
@@ -167,12 +154,9 @@ export function buildComebackEmbed(items: ScheduleItem[]): DiscordEmbed {
       divider(),
       ...lines,
       divider(),
-      `👉 Full schedule → ${APP_URL}/calendar`,
-      "",
       EARLY_ACCESS_NOTE,
     ].join("\n"),
     color: BRAND_COLOR,
-    url: `${APP_URL}/calendar`,
     footer: { text: FOOTER_TEXT },
   }
 }
@@ -201,7 +185,6 @@ export function buildAboutEmbed(): DiscordEmbed {
       EARLY_ACCESS_NOTE,
     ].join("\n"),
     color: BRAND_COLOR,
-    url: APP_URL,
     footer: { text: FOOTER_TEXT },
   }
 }
