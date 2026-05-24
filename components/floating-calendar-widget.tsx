@@ -21,7 +21,8 @@ export function FloatingCalendarWidget() {
 
   const handleChatOpen = () => {
     const w = window as Window & { $crisp?: { push: (args: unknown[]) => void } }
-    if (typeof window !== 'undefined' && w.$crisp) {
+    if (w.$crisp) {
+      w.$crisp.push(["do", "chat:show"])
       w.$crisp.push(["do", "chat:open"])
     }
   }
