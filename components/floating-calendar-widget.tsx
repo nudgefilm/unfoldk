@@ -50,7 +50,7 @@ export function FloatingCalendarWidget() {
     .slice(0, 3)
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-24 right-6 z-50">
       {/* Expanded Calendar Card */}
       <div
         className={`absolute bottom-16 right-0 w-80 origin-bottom-right transition-all duration-200 ${
