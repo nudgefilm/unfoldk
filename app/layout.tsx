@@ -85,14 +85,9 @@ export default function RootLayout({
           id="crisp-chat"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{
-            __html: `window.$crisp=[];window.CRISP_WEBSITE_ID="7b8d0841-0a14-40b8-8501-87cfaaa21bbc";(function(){var d=document;var s=d.createElement("script");s.src="https://client.crisp.chat/l.js";s.async=1;d.getElementsByTagName("head")[0].appendChild(s);})();`,
+            __html: `window.$crisp=[];window.$crisp.push(["config","chat:offset",{"x":0,"y":80}]);window.CRISP_WEBSITE_ID="7b8d0841-0a14-40b8-8501-87cfaaa21bbc";(function(){var d=document;var s=d.createElement("script");s.src="https://client.crisp.chat/l.js";s.async=1;d.getElementsByTagName("head")[0].appendChild(s);})();`,
           }}
         />
-        <style>{`
-          #crisp-chatbox {
-            bottom: 80px !important;
-          }
-        `}</style>
       </body>
     </html>
   )
