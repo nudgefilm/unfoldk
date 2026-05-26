@@ -77,7 +77,7 @@ export function TrialBanner() {
 
   return (
     <Link
-      href="/pricing"
+      href="/mypage/subscription"
       className="block w-full text-white text-center py-2 text-xs sm:text-sm font-medium transition-opacity hover:opacity-90"
       style={{
         background: isUrgent
