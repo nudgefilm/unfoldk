@@ -315,7 +315,7 @@ export default function KpopStatsPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }}>
-      <main className="max-w-[1200px] mx-auto px-6 py-12">
+      <main className="max-w-[1200px] mx-auto px-6 pt-28 pb-12">
         {/* Page Header */}
         <section className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-3">

@@ -170,18 +170,41 @@ export function RecipeDetailDialog({
                     </TooltipContent>
                   </Tooltip>
                 )}
-                {/* 한글 음식명 복사 — Ingredient Finder 에 붙여넣기 용 (예: "부추김치"). */}
-                {detail && onCopyIngredient && (
+                {/* 레시피 전체 복사 — 메뉴명 + 설명 + 재료 + 조리법 */}
+                {detail && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
                         onClick={() => {
-                          onCopyIngredient(detail.title)
+                          const lines: string[] = []
+                          lines.push(detail.title_en ? `${detail.title} (${detail.title_en})` : detail.title)
+                          if (detail.description_en) {
+                            lines.push("")
+                            lines.push(detail.description_en)
+                          }
+                          if (detail.ingredients.length > 0) {
+                            lines.push("")
+                            lines.push("재료 / INGREDIENTS")
+                            for (const ing of detail.ingredients) {
+                              const namePart = ing.name_en ? `${ing.name} (${ing.name_en})` : ing.name
+                              lines.push(`• ${namePart}${ing.capacity ? ` — ${ing.capacity}` : ""}`)
+                            }
+                          }
+                          if (detail.instructions.length > 0) {
+                            lines.push("")
+                            lines.push("조리법 / INSTRUCTIONS")
+                            for (const s of detail.instructions) {
+                              lines.push(`${s.step}. ${s.instruction}`)
+                              if (s.instruction_en) lines.push(`   ${s.instruction_en}`)
+                              if (s.tip) lines.push(`   💡 ${s.tip}`)
+                            }
+                          }
+                          void navigator.clipboard?.writeText(lines.join("\n"))
                           setJustCopiedTitle(true)
                           setTimeout(() => setJustCopiedTitle(false), 1500)
                         }}
-                        aria-label={`Copy ${detail.title}`}
+                        aria-label={`Copy recipe: ${detail.title}`}
                         className="flex-shrink-0 mt-1 text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {justCopiedTitle ? (
@@ -192,7 +215,7 @@ export function RecipeDetailDialog({
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="text-xs">
-                      Copy to Ingredient Finder
+                      Copy full recipe
                     </TooltipContent>
                   </Tooltip>
                 )}
