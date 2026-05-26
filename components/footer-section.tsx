@@ -230,13 +230,16 @@ export function FooterSection() {
             seen.add(c.country)
             return true
           })
-          if (unique.length === 1) {
+          if (unique.length <= 10) {
             return (
-              <div aria-hidden="true" className="mt-3">
-                <TwemojiFlag
-                  code={unique[0].country}
-                  title={`${unique[0].country} · ${unique[0].count.toLocaleString()}`}
-                />
+              <div aria-hidden="true" className="mt-3 flex flex-wrap gap-1.5">
+                {unique.map((c) => (
+                  <TwemojiFlag
+                    key={c.country}
+                    code={c.country}
+                    title={`${c.country} · ${c.count.toLocaleString()}`}
+                  />
+                ))}
               </div>
             )
           }
