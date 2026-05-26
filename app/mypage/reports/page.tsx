@@ -99,11 +99,11 @@ function ReportsBody() {
       if (!user) { setLoading(false); return }
       const { data } = await supabase
         .from("users")
-        .select("plan_type, is_admin")
+        .select("plan_type, is_admin, trial_ends_at")
         .eq("id", user.id)
         .maybeSingle()
-      const row = data as { plan_type?: string | null; is_admin?: boolean | null } | null
-      const pro = hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin })
+      const row = data as { plan_type?: string | null; is_admin?: boolean | null; trial_ends_at?: string | null } | null
+      const pro = hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin, trialEndsAt: row?.trial_ends_at })
       setIsPro(pro)
       setLoading(false)
 

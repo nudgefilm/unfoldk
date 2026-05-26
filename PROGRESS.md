@@ -4,18 +4,34 @@
 
 ---
 
-## 현재 상태 (2026-05-26 세션 24 / 30일 무료 체험(Trial) 시스템 구현)
+## 현재 상태 (2026-05-26 세션 25 / Trial 14일 변경 + 이메일 중복 가입 방지)
 
 ### 완료
 
-#### A. 30일 무료 체험(Trial) 시스템 전체 구현
+#### A. Trial 14일 변경 + 이메일 중복 가입 방지 (세션 25)
+
+**DB / 인프라**
+- 마이그레이션 0043: `trial_used_emails` 테이블 신설 (이메일 기반 중복 추적, RLS 전면 차단)
+- 기존 `trial_started_email_sent=true` 유저 이메일 backfill
+- `trial_ends_at IS NULL` free 유저 → now()+14일 소급 적용 — Supabase에서 실행 확인 ✅
+
+**가입 흐름 (`app/api/auth/complete-signup/route.ts`)**
+- Trial 기간 30일 → 14일로 변경
+- Trial 부여 전 3중 중복 검사:
+  1. `trial_started_email_sent = true` — 이전 trial 수령 이력
+  2. `trial_ends_at IS NOT NULL` — 이미 설정된 trial
+  3. `trial_used_emails` 테이블 — 탈퇴 후 동일 이메일 재가입 차단
+- Trial 부여 즉시 `trial_used_emails`에 이메일 기록 (이메일 발송 실패와 무관)
+- Trial 미부여 시 "Trial 시작" 이메일 발송도 생략
+
+#### B. 30일 무료 체험(Trial) 시스템 전체 구현 (세션 24)
 
 **DB / 인프라**
 - 마이그레이션 0042: `users.trial_ends_at` + 이메일 플래그 4개 컬럼 (`trial_started/d7/d1/ended_email_sent`)
 - 기존 free 유저 전체 소급 적용 (now()+30일) — Supabase에서 실행 확인 ✅
 
 **가입 흐름**
-- `app/api/auth/complete-signup/route.ts`: 가입 시 `trial_ends_at = now()+30d` 자동 설정
+- `app/api/auth/complete-signup/route.ts`: 가입 시 `trial_ends_at` 자동 설정
 - 가입 직후 "Trial 시작" 이메일 fire-and-forget 발송 (실패해도 가입 차단 없음)
 
 **이메일 (lib/email/send-trial-emails.ts)**

@@ -65,13 +65,14 @@ export async function GET() {
   }
   const { data: profile } = await supabase
     .from("users")
-    .select("plan_type, is_admin")
+    .select("plan_type, is_admin, trial_ends_at")
     .eq("id", user.id)
     .maybeSingle()
-  const planRow = profile as { plan_type?: string; is_admin?: boolean } | null
+  const planRow = profile as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
   const isPro = hasProAccess({
     planType: planRow?.plan_type,
     isAdmin: planRow?.is_admin,
+    trialEndsAt: planRow?.trial_ends_at,
   })
   if (!isPro) {
     return NextResponse.json({ error: "pro_required" }, { status: 403 })

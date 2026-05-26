@@ -113,13 +113,14 @@ export async function POST(request: Request) {
   // Pro / 어드민 권한 — Free cap 검사 우회
   const { data: profile } = await supabase
     .from("users")
-    .select("plan_type, is_admin")
+    .select("plan_type, is_admin, trial_ends_at")
     .eq("id", user.id)
     .maybeSingle()
-  const profileRow = profile as { plan_type?: string; is_admin?: boolean } | null
+  const profileRow = profile as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
   const isPro = hasProAccess({
     planType: profileRow?.plan_type,
     isAdmin: profileRow?.is_admin,
+    trialEndsAt: profileRow?.trial_ends_at,
   })
 
   // Free → 5개 cap (이미 저장한 동일 recipe 가 cap 에 들어가도 unique 충돌이라 별 의미 없음 — count 만 검사)

@@ -121,14 +121,14 @@ export default function KpopStatsPage() {
       setIsLoggedIn(true)
       const { data: profile } = await supabase
         .from("users")
-        .select("plan_type, is_admin")
+        .select("plan_type, is_admin, trial_ends_at")
         .eq("id", user.id)
         .single()
       if (cancelled) return
-      const row = profile as { plan_type?: string; is_admin?: boolean } | null
+      const row = profile as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
       const pt = row?.plan_type
       setPlanType(pt === "monthly" || pt === "annual" ? pt : "free")
-      setIsPro(hasProAccess({ planType: pt, isAdmin: row?.is_admin }))
+      setIsPro(hasProAccess({ planType: pt, isAdmin: row?.is_admin, trialEndsAt: row?.trial_ends_at }))
       setAuthChecked(true)
     })
     return () => {

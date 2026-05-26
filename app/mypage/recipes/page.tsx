@@ -79,11 +79,11 @@ function MyRecipesBody() {
       if (!user) return
       const { data: profile } = await supabase
         .from("users")
-        .select("plan_type, is_admin")
+        .select("plan_type, is_admin, trial_ends_at")
         .eq("id", user.id)
         .single()
-      const row = profile as { plan_type?: string; is_admin?: boolean } | null
-      setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
+      const row = profile as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
+      setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin, trialEndsAt: row?.trial_ends_at }))
     })
   }, [])
 

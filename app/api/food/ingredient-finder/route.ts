@@ -41,11 +41,11 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("plan_type, is_admin")
+    .select("plan_type, is_admin, trial_ends_at")
     .eq("id", user.id)
     .maybeSingle()
-  const row = profile as { plan_type?: string; is_admin?: boolean } | null
-  if (!hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin })) {
+  const row = profile as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
+  if (!hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin, trialEndsAt: row?.trial_ends_at })) {
     return NextResponse.json({ error: "pro_required" }, { status: 403 })
   }
 

@@ -196,11 +196,11 @@ export default function KfoodKitPage() {
       setIsLoggedIn(true)
       const { data: profile } = await supabase
         .from("users")
-        .select("plan_type, is_admin")
+        .select("plan_type, is_admin, trial_ends_at")
         .eq("id", user.id)
         .single()
-      const row = profile as { plan_type?: string; is_admin?: boolean } | null
-      setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin }))
+      const row = profile as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
+      setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin, trialEndsAt: row?.trial_ends_at }))
     })
 
     // 주간 챌린지 fetch — 공개 GET. challenge null 이면 섹션 미노출.

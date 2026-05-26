@@ -65,21 +65,50 @@ export async function POST(request: Request) {
       ? rawCountry.toUpperCase()
       : null
 
-  // 6. trial_ends_at — 신규 가입자 기준 +30일
-  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  // 6. trial 중복 방지 — admin 클라이언트로 RLS 우회해 조회
+  //    · trial_started_email_sent=true : 이미 trial 수령 이력 있음
+  //    · trial_ends_at 이미 설정 : 이전 complete-signup 에서 부여됨
+  //    · trial_used_emails 테이블 : 탈퇴 후 동일 이메일 재가입 차단
+  const admin = createSupabaseAdminClient()
+
+  const { data: existingUser } = await admin
+    .from("users")
+    .select("trial_started_email_sent, trial_ends_at")
+    .eq("id", user.id)
+    .single()
+
+  let emailUsedTrial = false
+  if (user.email) {
+    const { data: usedEmail } = await admin
+      .from("trial_used_emails")
+      .select("email")
+      .eq("email", user.email)
+      .maybeSingle()
+    emailUsedTrial = !!usedEmail
+  }
+
+  // 세 조건 중 하나라도 걸리면 trial 미부여
+  const grantTrial =
+    !existingUser?.trial_started_email_sent &&
+    !existingUser?.trial_ends_at &&
+    !emailUsedTrial
+
+  const trialEndsAt = grantTrial
+    ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+    : null
 
   // 7. users 업데이트 — RLS "users_update_own" 정책으로 본인 행만 수정 가능
+  const updatePayload: Record<string, unknown> = {
+    plan_type: planType,
+    agreed_to_terms: true,
+    agreed_at: new Date().toISOString(),
+    ...(country !== null ? { country } : {}),
+    ...(grantTrial ? { trial_ends_at: trialEndsAt!.toISOString() } : {}),
+  }
+
   const { error: updateError } = await supabase
     .from("users")
-    .update({
-      plan_type: planType,
-      agreed_to_terms: true,
-      agreed_at: new Date().toISOString(),
-      trial_ends_at: trialEndsAt.toISOString(),
-      // 기존 country 가 있으면 덮어쓰지 않음 — coalesce 동작은 별도 update 로.
-      // 단순화: 최초 가입 시점이라 country 가 NULL 일 것 → 그대로 set.
-      ...(country !== null ? { country } : {}),
-    })
+    .update(updatePayload)
     .eq("id", user.id)
 
   if (updateError) {
@@ -87,11 +116,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "update_failed" }, { status: 500 })
   }
 
-  // 8. "Trial 시작" 이메일 fire-and-forget — 실패해도 가입 완료에 영향 없음
-  if (user.email) {
+  // 8. trial 부여 시: 이메일 기반 사용 이력 즉시 기록 (이메일 발송 실패와 무관하게)
+  if (grantTrial && user.email) {
+    await admin
+      .from("trial_used_emails")
+      .upsert({ email: user.email, first_trial_at: new Date().toISOString() })
+  }
+
+  // 9. "Trial 시작" 이메일 fire-and-forget — 실패해도 가입 완료에 영향 없음
+  if (grantTrial && user.email) {
     const email = user.email
-    const admin = createSupabaseAdminClient()
-    void sendTrialStartedEmail({ to: email, trialEndsAt })
+    void sendTrialStartedEmail({ to: email, trialEndsAt: trialEndsAt! })
       .then(async (result) => {
         if (result.ok) {
           await admin

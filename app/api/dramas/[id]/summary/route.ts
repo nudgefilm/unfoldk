@@ -38,13 +38,13 @@ export async function GET(
 
   const { data: profile } = await supabase
     .from("users")
-    .select("plan_type, is_admin, subscription_status")
+    .select("plan_type, is_admin, subscription_status, trial_ends_at")
     .eq("id", user.id)
     .maybeSingle()
   const row = profile as
-    | { plan_type?: string; is_admin?: boolean; subscription_status?: string }
+    | { plan_type?: string; is_admin?: boolean; subscription_status?: string; trial_ends_at?: string | null }
     | null
-  if (!hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin })) {
+  if (!hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin, trialEndsAt: row?.trial_ends_at })) {
     return NextResponse.json({ error: "not_pro" }, { status: 403 })
   }
 
