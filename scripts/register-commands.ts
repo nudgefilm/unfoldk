@@ -23,23 +23,45 @@
 // 명령 정의 single source of truth: lib/discord/commands.ts.
 // 본 스크립트는 같은 SLASH_COMMANDS 를 import 해 사용 — 정의 중복 X.
 
+import { readFileSync } from "fs"
+import { resolve } from "path"
 import { SLASH_COMMANDS } from "../lib/discord/commands"
 
 const DISCORD_API_BASE = "https://discord.com/api/v10"
 
-function readEnv(key: string): string {
-  const val = process.env[key]
-  if (!val || val.length === 0) {
-    console.error(`✗ Missing environment variable: ${key}`)
-    console.error(`  Tip: see header comment in scripts/register-commands.ts for .env.local loading.`)
-    process.exit(1)
+// .env.local 자동 로딩 — tsx 가 env 파일을 자동 읽지 않으므로 직접 파싱
+function loadEnvLocal(): void {
+  try {
+    const content = readFileSync(resolve(process.cwd(), ".env.local"), "utf-8")
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith("#")) continue
+      const eq = trimmed.indexOf("=")
+      if (eq < 1) continue
+      const key = trimmed.slice(0, eq).trim()
+      const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "")
+      if (key && !(key in process.env)) process.env[key] = val
+    }
+    console.log("→ .env.local 로드 완료")
+  } catch {
+    console.log("→ .env.local 없음 — 기존 환경변수 사용")
   }
-  return val
+}
+
+function readEnv(...keys: string[]): string {
+  for (const key of keys) {
+    const val = process.env[key]
+    if (val && val.length > 0) return val
+  }
+  console.error(`✗ Missing environment variable: ${keys.join(" 또는 ")}`)
+  process.exit(1)
 }
 
 async function main(): Promise<void> {
+  loadEnvLocal()
+
   const botToken = readEnv("DISCORD_BOT_TOKEN")
-  const clientId = readEnv("DISCORD_CLIENT_ID")
+  const clientId = readEnv("DISCORD_APPLICATION_ID", "DISCORD_CLIENT_ID")
   const guildId = readEnv("DISCORD_GUILD_ID")
 
   const url = `${DISCORD_API_BASE}/applications/${clientId}/guilds/${guildId}/commands`

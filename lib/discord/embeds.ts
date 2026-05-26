@@ -52,6 +52,31 @@ function typeEmoji(type: ScheduleItem["type"]): string {
   }
 }
 
+// 표현 카테고리별 CTA 링크 — source/english 휴리스틱으로 분류
+function phraseCtaLink(p: KoreanPhrase): string {
+  const eng = p.english.toLowerCase()
+  const src = p.source
+
+  if (
+    src === "Let's Eat" ||
+    eng.includes("delicious") ||
+    eng.includes("eat well") ||
+    eng.includes("i'll eat") ||
+    eng.includes("i ate")
+  ) {
+    return "Try KfoodKit → https://unfoldk.com/food"
+  }
+
+  // K-pop 관련 (향후 K-pop 출처 표현 추가 시 활성화)
+  // if (...) return "Explore → https://unfoldk.com/kpop"
+
+  if (src !== "Daily expression") {
+    return "Watch more → https://unfoldk.com/drama"
+  }
+
+  return "Learn more → https://unfoldk.com/korean"
+}
+
 // ─── 채널 자동 포스팅 Embed (4종) ────────────────────────────
 
 export function buildDailyScheduleEmbed(items: ScheduleItem[]): DiscordEmbed {
@@ -129,11 +154,11 @@ export function buildKoreanPhraseEmbed(p: KoreanPhrase): DiscordEmbed {
       `_${p.romanization}_`,
       `"${p.english}"`,
       `From: ${p.source}`,
-      divider(),
-      EARLY_ACCESS_NOTE,
+      "",
+      phraseCtaLink(p),
     ].join("\n"),
     color: BRAND_COLOR,
-    footer: { text: FOOTER_TEXT },
+    footer: { text: "Powered by UnfoldK.com" },
     timestamp: new Date().toISOString(),
   }
 }

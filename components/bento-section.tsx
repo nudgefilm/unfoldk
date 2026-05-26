@@ -74,6 +74,18 @@ export function BentoSection() {
       description: "Filming spots, hidden gems, and 1-day trips across Korea.",
       href: "/curation-k",
     },
+    {
+      icon: "🎭",
+      title: "What's your K-drama type?",
+      description: "7 questions. Find out which K-drama character you really are.",
+      href: "/quiz",
+    },
+    {
+      icon: "🌸",
+      title: "Get your Korean name",
+      description: "Discover your Korean name based on your vibe.",
+      href: "/name",
+    },
   ]
 
   return (

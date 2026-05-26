@@ -62,6 +62,16 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     type: 1,
   },
   {
+    name: "quiz",
+    description: "Find out your K-drama character type",
+    type: 1,
+  },
+  {
+    name: "koreanname",
+    description: "Discover your Korean name based on your vibe",
+    type: 1,
+  },
+  {
     name: "setup",
     description: "Configure HallyuBot daily posting channels (admin only)",
     type: 1,

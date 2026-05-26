@@ -100,6 +100,16 @@ async function handleSimpleCommand(name: string): Promise<DiscordEmbed> {
     }
     case "korean":
       return buildKoreanCommandEmbed(fetchTodayKoreanPhrase())
+    case "quiz":
+      return {
+        description: "🎬 What's your K-drama character type?\nFind out now → https://unfoldk.com/quiz",
+        color: 0xff4b6e,
+      }
+    case "koreanname":
+      return {
+        description: "🇰🇷 Discover your Korean name!\nGet yours now → https://unfoldk.com/name",
+        color: 0xff4b6e,
+      }
     case "about":
     default:
       return buildAboutEmbed()
