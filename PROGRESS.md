@@ -62,7 +62,6 @@
 - 결제 연동 (LMS 심사 결과 대기)
 - filming_spots backfill 잔여 39건 자동 처리 확인 (매일 KST 13:30 cron)
 - Google 색인 추가 페이지 모니터링
-- /quiz · /name 페이지 콘텐츠 완성 (현재 신규 파일만 생성된 상태)
 
 ### 블로커
 - LMS 재심사 대기
