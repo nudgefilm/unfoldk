@@ -200,7 +200,7 @@ export function FooterSection() {
           <Link href="/admin" prefetch={false} className="hover:opacity-60 transition-opacity">©</Link>
           {" "}2026 UNFOLD LAB · unfoldk.com ·{" "}
           <a
-            href="mailto:support@unfoldk.com"
+            href="/contact"
             className="hover:underline"
           >
             support@unfoldk.com

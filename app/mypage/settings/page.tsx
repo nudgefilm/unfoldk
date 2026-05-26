@@ -148,7 +148,7 @@ function SettingsBody() {
                 <p className="text-muted-foreground/70 text-xs mt-1">
                   Email is managed by your sign-in provider and can&apos;t be changed here. Contact{" "}
                   <a
-                    href="mailto:support@unfoldk.com"
+                    href="/contact"
                     className="hover:underline"
                     style={{ color: "#FF4B6E" }}
                   >
@@ -236,7 +236,7 @@ function SettingsBody() {
               <p className="text-muted-foreground text-xs pt-2 leading-relaxed">
                 To delete your account or export your data, email{" "}
                 <a
-                  href="mailto:support@unfoldk.com"
+                  href="/contact"
                   className="hover:underline"
                   style={{ color: "#FF4B6E" }}
                 >

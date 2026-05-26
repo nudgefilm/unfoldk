@@ -80,7 +80,7 @@ export default function CookiePage() {
               <Section title="5. Contact">
                 <p>
                   Questions about this Cookie Policy? Email{" "}
-                  <a href="mailto:support@unfoldk.com" className="hover:underline" style={{ color: "#FF4B6E" }}>
+                  <a href="/contact" className="hover:underline" style={{ color: "#FF4B6E" }}>
                     support@unfoldk.com
                   </a>.
                 </p>
@@ -122,7 +122,7 @@ export default function CookiePage() {
               <Section title="5. 문의">
                 <p>
                   본 정책 관련 문의:{" "}
-                  <a href="mailto:support@unfoldk.com" className="hover:underline" style={{ color: "#FF4B6E" }}>
+                  <a href="/contact" className="hover:underline" style={{ color: "#FF4B6E" }}>
                     support@unfoldk.com
                   </a>
                 </p>

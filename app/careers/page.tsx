@@ -30,7 +30,7 @@ export default function CareersPage() {
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <a
-            href="mailto:support@unfoldk.com?subject=Careers%20%E2%80%94%20introduce%20yourself"
+            href="/contact"
             className="inline-block px-6 py-3 rounded-full font-medium text-white text-sm"
             style={{ backgroundColor: "#FF4B6E" }}
           >
