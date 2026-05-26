@@ -4,11 +4,24 @@
 
 ---
 
-## 현재 상태 (2026-05-23 세션 22 / Pro 킬러 기능 5종 완료 + 메인페이지 개선 + 주간 리포트)
+## 현재 상태 (2026-05-26 세션 23 / Discord 봇 /quiz·/koreanname 추가 + 푸터 국기 버그 수정)
 
 ### 완료
 
-#### A. 푸터 stat 수정
+#### A. Discord 봇 /quiz · /koreanname 슬래시 커맨드 추가
+- lib/discord/commands.ts: quiz, koreanname 커맨드 정의 추가
+- interactions/route.ts: quiz, koreanname 케이스 핸들러 추가
+- lib/discord/embeds.ts: phraseCtaLink 함수 추가, Korean phrase embed CTA 개선
+- scripts/register-commands.ts: .env.local 자동 로딩 + DISCORD_APPLICATION_ID 폴백 지원
+- app/quiz/page.tsx: K-drama 캐릭터 유형 퀴즈 페이지 신규
+- app/name/page.tsx: 한국 이름 생성기 페이지 신규
+- components/bento-section.tsx: quiz, name 링크 카드 추가
+
+#### B. 푸터 국기 중복 표시 버그 수정
+- 마퀴 seamless 루프용 `[...unique, ...unique]` 복제가 국가 2개일 때 overflow-hidden 미작동으로 전부 노출
+- 10개 이하 국가 → 정적 flex 표시 (1개씩), 11개 이상 → 마퀴 애니메이션 유지
+
+#### C. 푸터 stat 수정 (세션 22)
 - callback/route.ts — 로그인 시 x-vercel-ip-country로 country=NULL 유저 자동 업데이트
 - /api/stats 캐시 86400 → 3600
 - 국기 이모지 Twemoji CDN 교체 (Windows/Android 크로스 플랫폼)
@@ -49,6 +62,7 @@
 - 결제 연동 (LMS 심사 결과 대기)
 - filming_spots backfill 잔여 39건 자동 처리 확인 (매일 KST 13:30 cron)
 - Google 색인 추가 페이지 모니터링
+- /quiz · /name 페이지 콘텐츠 완성 (현재 신규 파일만 생성된 상태)
 
 ### 블로커
 - LMS 재심사 대기
