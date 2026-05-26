@@ -56,6 +56,14 @@
     {
       "path": "/api/cron/weekly-report",
       "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/trial-notifications",
+      "schedule": "15 9 * * *"
+    },
+    {
+      "path": "/api/cron/expire-trials",
+      "schedule": "15 10 * * *"
     }
   ]
 }

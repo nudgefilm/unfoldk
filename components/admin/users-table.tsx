@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { isInTrial, trialDaysRemaining } from "@/lib/auth/plan"
 
 type PlanType = "free" | "monthly" | "annual"
 
@@ -15,6 +16,27 @@ export interface AdminUserRow {
   plan_type: PlanType
   is_admin: boolean
   created_at: string
+  trial_ends_at: string | null
+}
+
+function TrialBadge({ trialEndsAt }: { trialEndsAt: string | null }) {
+  if (!trialEndsAt) return <span className="text-muted-foreground text-xs">—</span>
+  if (!isInTrial(trialEndsAt)) {
+    return <span className="text-xs text-[#888]">Expired</span>
+  }
+  const days = trialDaysRemaining(trialEndsAt)
+  const isUrgent = days <= 7
+  return (
+    <span
+      className="text-xs font-medium px-1.5 py-0.5 rounded"
+      style={{
+        color: isUrgent ? "#FF8C00" : "#FF4B6E",
+        background: isUrgent ? "rgba(255,140,0,0.12)" : "rgba(255,75,110,0.12)",
+      }}
+    >
+      D-{days}
+    </span>
+  )
 }
 
 export function UsersTable({ users: initial }: { users: AdminUserRow[] }) {
@@ -83,13 +105,14 @@ export function UsersTable({ users: initial }: { users: AdminUserRow[] }) {
               <th className="text-left text-muted-foreground text-sm font-medium px-4 py-3">이름</th>
               <th className="text-left text-muted-foreground text-sm font-medium px-4 py-3">가입일</th>
               <th className="text-left text-muted-foreground text-sm font-medium px-4 py-3">플랜</th>
+              <th className="text-left text-muted-foreground text-sm font-medium px-4 py-3">Trial</th>
               <th className="text-left text-muted-foreground text-sm font-medium px-4 py-3">관리자</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-muted-foreground text-sm text-center py-8">
+                <td colSpan={6} className="text-muted-foreground text-sm text-center py-8">
                   결과 없음
                 </td>
               </tr>
@@ -113,6 +136,9 @@ export function UsersTable({ users: initial }: { users: AdminUserRow[] }) {
                       <SelectItem value="annual">Annual</SelectItem>
                     </SelectContent>
                   </Select>
+                </td>
+                <td className="px-4 py-3">
+                  <TrialBadge trialEndsAt={u.trial_ends_at} />
                 </td>
                 <td className="px-4 py-3">
                   <Switch

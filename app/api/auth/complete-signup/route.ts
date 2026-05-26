@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { createSupabaseAdminClient } from "@/lib/supabase/admin"
+import { sendTrialStartedEmail } from "@/lib/email/send-trial-emails"
 
 // 신규 가입 완료 처리 — /start 페이지에서 약관 동의 후 호출
 // body: { plan_type: 'free', agreed_to_terms: true }
@@ -63,13 +65,17 @@ export async function POST(request: Request) {
       ? rawCountry.toUpperCase()
       : null
 
-  // 6. users 업데이트 — RLS "users_update_own" 정책으로 본인 행만 수정 가능
+  // 6. trial_ends_at — 신규 가입자 기준 +30일
+  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
+  // 7. users 업데이트 — RLS "users_update_own" 정책으로 본인 행만 수정 가능
   const { error: updateError } = await supabase
     .from("users")
     .update({
       plan_type: planType,
       agreed_to_terms: true,
       agreed_at: new Date().toISOString(),
+      trial_ends_at: trialEndsAt.toISOString(),
       // 기존 country 가 있으면 덮어쓰지 않음 — coalesce 동작은 별도 update 로.
       // 단순화: 최초 가입 시점이라 country 가 NULL 일 것 → 그대로 set.
       ...(country !== null ? { country } : {}),
@@ -79,6 +85,24 @@ export async function POST(request: Request) {
   if (updateError) {
     console.error("[complete-signup] update 실패:", updateError.message)
     return NextResponse.json({ error: "update_failed" }, { status: 500 })
+  }
+
+  // 8. "Trial 시작" 이메일 fire-and-forget — 실패해도 가입 완료에 영향 없음
+  if (user.email) {
+    const email = user.email
+    const admin = createSupabaseAdminClient()
+    void sendTrialStartedEmail({ to: email, trialEndsAt })
+      .then(async (result) => {
+        if (result.ok) {
+          await admin
+            .from("users")
+            .update({ trial_started_email_sent: true })
+            .eq("id", user.id)
+        }
+      })
+      .catch((err: unknown) => {
+        console.error("[complete-signup] trial 이메일 발송 실패:", err)
+      })
   }
 
   return NextResponse.json({ ok: true })

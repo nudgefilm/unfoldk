@@ -12,6 +12,7 @@ interface AdminUserRow {
   plan_type: "free" | "monthly" | "annual"
   is_admin: boolean
   created_at: string
+  trial_ends_at: string | null
 }
 
 type LoadResult =
@@ -23,7 +24,7 @@ async function loadUsers(): Promise<LoadResult> {
   const supabase = createSupabaseAdminClient()
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, name, plan_type, is_admin, created_at")
+    .select("id, email, name, plan_type, is_admin, created_at, trial_ends_at")
     .order("created_at", { ascending: false })
     .limit(500)
 

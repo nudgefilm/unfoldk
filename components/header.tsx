@@ -10,6 +10,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { StartModal } from "@/components/start-modal"
 import { EarlyAccessBanner } from "@/components/early-access/early-access-banner"
+import { TrialBanner } from "@/components/trial-banner"
 
 // Header 를 노출하지 않는 경로들 — 자체 레이아웃이 있거나 풀스크린 인증/결제 페이지.
 // root layout 에서 Header 를 단일 마운트하므로 여기서 prefix 매칭으로 가드.
@@ -184,10 +185,10 @@ export function Header() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 w-full bg-background">
-      {/* Early Access 공지 배너 — Header 내부 위쪽. session 1회 dismiss 후 미노출.
-          fixed Header 의 첫 children 으로 마운트 → 같은 fixed 영역에 포함 + Header 의
-          HIDE_PREFIXES 가드 자동 적용 (admin/login 등에서는 Header 자체가 null). */}
+      {/* Early Access 공지 배너 — 비로그인 유저 전용. Header HIDE_PREFIXES 가드 자동 적용. */}
       <EarlyAccessBanner />
+      {/* Trial 배너 — 로그인한 free 유저 중 trial 활성인 경우. D-7 이하에서 색상 강조. */}
+      <TrialBanner />
 
       <div className="py-4 px-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
