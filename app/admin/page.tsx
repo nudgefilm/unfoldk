@@ -3,6 +3,137 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 // MRR/MAU 집계는 RLS 우회 필요 — 이미 layout이 is_admin 검증했으므로 admin 클라이언트 사용
 export const dynamic = "force-dynamic"
 
+// ── 데이터 수집 현황 ─────────────────────────────────────────
+interface ServiceCollectionStat {
+  label: string
+  rows: { key: string; value: string }[]
+  status: "ok" | "warn" | "unknown"
+  lastUpdated: string | null
+}
+
+function hoursAgo(iso: string | null): number | null {
+  if (!iso) return null
+  return (Date.now() - new Date(iso).getTime()) / 3_600_000
+}
+
+function fmtTime(iso: string | null): string {
+  if (!iso) return "—"
+  const d = new Date(iso)
+  return d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+}
+
+async function loadCollectionStats(): Promise<ServiceCollectionStat[]> {
+  const supabase = createSupabaseAdminClient()
+  const now = new Date()
+  const todayUtc = now.toISOString().slice(0, 10)
+  const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString()
+
+  const [
+    calLatest,
+    calToday,
+    kpopLatest,
+    kpopToday,
+    dramaTotal,
+    dramaLatest,
+    foodTotal,
+    foodTagged,
+    phraseTotal,
+    phraseTagged,
+    spotTotal,
+    spotLatest,
+  ] = await Promise.all([
+    // HallyuCalendar — 마지막 수집 이벤트
+    supabase.from("hallyu_calendar_events").select("created_at").order("created_at", { ascending: false }).limit(1),
+    // HallyuCalendar — 오늘 추가
+    supabase.from("hallyu_calendar_events").select("id", { count: "exact", head: true }).gte("created_at", startOfDay),
+    // KpopStats — 최신 통계 날짜
+    supabase.from("kpop_stats_daily").select("date").order("date", { ascending: false }).limit(1),
+    // KpopStats — 오늘 업데이트된 아티스트
+    supabase.from("kpop_stats_daily").select("artist_id", { count: "exact", head: true }).eq("date", todayUtc),
+    // KdramaMatch — 총 드라마
+    supabase.from("dramas").select("id", { count: "exact", head: true }),
+    // KdramaMatch — 마지막 추가
+    supabase.from("dramas").select("created_at").order("created_at", { ascending: false }).limit(1),
+    // KfoodKit — 총 레시피
+    supabase.from("food_recipes").select("id", { count: "exact", head: true }),
+    // KfoodKit — 드라마 태깅된 레시피
+    supabase.from("food_recipes").select("id", { count: "exact", head: true }).not("drama_title", "is", null),
+    // HangeulGo — 총 표현
+    supabase.from("korean_phrases").select("id", { count: "exact", head: true }),
+    // HangeulGo — emotion_tag 태깅
+    supabase.from("korean_phrases").select("id", { count: "exact", head: true }).not("emotion_tag", "is", null),
+    // Curation K — 총 촬영지
+    supabase.from("filming_spots").select("id", { count: "exact", head: true }),
+    // Curation K — 마지막 추가
+    supabase.from("filming_spots").select("created_at").order("created_at", { ascending: false }).limit(1),
+  ])
+
+  const calLastIso: string | null = (calLatest.data?.[0] as { created_at: string } | undefined)?.created_at ?? null
+  const kpopLastDate: string | null = (kpopLatest.data?.[0] as { date: string } | undefined)?.date ?? null
+  const dramaLastIso: string | null = (dramaLatest.data?.[0] as { created_at: string } | undefined)?.created_at ?? null
+  const spotLastIso: string | null = (spotLatest.data?.[0] as { created_at: string } | undefined)?.created_at ?? null
+
+  const calHours = hoursAgo(calLastIso)
+  const kpopHours = kpopLastDate ? hoursAgo(kpopLastDate + "T23:59:59Z") : null
+
+  return [
+    {
+      label: "HallyuCalendar",
+      status: calHours === null ? "unknown" : calHours < 48 ? "ok" : "warn",
+      lastUpdated: calLastIso,
+      rows: [
+        { key: "마지막 수집", value: fmtTime(calLastIso) },
+        { key: "오늘 추가", value: `${calToday.count ?? 0}건` },
+      ],
+    },
+    {
+      label: "KpopStats",
+      status: kpopHours === null ? "unknown" : kpopHours < 48 ? "ok" : "warn",
+      lastUpdated: kpopLastDate ? kpopLastDate + "T00:00:00Z" : null,
+      rows: [
+        { key: "최신 통계 날짜", value: kpopLastDate ?? "—" },
+        { key: "오늘 업데이트", value: `${kpopToday.count ?? 0}명` },
+      ],
+    },
+    {
+      label: "KdramaMatch",
+      status: "unknown",
+      lastUpdated: dramaLastIso,
+      rows: [
+        { key: "총 드라마", value: `${(dramaTotal.count ?? 0).toLocaleString()}편` },
+        { key: "마지막 추가", value: fmtTime(dramaLastIso) },
+      ],
+    },
+    {
+      label: "KfoodKit",
+      status: "unknown",
+      lastUpdated: null,
+      rows: [
+        { key: "총 레시피", value: `${(foodTotal.count ?? 0).toLocaleString()}건` },
+        { key: "드라마 태깅", value: `${foodTagged.count ?? 0}건` },
+      ],
+    },
+    {
+      label: "HangeulGo",
+      status: "unknown",
+      lastUpdated: null,
+      rows: [
+        { key: "총 표현", value: `${(phraseTotal.count ?? 0).toLocaleString()}건` },
+        { key: "emotion 태깅", value: `${phraseTagged.count ?? 0}건` },
+      ],
+    },
+    {
+      label: "Curation K",
+      status: "unknown",
+      lastUpdated: spotLastIso,
+      rows: [
+        { key: "총 촬영지", value: `${(spotTotal.count ?? 0).toLocaleString()}곳` },
+        { key: "마지막 추가", value: fmtTime(spotLastIso) },
+      ],
+    },
+  ]
+}
+
 interface DashboardStats {
   totalUsers: number
   paidUsers: number
@@ -70,8 +201,42 @@ function StatCard({ label, value, suffix }: { label: string; value: string; suff
   )
 }
 
+const STATUS_COLOR: Record<ServiceCollectionStat["status"], string> = {
+  ok: "#22c55e",
+  warn: "#ef4444",
+  unknown: "#888888",
+}
+const STATUS_LABEL: Record<ServiceCollectionStat["status"], string> = {
+  ok: "정상",
+  warn: "오래된 데이터",
+  unknown: "수동 관리",
+}
+
+function CollectionCard({ stat }: { stat: ServiceCollectionStat }) {
+  const dot = STATUS_COLOR[stat.status]
+  return (
+    <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-foreground text-sm font-semibold">{stat.label}</p>
+        <span className="flex items-center gap-1.5 text-xs" style={{ color: dot }}>
+          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: dot }} />
+          {STATUS_LABEL[stat.status]}
+        </span>
+      </div>
+      <dl className="space-y-1.5">
+        {stat.rows.map((r) => (
+          <div key={r.key} className="flex justify-between text-sm">
+            <dt className="text-muted-foreground">{r.key}</dt>
+            <dd className="text-foreground font-medium tabular-nums">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
 export default async function AdminDashboardPage() {
-  const stats = await loadStats()
+  const [stats, collectionStats] = await Promise.all([loadStats(), loadCollectionStats()])
   const total = stats.totalUsers || 1 // 0 나눗셈 방지
 
   // 플랜 분포 — 비율은 정수 % 표시
@@ -131,6 +296,20 @@ export default async function AdminDashboardPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-foreground text-lg font-semibold mb-1">데이터 수집 현황</h2>
+        <p className="text-muted-foreground text-xs mb-4">
+          <span className="inline-flex items-center gap-1 mr-3"><span className="w-2 h-2 rounded-full inline-block bg-[#22c55e]" /> 정상 (48h 이내)</span>
+          <span className="inline-flex items-center gap-1 mr-3"><span className="w-2 h-2 rounded-full inline-block bg-[#ef4444]" /> 오래된 데이터</span>
+          <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block bg-[#888888]" /> 수동 관리 (cron 없음)</span>
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          {collectionStats.map((s) => (
+            <CollectionCard key={s.label} stat={s} />
+          ))}
         </div>
       </section>
     </div>
