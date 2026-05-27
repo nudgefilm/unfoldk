@@ -108,12 +108,14 @@ function EventDetailModal({
   viewDate,
   isPro,
   onUpgradeNeeded,
+  kpopArtistId,
 }: {
   event: CalendarEvent | null
   onClose: () => void
   viewDate: Date
   isPro: boolean
   onUpgradeNeeded: () => void
+  kpopArtistId?: string
 }) {
   const router = useRouter()
   const [reminders, setReminders] = useState({
@@ -447,8 +449,20 @@ function EventDetailModal({
           </div>
         </div>
 
-        {/* Report incorrect info — 모달 하단 우측, 콘텐츠 신고 시스템 진입점 */}
-        <div className="mt-4 pt-4 border-t border-border/30 flex justify-end">
+        {/* Report + Artist Stats 링크 */}
+        <div className="mt-4 pt-4 border-t border-border/30 flex items-center justify-between">
+          {kpopArtistId ? (
+            <Link
+              href={`/kpop/${kpopArtistId}`}
+              className="text-sm font-medium hover:underline"
+              style={{ color: "#FF4B6E" }}
+              onClick={onClose}
+            >
+              View artist stats →
+            </Link>
+          ) : (
+            <span />
+          )}
           <ReportButton contentType="event" contentId={event.id} />
         </div>
       </div>
@@ -567,6 +581,7 @@ function UpcomingAccordionItem({
   onToggle,
   onLoginNeeded,
   onUpgradeNeeded,
+  kpopArtistId,
 }: {
   event: CalendarEvent
   index: number
@@ -579,6 +594,7 @@ function UpcomingAccordionItem({
   onToggle: () => void
   onLoginNeeded: () => void
   onUpgradeNeeded: () => void
+  kpopArtistId?: string
 }) {
   // 결제 연동 전 임시 정책 (2026-05-16, DECISIONS.md) — 비로그인만 3개 blur.
   // 로그인 (Free 포함) 은 전체 노출. 결제 연동 후 isPro 기준으로 복원.
@@ -801,7 +817,18 @@ function UpcomingAccordionItem({
             </div>
           </div>
 
-          <div className="pt-2 border-t border-border/20 flex justify-end">
+          <div className="pt-2 border-t border-border/20 flex items-center justify-between">
+            {kpopArtistId ? (
+              <Link
+                href={`/kpop/${kpopArtistId}`}
+                className="text-sm font-medium hover:underline"
+                style={{ color: "#FF4B6E" }}
+              >
+                View artist stats →
+              </Link>
+            ) : (
+              <span />
+            )}
             <ReportButton contentType="event" contentId={event.id} />
           </div>
         </div>
@@ -835,6 +862,9 @@ export default function HallyuCalendarPage() {
   const [accordionStartOpen, setAccordionStartOpen] = useState(false)
   // 한 번에 한 항목만 확장 — null = 모두 닫힘
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
+  // K-pop 아티스트명 → /kpop/[id] 연결용 룩업 맵
+  const [kpopArtistMap, setKpopArtistMap] = useState<Record<string, string>>({})
+
   // Featured 가로 스크롤 컨테이너 — PC 화살표 버튼이 한 번에 보이는 폭만큼 이동
   const featuredScrollRef = useRef<HTMLDivElement>(null)
 
@@ -971,6 +1001,32 @@ export default function HallyuCalendarPage() {
     return () => ctrl.abort()
   }, [monthQuery])
 
+  // K-pop 이벤트 아티스트명 → kpop_artists.id 룩업 (events 변경 시 재실행)
+  useEffect(() => {
+    const names = [
+      ...new Set(
+        events
+          .filter((e) => e.type === "K-pop" && e.artist)
+          .map((e) => e.artist as string)
+      ),
+    ]
+    if (names.length === 0) return
+    const supabase = createSupabaseBrowserClient()
+    supabase
+      .from("kpop_artists")
+      .select("id, name, name_ko")
+      .in("name", names)
+      .then(({ data }) => {
+        if (!data) return
+        const map: Record<string, string> = {}
+        for (const a of data as { id: string; name: string; name_ko: string | null }[]) {
+          map[a.name] = a.id
+          if (a.name_ko) map[a.name_ko] = a.id
+        }
+        setKpopArtistMap(map)
+      })
+  }, [events])
+
   const handleTabClick = (tab: string) => {
     // Pro 유저는 lockedTabs 우회 — 모든 탭 자유 전환
     if (!isPro && lockedTabs.includes(tab)) {
@@ -1038,7 +1094,14 @@ export default function HallyuCalendarPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Event Detail Modal */}
-      <EventDetailModal event={selectedEvent} onClose={closeModal} viewDate={viewDate} isPro={isPro} onUpgradeNeeded={() => setShowUpgradeModal(true)} />
+      <EventDetailModal
+        event={selectedEvent}
+        onClose={closeModal}
+        viewDate={viewDate}
+        isPro={isPro}
+        onUpgradeNeeded={() => setShowUpgradeModal(true)}
+        kpopArtistId={selectedEvent ? kpopArtistMap[selectedEvent.artist ?? ""] : undefined}
+      />
       
       {/* Upgrade Modal */}
       <UpgradeModal 
@@ -1392,6 +1455,7 @@ export default function HallyuCalendarPage() {
                 }
                 onLoginNeeded={() => setAccordionStartOpen(true)}
                 onUpgradeNeeded={() => setShowUpgradeModal(true)}
+                kpopArtistId={kpopArtistMap[event.artist ?? ""]}
               />
             ))}
 

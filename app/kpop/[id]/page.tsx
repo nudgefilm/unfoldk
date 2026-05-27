@@ -9,6 +9,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { getEventTypeColor, getEventTypeColorAlpha } from "@/lib/calendar/event-type-colors"
 import { TrackArtistButton } from "./track-artist-button"
+import { ArtistTrendChart } from "@/components/kpop/artist-trend-chart"
 
 // /kpop/[id] — 아티스트 상세 페이지 (Server Component)
 // 차트 행 / Trending 카드에서 navigation. SEO 친화 + 첫 로드 빠른 SSR.
@@ -65,30 +66,6 @@ interface UpcomingEventRow {
   thumbnail_url: string | null
 }
 
-// SVG trend path 계산 — Spotlight 와 동일 알고리즘.
-// 7일치 미만이면 null 반환 → "데이터 부족" placeholder 노출.
-function buildTrendPath(history: DailyStatsRow[]) {
-  const points = history
-    .map((h, i) => ({ i, value: h.youtube_weekly_views }))
-    .filter((p): p is { i: number; value: number } => p.value !== null)
-  if (points.length < 2) return null
-  const max = Math.max(...points.map((p) => p.value))
-  const min = Math.min(...points.map((p) => p.value))
-  const range = Math.max(1, max - min)
-  const width = 600
-  const height = 120
-  const stepX = points.length > 1 ? width / (points.length - 1) : 0
-  const coords = points.map((p, idx) => {
-    const x = idx * stepX
-    const y = height - ((p.value - min) / range) * height
-    return { x, y, value: p.value }
-  })
-  const linePath = coords
-    .map((c, i) => (i === 0 ? `M${c.x},${c.y}` : `L${c.x},${c.y}`))
-    .join(" ")
-  const areaPath = `${linePath} L${width},${height} L0,${height} Z`
-  return { coords, linePath, areaPath, width, height }
-}
 
 // generateMetadata — 아티스트별 OG 태그 + 페이지 타이틀.
 // 비활성/미존재 아티스트는 기본 fallback.
@@ -171,8 +148,6 @@ export default async function ArtistDetailPage({
 
   // Track this artist CTA 는 client island (track-artist-button.tsx) 가 자체적으로
   // auth 상태를 fetch — 서버 측에서 isLoggedIn 분기 불필요.
-
-  const trendPath = buildTrendPath(history)
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }}>
@@ -312,30 +287,7 @@ export default async function ArtistDetailPage({
             30-Day Trend (weekly views)
           </h2>
           <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6">
-            {trendPath ? (
-              <svg
-                className="w-full"
-                style={{ height: "180px" }}
-                viewBox={`0 0 ${trendPath.width} ${trendPath.height}`}
-                preserveAspectRatio="none"
-              >
-                <defs>
-                  <linearGradient id="artistTrendGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#FF4B6E" stopOpacity="0.3" />
-                    <stop offset="100%" stopColor="#FF4B6E" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <path d={trendPath.areaPath} fill="url(#artistTrendGradient)" />
-                <path d={trendPath.linePath} fill="none" stroke="#FF4B6E" strokeWidth="2" />
-                {trendPath.coords.map((c, i) => (
-                  <circle key={i} cx={c.x} cy={c.y} r={3} fill="#FF4B6E" />
-                ))}
-              </svg>
-            ) : (
-              <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-                Not enough data yet — check back soon.
-              </div>
-            )}
+            <ArtistTrendChart history={history} />
           </div>
         </section>
 
