@@ -223,6 +223,8 @@ interface SpotItem {
   drama_id: string | null            // filming 만 — 모달 "Featured in" 배지 클릭 시 /drama 이동
   drama_title: string | null         // filming 만
   spot_description: string | null    // filming 만 — Claude 추출 촬영 장면 설명 (0029)
+  scene_description: string | null   // filming 만 — 한 줄 장면 callout (0046)
+  photo_tip: string | null           // filming 만 — 포토존 팁 (0046)
   event_start_date: string | null    // festivals 만 (YYYYMMDD)
   event_end_date: string | null      // festivals 만
   region: string | null
@@ -2534,7 +2536,11 @@ function SpotsTabPanel({
               key={item.id}
               image={item.image_url}
               title={item.title}
-              subtitle={item.subtitle ?? item.overview_en ?? ""}
+              subtitle={
+                tab.key === "filming" && item.scene_description
+                  ? item.scene_description
+                  : item.subtitle ?? item.overview_en ?? ""
+              }
               region={item.region}
               address={item.address}
               badge={festStatus?.text ?? item.drama_title ?? item.badge}
@@ -2851,9 +2857,27 @@ function SpotDetailDialog({
 
           {/* 설명 — filming 은 spot_description, 나머지는 overview_en ?? overview_ko */}
           {description && (
-            <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line mb-5">
+            <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line mb-4">
               {description}
             </p>
+          )}
+
+          {/* scene_description — 한 줄 장면 callout (filming 전용) */}
+          {tab.key === "filming" && spot.scene_description && (
+            <p
+              className="text-[13px] italic text-foreground/75 leading-snug mb-4 border-l-2 pl-3"
+              style={{ borderColor: tab.color }}
+            >
+              &ldquo;{spot.scene_description}&rdquo;
+            </p>
+          )}
+
+          {/* photo_tip — 포토존 팁 (filming 전용) */}
+          {tab.key === "filming" && spot.photo_tip && (
+            <div className="flex items-start gap-2 mb-5 p-3 rounded-lg bg-[#1e1e22]">
+              <span className="text-base leading-none flex-shrink-0">📸</span>
+              <p className="text-foreground/80 text-xs leading-snug">{spot.photo_tip}</p>
+            </div>
           )}
 
           {/* CTA — homepage / Google Maps */}
@@ -2898,6 +2922,29 @@ function SpotDetailDialog({
               )
             )}
           </div>
+
+          {/* 크로스링크 — filming 탭 + drama_title 있을 때만 */}
+          {tab.key === "filming" && spot.drama_title && (
+            <div className="border-t border-border/20 pt-4 mt-4">
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-3">Explore more</p>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={`/korean?drama=${encodeURIComponent(spot.drama_title)}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[#252528] text-muted-foreground hover:text-foreground hover:bg-[#2e2e32] transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  🗣 Learn Korean from this drama
+                </Link>
+                <Link
+                  href={`/food?drama=${encodeURIComponent(spot.drama_title)}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[#252528] text-muted-foreground hover:text-foreground hover:bg-[#2e2e32] transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  🍜 Foods from this drama
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* Nearby Places — GPS 있고 festivals 제외한 모든 탭. 데이터 0건이면 미노출. */}
           {nearbyEnabled && (

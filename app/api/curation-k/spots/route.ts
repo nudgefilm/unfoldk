@@ -101,6 +101,8 @@ export interface SpotItem {
   drama_id: string | null       // filming 만 — 모달의 /drama 이동 시 활용 가능
   drama_title: string | null    // filming 만
   spot_description: string | null // filming 만 — Claude 추출 촬영 장면 설명 (0029)
+  scene_description: string | null // filming 만 — 한 줄 장면 callout (0046)
+  photo_tip: string | null         // filming 만 — 포토존 팁 (0046)
   event_start_date: string | null // festivals 만 (YYYYMMDD)
   event_end_date: string | null   // festivals 만 (YYYYMMDD)
   region: string | null         // filming 만 (tour 는 area_code 별도)
@@ -161,7 +163,7 @@ export async function GET(request: Request) {
     let filmingQuery = supabase
       .from("filming_spots")
       .select(
-        "id, drama_id, drama_title, spot_name, spot_description, region, address, latitude, longitude, image_url, confidence",
+        "id, drama_id, drama_title, spot_name, spot_description, scene_description, photo_tip, region, address, latitude, longitude, image_url, confidence",
         { count: "exact" }
       )
       .neq("spot_name", "__no_spots_found__")
@@ -196,6 +198,8 @@ export async function GET(request: Request) {
       drama_title: string
       spot_name: string
       spot_description: string | null
+      scene_description: string | null
+      photo_tip: string | null
       region: string | null
       address: string | null
       latitude: number | null
@@ -220,6 +224,8 @@ export async function GET(request: Request) {
       drama_id: r.drama_id,
       drama_title: r.drama_title,
       spot_description: r.spot_description,
+      scene_description: r.scene_description,
+      photo_tip: r.photo_tip,
       event_start_date: null,
       event_end_date: null,
       region: r.region,
@@ -298,6 +304,8 @@ export async function GET(request: Request) {
       drama_id: null,
       drama_title: null,
       spot_description: null,
+      scene_description: null,
+      photo_tip: null,
       event_start_date: r.event_start_date,
       event_end_date: r.event_end_date,
       region: null,
