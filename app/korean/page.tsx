@@ -63,6 +63,14 @@ interface PackDetail {
   phrases: KoreanPhraseApi[]
 }
 
+// 표현 맥락 — /api/korean/phrase-context 응답 단위
+interface PhraseContext {
+  phrase_id: string
+  episode_tag: string | null
+  scene_description: string | null
+  emotion_tag: string | null
+}
+
 // 난이도 라벨 + 색상 (UI 톤 유지)
 function difficultyLabel(d: PackApi["difficulty"]): string {
   if (d === "beginner") return "Beginner"
@@ -139,6 +147,14 @@ export default function HangeulGoPage() {
   const [packModalDramaId, setPackModalDramaId] = useState<string | null>(null)
   const [packDetail, setPackDetail] = useState<PackDetail | null>(null)
   const [packDetailLoading, setPackDetailLoading] = useState(false)
+
+  // 7. 감정 태그 — 팩 필터용 맵 (dramaId → emotion_tag[]) + 선택 상태
+  const [emotionPackMap, setEmotionPackMap] = useState<Record<string, string[]>>({})
+  const [activeEmotion, setActiveEmotion] = useState<string | null>(null)
+
+  // 8. 팩 모달 내 표현별 맥락 (episode_tag / scene_description / emotion_tag)
+  const [phraseContextMap, setPhraseContextMap] = useState<Map<string, PhraseContext>>(new Map())
+
   const { toast } = useToast()
 
   // Drama Learning Packs 가로 스크롤 — calendar Featured 패턴 + 양끝 가드.
@@ -189,10 +205,17 @@ export default function HangeulGoPage() {
     if (!stillVisible) setActivePackLevel("ALL")
   }, [activePackLevel, visiblePackLevels])
 
-  const filteredPacks =
-    activePackLevel === "ALL"
-      ? packs
-      : packs.filter((p) => p.difficulty === activePackLevel)
+  // 레벨 + 감정 태그 동시 필터
+  const filteredPacks = packs.filter((p) => {
+    const levelMatch = activePackLevel === "ALL" || p.difficulty === activePackLevel
+    const emotionMatch = !activeEmotion || (emotionPackMap[p.id] ?? []).includes(activeEmotion)
+    return levelMatch && emotionMatch
+  })
+
+  // 전체 팩에서 존재하는 감정 태그 목록 (중복 제거, 알파벳순)
+  const availableEmotions = [
+    ...new Set(Object.values(emotionPackMap).flat()),
+  ].sort()
 
   // 학습 진도 대시보드 메트릭 — 로그인 유저에게만 노출.
   // completedPacks: phraseCount > 0 이고 progressPercent === 100 (모든 phrase mastered).
@@ -291,6 +314,16 @@ export default function HangeulGoPage() {
       .finally(() => setPacksLoading(false))
   }, [])
 
+  // ─── 감정 태그 맵 fetch — 팩 필터 칩 노출용. 데이터 없으면 빈 맵 유지 (필터 칩 미노출).
+  useEffect(() => {
+    fetch("/api/korean/emotion-pack-map")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: { map: Record<string, string[]> } | null) => {
+        if (body?.map) setEmotionPackMap(body.map)
+      })
+      .catch(() => {})
+  }, [])
+
   // ─── 퀴즈 fetch — 현재 표현 (phrase.id) 기준. Next expression 으로 표현 바뀌면 자동 재호출.
   //    이전 퀴즈 상태 (selectedAnswer, quizResult) 도 함께 리셋해 새 퀴즈에서 다시 풀 수 있게.
   useEffect(() => {
@@ -312,15 +345,32 @@ export default function HangeulGoPage() {
   useEffect(() => {
     if (!packModalDramaId) {
       setPackDetail(null)
+      setPhraseContextMap(new Map())
       return
     }
     let cancelled = false
     setPackDetailLoading(true)
     setPackDetail(null)
-    fetch(`/api/korean/pack/${packModalDramaId}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: PackDetail) => {
-        if (!cancelled) setPackDetail(body)
+    setPhraseContextMap(new Map())
+
+    // 표현 목록 + 맥락 정보 병렬 fetch
+    Promise.all([
+      fetch(`/api/korean/pack/${packModalDramaId}`)
+        .then((res) => (res.ok ? res.json() : Promise.reject(res))),
+      fetch(`/api/korean/phrase-context?pack_id=${encodeURIComponent(packModalDramaId)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null),
+    ])
+      .then(([detail, ctxBody]) => {
+        if (cancelled) return
+        setPackDetail(detail as PackDetail)
+        if (ctxBody && Array.isArray((ctxBody as { contexts: PhraseContext[] }).contexts)) {
+          const m = new Map<string, PhraseContext>()
+          for (const c of (ctxBody as { contexts: PhraseContext[] }).contexts) {
+            m.set(c.phrase_id, c)
+          }
+          setPhraseContextMap(m)
+        }
       })
       .catch((err) => {
         console.error("[korean] pack detail fetch 실패:", err)
@@ -736,10 +786,9 @@ export default function HangeulGoPage() {
             <p className="text-muted-foreground text-sm">No learning packs yet.</p>
           ) : (
             <>
-            {/* 레벨 필터 칩 — visiblePackLevels 만 렌더 (해당 difficulty 팩 0건이면 chip 자체 미노출).
-                ALL 은 항상 노출 — reset 진입점. Mixed (null difficulty) 팩은 ALL 에서만 노출. */}
-            <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden"
-              style={{ scrollbarWidth: "none" }}>
+            {/* 레벨 + 감정 태그 필터 칩 행 */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {/* 레벨 필터 — visiblePackLevels 만 렌더. Mixed(null difficulty) 팩은 ALL 에서만 노출. */}
               {visiblePackLevels.map((l) => {
                 const isActive = activePackLevel === l.code
                 return (
@@ -763,6 +812,35 @@ export default function HangeulGoPage() {
                   </button>
                 )
               })}
+              {/* 감정 태그 필터 — 데이터 있을 때만 노출. 선택 시 해당 emotion 포함 팩만 표시. */}
+              {availableEmotions.length > 0 && (
+                <>
+                  <span className="flex-shrink-0 self-center text-border/40 select-none">|</span>
+                  {availableEmotions.map((emotion) => {
+                    const isActive = activeEmotion === emotion
+                    return (
+                      <button
+                        key={emotion}
+                        type="button"
+                        onClick={() => setActiveEmotion(isActive ? null : emotion)}
+                        className={`flex-shrink-0 inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                          isActive
+                            ? "text-white"
+                            : "border-border/40 bg-[#1a1a1a] text-muted-foreground hover:border-border/70 hover:text-foreground"
+                        }`}
+                        style={
+                          isActive
+                            ? { backgroundColor: "#FF4B6E", borderColor: "#FF4B6E" }
+                            : undefined
+                        }
+                        aria-pressed={isActive}
+                      >
+                        {emotion}
+                      </button>
+                    )
+                  })}
+                </>
+              )}
             </div>
             <div className="relative group">
             <div
@@ -1090,6 +1168,7 @@ export default function HangeulGoPage() {
           onClose={() => setPackModalDramaId(null)}
           detail={packDetail}
           loading={packDetailLoading}
+          phraseContextMap={phraseContextMap}
         />
       )}
 
@@ -1101,15 +1180,17 @@ export default function HangeulGoPage() {
   )
 }
 
-// Drama Pack 상세 모달 — kdrama 모달과 동일 다크 톤. 표현 목록은 카드 그리드 (난이도 배지 포함).
+// Drama Pack 상세 모달 — 표현 카드에 감정 태그·에피소드·장면 설명 추가.
 function PackDetailModal({
   onClose,
   detail,
   loading,
+  phraseContextMap,
 }: {
   onClose: () => void
   detail: PackDetail | null
   loading: boolean
+  phraseContextMap: Map<string, PhraseContext>
 }) {
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) onClose()
@@ -1172,24 +1253,44 @@ function PackDetailModal({
             <div className="space-y-3">
               {detail.phrases.map((p) => {
                 const dColor = difficultyColor(p.difficulty)
+                const ctx = phraseContextMap.get(p.id)
                 return (
                   <div
                     key={p.id}
                     className="bg-[#141416] border border-border/20 rounded-xl p-4"
                   >
+                    {/* 상단: 한국어 표현 + 난이도·감정 태그 */}
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <h3 className="text-foreground text-lg font-semibold">{p.korean}</h3>
-                      <span
-                        className="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0"
-                        style={{ backgroundColor: dColor.bg, color: dColor.color }}
-                      >
-                        {difficultyLabel(p.difficulty)}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                        {ctx?.emotion_tag && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-[#252528] text-muted-foreground">
+                            {ctx.emotion_tag}
+                          </span>
+                        )}
+                        <span
+                          className="px-2 py-0.5 rounded text-xs font-medium"
+                          style={{ backgroundColor: dColor.bg, color: dColor.color }}
+                        >
+                          {difficultyLabel(p.difficulty)}
+                        </span>
+                      </div>
                     </div>
                     {p.romanization && (
                       <p className="text-muted-foreground text-sm">{p.romanization}</p>
                     )}
                     <p className="text-foreground text-sm mt-1">&ldquo;{p.english}&rdquo;</p>
+                    {/* 하단: 화수 + 장면 설명 */}
+                    {(ctx?.episode_tag || ctx?.scene_description) && (
+                      <div className="mt-2 pt-2 border-t border-border/20">
+                        <p className="text-[11px] text-muted-foreground leading-snug">
+                          {ctx.episode_tag && (
+                            <span className="mr-1">{ctx.episode_tag} ·</span>
+                          )}
+                          {ctx.scene_description}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )
               })}
