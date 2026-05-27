@@ -10,6 +10,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 import { RecipeDetailDialog } from "@/components/food/recipe-detail-dialog"
 import { WeeklyPicksSection } from "@/components/food/weekly-picks-section"
+import { DramaFoodGuideSection } from "@/components/food/drama-food-guide-section"
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/components/ui/use-toast"
 
@@ -1046,6 +1047,9 @@ export default function KfoodKitPage() {
             )}
           </div>
         </section>
+
+        {/* This Week's K-Drama Food Guide — My Shopping List 아래. 데이터 없으면 자동 미노출. */}
+        <DramaFoodGuideSection onRecipeClick={(id) => setActiveRecipeId(id)} />
       </main>
 
       {/* 레시피 상세 모달 — 카드 클릭 시 마운트, lazy fetch.
