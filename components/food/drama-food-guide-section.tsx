@@ -129,7 +129,7 @@ export function DramaFoodGuideSection({
                       )}
                       {/* 장면 설명 */}
                       {food.scene_description && (
-                        <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">
+                        <p className="text-[11px] text-muted-foreground leading-snug line-clamp-5">
                           {food.scene_description}
                         </p>
                       )}

@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronLeft, ChevronRight, Calendar, X, Lock, Plus, Ticket, Play } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Calendar, X, Lock, Plus, Ticket, Play, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -1070,6 +1070,29 @@ export default function HallyuCalendarPage() {
     .sort((a, b) => a.date - b.date)
     .slice(0, 5)
 
+  const thisWeekTop3 = useMemo(() => {
+    if (!isCurrentRealMonth || events.length === 0) return []
+    const now = new Date()
+    const dayOfWeek = now.getDay()
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+    const weekStartDay = Math.max(1, now.getDate() + daysToMonday)
+    const weekEndDay = now.getDate() + daysToMonday + 6
+    const TYPE_PRIORITY: Partial<Record<EventType, number>> = {
+      "K-pop": 0,
+      "Concert": 1,
+      "Fan Meet": 2,
+      "K-drama": 3,
+    }
+    return [...events]
+      .filter((e) => e.date >= weekStartDay && e.date <= weekEndDay)
+      .sort((a, b) => {
+        const pa = TYPE_PRIORITY[a.type] ?? 3
+        const pb = TYPE_PRIORITY[b.type] ?? 3
+        return pa !== pb ? pa - pb : a.date - b.date
+      })
+      .slice(0, 3)
+  }, [events, isCurrentRealMonth])
+
   // Featured 카드용 — 썸네일 있는 이벤트 전체 (개수 제한 없음, 가로 스크롤로 모두 노출).
   // 1차: Ticketmaster (글로벌 공연 데이터) 우선 → 좌측에 노출.
   // 2차: 그 외 source 는 created_at desc 로 정렬 (최신 등록이 좌측).
@@ -1139,6 +1162,62 @@ export default function HallyuCalendarPage() {
             </Link>
           </div>
         </section>
+
+        {/* 이번 주 놓치면 안 될 한류 일정 TOP 3 */}
+        {thisWeekTop3.length > 0 && (
+          <section className="mb-10">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-foreground">이번 주 놓치면 안 될 한류 일정</h2>
+                <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                  <RefreshCw className="w-3 h-3" />
+                  Updated every Monday
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {thisWeekTop3.map((event, idx) => {
+                const artistId = kpopArtistMap[event.artist ?? ""]
+                return (
+                  <div
+                    key={event.id}
+                    className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-4 cursor-pointer hover:border-primary/40 transition-colors"
+                    onClick={() => handleEventClick(event)}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <span className="text-xs font-bold text-primary bg-primary/15 px-2 py-0.5 rounded-full flex-shrink-0">
+                        TOP {idx + 1}
+                      </span>
+                      <span
+                        className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+                        style={{
+                          backgroundColor: `${getEventTypeColor(event.type)}20`,
+                          color: getEventTypeColor(event.type),
+                        }}
+                      >
+                        {event.type}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-foreground line-clamp-2 mb-2">{event.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(new Date().getFullYear(), new Date().getMonth(), event.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      {event.artist && <span className="ml-2">· {event.artist}</span>}
+                    </p>
+                    {artistId && event.type === "K-pop" && (
+                      <Link
+                        href={`/kpop/${artistId}`}
+                        className="mt-2 text-xs text-primary hover:underline flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View artist stats →
+                      </Link>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Filter Bar */}
         <section className="mb-8">

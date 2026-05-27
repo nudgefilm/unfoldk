@@ -4,11 +4,47 @@
 
 ---
 
-## 현재 상태 (2026-05-28 세션 27 / KfoodKit·cron·결제·차트 개선)
+## 현재 상태 (2026-05-28 세션 28 / KfoodKit·Curation K·KpopStats·HallyuCalendar 콘텐츠 강화)
 
 ### 완료
 
-#### A. 이번 세션 작업 (세션 27)
+#### A. 이번 세션 작업 (세션 28)
+
+- **KfoodKit 어드민 이미지 검수 페이지** (`app/admin/food/images/page.tsx`, `components/admin/food-image-review.tsx`, `app/api/admin/food/images/route.ts`)
+  - image_source IN ('mfds', 'unsplash') OR NULL 레시피 카드 목록
+  - 업로드 or URL 입력 후 저장 시 카드 즉시 제거 (낙관적 업데이트)
+  - 사이드바 배지: 검수 대상 건수 실시간 표시 (`?count_only=true`)
+  - KfoodKit 사이드바 링크 exact 매칭 적용 (이중 하이라이트 방지)
+
+- **KfoodKit Drama Food Guide 개선** (`components/food/drama-food-guide-section.tsx`, `app/api/food/drama-guide/route.ts`)
+  - 장면 설명 텍스트 line-clamp-2 → line-clamp-5
+  - 드라마별 음식 목록 정렬: upload > manual > unsplash > mfds 순 (업로드 이미지 우선 노출)
+
+- **Curation K 쇼핑 탭 추가** (`app/api/curation-k/stats/route.ts`, `app/api/curation-k/spots/route.ts`, `app/curation-k/page.tsx`)
+  - content_type_id=38 쇼핑 카테고리 전 레이어(stats·spots·탭·RegionBreakdown)에 반영
+  - 히어로 섹션 shopping 카운트 노출 (데이터 있을 때만)
+  - 탭 바: shopping 데이터 없으면 탭 자동 미노출
+
+- **KpopStats 순위 변동 인사이트 텍스트** (`app/kpop/page.tsx`)
+  - 글로벌 차트 Change 컬럼: 아이콘+숫자 → 서술형 텍스트
+    - null → "NEW" 그린 배지
+    - ≥10 → "↑N 급상승" / 1~9 → "↑N 상승" (green)
+    - ≤-10 → "↓N 급하락" / -1~-9 → "↓N 하락" (red)
+    - 0 → 미노출
+
+- **KpopStats "이번 주 급상승 아티스트 TOP 3" 섹션** (`app/kpop/page.tsx`)
+  - 메인 차트 상단 (Trending↔Global Chart 사이)
+  - rank_change 상위 3명 자동 선정, 데이터 없으면 섹션 미노출
+  - 카드: 그린 상승폭 배지 + 아티스트명 + 인사이트 한 줄
+
+- **HallyuCalendar "이번 주 놓치면 안 될 한류 일정 TOP 3" 섹션** (`app/calendar/page.tsx`)
+  - 페이지 헤더↔필터 바 사이 삽입, 데이터 없으면 미노출
+  - 선정 기준: K-pop > Concert > Fan Meet > K-drama → 날짜순
+  - 카드: TOP N 배지 + 이벤트 타입 컬러 배지 + 제목 + 날짜/아티스트
+  - K-pop 이벤트 + kpopArtistMap 매칭 시 "View artist stats →" /kpop/[id] 링크
+  - "Updated every Monday" 문구 + RefreshCw 아이콘
+
+#### B. 이전 세션 작업 (세션 27)
 
 - **KfoodKit DramaFoodGuideSection 데이터 파이프라인** (`scripts/tag-food-drama.ts`)
   - Claude Haiku 배치 API로 food_recipes에 drama_title·episode_tag·scene_description 자동 태깅
@@ -118,6 +154,8 @@
 
 > **DB 컬럼 확인 필수**: 코드 작성 전 반드시 실제 DB 테이블 구조를 먼저 확인하고 존재하는 컬럼명만 사용할 것. 가정하거나 추측으로 컬럼명을 사용하지 않는다.
 
+> **PROGRESS.md 파일 관리**: PROGRESS.md 파일이 너무 길어지면 컨텍스트 창을 과도하게 소모함. 정기적으로 (또는 파일이 커질 때) 날짜별로 분리 보관할 것 (예: `PROGRESS_2026_05.md` 로 월별 분리). 현재 진행 중인 내용만 PROGRESS.md에 유지.
+
 > **UI/기능 구현 완료 전 체크리스트**: 모든 UI/기능 구현 시 아래 항목을 반드시 체크하고 조치할 것.
 > 1. 유저가 보기에 어색한 부분이 없는가
 > 2. 빠진 UI 요소가 없는가 (축 표시, 툴팁, 레이블, 날짜 등)
@@ -159,11 +197,12 @@
 - [ ] 연관 음식 → KfoodKit 링크
 
 ### 5. HallyuCalendar — 큐레이션 강화
-- [ ] "이번 주 놓치면 안 될 한류 일정 TOP 3" 편집 큐레이션 뷰 추가
+- [x] "이번 주 놓치면 안 될 한류 일정 TOP 3" 편집 큐레이션 뷰 추가 (세션 28 완료)
 - [x] 해당 아티스트 KpopStats 차트 연결 링크 (세션 27 완료)
 
 ### 6. KpopStats — 스토리 있는 데이터
-- [ ] 순위 변동에 한 줄 인사이트 추가 ("지난주 대비 +15위 급상승 — 신보 발매 영향")
+- [x] 순위 변동에 한 줄 인사이트 추가 — "↑N 급상승" / "↓N 하락" / "NEW" 형식 (세션 28 완료)
+- [x] "이번 주 급상승 아티스트 TOP 3" 섹션 (세션 28 완료)
 - [ ] 관련 HallyuCalendar 컴백 일정 연결 링크
 
 ### 블로커

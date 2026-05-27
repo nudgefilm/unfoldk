@@ -36,6 +36,7 @@ interface RecipeRow {
   title: string
   title_en: string | null
   image_url: string | null
+  image_source: string | null
   drama_title: string | null
   episode_tag: string | null
   scene_description: string | null
@@ -55,6 +56,14 @@ interface DramaCard {
   foods: FoodItem[]
 }
 
+// 업로드/수동 설정 이미지를 먼저, API 수집 이미지는 뒤에 표시
+const IMAGE_SOURCE_PRIORITY: Record<string, number> = {
+  upload: 0,
+  manual: 1,
+  unsplash: 2,
+  mfds: 3,
+}
+
 function groupByDrama(rows: RecipeRow[]): Map<string, FoodItem[]> {
   const map = new Map<string, FoodItem[]>()
   for (const r of rows) {
@@ -70,6 +79,17 @@ function groupByDrama(rows: RecipeRow[]): Map<string, FoodItem[]> {
     })
     map.set(r.drama_title, list)
   }
+  // 각 드라마 내 음식 목록: 업로드 이미지 우선 정렬
+  for (const [drama, foods] of map) {
+    foods.sort((a, b) => {
+      const srcA = (rows.find((r) => r.id === a.recipe_id)?.image_source) ?? null
+      const srcB = (rows.find((r) => r.id === b.recipe_id)?.image_source) ?? null
+      const pa = srcA ? (IMAGE_SOURCE_PRIORITY[srcA] ?? 4) : 5
+      const pb = srcB ? (IMAGE_SOURCE_PRIORITY[srcB] ?? 4) : 5
+      return pa - pb
+    })
+    map.set(drama, foods)
+  }
   return map
 }
 
@@ -82,7 +102,7 @@ export async function GET() {
   // 1. 이번 주 featured_week 레시피
   const { data: featuredData, error: featuredErr } = await supabase
     .from("food_recipes")
-    .select("id, title, title_en, image_url, drama_title, episode_tag, scene_description")
+    .select("id, title, title_en, image_url, image_source, drama_title, episode_tag, scene_description")
     .eq("featured_week", currentWeek)
     .not("drama_title", "is", null)
     .order("drama_title")
@@ -103,7 +123,7 @@ export async function GET() {
     // 폴백: drama_title 있는 레시피 전체 조회 → 주차 rotation
     const { data: fallbackData } = await supabase
       .from("food_recipes")
-      .select("id, title, title_en, image_url, drama_title, episode_tag, scene_description")
+      .select("id, title, title_en, image_url, image_source, drama_title, episode_tag, scene_description")
       .not("drama_title", "is", null)
       .order("drama_title")
       .limit(200)

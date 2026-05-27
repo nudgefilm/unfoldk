@@ -6,7 +6,7 @@ import { hasProAccess } from "@/lib/auth/plan"
 // /api/curation-k/spots — 통합 탭 그리드 API
 //
 // 쿼리:
-//   tab        filming | attractions | culture | festivals | stays | food
+//   tab        filming | attractions | culture | festivals | stays | shopping | food
 //   area_code  1~39 (선택; filming 탭은 무시)
 //   page       1+ (기본 1)
 //   pageSize   1~50 (기본 20)
@@ -17,9 +17,10 @@ import { hasProAccess } from "@/lib/auth/plan"
 //   culture      → tour_spots content_type_id=14
 //   festivals    → tour_spots content_type_id=15 (event_end_date >= today)
 //   stays        → tour_spots content_type_id=32
+//   shopping     → tour_spots content_type_id=38
 //   food         → tour_spots content_type_id=39
 //
-// Pro 잠금: attractions / culture / stays / food → 비Pro 면 { locked: true } + 빈 items.
+// Pro 잠금: attractions / culture / stays / shopping / food → 비Pro 면 { locked: true } + 빈 items.
 //
 // 응답: { items: SpotItem[], total, page, pageSize, locked }
 //
@@ -35,6 +36,7 @@ const TabSchema = z.enum([
   "festivals",
   "stays",
   "food",
+  "shopping",
 ])
 type Tab = z.infer<typeof TabSchema>
 
@@ -52,6 +54,7 @@ const PRO_ONLY_TABS: ReadonlySet<Tab> = new Set([
   "culture",
   "stays",
   "food",
+  "shopping",
 ])
 
 const TAB_TO_CONTENT_TYPE_ID: Partial<Record<Tab, number>> = {
@@ -59,6 +62,7 @@ const TAB_TO_CONTENT_TYPE_ID: Partial<Record<Tab, number>> = {
   culture: 14,
   festivals: 15,
   stays: 32,
+  shopping: 38,
   food: 39,
 }
 

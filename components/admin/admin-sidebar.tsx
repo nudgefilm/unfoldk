@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, CalendarDays, Megaphone, Activity, Music, Flag, Film, UtensilsCrossed } from "lucide-react"
+import { useEffect, useState } from "react"
+import { LayoutDashboard, Users, CalendarDays, Megaphone, Activity, Music, Flag, Film, UtensilsCrossed, ImageIcon } from "lucide-react"
 
 // 어드민 사이드바 — 활성 라우트 표시는 클라이언트 컴포넌트로 분리
 const links = [
@@ -13,12 +14,25 @@ const links = [
   { href: "/admin/reports", label: "Reports", icon: Flag },
   { href: "/admin/kpop", label: "KpopStats", icon: Music },
   { href: "/admin/dramas", label: "KdramaMatch", icon: Film },
-  { href: "/admin/food", label: "KfoodKit", icon: UtensilsCrossed },
+  { href: "/admin/food", label: "KfoodKit", icon: UtensilsCrossed, exact: true },
+  { href: "/admin/food/images", label: "이미지 검수", icon: ImageIcon },
   { href: "/admin/cron", label: "Cron 모니터", icon: Activity },
 ]
 
 export function AdminSidebar() {
   const pathname = usePathname()
+  const [imageReviewCount, setImageReviewCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    fetch("/api/admin/food/images?count_only=true")
+      .then((r) => r.json())
+      .then((json: unknown) => {
+        if (json && typeof json === "object" && "total" in json && typeof (json as { total: unknown }).total === "number") {
+          setImageReviewCount((json as { total: number }).total)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   return (
     <aside className="w-[240px] flex-shrink-0 bg-[#141418] border-r border-[#2a2a2a] min-h-screen p-4">
@@ -53,6 +67,11 @@ export function AdminSidebar() {
               )}
               <link.icon className="w-4 h-4" />
               {link.label}
+              {link.href === "/admin/food/images" && imageReviewCount !== null && imageReviewCount > 0 && (
+                <span className="ml-auto text-[10px] font-medium bg-[#FF4B6E] text-white rounded-full px-1.5 py-0.5 leading-none min-w-[18px] text-center">
+                  {imageReviewCount > 99 ? "99+" : imageReviewCount}
+                </span>
+              )}
             </Link>
           )
         })}

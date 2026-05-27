@@ -252,6 +252,16 @@ export default function KpopStatsPage() {
     [chart, visibleLimit]
   )
 
+  // 급상승 아티스트 — rank_change > 0 인 아티스트 중 상승폭 기준 상위 3명
+  const topMovers = useMemo(
+    () =>
+      chart
+        .filter((c) => c.rank_change !== null && c.rank_change > 0)
+        .sort((a, b) => (b.rank_change ?? 0) - (a.rank_change ?? 0))
+        .slice(0, 3),
+    [chart]
+  )
+
   // 트렌드 그래프용 좌표 — youtube_weekly_views 시계열
   const trendPath = useMemo(() => {
     if (!spotlight) return null
@@ -438,6 +448,66 @@ export default function KpopStatsPage() {
           )}
         </section>
 
+        {/* 이번 주 급상승 아티스트 TOP 3 — rank_change 상위 3명 자동 선정 */}
+        {!chartLoading && topMovers.length > 0 && (
+        <section className="mb-12">
+          <div className="mb-5">
+            <h2 className="text-2xl font-semibold text-white flex items-center gap-2">
+              <TrendingUp className="w-6 h-6 text-green-500" />
+              이번 주 급상승 아티스트
+            </h2>
+            <p className="text-muted-foreground text-sm mt-1">
+              지난주 대비 순위 상승폭 기준 TOP 3
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {topMovers.map((item) => {
+              const isRocket = (item.rank_change ?? 0) >= 10
+              const insight = isRocket
+                ? `↑${item.rank_change} 지난주 대비 급상승`
+                : `↑${item.rank_change} 지난주 대비 상승`
+              return (
+                <Link
+                  key={item.artist_id}
+                  href={`/kpop/${item.artist_id}`}
+                  className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex items-center gap-4 hover:bg-[#2a2a2c] hover:border-green-500/40 transition-colors"
+                >
+                  {/* 상승폭 배지 */}
+                  <div className="flex-shrink-0 w-14 h-14 rounded-xl bg-green-500/10 flex flex-col items-center justify-center gap-0.5">
+                    <TrendingUp className="w-4 h-4 text-green-500" />
+                    <span className="text-green-500 font-bold text-sm leading-none">
+                      +{item.rank_change}
+                    </span>
+                  </div>
+                  {/* 아티스트 정보 */}
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {item.thumbnail_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.thumbnail_url}
+                        alt={item.name}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0 bg-[#252525]"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#252525] flex-shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-foreground font-medium truncate">{item.name}</p>
+                      {item.name_ko && (
+                        <p className="text-muted-foreground text-xs truncate">{item.name_ko}</p>
+                      )}
+                      <p className="text-green-500 text-xs mt-0.5">{insight}</p>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
+        )}
+
         {/* Global Chart */}
         <section className="mb-12">
           <div className="mb-6">
@@ -525,28 +595,18 @@ export default function KpopStatsPage() {
                   </div>
 
                   {/* Change */}
-                  <div className="col-span-2 flex items-center justify-end gap-1">
+                  <div className="col-span-2 flex items-center justify-end">
                     {item.rank_change === null ? (
-                      <>
-                        <Minus className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">—</span>
-                      </>
+                      <span className="text-xs font-semibold bg-green-500/15 text-green-400 px-2 py-0.5 rounded-full">NEW</span>
+                    ) : item.rank_change >= 10 ? (
+                      <span className="text-green-400 font-medium text-sm">↑{item.rank_change} 급상승</span>
                     ) : item.rank_change > 0 ? (
-                      <>
-                        <TrendingUp className="w-4 h-4 text-green-500" />
-                        <span className="text-green-500 font-medium">+{item.rank_change}</span>
-                      </>
+                      <span className="text-green-400 font-medium text-sm">↑{item.rank_change} 상승</span>
+                    ) : item.rank_change <= -10 ? (
+                      <span className="text-red-400 font-medium text-sm">↓{Math.abs(item.rank_change)} 급하락</span>
                     ) : item.rank_change < 0 ? (
-                      <>
-                        <TrendingDown className="w-4 h-4 text-red-500" />
-                        <span className="text-red-500 font-medium">{item.rank_change}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Minus className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">0</span>
-                      </>
-                    )}
+                      <span className="text-red-400 font-medium text-sm">↓{Math.abs(item.rank_change)} 하락</span>
+                    ) : null}
                   </div>
                 </Link>
               ))

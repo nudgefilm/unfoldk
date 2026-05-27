@@ -16,13 +16,14 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 export const revalidate = 3600
 
-type CategoryKey = "filming" | "attractions" | "culture" | "festivals" | "stays" | "food"
+type CategoryKey = "filming" | "attractions" | "culture" | "festivals" | "stays" | "food" | "shopping"
 
 const TOUR_TYPE_TO_KEY: Record<number, CategoryKey> = {
   12: "attractions",
   14: "culture",
   15: "festivals",
   32: "stays",
+  38: "shopping",
   39: "food",
 }
 
@@ -33,10 +34,11 @@ interface RegionBreakdown {
   festivals: number
   stays: number
   food: number
+  shopping: number
 }
 
 function emptyBreakdown(): RegionBreakdown {
-  return { filming: 0, attractions: 0, culture: 0, festivals: 0, stays: 0, food: 0 }
+  return { filming: 0, attractions: 0, culture: 0, festivals: 0, stays: 0, food: 0, shopping: 0 }
 }
 
 // filming_spots.region 텍스트 → area_code 매핑 (필요한 area_code 만 등록)
@@ -83,6 +85,7 @@ export async function GET() {
     festivals: 0,
     stays: 0,
     food: 0,
+    shopping: 0,
   }
   const errors: string[] = []
 
@@ -177,7 +180,8 @@ export async function GET() {
     counts.culture +
     counts.festivals +
     counts.stays +
-    counts.food
+    counts.food +
+    counts.shopping
 
   return NextResponse.json(
     {

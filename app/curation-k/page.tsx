@@ -43,6 +43,7 @@ import {
   MicVocal,
   UtensilsCrossed,
   Hotel,
+  ShoppingBag,
   ChevronRight,
   Globe,
   Landmark,
@@ -235,8 +236,8 @@ interface SpotItem {
   longitude: number | null
 }
 
-// 통합 탭 — 사용자 spec 순서: [촬영지] [관광지] [맛집] [숙박] [문화시설] [축제·행사]
-type TabKey = "filming" | "attractions" | "food" | "stays" | "culture" | "festivals"
+// 통합 탭 — 사용자 spec 순서: [촬영지] [관광지] [맛집] [숙박] [문화시설] [쇼핑] [축제·행사]
+type TabKey = "filming" | "attractions" | "food" | "stays" | "culture" | "shopping" | "festivals"
 
 interface TabDef {
   key: TabKey
@@ -287,6 +288,14 @@ const TABS: readonly TabDef[] = [
     color: "#f472b6",
     proLocked: true,
     emptyMessage: "No cultural venues in this view.",
+  },
+  {
+    key: "shopping",
+    label: "Shopping",
+    Icon: ShoppingBag,
+    color: "#a3e635",
+    proLocked: true,
+    emptyMessage: "No shopping spots in this view.",
   },
   {
     key: "festivals",
@@ -453,6 +462,7 @@ interface RegionStatsBreakdown {
   festivals: number
   stays: number
   food: number
+  shopping: number
 }
 
 interface CurationStats {
@@ -463,6 +473,7 @@ interface CurationStats {
   festivals: number
   stays: number
   food: number
+  shopping: number
   byRegion: Record<string, RegionStatsBreakdown>
 }
 
@@ -1473,7 +1484,7 @@ export default function CurationKPage() {
                   </p>
                 </div>
 
-                {/* 통계 배지 — Filming · Attractions · Food */}
+                {/* 통계 배지 — Filming · Attractions · Food · Shopping(데이터 있을 때만) */}
                 {stats && (
                   <div className="mt-6 pt-5 border-t border-border/30">
                     <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">
@@ -1500,6 +1511,17 @@ export default function CurationKPage() {
                         </span>
                         <span className="text-muted-foreground text-xs">Food</span>
                       </span>
+                      {stats.shopping > 0 && (
+                        <>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="inline-flex items-baseline gap-1.5">
+                            <span className="font-semibold" style={{ color: "#a3e635" }}>
+                              {stats.shopping.toLocaleString()}
+                            </span>
+                            <span className="text-muted-foreground text-xs">Shopping</span>
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1584,13 +1606,15 @@ export default function CurationKPage() {
             )}
           </div>
 
-          {/* 탭 바 — Pro 잠금 탭은 자물쇠 아이콘 표기 */}
+          {/* 탭 바 — Pro 잠금 탭은 자물쇠 아이콘 표기 / Shopping은 데이터 있을 때만 노출 */}
           <div
             role="tablist"
             aria-label="Curation K categories"
             className="flex flex-wrap gap-2 mb-6"
           >
-            {TABS.map((tab) => {
+            {TABS.filter((tab) =>
+              tab.key !== "shopping" || (stats !== null && stats.shopping > 0)
+            ).map((tab) => {
               const isActive = activeTab === tab.key
               const showLock = tab.proLocked && !isPro
               return (
