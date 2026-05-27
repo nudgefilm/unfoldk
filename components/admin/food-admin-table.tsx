@@ -25,6 +25,7 @@ export interface FoodAdminRow {
 type Filter = "all" | "with" | "without"
 const MAX_BYTES = 5 * 1024 * 1024
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"])
+const PAGE_SIZE = 50
 
 export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
   const { toast } = useToast()
@@ -32,6 +33,7 @@ export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
   const [filter, setFilter] = useState<Filter>("all")
   const [search, setSearch] = useState("")
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -45,6 +47,14 @@ export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
       return inKo || inEn || inSeq
     })
   }, [rows, filter, search])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  // 필터·검색 변경 시 1페이지로 리셋
+  const setFilterReset = (f: Filter) => { setFilter(f); setPage(1) }
+  const setSearchReset = (s: string) => { setSearch(s); setPage(1) }
 
   const editing = editingId ? rows.find((r) => r.id === editingId) ?? null : null
 
@@ -74,7 +84,7 @@ export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
             <button
               key={key}
               type="button"
-              onClick={() => setFilter(key)}
+              onClick={() => setFilterReset(key)}
               className={`text-xs px-3 py-1.5 rounded-md ${
                 filter === key
                   ? "bg-[#252525] text-foreground"
@@ -89,11 +99,11 @@ export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
           type="search"
           placeholder="recipe_nm / title_en / mafra_rcp_seq 검색"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => setSearchReset(e.target.value)}
           className="max-w-sm bg-[#1a1a1a] border-[#2a2a2a]"
         />
         <span className="text-xs text-muted-foreground ml-auto">
-          {filtered.length.toLocaleString()} / {rows.length.toLocaleString()}
+          {filtered.length.toLocaleString()} / {rows.length.toLocaleString()}건 · {safePage}/{totalPages}p
         </span>
       </div>
 
@@ -110,7 +120,7 @@ export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
+            {paged.map((r) => (
               <tr key={r.id} className="border-b border-[#2a2a2a] last:border-b-0">
                 <td className="px-4 py-2.5 text-muted-foreground tabular-nums">
                   {r.mafra_rcp_seq ?? "-"}
@@ -150,7 +160,7 @@ export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {paged.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground text-sm">
                   검색 결과가 없습니다.
@@ -160,6 +170,35 @@ export function FoodAdminTable({ rows: initial }: { rows: FoodAdminRow[] }) {
           </tbody>
         </table>
       </div>
+
+      {/* 페이지네이션 */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={safePage <= 1}
+            className="bg-transparent border-[#3a3a3a] text-foreground hover:bg-[#252525] disabled:opacity-40"
+          >
+            ← 이전
+          </Button>
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {safePage} / {totalPages}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={safePage >= totalPages}
+            className="bg-transparent border-[#3a3a3a] text-foreground hover:bg-[#252525] disabled:opacity-40"
+          >
+            다음 →
+          </Button>
+        </div>
+      )}
 
       <FoodImageEditDialog
         row={editing}

@@ -10,6 +10,12 @@
 
 #### A. 이번 세션 작업 (세션 28)
 
+- **KfoodKit 어드민 레시피 목록 페이지네이션** (`components/admin/food-admin-table.tsx`)
+  - 페이지당 50개 표시 (`PAGE_SIZE = 50`)
+  - 이전/다음 버튼 + "현재p / 전체p" 카운트 표시
+  - 필터·검색 변경 시 1페이지 자동 리셋
+  - totalPages ≤ 1이면 컨트롤 미노출
+
 - **KfoodKit 어드민 이미지 검수 페이지** (`app/admin/food/images/page.tsx`, `components/admin/food-image-review.tsx`, `app/api/admin/food/images/route.ts`)
   - image_source IN ('mfds', 'unsplash') OR NULL 레시피 카드 목록
   - 업로드 or URL 입력 후 저장 시 카드 즉시 제거 (낙관적 업데이트)
