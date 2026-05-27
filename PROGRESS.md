@@ -4,11 +4,36 @@
 
 ---
 
-## 현재 상태 (2026-05-26 세션 26 / UI 버그 수정 2건)
+## 현재 상태 (2026-05-28 세션 27 / KfoodKit·cron·결제·차트 개선)
 
 ### 완료
 
-#### A. UI 버그 수정 2건 (세션 26)
+#### A. 이번 세션 작업 (세션 27)
+
+- **KfoodKit DramaFoodGuideSection 데이터 파이프라인** (`scripts/tag-food-drama.ts`)
+  - Claude Haiku 배치 API로 food_recipes에 drama_title·episode_tag·scene_description 자동 태깅
+  - `category` 컬럼 오류 수정 (존재하지 않는 컬럼 제거)
+  - featured_week 자동 설정 (드라마별 최대 3개 × 3드라마)
+
+- **Cron 개편 + 어드민 수집 현황 동적화**
+  - vercel.json: KdramaMatch·KfoodKit 주 1회(월), ingest-curation-k 통합 cron 추가
+  - lib/ingest/tour-spots.ts: 쇼핑(38) 카테고리 추가, route 필터 수정
+  - app/admin/page.tsx: 수집 현황 hardcoded "수동관리" → cron_logs 기반 동적 상태 조회
+  - supabase/migrations/0047·0048 적용 완료 ✅
+
+- **결제 버튼 임시 안내 모달** (`components/payment-coming-soon-modal.tsx`)
+  - 모든 결제 버튼(start·subscription 페이지) 클릭 시 결제 준비 중 안내 모달 표시
+  - support@unfoldk.com 수동 멤버십 활성화 안내 포함
+
+- **KpopStats 30-Day Trend 차트 개선** (`components/kpop/artist-trend-chart.tsx`)
+  - recharts 기반 클라이언트 컴포넌트로 교체
+  - x축 날짜(May 1, May 7…)·y축 조회수(1M, 10M…) 표시, 호버 툴팁, 기간 레이블 추가
+
+- **HallyuCalendar 아티스트 stats 연결** (`app/calendar/page.tsx`)
+  - K-pop 이벤트 카드 하단에 "View artist stats →" 링크 추가
+  - events 로드 후 kpop_artists 룩업 → /kpop/[id] 연결, 미매칭 시 미노출
+
+#### B. UI 버그 수정 2건 (세션 26)
 
 - **KpopStats 히어로 가림 수정** (`app/kpop/page.tsx`)
   - 공지 배너 + Trial 배너 2개 동시 표시 시 히어로 섹션 상단이 fixed 헤더에 가리는 문제
@@ -93,6 +118,13 @@
 
 > **DB 컬럼 확인 필수**: 코드 작성 전 반드시 실제 DB 테이블 구조를 먼저 확인하고 존재하는 컬럼명만 사용할 것. 가정하거나 추측으로 컬럼명을 사용하지 않는다.
 
+> **UI/기능 구현 완료 전 체크리스트**: 모든 UI/기능 구현 시 아래 항목을 반드시 체크하고 조치할 것.
+> 1. 유저가 보기에 어색한 부분이 없는가
+> 2. 빠진 UI 요소가 없는가 (축 표시, 툴팁, 레이블, 날짜 등)
+> 3. 모바일 반응형이 적용됐는가
+> 4. 데이터 없을 때 빈 화면/오류 없이 처리되는가
+> 5. 프로토타입 수준이 아닌 실제 서비스 수준인가
+
 ---
 
 ## 개선 플랜 (세션 27~ / 콘텐츠 깊이 + 서비스 간 연결 강화)
@@ -128,7 +160,7 @@
 
 ### 5. HallyuCalendar — 큐레이션 강화
 - [ ] "이번 주 놓치면 안 될 한류 일정 TOP 3" 편집 큐레이션 뷰 추가
-- [ ] 해당 아티스트 KpopStats 차트 연결 링크
+- [x] 해당 아티스트 KpopStats 차트 연결 링크 (세션 27 완료)
 
 ### 6. KpopStats — 스토리 있는 데이터
 - [ ] 순위 변동에 한 줄 인사이트 추가 ("지난주 대비 +15위 급상승 — 신보 발매 영향")
