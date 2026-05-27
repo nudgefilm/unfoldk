@@ -1,15 +1,16 @@
-// Curation K — TourAPI 5개 카테고리 통합 수집 + Claude 영문 번역
+// Curation K — TourAPI 6개 카테고리 통합 수집 + Claude 영문 번역
 //
 // 카테고리:
 //   12: 관광지       — intervalDays 7
 //   14: 문화시설     — intervalDays 7
 //   15: 축제·행사    — intervalDays 1 (당해년도 1/1 ~ 오늘 + 18개월)
 //   32: 숙박         — intervalDays 7
+//   38: 쇼핑         — intervalDays 7 (2026-05-28 추가)
 //   39: 음식점       — intervalDays 7
 //
-// 2026-05-22: 비축제 4종을 30일 → 7일로 단축. vercel.json 의 ingest-curation-k 전체
-// cron 도 같은 날 월 1회 → 매주 월요일 03:00 UTC 로 변경 — cron 진입 빈도와 카테고리
-// intervalDays 가드를 함께 주 1회로 맞추기 위함.
+// 2026-05-22: 비축제 4종을 30일 → 7일로 단축.
+// 2026-05-28: 쇼핑(38) 추가, ingest-curation-k 단일 주간 cron 으로 통합
+//   (ingest-tour-spots 주간 + ingest-filming-kpop 주간 → ingest-curation-k 주간).
 //
 // 수집 로직:
 //   1) cron_logs 에서 본 카테고리 마지막 성공 시각 조회
@@ -64,12 +65,13 @@ interface CategoryConfig {
   intervalDays: number     // 마지막 성공으로부터 이 일수 미만이면 skip
 }
 
-// 실행 순서 — 사용자 요청 spec: [15, 12, 14, 32, 39]
+// 실행 순서 — [15, 12, 14, 32, 38, 39]. 0048 마이그레이션으로 38 CHECK 제약 추가됨.
 const CATEGORIES: readonly CategoryConfig[] = [
   { contentTypeId: CONTENT_TYPE.FESTIVAL, name: "축제·행사", intervalDays: 1 },
   { contentTypeId: CONTENT_TYPE.TOURIST_SPOT, name: "관광지", intervalDays: 7 },
   { contentTypeId: CONTENT_TYPE.CULTURAL, name: "문화시설", intervalDays: 7 },
   { contentTypeId: CONTENT_TYPE.LODGING, name: "숙박", intervalDays: 7 },
+  { contentTypeId: CONTENT_TYPE.SHOPPING, name: "쇼핑", intervalDays: 7 },
   { contentTypeId: CONTENT_TYPE.RESTAURANT, name: "음식점", intervalDays: 7 },
 ] as const
 
@@ -105,10 +107,11 @@ async function getLastCategorySuccess(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
   contentTypeId: number
 ): Promise<Date | null> {
+  // ingest-curation-k (신규) 와 ingest-tour-spots (구) 모두 확인 — 이관 전 기록도 유효하게 처리
   const { data, error } = await supabase
     .from("cron_logs")
     .select("result_json, executed_at")
-    .eq("route", "ingest-curation-k")
+    .in("route", ["ingest-curation-k", "ingest-tour-spots"])
     .eq("status", "success")
     .order("executed_at", { ascending: false })
     .limit(20)

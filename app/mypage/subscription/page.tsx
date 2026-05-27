@@ -37,6 +37,7 @@ import {
   Sparkles,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { PaymentComingSoonModal } from "@/components/payment-coming-soon-modal"
 
 const sidebarLinks = [
   { icon: Home, label: "Dashboard", href: "/mypage" },
@@ -66,6 +67,7 @@ export default function SubscriptionPage() {
   const [userName, setUserName] = useState<string>("")
   const [userInitial, setUserInitial] = useState<string>("U")
   const [userAvatar, setUserAvatar] = useState<string | null>(null)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
 
   // 인증 + 프로필 + plan_type 로드 — middleware 가 비로그인 가드 처리
   useEffect(() => {
@@ -236,14 +238,13 @@ export default function SubscriptionPage() {
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <Link href="/mypage/subscription/payment">
-                      <Button
-                        variant="outline"
-                        className="rounded-full border-border/50 hover:bg-secondary/50"
-                      >
-                        Change payment method
-                      </Button>
-                    </Link>
+                    <Button
+                      variant="outline"
+                      className="rounded-full border-border/50 hover:bg-secondary/50"
+                      onClick={() => setShowPaymentModal(true)}
+                    >
+                      Change payment method
+                    </Button>
                     <Link href="/mypage/subscription/cancel">
                       <Button
                         variant="outline"
@@ -331,14 +332,13 @@ export default function SubscriptionPage() {
                     </div>
                     <p className="text-muted-foreground text-sm mb-4">Billed monthly. Cancel anytime.</p>
                     {planType !== "monthly" && (
-                      <a href="/api/lemonsqueezy/switch?plan=monthly">
-                        <Button
-                          className="w-full rounded-full font-medium text-white"
-                          style={{ backgroundColor: "#FF4B6E" }}
-                        >
-                          Switch to Monthly
-                        </Button>
-                      </a>
+                      <Button
+                        className="w-full rounded-full font-medium text-white"
+                        style={{ backgroundColor: "#FF4B6E" }}
+                        onClick={() => setShowPaymentModal(true)}
+                      >
+                        Switch to Monthly
+                      </Button>
                     )}
                   </div>
 
@@ -365,14 +365,13 @@ export default function SubscriptionPage() {
                     </div>
                     <p className="text-muted-foreground text-sm mb-4">$120/year, billed annually</p>
                     {planType !== "annual" && (
-                      <a href="/api/lemonsqueezy/switch?plan=annual">
-                        <Button
-                          className="w-full rounded-full font-medium text-white"
-                          style={{ backgroundColor: "#FF4B6E" }}
-                        >
-                          Switch to Annual
-                        </Button>
-                      </a>
+                      <Button
+                        className="w-full rounded-full font-medium text-white"
+                        style={{ backgroundColor: "#FF4B6E" }}
+                        onClick={() => setShowPaymentModal(true)}
+                      >
+                        Switch to Annual
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -403,6 +402,7 @@ export default function SubscriptionPage() {
       </div>
 
       <FooterSection />
+      <PaymentComingSoonModal open={showPaymentModal} onOpenChange={setShowPaymentModal} />
     </div>
   )
 }
@@ -415,6 +415,7 @@ function FreeUserView() {
   const router = useRouter()
   // Redeem 모달 — 쿠폰 성공 시 닫고 페이지 refresh 로 plan_type 즉시 반영
   const [redeemOpen, setRedeemOpen] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
   return (
     <>
       {/* Section 1: Current Plan — Free */}
@@ -450,18 +451,13 @@ function FreeUserView() {
               <span className="text-muted-foreground">/month</span>
             </div>
             <p className="text-muted-foreground text-sm mb-5">Billed monthly. Cancel anytime.</p>
-            <a
-              href="/api/lemonsqueezy/checkout?plan=monthly"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Button
+              className="w-full rounded-full font-medium text-white"
+              style={{ backgroundColor: "#FF4B6E" }}
+              onClick={() => setShowPaymentModal(true)}
             >
-              <Button
-                className="w-full rounded-full font-medium text-white"
-                style={{ backgroundColor: "#FF4B6E" }}
-              >
-                Upgrade to Monthly — $15/mo
-              </Button>
-            </a>
+              Upgrade to Monthly — $15/mo
+            </Button>
           </div>
 
           {/* Annual Upgrade */}
@@ -481,18 +477,13 @@ function FreeUserView() {
               <span className="text-muted-foreground">/month</span>
             </div>
             <p className="text-muted-foreground text-sm mb-5">$120/year, billed annually</p>
-            <a
-              href="/api/lemonsqueezy/checkout?plan=annual"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Button
+              className="w-full rounded-full font-medium text-white"
+              style={{ backgroundColor: "#FF4B6E" }}
+              onClick={() => setShowPaymentModal(true)}
             >
-              <Button
-                className="w-full rounded-full font-medium text-white"
-                style={{ backgroundColor: "#FF4B6E" }}
-              >
-                Upgrade to Annual — $10/mo
-              </Button>
-            </a>
+              Upgrade to Annual — $10/mo
+            </Button>
           </div>
         </div>
       </section>
@@ -545,6 +536,7 @@ function FreeUserView() {
           </div>
         </div>
       </section>
+      <PaymentComingSoonModal open={showPaymentModal} onOpenChange={setShowPaymentModal} />
     </>
   )
 }

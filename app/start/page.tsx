@@ -24,6 +24,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { PaymentComingSoonModal } from "@/components/payment-coming-soon-modal"
 
 // useSearchParams() 는 Suspense boundary 안에서만 사용 가능 — Next.js 빌드 요구사항
 export default function StartPage() {
@@ -51,6 +52,7 @@ function StartPageInner() {
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
   const [authChecked, setAuthChecked] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
 
   // 진입 가드 — 비로그인이면 / 로
   useEffect(() => {
@@ -106,13 +108,18 @@ function StartPageInner() {
       return
     }
 
-    // 유료 플랜 — Lemon Squeezy 호스팅 체크아웃을 새 탭으로 오픈
-    //   · 서버 라우트가 user.email + user.id 를 URL 에 임베드 후 LMS 로 302
-    //   · 원래 탭은 /mypage 로 이동 (가입은 이미 free 로 락인 완료 — 결제 도중 이탈해도
-    //     free 사용 가능. 결제 완료 시 webhook 이 plan_type 업그레이드).
-    window.open(`/api/lemonsqueezy/checkout?plan=${planChoice}`, "_blank", "noopener,noreferrer")
-    router.push(nextPath)
-    router.refresh()
+    // 유료 플랜 — 결제 시스템 준비 중 안내 모달 표시 (결제 연동 전 임시 정책)
+    // 결제 연동 후: window.open(`/api/lemonsqueezy/checkout?plan=${planChoice}`) 로 복원
+    setIsLoading(false)
+    setShowPaymentModal(true)
+  }
+
+  const handlePaymentModalClose = (open: boolean) => {
+    setShowPaymentModal(open)
+    if (!open) {
+      router.push(nextPath)
+      router.refresh()
+    }
   }
 
   // 인증 검사 전엔 빈 화면 (깜빡임 방지)
@@ -123,6 +130,7 @@ function StartPageInner() {
       className="min-h-screen flex flex-col items-center justify-center px-4 py-8"
       style={{ backgroundColor: "#0d0d0f" }}
     >
+      <PaymentComingSoonModal open={showPaymentModal} onOpenChange={handlePaymentModalClose} />
       {/* Radial Gradient Glow */}
       <div
         className="absolute inset-0 pointer-events-none"
