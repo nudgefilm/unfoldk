@@ -1,9 +1,26 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { StartModal } from "@/components/start-modal"
 import { Button } from "@/components/ui/button"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 export function EarlyAccessSection() {
+  const router = useRouter()
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session?.user)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   return (
     <section className="w-full px-5">
       <div
@@ -30,17 +47,28 @@ export function EarlyAccessSection() {
           UnfoldK is in early access. Join now and shape the future of K-culture discovery.
         </p>
 
-        <StartModal
-          trigger={
-            <Button
-              className="px-8 py-3 text-base font-medium rounded-[99px] text-white shadow-[0px_0px_0px_4px_rgba(255,75,110,0.2)] hover:opacity-90 transition-all duration-200"
-              style={{ backgroundColor: "#FF4B6E" }}
-              size="lg"
-            >
-              Start for Free
-            </Button>
-          }
-        />
+        {isLoggedIn ? (
+          <Button
+            className="px-8 py-3 text-base font-medium rounded-[99px] text-white shadow-[0px_0px_0px_4px_rgba(255,75,110,0.2)] hover:opacity-90 transition-all duration-200"
+            style={{ backgroundColor: "#FF4B6E" }}
+            size="lg"
+            onClick={() => router.push("/mypage")}
+          >
+            Go to my dashboard
+          </Button>
+        ) : (
+          <StartModal
+            trigger={
+              <Button
+                className="px-8 py-3 text-base font-medium rounded-[99px] text-white shadow-[0px_0px_0px_4px_rgba(255,75,110,0.2)] hover:opacity-90 transition-all duration-200"
+                style={{ backgroundColor: "#FF4B6E" }}
+                size="lg"
+              >
+                Start for Free
+              </Button>
+            }
+          />
+        )}
       </div>
     </section>
   )
