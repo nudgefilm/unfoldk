@@ -216,7 +216,7 @@ export default function KpopStatsPage() {
       .then((r) => (r.ok ? r.json() : { items: [] }))
       .then((data: { items?: ArtistListItem[] }) => {
         const chartIds = new Set(chart.map((c) => c.artist_id))
-        const rest = (data.items ?? []).filter((a) => !chartIds.has(a.id)).slice(0, 20)
+        const rest = (data.items ?? []).filter((a) => !chartIds.has(a.id)).slice(0, 21)
         setMoreArtists(rest)
       })
       .catch((err) => {
@@ -627,23 +627,21 @@ export default function KpopStatsPage() {
           )}
         </section>
 
-        {/* More Artists — Top 20 외 아티스트. listeners 순으로 20명. CLAUDE.md §6 노출 원칙. */}
+        {/* More Artists — Top 20 외 아티스트. listeners 순으로 21명. CLAUDE.md §6 노출 원칙. */}
         {moreArtists.length > 0 && (
           <section className="mb-12">
-            <div className="flex items-end justify-between mb-6">
-              <h2 className="text-2xl font-semibold text-white">More Artists</h2>
-              <Link
-                href="/kpop/artists"
-                className="text-sm font-medium hover:underline"
-                style={{ color: "#FF4B6E" }}
-              >
-                View all artists →
-              </Link>
-            </div>
+            <h2 className="text-2xl font-semibold text-white mb-6">More Artists</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {moreArtists.map((a) => (
                 <ArtistCard key={a.id} item={a} />
               ))}
+            </div>
+            <div className="flex justify-center mt-6">
+              <Link href="/kpop/artists">
+                <Button variant="outline" className="rounded-full px-6">
+                  View all artists
+                </Button>
+              </Link>
             </div>
           </section>
         )}
