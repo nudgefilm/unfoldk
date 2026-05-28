@@ -77,6 +77,24 @@ export async function middleware(request: NextRequest) {
     return redirectWithCookies(url, supabaseResponse)
   }
 
+  // agreed_to_terms 미완료 로그인 유저 → /start 리디렉트
+  // /start 미완료 후 재로그인 시 OAuth 콜백 없이 /mypage 직접 진입 가능한 경로 차단
+  if (user && isMypage) {
+    const { data: profile } = await supabase
+      .from("users")
+      .select("agreed_to_terms")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    if (profile?.agreed_to_terms !== true) {
+      console.log("[middleware/onboarding] agreed_to_terms 미완료 → /start", { userId: user.id })
+      const url = request.nextUrl.clone()
+      url.pathname = "/start"
+      url.searchParams.set("new", "true")
+      return redirectWithCookies(url, supabaseResponse)
+    }
+  }
+
   // /admin 로그인했으나 is_admin 아님 → 홈으로
   // ⚠️ users 테이블 직접 select 대신 SECURITY DEFINER RPC 사용
   //    0005 의 admin 정책이 users 를 self-reference 해 RLS 평가가
