@@ -54,10 +54,10 @@ function dateStrOffset(daysAgo: number): string {
 }
 
 export function ArtistTrendChart({ history }: { history: DataRow[] }) {
-  // 실제 데이터 룩업 맵
+  // 실제 데이터 룩업 맵 — 0 또는 null 은 제외 (0 은 수집 오류로 간주, 차트에서 gap 처리)
   const dataMap = new Map<string, number>()
   for (const row of history) {
-    if (row.youtube_weekly_views !== null) {
+    if (row.youtube_weekly_views !== null && row.youtube_weekly_views > 0) {
       dataMap.set(row.date, row.youtube_weekly_views)
     }
   }
