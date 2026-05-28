@@ -109,6 +109,23 @@ export async function postChannelMessage(
   }
 }
 
+// Webhook 방식 — 봇 권한 불필요. URL 자체가 인증 토큰 역할.
+// wait=true → Discord가 메시지 생성 완료 후 응답 (오류 감지 보장).
+export async function postWebhookMessage(
+  webhookUrl: string,
+  payload: { embeds: DiscordEmbed[]; content?: string }
+): Promise<void> {
+  const res = await fetch(`${webhookUrl}?wait=true`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Discord Webhook POST ${res.status}: ${body}`)
+  }
+}
+
 // 슬래시 명령 등록 — guild-scoped (즉시 반영). global 은 최대 1시간 지연.
 export async function registerGuildCommands(
   commands: unknown[]

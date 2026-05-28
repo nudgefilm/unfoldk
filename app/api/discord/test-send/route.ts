@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import {
   postChannelMessage,
+  postWebhookMessage,
   resolveChannelIdByName,
   type DiscordEmbed,
 } from "@/lib/discord/bot"
@@ -35,26 +36,21 @@ const LEGACY_CHANNEL_NAMES: Record<ChannelKey, string> = {
   korean: "korean-phrase",
 }
 
+function getWebhookUrls(): Record<ChannelKey, string> | null {
+  const schedule = process.env.DISCORD_WEBHOOK_SCHEDULE
+  const charts = process.env.DISCORD_WEBHOOK_CHARTS
+  const drama = process.env.DISCORD_WEBHOOK_DRAMA
+  const korean = process.env.DISCORD_WEBHOOK_KOREAN
+  if (!schedule || !charts || !drama || !korean) return null
+  return { schedule, charts, drama, korean }
+}
+
 interface PostResult {
-  guild_id: string
   channel: ChannelKey
+  method: "webhook" | "bot"
   channel_id?: string
   status: "posted" | "channel_not_found" | "error"
   error?: string
-}
-
-async function resolveChannelId(
-  guildId: string,
-  key: ChannelKey,
-  settings: DiscordServerSettings | undefined
-): Promise<string | null> {
-  if (settings) return resolveChannelForKey(settings, key)
-  try {
-    return await resolveChannelIdByName(LEGACY_CHANNEL_NAMES[key], guildId)
-  } catch (err) {
-    console.error(`[test-send legacy resolve ${guildId} ${key}]`, err)
-    return null
-  }
 }
 
 export async function GET() {
@@ -65,28 +61,17 @@ export async function GET() {
   const { data: isAdminUser } = await supabase.rpc("is_admin", { uid: user.id })
   if (!isAdminUser) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  if (!process.env.DISCORD_BOT_TOKEN) {
-    return NextResponse.json({ error: "DISCORD_BOT_TOKEN 미설정" }, { status: 500 })
+  const webhooks = getWebhookUrls()
+  const usingWebhook = webhooks !== null
+
+  if (!usingWebhook && !process.env.DISCORD_BOT_TOKEN) {
+    return NextResponse.json(
+      { error: "DISCORD_WEBHOOK_* 4개 또는 DISCORD_BOT_TOKEN 중 하나 이상 필요" },
+      { status: 500 }
+    )
   }
 
   const t0 = Date.now()
-
-  // 발송 대상 서버 결정 (discord-daily 와 동일 로직)
-  const enrolled = await listAllServerSettings()
-  const enrolledMap = new Map(enrolled.map((s) => [s.guild_id, s]))
-  const envGuildId = process.env.DISCORD_GUILD_ID ?? null
-
-  const targetGuildIds = new Set<string>(enrolled.map((s) => s.guild_id))
-  if (envGuildId && !enrolledMap.has(envGuildId)) {
-    targetGuildIds.add(envGuildId)
-  }
-
-  if (targetGuildIds.size === 0) {
-    return NextResponse.json({
-      note: "No enrolled servers and no DISCORD_GUILD_ID",
-      enrolledSettings: enrolled,
-    })
-  }
 
   // Embed 빌드
   let embeds: Record<ChannelKey, DiscordEmbed>
@@ -110,34 +95,62 @@ export async function GET() {
     }, { status: 500 })
   }
 
-  // 전송
-  const allResults: PostResult[] = []
-  for (const guildId of targetGuildIds) {
-    const settings = enrolledMap.get(guildId)
+  const results: PostResult[] = []
+
+  if (usingWebhook) {
+    // Webhook 방식
     for (const key of CHANNEL_KEYS) {
+      const url = webhooks[key]
       try {
-        const channelId = await resolveChannelId(guildId, key, settings)
-        if (!channelId) {
-          allResults.push({ guild_id: guildId, channel: key, status: "channel_not_found" })
-          continue
-        }
-        await postChannelMessage(channelId, { embeds: [embeds[key]] })
-        allResults.push({ guild_id: guildId, channel: key, channel_id: channelId, status: "posted" })
+        await postWebhookMessage(url, { embeds: [embeds[key]] })
+        results.push({ channel: key, method: "webhook", status: "posted" })
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        allResults.push({ guild_id: guildId, channel: key, status: "error", error: msg })
+        results.push({ channel: key, method: "webhook", status: "error", error: err instanceof Error ? err.message : String(err) })
+      }
+    }
+  } else {
+    // Bot 토큰 방식
+    const enrolled = await listAllServerSettings()
+    const enrolledMap = new Map(enrolled.map((s) => [s.guild_id, s]))
+    const envGuildId = process.env.DISCORD_GUILD_ID ?? null
+
+    const targetGuildIds = new Set<string>(enrolled.map((s) => s.guild_id))
+    if (envGuildId && !enrolledMap.has(envGuildId)) targetGuildIds.add(envGuildId)
+
+    if (targetGuildIds.size === 0) {
+      return NextResponse.json({ error: "No enrolled servers and no DISCORD_GUILD_ID" })
+    }
+
+    for (const guildId of targetGuildIds) {
+      const settings = enrolledMap.get(guildId) as DiscordServerSettings | undefined
+      for (const key of CHANNEL_KEYS) {
+        try {
+          let channelId: string | null = null
+          if (settings) {
+            channelId = await resolveChannelForKey(settings, key)
+          } else {
+            try { channelId = await resolveChannelIdByName(LEGACY_CHANNEL_NAMES[key], guildId) } catch { /* skip */ }
+          }
+          if (!channelId) {
+            results.push({ channel: key, method: "bot", status: "channel_not_found" })
+            continue
+          }
+          await postChannelMessage(channelId, { embeds: [embeds[key]] })
+          results.push({ channel: key, method: "bot", channel_id: channelId, status: "posted" })
+        } catch (err) {
+          results.push({ channel: key, method: "bot", status: "error", error: err instanceof Error ? err.message : String(err) })
+        }
       }
     }
   }
 
-  const posted = allResults.filter((r) => r.status === "posted").length
-  const errors = allResults.filter((r) => r.status === "error").length
+  const posted = results.filter((r) => r.status === "posted").length
+  const errors = results.filter((r) => r.status === "error").length
 
   return NextResponse.json({
+    mode: usingWebhook ? "webhook" : "bot",
     elapsedMs: Date.now() - t0,
-    summary: { posted, errors, notFound: allResults.filter((r) => r.status === "channel_not_found").length },
-    enrolledSettings: enrolled,
-    targetGuilds: [...targetGuildIds],
-    results: allResults,
+    summary: { posted, errors, notFound: results.filter((r) => r.status === "channel_not_found").length },
+    results,
   }, { status: errors > 0 ? (posted > 0 ? 207 : 500) : 200 })
 }
