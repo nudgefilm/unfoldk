@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,8 @@ import {
 } from "@/components/ui/dialog"
 import { ContactForm } from "@/components/contact-form"
 import { Languages, GraduationCap } from "lucide-react"
+import { StartModal } from "@/components/start-modal"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 const services = [
   {
@@ -61,6 +64,19 @@ const stats = [
 ]
 
 export default function AboutPage() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session?.user)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   return (
     <div className="min-h-screen bg-background">
       <main className="max-w-[1320px] mx-auto px-5">
@@ -220,15 +236,28 @@ export default function AboutPage() {
             Ready to unfold Korean culture?
           </h2>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/signup">
-              <Button
-                className="px-8 py-3 rounded-full font-medium text-white"
-                style={{ backgroundColor: "#FF4B6E" }}
-              >
-                Start for free
-              </Button>
-            </Link>
-            <Link 
+            {isLoggedIn ? (
+              <Link href="/mypage">
+                <Button
+                  className="px-8 py-3 rounded-full font-medium text-white"
+                  style={{ backgroundColor: "#FF4B6E" }}
+                >
+                  Go to my dashboard
+                </Button>
+              </Link>
+            ) : (
+              <StartModal
+                trigger={
+                  <Button
+                    className="px-8 py-3 rounded-full font-medium text-white"
+                    style={{ backgroundColor: "#FF4B6E" }}
+                  >
+                    Start for free
+                  </Button>
+                }
+              />
+            )}
+            <Link
               href="/#pricing"
               className="font-medium hover:underline"
               style={{ color: "#FF4B6E" }}

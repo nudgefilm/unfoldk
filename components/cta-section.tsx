@@ -3,10 +3,27 @@
 // CTA 섹션 — Start 모달 단일화로 클라이언트 컴포넌트 전환
 // (StartModal 이 useState 를 쓰므로 클라이언트 경계 필요)
 
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { StartModal } from "@/components/start-modal"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 export function CTASection() {
+  const router = useRouter()
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session?.user)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   return (
     <section className="w-full pt-12 md:pt-28 lg:pt-32 pb-6 md:pb-12 px-5 relative flex flex-col justify-center items-center overflow-visible">
       <div className="absolute inset-0 top-[-90px]">
@@ -115,16 +132,26 @@ export function CTASection() {
             Never miss a comeback, drop, or drama. Join thousands of Hallyu fans on UnfoldK.
           </p>
         </div>
-        <StartModal
-          trigger={
-            <Button
-              className="px-[30px] py-2 bg-secondary text-secondary-foreground text-base font-medium leading-6 rounded-[99px] shadow-[0px_0px_0px_4px_rgba(255,255,255,0.13)] hover:bg-secondary/90 transition-all duration-200"
-              size="lg"
-            >
-              Start for free — no credit card needed
-            </Button>
-          }
-        />
+        {isLoggedIn ? (
+          <Button
+            className="px-[30px] py-2 bg-secondary text-secondary-foreground text-base font-medium leading-6 rounded-[99px] shadow-[0px_0px_0px_4px_rgba(255,255,255,0.13)] hover:bg-secondary/90 transition-all duration-200"
+            size="lg"
+            onClick={() => router.push("/mypage")}
+          >
+            Go to my dashboard
+          </Button>
+        ) : (
+          <StartModal
+            trigger={
+              <Button
+                className="px-[30px] py-2 bg-secondary text-secondary-foreground text-base font-medium leading-6 rounded-[99px] shadow-[0px_0px_0px_4px_rgba(255,255,255,0.13)] hover:bg-secondary/90 transition-all duration-200"
+                size="lg"
+              >
+                Start for free — no credit card needed
+              </Button>
+            }
+          />
+        )}
       </div>
     </section>
   )

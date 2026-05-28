@@ -245,14 +245,13 @@ export default function SubscriptionPage() {
                     >
                       Change payment method
                     </Button>
-                    <Link href="/mypage/subscription/cancel">
-                      <Button
-                        variant="outline"
-                        className="rounded-full border-border/50 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50"
-                      >
-                        Cancel subscription
-                      </Button>
-                    </Link>
+                    <Button
+                      variant="outline"
+                      className="rounded-full border-border/50 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50"
+                      onClick={() => setShowPaymentModal(true)}
+                    >
+                      Cancel subscription
+                    </Button>
                   </div>
                 </div>
               </section>
@@ -287,13 +286,13 @@ export default function SubscriptionPage() {
                               </span>
                             </td>
                             <td className="px-6 py-4">
-                              <Link
-                                href="/mypage/subscription/receipt"
+                              <button
                                 className="flex items-center gap-1 text-sm hover:underline"
                                 style={{ color: "#FF4B6E" }}
+                                onClick={() => setShowPaymentModal(true)}
                               >
                                 <Download className="w-4 h-4" /> Download
-                              </Link>
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -386,12 +385,12 @@ export default function SubscriptionPage() {
                         If you cancel, you&apos;ll keep access until{" "}
                         <span className="text-foreground">{expiresLabel}</span>.
                       </p>
-                      <Link
-                        href="/mypage/subscription/cancel"
+                      <button
                         className="text-sm font-medium hover:underline text-red-500"
+                        onClick={() => setShowPaymentModal(true)}
                       >
                         Cancel subscription
-                      </Link>
+                      </button>
                     </div>
                   </div>
                 </section>

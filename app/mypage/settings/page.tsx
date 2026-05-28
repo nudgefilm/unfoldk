@@ -9,10 +9,22 @@
 // ⚠️ users 테이블 RLS update 시 plan_type 은 절대 건드리지 말 것 (페어 컬럼 클래스 버그 — CLAUDE.md §7)
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { MypageShell } from "@/components/mypage/mypage-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/components/ui/use-toast"
@@ -29,11 +41,14 @@ export default function SettingsPage() {
 
 function SettingsBody() {
   const { toast } = useToast()
+  const router = useRouter()
   const [loaded, setLoaded] = useState(false)
   const [email, setEmail] = useState("")
   const [originalName, setOriginalName] = useState("")
   const [name, setName] = useState("")
   const [isSaving, setIsSaving] = useState(false)
+  const [planType, setPlanType] = useState<string>("free")
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -49,11 +64,12 @@ function SettingsBody() {
 
       const { data: profile } = await supabase
         .from("users")
-        .select("name")
+        .select("name, plan_type")
         .eq("id", user.id)
         .single()
 
-      const dbName = (profile as { name?: string | null } | null)?.name ?? ""
+      const dbName = (profile as { name?: string | null; plan_type?: string | null } | null)?.name ?? ""
+      const dbPlan = (profile as { plan_type?: string | null } | null)?.plan_type ?? "free"
       // DB name 없으면 Google full_name 으로 채우기
       const meta = (user.user_metadata ?? {}) as { full_name?: string }
       const initialName = dbName || meta.full_name?.trim() || ""
@@ -61,6 +77,7 @@ function SettingsBody() {
       if (!cancelled) {
         setOriginalName(initialName)
         setName(initialName)
+        setPlanType(dbPlan)
         setLoaded(true)
       }
     }
@@ -72,6 +89,26 @@ function SettingsBody() {
   }, [])
 
   const isDirty = name.trim() !== originalName.trim()
+  const hasActiveSub = planType === "monthly" || planType === "annual"
+
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    try {
+      const res = await fetch("/api/account/delete", { method: "POST" })
+      if (!res.ok) {
+        const body = (await res.json()) as { error?: string }
+        toast({ title: "Delete failed", description: body.error ?? "Please try again." })
+        setIsDeleting(false)
+        return
+      }
+      const supabase = createSupabaseBrowserClient()
+      await supabase.auth.signOut()
+      router.push("/")
+    } catch {
+      toast({ title: "Delete failed", description: "Network error. Please try again." })
+      setIsDeleting(false)
+    }
+  }
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -244,6 +281,56 @@ function SettingsBody() {
                 </a>
                 .
               </p>
+
+              <div className="border-t border-border/30 pt-4">
+                <p className="text-muted-foreground text-xs mb-3">
+                  Permanently deletes your account and all associated data.
+                </p>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" className="rounded-full">
+                      Delete Account
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                      <AlertDialogDescription asChild>
+                        <div className="space-y-2 text-sm text-muted-foreground">
+                          <p>
+                            This will permanently delete your account and all associated data.
+                            This action cannot be undone.
+                          </p>
+                          {hasActiveSub && (
+                            <p>
+                              You have an active subscription. Deleting your account will not
+                              automatically cancel it. Please cancel first or contact{" "}
+                              <a
+                                href="mailto:support@unfoldk.com"
+                                className="hover:underline"
+                                style={{ color: "#FF4B6E" }}
+                              >
+                                support@unfoldk.com
+                              </a>
+                              .
+                            </p>
+                          )}
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDelete}
+                        disabled={isDeleting}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {isDeleting ? "Deleting..." : "Delete Account"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </div>
           </section>
         </div>
