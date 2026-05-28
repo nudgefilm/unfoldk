@@ -73,9 +73,9 @@ export function ArtistTrendChart({ history }: { history: DataRow[] }) {
     }
   })
 
-  const hasAnyData = chartData.some((d) => d.views !== null)
+  const dataPointCount = chartData.filter((d) => d.views !== null).length
 
-  if (!hasAnyData) {
+  if (dataPointCount < 2) {
     return (
       <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
         Not enough data yet — check back soon.
@@ -125,7 +125,7 @@ export function ArtistTrendChart({ history }: { history: DataRow[] }) {
             stroke="#FF4B6E"
             strokeWidth={2}
             fill="url(#artistTrendGrad)"
-            connectNulls={false}
+            connectNulls={true}
             dot={(dotProps: { cx: number; cy: number; payload: { views: number | null }; key?: string }) => {
               if (dotProps.payload.views == null) return <g key={dotProps.key} />
               return (
