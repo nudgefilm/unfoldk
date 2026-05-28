@@ -60,13 +60,13 @@ export async function GET() {
     dbChannelChecks[s.guild_id] = Object.fromEntries(checks)
   }
 
-  // 6) cron_logs 최근 discord-daily 실패 기록
+  // 6) cron_logs 최근 discord-daily 기록 (컬럼: route, executed_at, result_json)
   const admin = createSupabaseAdminClient()
   const { data: recentLogs } = await admin
     .from("cron_logs")
-    .select("created_at, status, payload")
-    .eq("source", "discord-daily")
-    .order("created_at", { ascending: false })
+    .select("executed_at, status, result_json")
+    .eq("route", "discord-daily")
+    .order("executed_at", { ascending: false })
     .limit(5)
 
   return NextResponse.json({
