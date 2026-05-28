@@ -270,18 +270,6 @@ function SettingsBody() {
                 <span>GDPR &amp; your rights</span>
                 <ExternalLink className="w-4 h-4 text-muted-foreground" />
               </Link>
-              <p className="text-muted-foreground text-xs pt-2 leading-relaxed">
-                To delete your account or export your data, email{" "}
-                <a
-                  href="/contact"
-                  className="hover:underline"
-                  style={{ color: "#FF4B6E" }}
-                >
-                  support@unfoldk.com
-                </a>
-                .
-              </p>
-
               <div className="border-t border-border/30 pt-4">
                 <p className="text-muted-foreground text-xs mb-3">
                   Permanently deletes your account and all associated data.
