@@ -4,11 +4,45 @@
 
 ---
 
-## 현재 상태 (2026-05-28 세션 28 / KfoodKit·Curation K·KpopStats·HallyuCalendar 콘텐츠 강화)
+## 현재 상태 (2026-05-29 세션 29 / 버그 수정 + Discord Webhook 전환 + KpopStats 개선)
 
 ### 완료
 
-#### A. 이번 세션 작업 (세션 28)
+#### A. 이번 세션 작업 (세션 29)
+
+- **빌링/취소 버튼 404 수정** (`app/mypage/subscription/page.tsx`)
+  - Cancel subscription 버튼 2곳 + Download 링크 → PaymentComingSoonModal 연결
+
+- **"Start for free" 버튼 로그인 분기** (`components/cta-section.tsx`, `app/about/page.tsx`, `components/hero-cta-buttons.tsx`, `components/early-access-section.tsx`)
+  - 로그인 상태 → /mypage 이동 / 비로그인 → 기존 StartModal 유지
+
+- **계정 삭제 버튼** (`app/mypage/settings/page.tsx`, `app/api/account/delete/route.ts`)
+  - Privacy & Data 카드 하단 AlertDialog + DELETE 확인 → 계정 삭제 + 자동 로그아웃
+  - 기존 "이메일로 요청" 안내 문구 제거
+
+- **푸터 Discord 단일 아이콘 교체** (`components/footer-section.tsx`)
+  - X·Instagram·TikTok 제거 → Discord SVG 아이콘 (https://discord.gg/MEdWGvgy)
+
+- **agreed_to_terms 미완료 유저 /start 리디렉트** (`middleware.ts`)
+  - /mypage 진입 시 agreed_to_terms ≠ true → /start?new=true 강제 이동
+
+- **KpopStats More Artists 섹션 개선** (`app/kpop/page.tsx`)
+  - 카드 21개, 섹션 하단 중앙 "View all artists" 버튼
+
+- **KpopStats 30-Day Trend 차트 0값 gap 처리** (`components/kpop/artist-trend-chart.tsx`)
+  - youtube_weekly_views = 0 → null 취급 (수집 오류 gap 표시)
+
+- **Discord Webhook 방식 전환** — Bot 토큰 403 우회
+  - `lib/discord/bot.ts`: `postWebhookMessage()` 추가
+  - `app/api/cron/discord-daily/route.ts`: DISCORD_WEBHOOK_* 4개 env 시 Webhook 우선, 미설정 시 Bot 토큰 fallback
+  - `app/api/discord/test-send/route.ts`: 동일 우선순위 로직 적용
+  - Vercel 환경변수 4개 추가 완료, 4개 채널 모두 posted 확인 ✅
+
+- **Discord 디버그 엔드포인트** (`app/api/discord/debug/route.ts`)
+  - cron_logs 컬럼명 수정 (`source`→`route`, `created_at`→`executed_at`)
+  - DB 채널설정·봇 멤버십·채널 접근 가능 여부 통합 진단
+
+#### B. 이전 세션 작업 (세션 28)
 
 - **KfoodKit 어드민 레시피 목록 페이지네이션** (`components/admin/food-admin-table.tsx`)
   - 페이지당 50개 표시 (`PAGE_SIZE = 50`)
@@ -147,10 +181,16 @@
 #### C. 푸터 국기 중복 버그 수정 (세션 23)
 
 ### 다음 세션 후보
-- 결제 연동 (LMS 심사 결과 대기)
+- Discord 봇 Embed 포맷 개선 (디자인·카피 완성도 향상)
+- 결제 연동사 변경 검토 (LMS → Paddle)
 - Trial 만료 유저 → Hallyu Pass 전환 퍼널 최적화 (/pricing 랜딩 개선)
 - filming_spots backfill 잔여 처리 확인 (매일 KST 13:30 cron)
 - Google 색인 추가 페이지 모니터링
+
+### 블로커
+- LMS 재심사 대기 → Paddle 전환 검토 중
+- top.gg 심사 대기
+- Google 색인 생성 대기
 
 ---
 
@@ -211,7 +251,3 @@
 - [x] "이번 주 급상승 아티스트 TOP 3" 섹션 (세션 28 완료)
 - [ ] 관련 HallyuCalendar 컴백 일정 연결 링크
 
-### 블로커
-- LMS 재심사 대기
-- top.gg 심사 대기
-- Google 색인 생성 대기
