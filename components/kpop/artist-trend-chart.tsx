@@ -54,16 +54,13 @@ function dateStrOffset(daysAgo: number): string {
 }
 
 export function ArtistTrendChart({ history }: { history: DataRow[] }) {
-  // 실제 데이터 룩업 맵 — 0 또는 null 은 제외 (0 은 수집 오류로 간주, 차트에서 gap 처리)
-  const dataMap = new Map<string, number>()
+  // NULL 은 데이터 없음 (gap), 0 은 실제 0으로 표시
+  const dataMap = new Map<string, number | null>()
   for (const row of history) {
-    if (row.youtube_weekly_views !== null && row.youtube_weekly_views > 0) {
-      dataMap.set(row.date, row.youtube_weekly_views)
-    }
+    dataMap.set(row.date, row.youtube_weekly_views)
   }
 
   // 항상 오늘 기준 30일 전부터 오늘까지 31개 날짜 생성
-  // 데이터 없는 날은 null → recharts 가 해당 구간을 빈 공간으로 표시
   const chartData = Array.from({ length: 31 }, (_, i) => {
     const dateStr = dateStrOffset(30 - i)
     return {
@@ -72,16 +69,6 @@ export function ArtistTrendChart({ history }: { history: DataRow[] }) {
       views: dataMap.get(dateStr) ?? null,
     }
   })
-
-  const dataPointCount = chartData.filter((d) => d.views !== null).length
-
-  if (dataPointCount < 2) {
-    return (
-      <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-        Not enough data yet — check back soon.
-      </div>
-    )
-  }
 
   // x축 틱: 0, 7, 14, 21, 30 인덱스 (7일 간격 + 오늘)
   const xTicks = [0, 7, 14, 21, 30].map((i) => chartData[i].date)
@@ -114,6 +101,7 @@ export function ArtistTrendChart({ history }: { history: DataRow[] }) {
             axisLine={false}
             tickLine={false}
             width={52}
+            domain={[0, "auto"]}
           />
           <Tooltip
             content={<ChartTooltip />}
