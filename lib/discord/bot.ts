@@ -138,3 +138,39 @@ export function clearChannelCache(guildIdOverride?: string): void {
     channelCacheByGuild.clear()
   }
 }
+
+// 봇 자신의 계정 정보 — GET /users/@me (토큰 유효성·봇 ID 확인용)
+export async function getBotIdentity(): Promise<{ id: string; username: string; bot: boolean } | null> {
+  const res = await fetch(`${DISCORD_API_BASE}/users/@me`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  })
+  if (!res.ok) return null
+  return (await res.json()) as { id: string; username: string; bot: boolean }
+}
+
+// 봇이 해당 길드의 멤버인지 확인 — GET /guilds/:id/members/@me
+export async function getBotGuildMember(
+  targetGuildId: string
+): Promise<{ joined_at: string; roles: string[] } | { error: number; message: string } | null> {
+  const res = await fetch(`${DISCORD_API_BASE}/guilds/${targetGuildId}/members/@me`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  })
+  const body = await res.json() as Record<string, unknown>
+  if (!res.ok) return { error: (body.code as number) ?? res.status, message: (body.message as string) ?? "" }
+  return { joined_at: body.joined_at as string, roles: (body.roles as string[]) ?? [] }
+}
+
+// 특정 채널 정보 조회 — GET /channels/:id (채널 존재·타입 확인용)
+export async function getChannelInfo(
+  channelId: string
+): Promise<{ id: string; name: string; type: number } | { error: number; message: string } | null> {
+  const res = await fetch(`${DISCORD_API_BASE}/channels/${channelId}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  })
+  const body = await res.json() as Record<string, unknown>
+  if (!res.ok) return { error: (body.code as number) ?? res.status, message: (body.message as string) ?? "" }
+  return { id: body.id as string, name: body.name as string, type: body.type as number }
+}
