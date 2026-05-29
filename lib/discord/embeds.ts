@@ -129,7 +129,7 @@ export function buildDramaUpdatesEmbed(items: TmdbTvShow[]): DiscordEmbed {
         (d) =>
           `🎬 **${d.name}** — ${d.first_air_date || "TBA"}\n   _${d.overview ? d.overview.slice(0, 90) + (d.overview.length > 90 ? "…" : "") : "No description."}_`
       )
-    : ["_Drama data unavailable — try again later._"]
+    : ["_No dramas currently airing. Check back soon!_"]
 
   return {
     title: "🎬 Currently Airing K-Dramas",

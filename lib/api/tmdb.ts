@@ -46,12 +46,24 @@ export async function fetchPopularKoreanDramas(page = 1): Promise<TmdbTvShow[]> 
   return data.results
 }
 
-// 현재 방영 중인 한국 드라마 — first_air_date <= today AND 종영 안 된 상태 추정
-// air_date.lte=today + sort_by=popularity 로 최근 첫방 + 인기 작품 우선
-// (TMDB 는 "종영" 직접 필터 부재 — first_air_date 기준 30일 이내 작품을 방영 중으로 근사)
+// 현재 방영 중인 한국 드라마
+// with_genres=18: Drama 장르만 — 예능·토크쇼·버라이어티(Running Man 등) 제외
+// air_date.gte=30일 전: 최근 30일 이내 에피소드가 있는 작품만 (종영작 제외)
+// sort_by=first_air_date.desc: 신작 우선 (Squid Game·Bloodhounds 등 구작 억제)
 export async function fetchCurrentlyAiringKoreanDramas(limit = 10): Promise<TmdbTvShow[]> {
   const today = new Date().toISOString().slice(0, 10)
-  const url = `${TMDB_BASE}/discover/tv?with_origin_country=KR&sort_by=popularity.desc&air_date.lte=${today}&include_null_first_air_dates=false&language=en-US&page=1`
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
+  const params = new URLSearchParams({
+    with_origin_country: "KR",
+    with_genres: "18",
+    "air_date.gte": thirtyDaysAgo,
+    "air_date.lte": today,
+    sort_by: "first_air_date.desc",
+    include_null_first_air_dates: "false",
+    language: "en-US",
+    page: "1",
+  })
+  const url = `${TMDB_BASE}/discover/tv?${params}`
   const res = await fetch(url, {
     headers: tmdbHeaders(),
     next: { revalidate: 3600 },
