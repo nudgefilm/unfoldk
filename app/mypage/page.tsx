@@ -37,9 +37,10 @@ const sidebarLinks = [
 // 로딩 중 "—" / 0건이면 "0".
 interface MyStats {
   artistsTracking: number
-  eventsThisMonth: number
+  eventsUpcoming: number
   streakDays: number
   savedRecipes: number
+  masteredPhrases: number
 }
 
 interface UpcomingEvent {
@@ -114,9 +115,10 @@ export default function MyPage() {
           if (!cancelled) {
             setStats({
               artistsTracking: 0,
-              eventsThisMonth: 0,
+              eventsUpcoming: 0,
               streakDays: 0,
               savedRecipes: 0,
+              masteredPhrases: 0,
             })
           }
           return
@@ -130,9 +132,10 @@ export default function MyPage() {
         if (!cancelled) {
           setStats({
             artistsTracking: 0,
-            eventsThisMonth: 0,
+            eventsUpcoming: 0,
             streakDays: 0,
             savedRecipes: 0,
+            masteredPhrases: 0,
           })
         }
       }
@@ -185,14 +188,8 @@ export default function MyPage() {
     hasFlame?: boolean
   }> = [
     { label: "Artists Tracking", value: showStat(stats?.artistsTracking), href: "/mypage/artists" },
-    { label: "Events This Month", value: showStat(stats?.eventsThisMonth), href: "/mypage/events" },
-    {
-      label: "Korean Lessons",
-      value: showStat(stats?.streakDays),
-      href: "/mypage/learning-progress",
-      suffix: "day streak",
-      hasFlame: true,
-    },
+    { label: "Upcoming Events", value: showStat(stats?.eventsUpcoming), href: "/mypage/events" },
+    { label: "Korean Lessons", value: showStat(stats?.masteredPhrases), href: "/mypage/learning-progress" },
     { label: "Saved Recipes", value: showStat(stats?.savedRecipes), href: "/mypage/recipes" },
   ]
 
