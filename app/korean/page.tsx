@@ -12,7 +12,7 @@
 //
 // 음성: audio_url 우선, 없으면 Web Speech API (lang=ko-KR) 폴백 — ElevenLabs 는 Phase 3.
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
@@ -110,6 +110,14 @@ function speakKorean(text: string) {
 }
 
 export default function HangeulGoPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }} />}>
+      <HangeulGoContent />
+    </Suspense>
+  )
+}
+
+function HangeulGoContent() {
   const searchParams = useSearchParams()
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [isPro, setIsPro] = useState(false)
