@@ -42,11 +42,20 @@ interface MyStats {
   savedRecipes: number
 }
 
-const upcomingEvents = [
-  { id: 1, title: "BTS Concert", date: 10, month: "MAY", type: "Concert" },
-  { id: 2, title: "BLACKPINK Comeback", date: 15, month: "MAY", type: "K-pop" },
-  { id: 3, title: "NewJeans Fan Meet", date: 21, month: "MAY", type: "Fan Meet" },
-]
+interface UpcomingEvent {
+  id: string
+  title: string
+  event_date: string
+  type: string
+  artist_or_drama: string | null
+}
+
+interface NextPhrase {
+  id: string
+  korean: string
+  english: string
+  drama_name: string | null
+}
 
 // DB plan_type 값 → 사이드바 배지 표시명 매핑
 function planLabel(planType: string | null | undefined): string {
@@ -62,6 +71,9 @@ export default function MyPage() {
   const [userPlan, setUserPlan] = useState<string>("Free")
   // 4 stat — null = 로딩 / MyStats = 채워짐. 실패 시 모두 0 으로.
   const [stats, setStats] = useState<MyStats | null>(null)
+  // 다가오는 이벤트 + 다음 학습 표현
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([])
+  const [nextPhrase, setNextPhrase] = useState<NextPhrase | null>(null)
 
   useEffect(() => {
     // Supabase 세션 로드 후 Google 프로필 + plan_type 동기화
@@ -126,7 +138,36 @@ export default function MyPage() {
       }
     }
 
+    const loadUpcomingEvents = async () => {
+      try {
+        const res = await fetch("/api/mypage/upcoming-events", { cache: "no-store" })
+        if (res.ok && !cancelled) {
+          const json = (await res.json()) as { events?: UpcomingEvent[] }
+          setUpcomingEvents(json.events ?? [])
+        }
+      } catch { /* silent — 빈 상태 유지 */ }
+    }
+
+    const loadNextPhrase = async () => {
+      try {
+        const res = await fetch("/api/korean/phrase-of-day", { cache: "no-store" })
+        if (res.ok && !cancelled) {
+          const json = (await res.json()) as { phrase?: { id: string; korean: string; english: string; dramaName?: string | null } }
+          if (json.phrase) {
+            setNextPhrase({
+              id: json.phrase.id,
+              korean: json.phrase.korean,
+              english: json.phrase.english,
+              drama_name: json.phrase.dramaName ?? null,
+            })
+          }
+        }
+      } catch { /* silent */ }
+    }
+
     load()
+    loadUpcomingEvents()
+    loadNextPhrase()
     return () => {
       cancelled = true
     }
@@ -258,23 +299,32 @@ export default function MyPage() {
               </Link>
             </div>
             <div className="flex gap-4 overflow-x-auto pb-2">
-              {upcomingEvents.map((event) => (
-                <div 
-                  key={event.id}
-                  className="flex-shrink-0 w-[200px] bg-[#1a1a1a] border border-border/30 rounded-xl p-4 hover:border-primary/50 transition-colors cursor-pointer"
-                >
-                  {/* Date Badge */}
-                  <div 
-                    className="w-12 h-12 rounded-xl flex flex-col items-center justify-center text-white mb-3"
-                    style={{ backgroundColor: "#FF4B6E" }}
+              {upcomingEvents.length === 0 ? (
+                <p className="text-muted-foreground text-sm py-2">No upcoming events. <Link href="/calendar" className="hover:underline" style={{ color: "#FF4B6E" }}>Browse calendar →</Link></p>
+              ) : upcomingEvents.map((event) => {
+                const d = new Date(event.event_date)
+                const dayNum = d.getUTCDate()
+                const monthStr = d.toLocaleString("en-US", { month: "short", timeZone: "UTC" }).toUpperCase()
+                const monthParam = event.event_date.slice(0, 7)
+                return (
+                  <Link
+                    key={event.id}
+                    href={`/calendar?event=${event.id}&month=${monthParam}`}
+                    className="flex-shrink-0 w-[200px] bg-[#1a1a1a] border border-border/30 rounded-xl p-4 hover:border-primary/50 transition-colors cursor-pointer block"
                   >
-                    <span className="text-[10px] font-medium">{event.month}</span>
-                    <span className="text-lg font-bold">{event.date}</span>
-                  </div>
-                  <h3 className="text-foreground font-medium text-sm mb-1">{event.title}</h3>
-                  <span className="text-muted-foreground text-xs">{event.type}</span>
-                </div>
-              ))}
+                    {/* Date Badge */}
+                    <div
+                      className="w-12 h-12 rounded-xl flex flex-col items-center justify-center text-white mb-3"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      <span className="text-[10px] font-medium">{monthStr}</span>
+                      <span className="text-lg font-bold">{dayNum}</span>
+                    </div>
+                    <h3 className="text-foreground font-medium text-sm mb-1 truncate">{event.title}</h3>
+                    <span className="text-muted-foreground text-xs">{event.type}</span>
+                  </Link>
+                )
+              })}
             </div>
           </section>
 
@@ -285,32 +335,43 @@ export default function MyPage() {
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div className="flex-1">
                   <p className="text-muted-foreground text-sm mb-2">Today&apos;s phrase</p>
-                  <p className="text-2xl font-bold text-foreground mb-1">보고 싶었어</p>
-                  <p className="text-muted-foreground">&quot;I missed you&quot;</p>
-                  <p className="text-sm mt-3">
-                    <span className="text-muted-foreground">From: </span>
-                    <span className="text-foreground">Crash Landing on You</span>
+                  <p className="text-2xl font-bold text-foreground mb-1">
+                    {nextPhrase ? nextPhrase.korean : "—"}
                   </p>
-                  
+                  <p className="text-muted-foreground">
+                    {nextPhrase ? `"${nextPhrase.english}"` : ""}
+                  </p>
+                  {nextPhrase?.drama_name && (
+                    <p className="text-sm mt-3">
+                      <span className="text-muted-foreground">From: </span>
+                      <span className="text-foreground">{nextPhrase.drama_name}</span>
+                    </p>
+                  )}
+
                   {/* Progress Bar */}
                   <div className="mt-4">
                     <div className="flex items-center justify-between text-sm mb-2">
-                      <span className="text-muted-foreground">Day 23 of streak</span>
+                      <span className="text-muted-foreground">
+                        Day {stats?.streakDays ?? 0} of streak
+                      </span>
                       <span className="flex items-center gap-1" style={{ color: "#FF4B6E" }}>
-                        <Flame className="w-4 h-4" /> 23
+                        <Flame className="w-4 h-4" /> {stats?.streakDays ?? 0}
                       </span>
                     </div>
                     <div className="h-2 bg-[#252525] rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className="h-full rounded-full"
-                        style={{ backgroundColor: "#FF4B6E", width: "76%" }}
+                        style={{
+                          backgroundColor: "#FF4B6E",
+                          width: `${Math.min(100, ((stats?.streakDays ?? 0) / 30) * 100)}%`,
+                        }}
                       />
                     </div>
                   </div>
                 </div>
-                
-                <Link href="/korean">
-                  <Button 
+
+                <Link href={nextPhrase ? `/korean?phrase_id=${nextPhrase.id}` : "/korean"}>
+                  <Button
                     className="px-6 py-2 rounded-full font-medium text-white md:self-end"
                     style={{ backgroundColor: "#FF4B6E" }}
                   >

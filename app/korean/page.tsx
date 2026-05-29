@@ -13,6 +13,7 @@
 // 음성: audio_url 우선, 없으면 Web Speech API (lang=ko-KR) 폴백 — ElevenLabs 는 Phase 3.
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight, X, Film } from "lucide-react"
@@ -109,6 +110,7 @@ function speakKorean(text: string) {
 }
 
 export default function HangeulGoPage() {
+  const searchParams = useSearchParams()
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [isPro, setIsPro] = useState(false)
 
@@ -245,10 +247,15 @@ export default function HangeulGoPage() {
   }, [])
 
   // ─── 오늘의 표현 fetch
+  // phrase_id 쿼리 파라미터 있으면 해당 표현으로 초기화 (마이페이지 딥링크)
   useEffect(() => {
     setPhraseLoading(true)
     setPhraseError(null)
-    fetch("/api/korean/phrase-of-day")
+    const forcedId = searchParams.get("phrase_id")
+    const phraseUrl = forcedId
+      ? `/api/korean/phrase-of-day?phrase_id=${encodeURIComponent(forcedId)}`
+      : "/api/korean/phrase-of-day"
+    fetch(phraseUrl)
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then(
         (body: {
@@ -284,7 +291,7 @@ export default function HangeulGoPage() {
         setPhraseError("오늘의 표현을 불러오지 못했어요.")
       })
       .finally(() => setPhraseLoading(false))
-  }, [])
+  }, [searchParams])
 
   // ─── 스트릭 fetch (로그인 시만 유효)
   useEffect(() => {

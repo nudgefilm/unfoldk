@@ -166,10 +166,24 @@ async function pickRandomPhrase(
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const excludeIdsParam = url.searchParams.get("exclude_ids")
+  const forcedPhraseId = url.searchParams.get("phrase_id")
 
   const supabase = await createSupabaseServerClient()
   // 로그인 유저의 mastered 목록은 모드 A·B 양쪽에서 사용 — 한 번 조회.
   const masteredIds = await getMasteredPhraseIds(supabase)
+
+  // 모드 C: phrase_id 지정 — 마이페이지 "Continue Learning" 딥링크용.
+  // UUID 검증 통과 시 해당 표현만 반환. 없으면 일반 모드로 fallthrough.
+  if (forcedPhraseId && UUID_REGEX.test(forcedPhraseId)) {
+    const { data } = await supabase
+      .from("korean_phrases")
+      .select(PHRASE_SELECT)
+      .eq("id", forcedPhraseId)
+      .maybeSingle()
+    if (data) {
+      return NextResponse.json({ phrase: mapKoreanPhraseRow(data as unknown), forced: true })
+    }
+  }
 
   // exclude_ids 파라미터가 있으면 (빈 문자열 포함) 랜덤 모드 — 명시적 opt-in.
   if (excludeIdsParam !== null) {
