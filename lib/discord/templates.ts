@@ -25,27 +25,27 @@ export const EARLY_ACCESS_NOTE = `
 export const SERVICE_BLURBS = {
   calendar: `📅 **HallyuCalendar** — Never miss a comeback, premiere, concert, or fan meet.
 Live YouTube + TMDB + Ticketmaster ingestion. Free + Hallyu Pass tiers.
-→ unfoldk.com/calendar`,
+→ https://www.unfoldk.com/calendar`,
 
   kpop: `🎵 **KpopStats** — Global K-pop charts that move.
 YouTube subscribers + weekly growth · Last.fm monthly listeners · trending Top.
-→ unfoldk.com/kpop`,
+→ https://www.unfoldk.com/kpop`,
 
   drama: `🎬 **KdramaMatch** — AI-powered K-drama recommendations.
 Coming soon — sign up to be notified at launch.
-→ unfoldk.com/drama`,
+→ https://www.unfoldk.com/drama`,
 
   korean: `🇰🇷 **HangeulGo** — Learn Korean from the K-dramas you watch.
 Coming soon — sign up to be notified at launch.
-→ unfoldk.com/korean`,
+→ https://www.unfoldk.com/korean`,
 
   food: `🍱 **KfoodKit** — Cook the food from your favorite K-dramas.
 Coming soon — sign up to be notified at launch.
-→ unfoldk.com/food`,
+→ https://www.unfoldk.com/food`,
 
   curationk: `🗺️ **Curation K** — Korea, mapped for fans.
 Filming spots · K-pop pilgrimage · food · stays · My Hallyu Course.
-→ unfoldk.com/curation-k`,
+→ https://www.unfoldk.com/curation-k`,
 } as const
 
 export type ServiceKey = keyof typeof SERVICE_BLURBS
