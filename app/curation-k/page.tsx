@@ -641,7 +641,6 @@ export default function CurationKPage() {
   const [courseDrama, setCourseDrama] = useState<string>("")
   const [courseStyle, setCourseStyle] = useState<TravelStyle>("relaxed")
   const [courseDays, setCourseDays] = useState<DurationDays>(1)
-  const [courseDeparture, setCourseDeparture] = useState<string>("Seoul")
   const [courseArrival, setCourseArrival] = useState<string>("Seoul")
   const [courseGenerating, setCourseGenerating] = useState(false)
   const [courseSaving, setCourseSaving] = useState(false)
@@ -806,7 +805,7 @@ export default function CurationKPage() {
           drama_title: courseDrama,
           travel_style: courseStyle,
           duration_days: courseDays,
-          departure_region: courseDeparture,
+          departure_region: courseArrival,
           arrival_region: courseArrival,
         }),
       })
@@ -847,10 +846,10 @@ export default function CurationKPage() {
         setCourseError(json?.detail ?? json?.error ?? `Save failed (HTTP ${res.status})`)
         return
       }
-      // 저장 성공 — 목록 갱신 + saved 표시
+      // 저장 성공 — 목록 갱신 (최신 6개 유지) + saved 표시
       setGeneratedSaved(true)
       if (json.item) {
-        setSavedCourses((prev) => [json.item as SavedCourse, ...prev])
+        setSavedCourses((prev) => [json.item as SavedCourse, ...prev].slice(0, 6))
       }
     } catch (err) {
       setCourseError(err instanceof Error ? err.message : "Save failed")
@@ -1799,12 +1798,12 @@ export default function CurationKPage() {
 
                   <div>
                     <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
-                      Departing from
+                      Destination
                     </label>
-                    <Select value={courseDeparture} onValueChange={setCourseDeparture}>
+                    <Select value={courseArrival} onValueChange={setCourseArrival}>
                       <SelectTrigger
                         className="w-full bg-[#0d0d0f] border-border/40 rounded-full text-sm"
-                        aria-label="Departure region"
+                        aria-label="Destination region"
                       >
                         <SelectValue />
                       </SelectTrigger>
@@ -1817,32 +1816,6 @@ export default function CurationKPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-
-                <div className="mb-4">
-                  <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
-                    Arriving at
-                  </label>
-                  <Select value={courseArrival} onValueChange={setCourseArrival}>
-                    <SelectTrigger
-                      className="w-full bg-[#0d0d0f] border-border/40 rounded-full text-sm"
-                      aria-label="Arrival region"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REGION_OPTIONS.map((r) => (
-                        <SelectItem key={r.code} value={r.label}>
-                          {r.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-muted-foreground/60 text-[11px] mt-1.5">
-                    {courseDeparture === courseArrival
-                      ? "Loop course — start and end in the same region."
-                      : `Progressive route: ${courseDeparture} → ${courseArrival}.`}
-                  </p>
                 </div>
 
                 <div className="mb-4">
@@ -1958,7 +1931,7 @@ export default function CurationKPage() {
                     My Saved Courses
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {savedCourses.map((c) => {
+                    {savedCourses.slice(0, 6).map((c) => {
                       const expanded = expandedCourseId === c.id
                       return (
                         <div
@@ -3329,48 +3302,55 @@ function CourseItineraryView({
       }
     >
       {!compact && (
-        <div className="flex items-start justify-between gap-2 flex-wrap">
-          <div>
-            <h3 className="text-foreground font-semibold text-base">
-              {meta.drama_title}
-            </h3>
-            <p className="text-muted-foreground text-xs mt-1">
-              {prettyTravelStyle(meta.travel_style)} · {meta.duration_days}d · {routeLabel}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {onRegenerate && (
-              <Button
-                type="button"
-                onClick={onRegenerate}
-                disabled={regenerating || saving}
-                variant="outline"
-                className="rounded-full text-xs h-9"
-              >
-                Try Another Route
-              </Button>
-            )}
-            {onSave &&
-              (saved ? (
-                <span
-                  className="inline-flex items-center gap-1.5 text-xs px-4 py-2 rounded-full"
-                  style={{ backgroundColor: "rgba(34,197,94,0.15)", color: "#22c55e" }}
-                >
-                  ✓ Saved
-                </span>
-              ) : (
+        <>
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div>
+              <h3 className="text-foreground font-semibold text-base">
+                {meta.drama_title}
+              </h3>
+              <p className="text-muted-foreground text-xs mt-1">
+                {prettyTravelStyle(meta.travel_style)} · {meta.duration_days}d · {routeLabel}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {onRegenerate && (
                 <Button
                   type="button"
-                  onClick={onSave}
-                  disabled={saving || regenerating}
-                  className="rounded-full text-white text-xs h-9"
-                  style={{ backgroundColor: "#FF4B6E" }}
+                  onClick={onRegenerate}
+                  disabled={regenerating || saving}
+                  variant="outline"
+                  className="rounded-full text-xs h-9"
                 >
-                  {saving ? "Saving…" : "Save Course"}
+                  Try Another Route
                 </Button>
-              ))}
+              )}
+              {onSave &&
+                (saved ? (
+                  <span
+                    className="inline-flex items-center gap-1.5 text-xs px-4 py-2 rounded-full"
+                    style={{ backgroundColor: "rgba(34,197,94,0.15)", color: "#22c55e" }}
+                  >
+                    ✓ Saved
+                  </span>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={onSave}
+                    disabled={saving || regenerating}
+                    className="rounded-full text-white text-xs h-9"
+                    style={{ backgroundColor: "#FF4B6E" }}
+                  >
+                    {saving ? "Saving…" : "Save Course"}
+                  </Button>
+                ))}
+            </div>
           </div>
-        </div>
+          {onSave && !saved && (
+            <p className="text-muted-foreground/60 text-[11px]">
+              Up to 6 courses saved. New saves replace the oldest.
+            </p>
+          )}
+        </>
       )}
 
       <div className="space-y-4">

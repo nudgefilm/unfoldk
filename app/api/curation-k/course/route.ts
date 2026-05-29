@@ -125,10 +125,8 @@ Rules:
   · packed → more stops, tighter transit
   · foodie → restaurants and markets dominate
   · cultural → palaces, museums, historical districts
-- Honor the departure → arrival route:
-  · Same region (departure == arrival) → loop course, ending near departure on the last day.
-  · Different regions → progress geographically from departure to arrival. Stops earlier in the trip should be near departure; later stops near arrival. Include realistic inter-city transit (KTX, bus, domestic flight if needed) on the transition day.
-- Be honest about transport: Seoul metro, KTX between cities, taxi for short hops. Mention realistic duration_minutes (5–180; allow longer for inter-city transit).
+- The entire itinerary stays within the destination region. Explore different neighborhoods and districts each day to give a full experience of the area. On the last day, loop back toward the starting district.
+- Be honest about transport: Seoul metro, taxi for short hops. Mention realistic duration_minutes (5–60 for in-city hops).
 - Reasons are concise — 1–2 sentences, no marketing fluff.
 - Output ONLY the tool call. No prose.`
 
@@ -248,8 +246,7 @@ export async function POST(request: Request) {
 
   // 4) Claude 호출 — tool_use 강제
   const userPrompt = `Drama: "${drama_title}"
-Departure region: ${departure_region}
-Arrival region: ${arrival_region}${sameRegion ? " (same as departure — loop course)" : " (different region — progress geographically)"}
+Destination: ${arrival_region}
 Trip length: ${duration_days} day(s)
 Style: ${travel_style}
 
@@ -260,20 +257,14 @@ ${
     : "(none in our database — improvise plausibly from your knowledge)"
 }
 
-Real spots in ${
-    sameRegion ? departure_region : `${departure_region} and ${arrival_region}`
-  } (tag = region):
+Real spots in ${arrival_region}:
 ${
   context.tour.length > 0
-    ? context.tour.slice(0, 24).map(formatTourLine).join("\n")
-    : "(no enriched data yet for these areas)"
+    ? context.tour.slice(0, 24).map((t) => `- [${t.type}] ${t.name} (${t.address})`).join("\n")
+    : "(no enriched data yet for this area)"
 }
 
-Build the itinerary now. ${
-    sameRegion
-      ? `Keep all stops within ${departure_region}.`
-      : `Start near ${departure_region}, end near ${arrival_region}, include inter-city transit.`
-  }`
+Build the itinerary now. Keep all stops within ${arrival_region}. Vary the neighborhoods and districts each day.`
 
   let response: Anthropic.Message
   try {
@@ -317,7 +308,7 @@ Build the itinerary now. ${
 
   return NextResponse.json({
     itinerary,
-    meta: { drama_title, travel_style, duration_days, departure_region },
+    meta: { drama_title, travel_style, duration_days, departure_region, arrival_region },
   })
 }
 
@@ -334,7 +325,7 @@ export async function GET() {
     .select("id, title, region, course_data, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
-    .limit(20)
+    .limit(6)
 
   if (error) {
     console.error("[curation-k/course] GET 실패:", error.message)

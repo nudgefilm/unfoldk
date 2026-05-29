@@ -79,16 +79,26 @@ export async function POST(request: Request) {
   }
   const { drama_title, travel_style, duration_days, departure_region, arrival_region, itinerary } = parsed.data
 
-  // 사용자별 저장 cap — 무한 적재 방지 (20건)
+  // 사용자별 저장 cap — 6건 초과 시 가장 오래된 코스 자동 삭제
   const { count: existingCount } = await supabase
     .from("hallyu_courses")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
-  if ((existingCount ?? 0) >= 20) {
-    return NextResponse.json(
-      { error: "save_cap_reached", detail: "최대 20개까지 저장 가능. 기존 코스를 삭제하세요." },
-      { status: 409 }
-    )
+  if ((existingCount ?? 0) >= 6) {
+    const { data: oldest } = await supabase
+      .from("hallyu_courses")
+      .select("id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .single()
+    if (oldest) {
+      await supabase
+        .from("hallyu_courses")
+        .delete()
+        .eq("id", oldest.id)
+        .eq("user_id", user.id)
+    }
   }
 
   // course_data 구조 — Phase 2 spec 의 stops jsonb 확장 (drama_title / style / days 포함)
