@@ -41,9 +41,7 @@
 
 ### 블로커
 
-- `user_curation_collections` 테이블 — DB migration 0049 아직 미실행
-  → Supabase SQL Editor에서 `supabase/migrations/0049_user_curation_collections.sql` 실행 필요
-  → 실행 전까지 My Curation 저장/조회 동작 안 함
+- ~~`user_curation_collections` migration 0049~~ ✅ 실행 완료 (2026-05-29)
 
 ### 다음 세션
 
