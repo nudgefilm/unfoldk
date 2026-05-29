@@ -139,18 +139,20 @@ export default function MyPage() {
   const activityStats: Array<{
     label: string
     value: string
+    href: string
     suffix?: string
     hasFlame?: boolean
   }> = [
-    { label: "Artists Tracking", value: showStat(stats?.artistsTracking) },
-    { label: "Events This Month", value: showStat(stats?.eventsThisMonth) },
+    { label: "Artists Tracking", value: showStat(stats?.artistsTracking), href: "/mypage/artists" },
+    { label: "Events This Month", value: showStat(stats?.eventsThisMonth), href: "/mypage/calendar" },
     {
       label: "Korean Lessons",
       value: showStat(stats?.streakDays),
+      href: "/korean",
       suffix: "day streak",
       hasFlame: true,
     },
-    { label: "Saved Recipes", value: showStat(stats?.savedRecipes) },
+    { label: "Saved Recipes", value: showStat(stats?.savedRecipes), href: "/mypage/recipes" },
   ]
 
   return (
@@ -225,9 +227,10 @@ export default function MyPage() {
             <h2 className="text-xl font-semibold text-foreground mb-4">My Activity</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {activityStats.map((stat) => (
-                <div 
+                <Link
                   key={stat.label}
-                  className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4"
+                  href={stat.href}
+                  className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 hover:border-primary/50 transition-colors cursor-pointer block"
                 >
                   <p className="text-muted-foreground text-sm mb-1">{stat.label}</p>
                   <div className="flex items-center gap-2">
@@ -237,7 +240,7 @@ export default function MyPage() {
                   {stat.suffix && (
                     <p className="text-muted-foreground text-xs mt-1">{stat.suffix}</p>
                   )}
-                </div>
+                </Link>
               ))}
             </div>
           </section>

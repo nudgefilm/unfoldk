@@ -11,6 +11,8 @@ import { hasProAccess } from "@/lib/auth/plan"
 import { ReportButton } from "@/components/common/report-button"
 import { getEventTypeColor } from "@/lib/calendar/event-type-colors"
 import { StartModal } from "@/components/start-modal"
+import { toast } from "sonner"
+import { Toaster } from "@/components/ui/sonner"
 
 type EventType = "K-pop" | "K-drama" | "Concert" | "Fan Meet"
 
@@ -126,8 +128,8 @@ function EventDetailModal({
   const [authChecked, setAuthChecked] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // iCal 복사 피드백 — "Copied!" 또는 "Copy failed" 2초간 표시 후 원복
-  const [icalCopyStatus, setIcalCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
+  // iCal 다운로드 피드백 — "Downloaded!" 또는 "Download failed" 2초간 표시 후 원복
+  const [icalCopyStatus, setIcalCopyStatus] = useState<"idle" | "downloaded" | "failed">("idle")
   const icalResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 모달 열릴 때 (event 변경) — 로그인 여부 확인 + 서버에서 리마인더 설정 로드
@@ -179,16 +181,39 @@ function EventDetailModal({
     window.open(buildGoogleCalendarUrl(event, viewDate), "_blank", "noopener,noreferrer")
   }
 
-  // Copy iCal Link 버튼 — 클립보드에 이벤트별 iCal feed URL 복사 + 2초간 상태 표시
-  // 운영 시 /api/calendar/ical/{id} 라우트 구현 예정. 현재는 placeholder URL.
-  const handleCopyIcal = async () => {
+  // Download iCal 버튼 — 클라이언트에서 .ics 파일 생성 후 즉시 다운로드
+  const handleCopyIcal = () => {
     if (!event) return
-    const url = `${window.location.origin}/api/calendar/ical/${event.id}`
     try {
-      await navigator.clipboard.writeText(url)
-      setIcalCopyStatus("copied")
+      const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), event.date)
+      const end = new Date(viewDate.getFullYear(), viewDate.getMonth(), event.date + 1)
+      const fmt = (d: Date) =>
+        `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`
+      const lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//UnfoldK//HallyuCalendar//EN",
+        "BEGIN:VEVENT",
+        `UID:${event.id}@unfoldk.com`,
+        `DTSTART:${fmt(start)}`,
+        `DTEND:${fmt(end)}`,
+        `SUMMARY:${event.title}`,
+        ...(event.description ? [`DESCRIPTION:${event.description.replace(/\n/g, "\\n")}`] : []),
+        "URL:https://www.unfoldk.com/calendar",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ]
+      const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${event.title.replace(/[^a-z0-9]/gi, "-")}-unfoldk.ics`
+      a.click()
+      URL.revokeObjectURL(url)
+      setIcalCopyStatus("downloaded")
+      toast("iCal file downloaded!")
     } catch (err) {
-      console.error("[calendar] iCal 복사 실패:", err)
+      console.error("[calendar] iCal 다운로드 실패:", err)
       setIcalCopyStatus("failed")
     }
     if (icalResetTimerRef.current) clearTimeout(icalResetTimerRef.current)
@@ -380,11 +405,11 @@ function EventDetailModal({
             className="w-full py-3 rounded-xl font-medium border-border/50 hover:bg-secondary/50"
             onClick={handleCopyIcal}
           >
-            {icalCopyStatus === "copied"
-              ? "Copied!"
+            {icalCopyStatus === "downloaded"
+              ? "Downloaded!"
               : icalCopyStatus === "failed"
-              ? "Copy failed"
-              : "Copy iCal Link"}
+              ? "Download failed"
+              : "Download iCal"}
           </Button>
         </div>
 
@@ -1116,6 +1141,7 @@ export default function HallyuCalendarPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Toaster />
       {/* Event Detail Modal */}
       <EventDetailModal
         event={selectedEvent}
