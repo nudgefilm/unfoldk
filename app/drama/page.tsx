@@ -43,6 +43,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Bookmark,
+  BookmarkCheck,
 } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -233,10 +235,14 @@ function DramaCard({
   drama,
   onAdd,
   onOpenDetail,
+  isSaved,
+  onToggleSave,
 }: {
   drama: ApiDrama
   onAdd: (dramaId: string) => void
   onOpenDetail: (dramaId: string) => void
+  isSaved?: boolean
+  onToggleSave?: (dramaId: string) => void
 }) {
   const displayTitle = getDisplayTitle(drama)
   return (
@@ -309,12 +315,17 @@ function DramaCard({
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              onAdd(drama.id)
+              if (onToggleSave) onToggleSave(drama.id)
+              else onAdd(drama.id)
             }}
             className="p-1.5 rounded-lg hover:bg-[#252525] transition-colors"
-            aria-label="Add to watchlist"
+            title={isSaved ? "Saved" : "Save"}
+            aria-label={isSaved ? "Remove from My Dramas" : "Save to My Dramas"}
           >
-            <Plus className="w-4 h-4 text-muted-foreground" />
+            {isSaved
+              ? <BookmarkCheck className="w-4 h-4" style={{ color: "#FF4B6E" }} />
+              : <Bookmark className="w-4 h-4 text-muted-foreground" />
+            }
           </button>
         </div>
       </div>
@@ -935,6 +946,8 @@ function KdramaMatchPageInner() {
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [isPro, setIsPro] = useState(false)
+  // 저장된 드라마 Set — watchlist 기반 (any status)
+  const [savedDramaIds, setSavedDramaIds] = useState<Set<string>>(new Set())
 
   // Browse All — URL 쿼리 파라미터에서 초기 상태 읽기 (뒤로가기 시 필터 유지)
   //   ?genre=Romance&genre=Thriller  (multi)
@@ -1015,6 +1028,17 @@ function KdramaMatchPageInner() {
         .single()
       const row = profile as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
       setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin, trialEndsAt: row?.trial_ends_at }))
+
+      // 저장된 드라마 목록 로드 (watchlist any status)
+      fetch("/api/dramas/watchlist")
+        .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+        .then((body: { items: Array<{ drama: { id: string } | null }> }) => {
+          const ids = (body.items ?? [])
+            .map((i) => i.drama?.id)
+            .filter((id): id is string => !!id)
+          setSavedDramaIds(new Set(ids))
+        })
+        .catch(() => {})
     })
   }, [])
 
@@ -1207,11 +1231,51 @@ function KdramaMatchPageInner() {
           body: JSON.stringify({ drama_id: dramaId, status: "want_to_watch" }),
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        setSavedDramaIds((prev) => new Set([...prev, dramaId]))
       } catch (err) {
         console.error("[drama] watchlist add 실패:", err)
       }
     },
     [isAuthenticated, router]
+  )
+
+  // 북마크 토글 — want_to_watch 추가 / watchlist 삭제
+  const handleToggleDramaSave = useCallback(
+    async (dramaId: string) => {
+      if (!isAuthenticated) {
+        router.push("/login?redirect=/drama")
+        return
+      }
+      const isSaved = savedDramaIds.has(dramaId)
+      // optimistic
+      setSavedDramaIds((prev) => {
+        const next = new Set(prev)
+        if (isSaved) next.delete(dramaId)
+        else next.add(dramaId)
+        return next
+      })
+      try {
+        if (isSaved) {
+          await fetch(`/api/dramas/watchlist?drama_id=${dramaId}`, { method: "DELETE" })
+        } else {
+          await fetch("/api/dramas/watchlist", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ drama_id: dramaId, status: "want_to_watch" }),
+          })
+        }
+      } catch (err) {
+        // rollback
+        setSavedDramaIds((prev) => {
+          const next = new Set(prev)
+          if (isSaved) next.add(dramaId)
+          else next.delete(dramaId)
+          return next
+        })
+        console.error("[drama] 북마크 toggle 실패:", err)
+      }
+    },
+    [isAuthenticated, router, savedDramaIds]
   )
 
   return (
@@ -1383,6 +1447,8 @@ function KdramaMatchPageInner() {
                     drama={d}
                     onAdd={handleAddToWatchlist}
                     onOpenDetail={openModal}
+                    isSaved={savedDramaIds.has(d.id)}
+                    onToggleSave={handleToggleDramaSave}
                   />
                 ))}
               </div>
@@ -1517,6 +1583,8 @@ function KdramaMatchPageInner() {
                     drama={d}
                     onAdd={handleAddToWatchlist}
                     onOpenDetail={openModal}
+                    isSaved={savedDramaIds.has(d.id)}
+                    onToggleSave={handleToggleDramaSave}
                   />
                 ))}
               </div>

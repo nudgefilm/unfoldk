@@ -54,6 +54,8 @@ import {
   Link2,
   Download,
   Check,
+  Bookmark,
+  BookmarkCheck,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -650,6 +652,9 @@ export default function CurationKPage() {
   const [savedCourses, setSavedCourses] = useState<SavedCourse[]>([])
   const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null)
 
+  // ── Spot 저장 (북마크) — user_curation_collections ───────────
+  const [savedCurationSet, setSavedCurationSet] = useState<Set<string>>(new Set())
+
   // ── Plan Your Trip (드라마별 1일 여행 코스) ───────────────────
   const [travelCourseOpen, setTravelCourseOpen] = useState(false)
   const [travelCourse, setTravelCourse] = useState<TravelCourse | null>(null)
@@ -781,12 +786,60 @@ export default function CurationKPage() {
       .catch((err) => console.warn("[curation-k] saved courses fetch 실패:", err))
   }, [isPro])
 
+  // 저장된 스팟 목록 로드 — 로그인 사용자 진입 시 1회
+  useEffect(() => {
+    if (!isAuthenticated) return
+    fetch("/api/curation-k/collections")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body: { items: Array<{ item_id: string }> }) => {
+        setSavedCurationSet(new Set((body.items ?? []).map((i) => i.item_id)))
+      })
+      .catch(() => {})
+  }, [isAuthenticated])
+
   // 드라마 옵션이 늦게 도착하면 첫 번째 드라마로 자동 set
   useEffect(() => {
     if (!courseDrama && dramaOptions.length > 0) {
       setCourseDrama(dramaOptions[0].drama_title)
     }
   }, [dramaOptions, courseDrama])
+
+  // 스팟 저장 토글 — SpotsTabPanel 카드의 북마크 클릭
+  async function handleSpotSaveToggle(item: SpotItem) {
+    if (!isAuthenticated) return
+    const itemType = activeTab === "filming" ? "filming" : "tour"
+    const isSaved = savedCurationSet.has(item.id)
+    // optimistic update
+    setSavedCurationSet((prev) => {
+      const next = new Set(prev)
+      if (isSaved) next.delete(item.id)
+      else next.add(item.id)
+      return next
+    })
+    try {
+      if (isSaved) {
+        await fetch(
+          `/api/curation-k/collections?item_type=${itemType}&item_id=${item.id}`,
+          { method: "DELETE" }
+        )
+      } else {
+        await fetch("/api/curation-k/collections", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ item_type: itemType, item_id: item.id }),
+        })
+      }
+    } catch (err) {
+      // rollback
+      setSavedCurationSet((prev) => {
+        const next = new Set(prev)
+        if (isSaved) next.add(item.id)
+        else next.delete(item.id)
+        return next
+      })
+      console.warn("[curation-k] spot save toggle 실패:", err)
+    }
+  }
 
   async function handleGenerateCourse() {
     setCourseError(null)
@@ -1658,6 +1711,8 @@ export default function CurationKPage() {
             onPageChange={setSpotsPage}
             isAuthenticated={isAuthenticated}
             onSelectSpot={setSelectedSpot}
+            savedIds={isAuthenticated ? savedCurationSet : undefined}
+            onSaveToggle={isAuthenticated ? handleSpotSaveToggle : undefined}
           />
         </div>
 
@@ -2360,6 +2415,8 @@ function SpotCard({
   fallbackImage,
   cta,
   onClick,
+  isSaved,
+  onSaveToggle,
 }: {
   image: string | null
   title: string
@@ -2372,6 +2429,8 @@ function SpotCard({
   fallbackImage?: string | null   // 카테고리별 Unsplash placeholder
   cta?: React.ReactNode
   onClick?: () => void
+  isSaved?: boolean
+  onSaveToggle?: (e: React.MouseEvent) => void
 }) {
   const effectiveImage = image ?? fallbackImage ?? null
   const interactive = !!onClick
@@ -2415,6 +2474,20 @@ function SpotCard({
             {badge}
           </span>
         )}
+        {onSaveToggle && (
+          <button
+            type="button"
+            title={isSaved ? "Saved" : "Save"}
+            aria-label={isSaved ? "Remove from My Curation" : "Save to My Curation"}
+            onClick={(e) => { e.stopPropagation(); onSaveToggle(e) }}
+            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center hover:bg-black/75 transition-colors z-10"
+          >
+            {isSaved
+              ? <BookmarkCheck className="w-4 h-4" style={{ color: "#FF4B6E" }} />
+              : <Bookmark className="w-4 h-4 text-white" />
+            }
+          </button>
+        )}
       </div>
       <div className="p-4">
         <h3 className="text-foreground font-semibold text-sm line-clamp-1">{title}</h3>
@@ -2446,6 +2519,8 @@ function SpotsTabPanel({
   onPageChange,
   isAuthenticated,
   onSelectSpot,
+  savedIds,
+  onSaveToggle,
 }: {
   tab: TabDef
   items: SpotItem[]
@@ -2457,6 +2532,8 @@ function SpotsTabPanel({
   onPageChange: (page: number) => void
   isAuthenticated: boolean | null
   onSelectSpot: (spot: SpotItem) => void
+  savedIds?: Set<string>
+  onSaveToggle?: (item: SpotItem) => void
 }) {
   // 1) 잠금 — Pro 전용 탭에 비Pro 접근 시
   if (locked) {
@@ -2545,6 +2622,8 @@ function SpotsTabPanel({
               fallbackIcon={<tab.Icon className="w-6 h-6 text-muted-foreground" />}
               fallbackImage={PLACEHOLDER_IMAGES[tab.key]}
               onClick={() => onSelectSpot(item)}
+              isSaved={savedIds?.has(item.id)}
+              onSaveToggle={onSaveToggle ? () => onSaveToggle(item) : undefined}
             />
           )
         })}

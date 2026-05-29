@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight, X, Film } from "lucide-react"
+import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight, X, Film, Bookmark, BookmarkCheck } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -122,6 +122,7 @@ export function KoreanContent() {
   const [phraseLoading, setPhraseLoading] = useState(true)
   const [phraseError, setPhraseError] = useState<string | null>(null)
   const [phraseLimited, setPhraseLimited] = useState(false)
+  const [phraseSaved, setPhraseSaved] = useState(false)
   const [showSynAnt, setShowSynAnt] = useState(false)
   const [seenPhraseIds, setSeenPhraseIds] = useState<string[]>([])
 
@@ -491,6 +492,9 @@ export function KoreanContent() {
     }
   }, [seenPhraseIds, toast])
 
+  // 표현이 바뀌면 북마크 상태 리셋
+  useEffect(() => { setPhraseSaved(false) }, [phrase?.id])
+
   // ─── 액션: Got it 클릭 시 학습완료 기록 + 스트릭 POST + 격려 토스트 + 다음 표현 자동 전환
   //    learning-progress POST 로 현재 phrase 를 mastered 마킹 → 페이지 재진입 시
   //    phrase-of-day GET 이 자동으로 미학습 랜덤으로 우회 (in-memory 가 아니라 영구).
@@ -503,6 +507,7 @@ export function KoreanContent() {
     if (phrase?.id && !phrase.id.startsWith("fallback-")) {
       setTotalMasteredOverall((prev) => prev + 1)
     }
+    setPhraseSaved(true)
 
     // 현재 phrase 를 mastered 기록 — 비-UUID (fallback sentinel) 은 서버가 skip
     if (phrase?.id) {
@@ -777,6 +782,34 @@ export function KoreanContent() {
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                   >
                     Next expression →
+                  </button>
+                </div>
+                {/* 북마크 — learning_progress 에 'learning' 상태로 저장 */}
+                <div className="mt-2 text-center">
+                  <button
+                    type="button"
+                    title={phraseSaved ? "Saved" : "Save"}
+                    disabled={phraseSaved || !isAuthenticated}
+                    onClick={async () => {
+                      if (!phrase?.id || phraseSaved || !isAuthenticated) return
+                      setPhraseSaved(true)
+                      try {
+                        await fetch("/api/korean/learning-progress", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ phraseId: phrase.id, status: "learning" }),
+                        })
+                      } catch (err) {
+                        console.warn("[korean] phrase save 실패:", err)
+                        setPhraseSaved(false)
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                  >
+                    {phraseSaved
+                      ? <><BookmarkCheck className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} /> Saved</>
+                      : <><Bookmark className="w-3.5 h-3.5" /> Save phrase</>
+                    }
                   </button>
                 </div>
               </>
