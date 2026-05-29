@@ -4,11 +4,55 @@
 
 ---
 
-## 현재 상태 (2026-05-29 세션 29 / 버그 수정 + Discord Webhook 전환 + KpopStats 개선)
+## 현재 상태 (2026-05-29 세션 30 / My Activity + My Curation + 저장 아이콘)
 
 ### 완료
 
-#### A. 이번 세션 작업 (세션 29)
+#### A. 이번 세션 작업 (세션 30)
+
+- **My Activity 카드·하부 페이지 데이터 소스 통일**
+  - `artistsTracking`: stats API kpop_artists 매칭 제거 → 구독 이벤트 distinct artist_or_drama 직접 집계 (artists 페이지와 동일 소스)
+  - `eventsUpcoming`: notification_enabled=true + event_date >= now 필터 통일 (stats ↔ events API)
+  - My Events 페이지: "이번 달" → "미래 이벤트·알림 설정" 방식으로 변경
+  - Upcoming Events 화살표 버튼: hover-only → 항상 표시
+
+- **My Artists 하부 페이지 수정** (`app/api/mypage/artists/route.ts`, `app/mypage/artists/page.tsx`)
+  - artists API: kpop_artists 매칭 enrichment 전용으로 변경 → 미매칭 artist_or_drama도 제네릭 카드로 반환
+  - artists 페이지: id=null 처리 (key, href fallback)
+
+- **My Hallyu Course UI 개선** (`app/curation-k/page.tsx`, `app/api/curation-k/course/route.ts`, `app/api/curation-k/course/save/route.ts`)
+  - Departing from 필드 제거, Arriving at → Destination 단일 입력
+  - Claude 프롬프트: 출발→도착 이동 → 목적지 지역 내 탐색 방식으로 변경
+  - "Seoul → undefined" 버그 수정 (meta에 arrival_region 누락)
+  - Saved Courses 6개 cap + 초과 시 가장 오래된 코스 자동 삭제
+  - "Up to 6 courses saved" 안내 문구 추가
+
+- **My Curation 사이드바 메뉴 + 페이지** (migration 0049)
+  - 양쪽 사이드바(mypage-shell + Dashboard)에 MapPin "My Curation" 추가
+  - `app/mypage/curation/page.tsx` 신규 — Saved Recipes 동일 패턴
+  - `app/api/curation-k/collections/route.ts` GET/POST/DELETE
+  - `supabase/migrations/0049_user_curation_collections.sql` ← **사용자 실행 필요**
+
+- **서비스별 저장 아이콘** (여러 차례 수정 끝)
+  - Curation K SpotCard 그리드: `onSaveToggle` 항상 전달 → 이미지 우상단 북마크
+  - Curation K 장소 모달(SpotDetailDialog): 이미지 우상단 북마크 추가, X 버튼 옆 `right-12` 배치
+  - DramaCard: 이미지 오버레이 북마크 (isLoggedIn 조건 제거, `onToggleSave` 있으면 항상 렌더)
+  - HangeulGo Save phrase: status "learning" → "mastered" (Learning Progress 조회와 일치)
+
+### 블로커
+
+- `user_curation_collections` 테이블 — DB migration 0049 아직 미실행
+  → Supabase SQL Editor에서 `supabase/migrations/0049_user_curation_collections.sql` 실행 필요
+  → 실행 전까지 My Curation 저장/조회 동작 안 함
+
+### 다음 세션
+
+- My Curation 저장 기능 실동작 확인 (migration 실행 후)
+- HangeulGo Learning Progress 페이지 실표시 확인
+
+---
+
+#### B. 이전 세션 작업 (세션 29)
 
 - **빌링/취소 버튼 404 수정** (`app/mypage/subscription/page.tsx`)
   - Cancel subscription 버튼 2곳 + Download 링크 → PaymentComingSoonModal 연결
