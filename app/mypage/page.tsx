@@ -144,11 +144,11 @@ export default function MyPage() {
     hasFlame?: boolean
   }> = [
     { label: "Artists Tracking", value: showStat(stats?.artistsTracking), href: "/mypage/artists" },
-    { label: "Events This Month", value: showStat(stats?.eventsThisMonth), href: "/mypage/calendar" },
+    { label: "Events This Month", value: showStat(stats?.eventsThisMonth), href: "/mypage/events" },
     {
       label: "Korean Lessons",
       value: showStat(stats?.streakDays),
-      href: "/korean",
+      href: "/mypage/learning-progress",
       suffix: "day streak",
       hasFlame: true,
     },

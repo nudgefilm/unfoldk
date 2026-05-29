@@ -20,6 +20,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import {
   Home,
   Calendar,
+  CalendarDays,
   Music,
   Film,
   Languages,
@@ -33,15 +34,15 @@ import {
 const sidebarLinks = [
   { icon: Home, label: "Dashboard", href: "/mypage" },
   { icon: Calendar, label: "My Calendar", href: "/mypage/calendar" },
+  { icon: CalendarDays, label: "My Events", href: "/mypage/events" },
   { icon: Music, label: "My Artists", href: "/mypage/artists" },
   { icon: Film, label: "My Dramas", href: "/mypage/dramas" },
-  { icon: Languages, label: "Learning Progress", href: "/mypage/learning" },
+  { icon: Languages, label: "Learning Progress", href: "/mypage/learning-progress" },
   { icon: UtensilsCrossed, label: "Saved Recipes", href: "/mypage/recipes" },
   { icon: PartyPopper, label: "My Fan Events", href: "/mypage/fan-events" },
   { icon: Newspaper, label: "Weekly Reports", href: "/mypage/reports" },
   { icon: CreditCard, label: "Subscription", href: "/mypage/subscription" },
   { icon: Settings, label: "Settings", href: "/mypage/settings" },
-
 ]
 
 type SidebarLabel = (typeof sidebarLinks)[number]["label"]
