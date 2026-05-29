@@ -237,14 +237,12 @@ function DramaCard({
   onOpenDetail,
   isSaved,
   onToggleSave,
-  isLoggedIn,
 }: {
   drama: ApiDrama
   onAdd: (dramaId: string) => void
   onOpenDetail: (dramaId: string) => void
   isSaved?: boolean
   onToggleSave?: (dramaId: string) => void
-  isLoggedIn?: boolean
 }) {
   const displayTitle = getDisplayTitle(drama)
   return (
@@ -272,8 +270,8 @@ function DramaCard({
         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
           <Play className="w-12 h-12 text-white" fill="white" />
         </div>
-        {/* 북마크 오버레이 — 로그인 사용자만. div role="button" 으로 button-in-button HTML 위반 회피 */}
-        {isLoggedIn && onToggleSave && (
+        {/* 북마크 오버레이 — 항상 노출. 미로그인 클릭 시 로그인 이동 (handleToggleDramaSave 내부 처리) */}
+        {onToggleSave && (
           <div
             role="button"
             tabIndex={0}
@@ -1464,7 +1462,6 @@ function KdramaMatchPageInner() {
                     drama={d}
                     onAdd={handleAddToWatchlist}
                     onOpenDetail={openModal}
-                    isLoggedIn={isAuthenticated === true}
                     isSaved={savedDramaIds.has(d.id)}
                     onToggleSave={handleToggleDramaSave}
                   />
@@ -1601,7 +1598,6 @@ function KdramaMatchPageInner() {
                     drama={d}
                     onAdd={handleAddToWatchlist}
                     onOpenDetail={openModal}
-                    isLoggedIn={isAuthenticated === true}
                     isSaved={savedDramaIds.has(d.id)}
                     onToggleSave={handleToggleDramaSave}
                   />

@@ -806,7 +806,10 @@ export default function CurationKPage() {
 
   // 스팟 저장 토글 — SpotsTabPanel 카드의 북마크 클릭
   async function handleSpotSaveToggle(item: SpotItem) {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) {
+      window.location.href = "/login?redirect=/curation-k"
+      return
+    }
     const itemType = activeTab === "filming" ? "filming" : "tour"
     const isSaved = savedCurationSet.has(item.id)
     // optimistic update
@@ -1711,8 +1714,8 @@ export default function CurationKPage() {
             onPageChange={setSpotsPage}
             isAuthenticated={isAuthenticated}
             onSelectSpot={setSelectedSpot}
-            savedIds={isAuthenticated ? savedCurationSet : undefined}
-            onSaveToggle={isAuthenticated ? handleSpotSaveToggle : undefined}
+            savedIds={savedCurationSet}
+            onSaveToggle={handleSpotSaveToggle}
           />
         </div>
 
@@ -1723,6 +1726,8 @@ export default function CurationKPage() {
           isPro={isPro}
           isAuthenticated={isAuthenticated}
           onClose={() => setSelectedSpot(null)}
+          isSaved={selectedSpot ? savedCurationSet.has(selectedSpot.id) : false}
+          onSaveToggle={selectedSpot ? () => handleSpotSaveToggle(selectedSpot) : undefined}
         />
 
         {/* Plan Your Trip 모달 */}
@@ -2476,7 +2481,7 @@ function SpotCard({
             {badge}
           </span>
         )}
-        {isLoggedIn && onSaveToggle && (
+        {onSaveToggle && (
           <div
             role="button"
             tabIndex={0}
@@ -2723,12 +2728,16 @@ function SpotDetailDialog({
   isPro,
   isAuthenticated,
   onClose,
+  isSaved,
+  onSaveToggle,
 }: {
   spot: SpotItem | null
   tab: TabDef
   isPro: boolean
   isAuthenticated: boolean | null
   onClose: () => void
+  isSaved?: boolean
+  onSaveToggle?: () => void
 }) {
   // 이미지 갤러리: image_url + image_url2 (중복·빈 값 제거).
   // 둘 다 null 이면 카테고리별 placeholder Unsplash URL 사용.
@@ -2857,6 +2866,26 @@ function SpotDetailDialog({
               <span className="opacity-80">Featured in:</span>
               <span className="font-semibold">{dramaBadge}</span>
             </Link>
+          )}
+
+          {/* 북마크 — 항상 노출. 미로그인 클릭 시 로그인 이동 (onSaveToggle 내부 처리) */}
+          {onSaveToggle && (
+            <div
+              role="button"
+              tabIndex={0}
+              title={isSaved ? "Saved" : "Save"}
+              aria-label={isSaved ? "Remove from My Curation" : "Save to My Curation"}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSaveToggle() }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSaveToggle() }
+              }}
+              className="absolute top-3 right-3 z-30 w-9 h-9 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center hover:bg-black/75 transition-colors cursor-pointer"
+            >
+              {isSaved
+                ? <BookmarkCheck className="w-5 h-5" style={{ color: "#FF4B6E" }} />
+                : <Bookmark className="w-5 h-5 text-white" />
+              }
+            </div>
           )}
 
           {/* 좌우 화살표 + 도트 — realImages 2장 이상일 때만 (image_url == image_url2 면 Set 중복 제거).
