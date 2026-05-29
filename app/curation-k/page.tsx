@@ -2879,7 +2879,7 @@ function SpotDetailDialog({
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSaveToggle() }
               }}
-              className="absolute top-3 right-3 z-30 w-9 h-9 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center hover:bg-black/75 transition-colors cursor-pointer"
+              className="absolute top-3 right-12 z-30 w-9 h-9 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center hover:bg-black/75 transition-colors cursor-pointer"
             >
               {isSaved
                 ? <BookmarkCheck className="w-5 h-5" style={{ color: "#FF4B6E" }} />
