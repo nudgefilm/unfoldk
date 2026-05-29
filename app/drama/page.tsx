@@ -237,12 +237,14 @@ function DramaCard({
   onOpenDetail,
   isSaved,
   onToggleSave,
+  isLoggedIn,
 }: {
   drama: ApiDrama
   onAdd: (dramaId: string) => void
   onOpenDetail: (dramaId: string) => void
   isSaved?: boolean
   onToggleSave?: (dramaId: string) => void
+  isLoggedIn?: boolean
 }) {
   const displayTitle = getDisplayTitle(drama)
   return (
@@ -270,6 +272,29 @@ function DramaCard({
         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
           <Play className="w-12 h-12 text-white" fill="white" />
         </div>
+        {/* 북마크 오버레이 — 로그인 사용자만. div role="button" 으로 button-in-button HTML 위반 회피 */}
+        {isLoggedIn && onToggleSave && (
+          <div
+            role="button"
+            tabIndex={0}
+            title={isSaved ? "Saved" : "Save"}
+            aria-label={isSaved ? "Remove from My Dramas" : "Save to My Dramas"}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleSave(drama.id) }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                e.stopPropagation()
+                onToggleSave(drama.id)
+              }
+            }}
+            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center hover:bg-black/75 transition-colors cursor-pointer"
+          >
+            {isSaved
+              ? <BookmarkCheck className="w-4 h-4" style={{ color: "#FF4B6E" }} />
+              : <Bookmark className="w-4 h-4 text-white" />
+            }
+          </div>
+        )}
       </button>
 
       <div className="p-4">
@@ -313,19 +338,11 @@ function DramaCard({
           </button>
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              if (onToggleSave) onToggleSave(drama.id)
-              else onAdd(drama.id)
-            }}
+            onClick={(e) => { e.stopPropagation(); onAdd(drama.id) }}
             className="p-1.5 rounded-lg hover:bg-[#252525] transition-colors"
-            title={isSaved ? "Saved" : "Save"}
-            aria-label={isSaved ? "Remove from My Dramas" : "Save to My Dramas"}
+            aria-label="Add to watchlist"
           >
-            {isSaved
-              ? <BookmarkCheck className="w-4 h-4" style={{ color: "#FF4B6E" }} />
-              : <Bookmark className="w-4 h-4 text-muted-foreground" />
-            }
+            <Plus className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
       </div>
@@ -1447,6 +1464,7 @@ function KdramaMatchPageInner() {
                     drama={d}
                     onAdd={handleAddToWatchlist}
                     onOpenDetail={openModal}
+                    isLoggedIn={isAuthenticated === true}
                     isSaved={savedDramaIds.has(d.id)}
                     onToggleSave={handleToggleDramaSave}
                   />
@@ -1583,6 +1601,7 @@ function KdramaMatchPageInner() {
                     drama={d}
                     onAdd={handleAddToWatchlist}
                     onOpenDetail={openModal}
+                    isLoggedIn={isAuthenticated === true}
                     isSaved={savedDramaIds.has(d.id)}
                     onToggleSave={handleToggleDramaSave}
                   />

@@ -2417,6 +2417,7 @@ function SpotCard({
   onClick,
   isSaved,
   onSaveToggle,
+  isLoggedIn,
 }: {
   image: string | null
   title: string
@@ -2431,6 +2432,7 @@ function SpotCard({
   onClick?: () => void
   isSaved?: boolean
   onSaveToggle?: (e: React.MouseEvent) => void
+  isLoggedIn?: boolean
 }) {
   const effectiveImage = image ?? fallbackImage ?? null
   const interactive = !!onClick
@@ -2474,19 +2476,27 @@ function SpotCard({
             {badge}
           </span>
         )}
-        {onSaveToggle && (
-          <button
-            type="button"
+        {isLoggedIn && onSaveToggle && (
+          <div
+            role="button"
+            tabIndex={0}
             title={isSaved ? "Saved" : "Save"}
             aria-label={isSaved ? "Remove from My Curation" : "Save to My Curation"}
-            onClick={(e) => { e.stopPropagation(); onSaveToggle(e) }}
-            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center hover:bg-black/75 transition-colors z-10"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSaveToggle(e) }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                e.stopPropagation()
+                onSaveToggle(e as unknown as React.MouseEvent)
+              }
+            }}
+            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center hover:bg-black/75 transition-colors cursor-pointer"
           >
             {isSaved
               ? <BookmarkCheck className="w-4 h-4" style={{ color: "#FF4B6E" }} />
               : <Bookmark className="w-4 h-4 text-white" />
             }
-          </button>
+          </div>
         )}
       </div>
       <div className="p-4">
@@ -2622,6 +2632,7 @@ function SpotsTabPanel({
               fallbackIcon={<tab.Icon className="w-6 h-6 text-muted-foreground" />}
               fallbackImage={PLACEHOLDER_IMAGES[tab.key]}
               onClick={() => onSelectSpot(item)}
+              isLoggedIn={isAuthenticated === true}
               isSaved={savedIds?.has(item.id)}
               onSaveToggle={onSaveToggle ? () => onSaveToggle(item) : undefined}
             />

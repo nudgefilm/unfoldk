@@ -797,7 +797,7 @@ export function KoreanContent() {
                         await fetch("/api/korean/learning-progress", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ phraseId: phrase.id, status: "learning" }),
+                          body: JSON.stringify({ phraseId: phrase.id, status: "mastered" }),
                         })
                       } catch (err) {
                         console.warn("[korean] phrase save 실패:", err)
