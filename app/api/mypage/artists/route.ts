@@ -2,19 +2,28 @@ import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 // GET /api/mypage/artists
-// 유저가 트래킹한 아티스트 목록 반환
+// 유저가 구독한 이벤트에서 distinct artist_or_drama 목록 반환.
 //
-// 매칭 전략:
+// 전략 (Saved Recipes 방식):
 //   1. user_calendar_subscriptions → hallyu_calendar_events.artist_or_drama distinct 추출
-//   2. kpop_artists 전체 로드 (is_active=true)
-//   3. 인메모리 substring 매칭:
-//      "BTS Concert" → artist.name="BTS" 가 포함됨 → 매칭
-//      track API 가 ILIKE %artist.name% 로 구독했으므로 역방향 포함 검사가 올바름.
+//   2. kpop_artists 매칭은 enrichment 전용 — 매칭 실패해도 이름 카드로 표시
+//   3. kpop 매칭 성공 → 썸네일·한글명·타입 포함 / 실패 → id=null 제네릭 카드
+//
+// 카드 건수 = /api/mypage/stats artistsTracking 건수와 항상 일치.
 
 export const dynamic = "force-dynamic"
 
-interface ArtistRow {
+interface KpopArtistRow {
   id: string
+  name: string
+  name_ko: string | null
+  youtube_thumbnail_url: string | null
+  member_count: number | null
+}
+
+// id: null = kpop_artists 매칭 없는 제네릭 카드
+interface ArtistItem {
+  id: string | null
   name: string
   name_ko: string | null
   youtube_thumbnail_url: string | null
@@ -26,7 +35,7 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 })
 
-  // 1. 구독 event_id 목록
+  // 1. 구독 event_id 목록 (notification 필터 없음 — 구독 자체가 "트래킹" 기준)
   const { data: subs, error: subsErr } = await supabase
     .from("user_calendar_subscriptions")
     .select("event_id")
@@ -52,21 +61,47 @@ export async function GET() {
 
   const eventNames = [...nameSet].map((n) => n.toLowerCase())
 
-  // 3. 활성 kpop_artists 전체 로드 후 인메모리 매칭
-  //    track API: artist_or_drama ILIKE %artist.name% 로 구독 → 역방향 포함 검사
-  const { data: allArtists, error: artistsErr } = await supabase
+  // 3. kpop_artists 로드 (enrichment 전용 — 없어도 결과 반환)
+  const { data: allArtists } = await supabase
     .from("kpop_artists")
     .select("id, name, name_ko, youtube_thumbnail_url, member_count")
     .eq("is_active", true)
-  if (artistsErr) return NextResponse.json({ artists: [] })
 
-  const matched = ((allArtists ?? []) as ArtistRow[]).filter((artist) => {
+  // 매칭된 kpop_artists: event name 에 artist.name 이 포함된 경우
+  const kpopMatched = ((allArtists ?? []) as KpopArtistRow[]).filter((artist) => {
     const n = artist.name.toLowerCase()
     const nko = artist.name_ko?.toLowerCase() ?? null
-    return eventNames.some(
-      (en) => en.includes(n) || (nko && en.includes(nko))
-    )
+    return eventNames.some((en) => en.includes(n) || (nko && en.includes(nko)))
   })
 
-  return NextResponse.json({ artists: matched })
+  // kpop 매칭이 커버한 event name 집합 (중복 제거용)
+  const coveredNames = new Set<string>()
+  for (const artist of kpopMatched) {
+    const n = artist.name.toLowerCase()
+    const nko = artist.name_ko?.toLowerCase() ?? null
+    for (const en of eventNames) {
+      if (en.includes(n) || (nko && en.includes(nko))) {
+        coveredNames.add(en)
+      }
+    }
+  }
+
+  // kpop 매칭 실패한 artist_or_drama → 제네릭 카드 (id=null)
+  const unmatched: ArtistItem[] = [...nameSet]
+    .filter((name) => !coveredNames.has(name.toLowerCase()))
+    .map((name) => ({
+      id: null,
+      name,
+      name_ko: null,
+      youtube_thumbnail_url: null,
+      member_count: null,
+    }))
+
+  // kpop 매칭 먼저, 미매칭 이름 뒤
+  const artists: ArtistItem[] = [
+    ...(kpopMatched as ArtistItem[]),
+    ...unmatched,
+  ]
+
+  return NextResponse.json({ artists })
 }

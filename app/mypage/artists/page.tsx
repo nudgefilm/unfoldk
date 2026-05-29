@@ -11,7 +11,7 @@ import { MypageShell } from "@/components/mypage/mypage-shell"
 import { Toaster } from "@/components/ui/sonner"
 
 interface ArtistItem {
-  id: string
+  id: string | null  // null = kpop_artists 미매칭 제네릭 카드
   name: string
   name_ko: string | null
   youtube_thumbnail_url: string | null
@@ -72,8 +72,8 @@ function MyArtistsBody() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {items.map((artist) => (
             <Link
-              key={artist.id}
-              href={`/kpop/${artist.id}`}
+              key={artist.id ?? artist.name}
+              href={artist.id ? `/kpop/${artist.id}` : `/kpop`}
               className="bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors cursor-pointer block"
             >
               <div className="aspect-square bg-[#252525] flex items-center justify-center overflow-hidden">

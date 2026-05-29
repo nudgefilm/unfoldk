@@ -332,7 +332,7 @@ export default function MyPage() {
             {upcomingEvents.length === 0 ? (
               <p className="text-muted-foreground text-sm py-2">No upcoming events. <Link href="/calendar" className="hover:underline" style={{ color: "#FF4B6E" }}>Browse calendar →</Link></p>
             ) : (
-              <div className="relative group">
+              <div className="relative">
                 <div
                   ref={eventsScrollRef}
                   className="flex gap-4 overflow-x-auto [&::-webkit-scrollbar]:hidden"
@@ -367,7 +367,7 @@ export default function MyPage() {
                     type="button"
                     onClick={() => scrollEvents("left")}
                     aria-label="Scroll events left"
-                    className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-[#1a1a1a]/90 backdrop-blur-sm border border-border/30 items-center justify-center text-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#1a1a1a]"
+                    className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-[#1a1a1a]/90 backdrop-blur-sm border border-border/30 items-center justify-center text-foreground hover:bg-[#1a1a1a]"
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
@@ -377,7 +377,7 @@ export default function MyPage() {
                     type="button"
                     onClick={() => scrollEvents("right")}
                     aria-label="Scroll events right"
-                    className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-[#1a1a1a]/90 backdrop-blur-sm border border-border/30 items-center justify-center text-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#1a1a1a]"
+                    className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-[#1a1a1a]/90 backdrop-blur-sm border border-border/30 items-center justify-center text-foreground hover:bg-[#1a1a1a]"
                   >
                     <ChevronRight className="w-5 h-5" />
                   </button>

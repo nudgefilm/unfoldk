@@ -47,16 +47,13 @@ function MyEventsBody() {
     return () => { cancelled = true }
   }, [])
 
-  const now = new Date()
-  const monthLabel = now.toLocaleString("en-US", { month: "long", year: "numeric" })
-
   return (
     <div>
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground mb-2">My Events</h1>
           <p className="text-muted-foreground text-sm">
-            Events you&apos;re subscribed to in {monthLabel}.
+            Upcoming events you&apos;ve set reminders for.
           </p>
         </div>
         <Link
@@ -74,7 +71,7 @@ function MyEventsBody() {
           Loading...
         </div>
       ) : items.length === 0 ? (
-        <EmptyState monthLabel={monthLabel} />
+        <EmptyState />
       ) : (
         <div className="flex flex-col gap-3">
           {items.map((event) => {
@@ -141,13 +138,13 @@ function MyEventsBody() {
   )
 }
 
-function EmptyState({ monthLabel }: { monthLabel: string }) {
+function EmptyState() {
   return (
     <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl px-6 py-12 text-center">
       <CalendarDays className="w-10 h-10 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
-      <p className="text-foreground font-medium mb-1">No events this month</p>
+      <p className="text-foreground font-medium mb-1">No upcoming events</p>
       <p className="text-muted-foreground text-sm mb-5 max-w-md mx-auto">
-        Subscribe to events in HallyuCalendar to track them here. Nothing yet for {monthLabel}.
+        Set a reminder on calendar events to track them here.
       </p>
       <Link
         href="/calendar"
