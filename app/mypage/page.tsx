@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,7 @@ import {
   UtensilsCrossed,
   CreditCard,
   Settings,
+  ChevronLeft,
   ChevronRight,
   Flame,
   PartyPopper,
@@ -75,6 +76,39 @@ export default function MyPage() {
   // 다가오는 이벤트 + 다음 학습 표현
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([])
   const [nextPhrase, setNextPhrase] = useState<NextPhrase | null>(null)
+
+  // Upcoming Events 가로 스크롤 (← → 화살표)
+  const eventsScrollRef = useRef<HTMLDivElement>(null)
+  const [eventsCanLeft, setEventsCanLeft] = useState(false)
+  const [eventsCanRight, setEventsCanRight] = useState(false)
+
+  const updateEventsScrollState = useCallback(() => {
+    const el = eventsScrollRef.current
+    if (!el) return
+    setEventsCanLeft(el.scrollLeft > 0)
+    setEventsCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+
+  const scrollEvents = (dir: "left" | "right") => {
+    const el = eventsScrollRef.current
+    if (!el) return
+    el.scrollBy({ left: dir === "left" ? -el.clientWidth : el.clientWidth, behavior: "smooth" })
+  }
+
+  useEffect(() => {
+    if (upcomingEvents.length === 0) return
+    const raf = requestAnimationFrame(updateEventsScrollState)
+    const el = eventsScrollRef.current
+    if (!el) return () => cancelAnimationFrame(raf)
+    el.addEventListener("scroll", updateEventsScrollState, { passive: true })
+    const ro = new ResizeObserver(updateEventsScrollState)
+    ro.observe(el)
+    return () => {
+      cancelAnimationFrame(raf)
+      el.removeEventListener("scroll", updateEventsScrollState)
+      ro.disconnect()
+    }
+  }, [upcomingEvents, updateEventsScrollState])
 
   useEffect(() => {
     // Supabase 세션 로드 후 Google 프로필 + plan_type 동기화
@@ -295,34 +329,61 @@ export default function MyPage() {
                 View all <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
-            <div className="flex gap-4 overflow-x-auto pb-2">
-              {upcomingEvents.length === 0 ? (
-                <p className="text-muted-foreground text-sm py-2">No upcoming events. <Link href="/calendar" className="hover:underline" style={{ color: "#FF4B6E" }}>Browse calendar →</Link></p>
-              ) : upcomingEvents.map((event) => {
-                const d = new Date(event.event_date)
-                const dayNum = d.getUTCDate()
-                const monthStr = d.toLocaleString("en-US", { month: "short", timeZone: "UTC" }).toUpperCase()
-                const monthParam = event.event_date.slice(0, 7)
-                return (
-                  <Link
-                    key={event.id}
-                    href={`/calendar?event=${event.id}&month=${monthParam}`}
-                    className="flex-shrink-0 w-[200px] bg-[#1a1a1a] border border-border/30 rounded-xl p-4 hover:border-primary/50 transition-colors cursor-pointer block"
+            {upcomingEvents.length === 0 ? (
+              <p className="text-muted-foreground text-sm py-2">No upcoming events. <Link href="/calendar" className="hover:underline" style={{ color: "#FF4B6E" }}>Browse calendar →</Link></p>
+            ) : (
+              <div className="relative group">
+                <div
+                  ref={eventsScrollRef}
+                  className="flex gap-4 overflow-x-auto [&::-webkit-scrollbar]:hidden"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
+                  {upcomingEvents.map((event) => {
+                    const d = new Date(event.event_date)
+                    const dayNum = d.getUTCDate()
+                    const monthStr = d.toLocaleString("en-US", { month: "short", timeZone: "UTC" }).toUpperCase()
+                    const monthParam = event.event_date.slice(0, 7)
+                    return (
+                      <Link
+                        key={event.id}
+                        href={`/calendar?event=${event.id}&month=${monthParam}`}
+                        className="flex-shrink-0 w-[200px] bg-[#1a1a1a] border border-border/30 rounded-xl p-4 hover:border-primary/50 transition-colors cursor-pointer block"
+                      >
+                        <div
+                          className="w-12 h-12 rounded-xl flex flex-col items-center justify-center text-white mb-3"
+                          style={{ backgroundColor: "#FF4B6E" }}
+                        >
+                          <span className="text-[10px] font-medium">{monthStr}</span>
+                          <span className="text-lg font-bold">{dayNum}</span>
+                        </div>
+                        <h3 className="text-foreground font-medium text-sm mb-1 truncate">{event.title}</h3>
+                        <span className="text-muted-foreground text-xs">{event.type}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+                {eventsCanLeft && (
+                  <button
+                    type="button"
+                    onClick={() => scrollEvents("left")}
+                    aria-label="Scroll events left"
+                    className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-[#1a1a1a]/90 backdrop-blur-sm border border-border/30 items-center justify-center text-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#1a1a1a]"
                   >
-                    {/* Date Badge */}
-                    <div
-                      className="w-12 h-12 rounded-xl flex flex-col items-center justify-center text-white mb-3"
-                      style={{ backgroundColor: "#FF4B6E" }}
-                    >
-                      <span className="text-[10px] font-medium">{monthStr}</span>
-                      <span className="text-lg font-bold">{dayNum}</span>
-                    </div>
-                    <h3 className="text-foreground font-medium text-sm mb-1 truncate">{event.title}</h3>
-                    <span className="text-muted-foreground text-xs">{event.type}</span>
-                  </Link>
-                )
-              })}
-            </div>
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                )}
+                {eventsCanRight && (
+                  <button
+                    type="button"
+                    onClick={() => scrollEvents("right")}
+                    aria-label="Scroll events right"
+                    className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-[#1a1a1a]/90 backdrop-blur-sm border border-border/30 items-center justify-center text-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#1a1a1a]"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            )}
           </section>
 
           {/* Section 3: Continue Learning */}

@@ -33,10 +33,12 @@ export async function GET() {
   }
 
   // 1+2. Artists Tracking + Upcoming Events
+  //       notification_enabled=true: 리마인더 토글이 1개라도 켜진 행만 집계
   const subsP = supabase
     .from("user_calendar_subscriptions")
     .select("event_id")
     .eq("user_id", user.id)
+    .eq("notification_enabled", true)
 
   // 3. Streak (Continue Learning progress bar 용)
   const streakP = supabase

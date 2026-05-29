@@ -20,10 +20,12 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 })
 
+  // notification_enabled=true: 리마인더 토글이 1개라도 켜진 구독만
   const { data: subs, error: subsErr } = await supabase
     .from("user_calendar_subscriptions")
     .select("event_id")
     .eq("user_id", user.id)
+    .eq("notification_enabled", true)
   if (subsErr || !subs?.length) return NextResponse.json({ events: [] })
 
   const eventIds = (subs as Array<{ event_id: string }>).map((s) => s.event_id)
