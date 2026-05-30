@@ -225,6 +225,50 @@ export default function KpopStatsPage() {
       })
   }, [chart])
 
+  // ─── 주간 KpopStats 스토리텔링 데이터 ──────────────────────
+  const [weeklyReport, setWeeklyReport] = useState<string | null>(null)
+  const [weeklyInsights, setWeeklyInsights] = useState<
+    Array<{ artist_id: string; artist_name: string; insight_text: string }>
+  >([])
+  const [countryCharts, setCountryCharts] = useState<
+    Array<{
+      country_code: string
+      artists: Array<{ artist_id: string | null; artist_name: string; rank: number; listeners: number | null }>
+    }>
+  >([])
+
+  useEffect(() => {
+    fetch("/api/kpop/weekly-report")
+      .then((r) => (r.ok ? r.json() : { report: null }))
+      .then((d: { report?: { report_text: string } | null }) => setWeeklyReport(d.report?.report_text ?? null))
+      .catch(() => setWeeklyReport(null))
+  }, [])
+
+  useEffect(() => {
+    fetch("/api/kpop/weekly-insights")
+      .then((r) => (r.ok ? r.json() : { insights: [] }))
+      .then((d: { insights?: typeof weeklyInsights }) => setWeeklyInsights(d.insights ?? []))
+      .catch(() => setWeeklyInsights([]))
+  }, [])
+
+  useEffect(() => {
+    fetch("/api/kpop/country-charts")
+      .then((r) => (r.ok ? r.json() : { charts: [] }))
+      .then((d: { charts?: typeof countryCharts }) => setCountryCharts(d.charts ?? []))
+      .catch(() => setCountryCharts([]))
+  }, [])
+
+  // 국기 이모지 — ISO 3166-1 alpha-2 코드에서 계산
+  function flagEmoji(cc: string): string {
+    return [...cc.toUpperCase()].map((c) => String.fromCodePoint(c.charCodeAt(0) + 0x1f1a5)).join("")
+  }
+
+  const COUNTRY_NAMES: Record<string, string> = {
+    US: "United States", GB: "United Kingdom", PH: "Philippines",
+    TH: "Thailand", ID: "Indonesia", BR: "Brazil",
+    FR: "France", DE: "Germany", AU: "Australia", CA: "Canada",
+  }
+
   // 노출 개수 분기
   // 2026-05-16 임시 정책 (DECISIONS.md) — Free 도 Pro 와 동일 Top 20. 비로그인만 5건 미리보기.
   // 결제 연동 후 Free=10 으로 복원 예정.
@@ -379,6 +423,17 @@ export default function KpopStatsPage() {
         {/* 검색 비활성 — 기본 모드 (Trending / Chart / More Artists / Spotlight / Comparison) */}
         {searchResults === null && (
         <>
+        {/* UnfoldK 주간 K팝 리포트 */}
+        {weeklyReport && (
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-3">
+              This Week in K-pop — UnfoldK Weekly Report
+            </h2>
+            <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-5">
+              <p className="text-sm text-muted-foreground leading-relaxed">{weeklyReport}</p>
+            </div>
+          </section>
+        )}
         {/* Today's Trending Top 5 — kpop_stats_daily today vs yesterday delta.
             데이터 부족 (2일치 미만) 시 "Coming soon" placeholder. */}
         <section className="mb-12">
@@ -518,6 +573,19 @@ export default function KpopStatsPage() {
               Ranked by weekly YouTube view growth
             </p>
           </div>
+
+          {/* 이번 주 아티스트 동향 인사이트 */}
+          {weeklyInsights.length > 0 && (
+            <div className="mb-4 flex flex-col gap-1.5">
+              {weeklyInsights.map((insight) => (
+                <p key={insight.artist_id} className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{insight.artist_name}</span>
+                  {" — "}
+                  {insight.insight_text}
+                </p>
+              ))}
+            </div>
+          )}
 
           <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden">
             {/* Table Header */}
@@ -771,6 +839,38 @@ export default function KpopStatsPage() {
               <div className="mt-6 pt-4 border-t border-border/20 flex justify-end">
                 <ReportButton contentType="artist" contentId={spotlight.artist.id} />
               </div>
+            </div>
+          </section>
+        )}
+
+        {/* K-pop Around the World — 국가별 Top 3 */}
+        {countryCharts.length > 0 && (
+          <section className="mb-12">
+            <h2 className="text-2xl font-semibold text-white mb-6">K-pop Around the World</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {countryCharts.map((country) => (
+                <div
+                  key={country.country_code}
+                  className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xl leading-none">
+                      {flagEmoji(country.country_code)}
+                    </span>
+                    <span className="text-sm font-medium text-foreground truncate">
+                      {COUNTRY_NAMES[country.country_code] ?? country.country_code}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {country.artists.map((a) => (
+                      <p key={a.rank} className="text-xs text-muted-foreground truncate">
+                        <span className="text-foreground font-medium">{a.rank}.</span>{" "}
+                        {a.artist_name}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         )}

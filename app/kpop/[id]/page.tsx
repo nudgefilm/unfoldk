@@ -10,6 +10,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { getEventTypeColor, getEventTypeColorAlpha } from "@/lib/calendar/event-type-colors"
 import { TrackArtistButton } from "./track-artist-button"
 import { ArtistTrendChart } from "@/components/kpop/artist-trend-chart"
+import { ArtistGuideSection } from "@/components/kpop/artist-guide-section"
 
 // /kpop/[id] — 아티스트 상세 페이지 (Server Component)
 // 차트 행 / Trending 카드에서 navigation. SEO 친화 + 첫 로드 빠른 SSR.
@@ -371,6 +372,9 @@ export default async function ArtistDetailPage({
             </div>
           )}
         </section>
+
+        {/* 아티스트 입문 가이드 — 최초 온디맨드 생성 후 영구 캐싱 */}
+        <ArtistGuideSection artistId={artist.id} artistName={artist.name} />
 
         {/* Report incorrect info — Spotlight 패턴 동일. contentType='artist'. */}
         <div className="mt-8 pt-4 border-t border-border/20 flex justify-end">

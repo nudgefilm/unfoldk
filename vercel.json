@@ -54,6 +54,10 @@
       "schedule": "0 9 * * 1"
     },
     {
+      "path": "/api/cron/kpop-weekly",
+      "schedule": "0 5 * * 1"
+    },
+    {
       "path": "/api/cron/trial-notifications",
       "schedule": "15 9 * * *"
     },
