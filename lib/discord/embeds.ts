@@ -22,12 +22,12 @@ const BASE_IMG = "https://www.unfoldk.com/images/discord"
 
 // 채널별 고정 이미지 URL
 const CHANNEL_IMAGES = {
-  schedule: `${BASE_IMG}/hallyu-calendar.jpg`,
-  charts:   `${BASE_IMG}/kpop-stats.jpg`,
-  drama:    `${BASE_IMG}/kdrama-match.jpg`,
-  korean:   `${BASE_IMG}/hangeul-go.jpg`,
-  food:     `${BASE_IMG}/kfood-kit.jpg`,
-  curation: `${BASE_IMG}/curation-k.jpg`,
+  schedule: `${BASE_IMG}/hallyu-calendar.jpeg`,
+  charts:   `${BASE_IMG}/kpop-stats.jpeg`,
+  drama:    `${BASE_IMG}/kdrama-match.jpeg`,
+  korean:   `${BASE_IMG}/hangeul-go.jpeg`,
+  food:     `${BASE_IMG}/kfood-kit.jpeg`,
+  curation: `${BASE_IMG}/curation-k.jpeg`,
 } as const
 
 function divider(): string {
