@@ -5,7 +5,7 @@
 
 ---
 
-## 현재 상태 (2026-05-30 세션 31)
+## 현재 상태 (2026-05-30 세션 32)
 
 ### 완료
 
@@ -55,6 +55,12 @@
   - HangeulGo PackDetailModal 하단: KfoodKit · Curation K · Calendar (drama 파라미터)
   - Curation K SpotDetailDialog: pill → 2×2 카드 그리드 (HangeulGo·KfoodKit·KdramaMatch·Calendar)
   - Curation K KpopSpotDetailDialog: KpopStats(artist_id) · Calendar · KdramaMatch · HangeulGo
+
+- **HangeulGo Grammar Explanation 카드 이미지 추가** (a320624)
+  - `korean_phrases.image_url` 컬럼 추가 (migration 0055) ✅ 실행 완료
+  - 어드민 `/admin/korean` 신설: 표현 검색 + 이미지 URL 등록 + 저장 + 미리보기
+  - Grammar Explanation 카드 상단 16:9 이미지 표시 (없으면 현행 텍스트만 유지)
+  - 어드민 사이드바 HangeulGo 링크 추가
 
 #### 마케팅
 
