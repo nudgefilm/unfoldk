@@ -1158,13 +1158,13 @@ export function KoreanContent() {
               {/* 이미지 (image_url 있을 때만 표시, 최대 높이 제한) */}
               {isPro && phrase?.imageUrl && (
                 <div className="px-8 pt-8">
-                  <div className="relative w-full max-h-48 overflow-hidden rounded-xl">
+                  <div className="relative w-full max-h-72 overflow-hidden rounded-xl">
                     <Image
                       src={phrase.imageUrl}
                       alt={phrase.korean}
                       width={800}
-                      height={192}
-                      className="w-full h-auto max-h-48 object-cover"
+                      height={288}
+                      className="w-full h-auto max-h-72 object-cover"
                       unoptimized
                     />
                   </div>
