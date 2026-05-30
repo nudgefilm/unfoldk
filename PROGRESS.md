@@ -4,11 +4,46 @@
 
 ---
 
-## 현재 상태 (2026-05-29 세션 30 / My Activity + My Curation + 저장 아이콘)
+## 현재 상태 (2026-05-30 세션 31 / KpopStats 구조 개편 + My Artists 수정 + SEO)
 
 ### 완료
 
-#### A. 이번 세션 작업 (세션 30)
+#### A. 이번 세션 작업 (세션 31)
+
+- **KpopStats 페이지 구조 개편** (`app/kpop/page.tsx`, `app/kpop/[id]/page.tsx`, `app/kpop/[id]/track-artist-button.tsx`)
+  - /kpop 메인: 차트 전면 무료 개방 (비로그인 포함 Top 20). visibleLimit·planType·isPro 상태 제거, auth effect 단순화
+  - /kpop/[id]: 서버사이드 Pro 체크 추가 → Weekly Growth Report 섹션 신설 (Free: blur+잠금, Pro: 전체)
+  - TrackArtistButton: `isPro` prop 추가 — 비로그인·Free → "Get notified with Hallyu Pass", Pro → 기존 tracking 유지
+  - CLAUDE.md 임시 Free 확대 정책 표 업데이트
+
+- **My Artists 페이지 수정** (`app/api/mypage/artists/route.ts`, `app/mypage/artists/page.tsx`)
+  - `youtube_thumbnail_url` → `thumbnail_url` 컬럼명 수정 (DB에 없는 컬럼명이라 이미지 항상 null이던 버그)
+  - 카드 클릭: `/kpop` → `/kpop/${artist.id}` 이동
+  - kpop_artists 조회를 admin client로 전환 (RLS 우회, 세션 상태 무관)
+  - 매칭 로직: `eventName.includes(artistName)` 방향 유지 + `.limit(2000)`
+  - unmatched 카드 제거 — 이벤트명("BTS Army Night...") 오노출 방지, kpop_artists 미매칭은 미노출
+
+- **My Artists 두 소스 합산** (`app/api/kpop/artists/[id]/track/route.ts`, migration 0054)
+  - **`kpop_artist_follows` 테이블 신설** (user_id, artist_id PK, RLS)
+  - Track this artist POST → `kpop_artist_follows`에도 upsert (이벤트 없는 아티스트 유실 방지)
+  - Track this artist DELETE → `kpop_artist_follows`에서도 제거
+  - My Artists API: 소스 A (kpop_artist_follows 직접 팔로우) + 소스 B (user_calendar_subscriptions → ILIKE 매칭) 합산 후 dedup → kpop_artists 단건 조회
+
+- **SEO 최적화 6개 작업** (layout.tsx 신규 7개 + sitemap/robots/name page 수정)
+  - **metadata**: 전체 8개 페이지 title/description/og/twitter/canonical 완성
+    - `app/page.tsx`: 서버 컴포넌트 직접 export
+    - `app/name/layout.tsx`: Korean Name Generator 풀 구성 + keywords
+    - `app/calendar|kpop|drama|food|curation-k/layout.tsx`: 신규 생성
+    - `app/korean/layout.tsx`: 기존 업데이트
+  - **JSON-LD**: root layout (WebSite + Organization), /name (WebApplication + FAQPage), /kpop (WebApplication)
+  - **sitemap.ts**: async 변환 → `/name` 추가(0.9), kpop_artists DB 조회로 `/kpop/[id]` 동적 URL 전체 생성
+  - **robots.ts**: trailing slash 추가 (`/admin/` `/api/` `/mypage/`)
+  - **콘텐츠 보강** (`app/name/page.tsx`): "How it works", "Why get a Korean name", FAQ 5개 섹션 추가
+
+### 블로커 (세션 31)
+- ~~`kpop_artist_follows` migration 0054~~ ✅ 실행 완료 (2026-05-30)
+
+#### B. 이전 세션 작업 (세션 30)
 
 - **My Activity 카드·하부 페이지 데이터 소스 통일**
   - `artistsTracking`: stats API kpop_artists 매칭 제거 → 구독 이벤트 distinct artist_or_drama 직접 집계 (artists 페이지와 동일 소스)
