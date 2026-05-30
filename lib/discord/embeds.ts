@@ -1,10 +1,10 @@
-// Discord Embed 빌더 — 4개 채널 자동 포스팅 + 5개 슬래시 명령 응답
+// Discord Embed 빌더 — 채널 자동 포스팅 + 슬래시 명령 응답
 //
 // 디자인 원칙 (사용자 명시 형식 준수):
 //   - 모든 Embed 하단에 EARLY_ACCESS_NOTE 포함 (lib/discord/templates.ts 재사용)
 //   - 브랜드 컬러 #FF4B6E (0xff4b6e)
-//   - footer.text: "Powered by UnfoldK.com"
-//   - description 은 markdown 지원 — 코드 블록·이모지·링크 가능
+//   - footer.text: "Powered by UnfoldK"
+//   - image 필드: 채널별 고정 이미지 (하단 큰 이미지)
 
 import type { DiscordEmbed } from "@/lib/discord/bot"
 import {
@@ -18,6 +18,17 @@ import type { KoreanPhrase } from "@/lib/discord/korean-phrases"
 
 const BRAND_COLOR = 0xff4b6e
 const FOOTER_TEXT = "Powered by UnfoldK"
+const BASE_IMG = "https://www.unfoldk.com/images/discord"
+
+// 채널별 고정 이미지 URL
+const CHANNEL_IMAGES = {
+  schedule: `${BASE_IMG}/hallyu-calendar.jpg`,
+  charts:   `${BASE_IMG}/kpop-stats.jpg`,
+  drama:    `${BASE_IMG}/kdrama-match.jpg`,
+  korean:   `${BASE_IMG}/hangeul-go.jpg`,
+  food:     `${BASE_IMG}/kfood-kit.jpg`,
+  curation: `${BASE_IMG}/curation-k.jpg`,
+} as const
 
 function divider(): string {
   return "─────────────────────"
@@ -41,15 +52,24 @@ function formatListenersM(n: number | null): string {
 
 function typeEmoji(type: ScheduleItem["type"]): string {
   switch (type) {
-    case "comeback":
-      return "🎵"
-    case "drama":
-      return "🎬"
-    case "concert":
-      return "🎤"
-    case "fanmeet":
-      return "💌"
+    case "comeback": return "🎵"
+    case "drama":    return "🎬"
+    case "concert":  return "🎤"
+    case "fanmeet":  return "💌"
   }
+}
+
+// 성인·민감 콘텐츠 필터 키워드
+const SENSITIVE_WORDS = [
+  "homoerotic", "erotic", "sexual content", "adult content",
+  "nudity", "pornographic", "explicit sexual",
+]
+
+function filterOverview(overview: string | null | undefined): string | null {
+  if (!overview?.trim()) return null
+  const lower = overview.toLowerCase()
+  if (SENSITIVE_WORDS.some((w) => lower.includes(w))) return null
+  return overview.slice(0, 100) + (overview.length > 100 ? "…" : "")
 }
 
 // 표현 카테고리별 CTA 링크 — source/english 휴리스틱으로 분류
@@ -67,9 +87,6 @@ function phraseCtaLink(p: KoreanPhrase): string {
     return "Try KfoodKit → https://unfoldk.com/food"
   }
 
-  // K-pop 관련 (향후 K-pop 출처 표현 추가 시 활성화)
-  // if (...) return "Explore → https://unfoldk.com/kpop"
-
   if (src !== "Daily expression") {
     return "Watch more → https://unfoldk.com/drama"
   }
@@ -77,25 +94,37 @@ function phraseCtaLink(p: KoreanPhrase): string {
   return "Learn more → https://unfoldk.com/korean"
 }
 
-// ─── 채널 자동 포스팅 Embed (4종) ────────────────────────────
+// ─── 채널 자동 포스팅 Embed ────────────────────────────────────
 
 export function buildDailyScheduleEmbed(items: ScheduleItem[]): DiscordEmbed {
-  const lines = items.length
-    ? items.map(
-        (e) =>
-          `${typeEmoji(e.type)} **${e.title}** — ${formatDateKST(e.event_date)}\n   ${e.artist_or_drama}`
-      )
+  // 중복 제거: (artist_or_drama, date, type) 동일한 이벤트는 첫 번째만 유지
+  // (예: TWICE 월드투어 VIP/일반/Comfort Seats → 1건)
+  const seen = new Set<string>()
+  const deduped = items.filter((e) => {
+    const key = `${e.artist_or_drama.toLowerCase()}|${e.event_date.slice(0, 10)}|${e.type}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  const lines = deduped.length
+    ? deduped.map((e) => {
+        const titleNorm = e.title.trim().toLowerCase()
+        const artistNorm = e.artist_or_drama.trim().toLowerCase()
+        // 제목과 아티스트명이 동일하거나 아티스트명이 없으면 부제목 생략
+        const subtitle =
+          artistNorm && artistNorm !== titleNorm
+            ? `\n   ${e.artist_or_drama}`
+            : ""
+        return `${typeEmoji(e.type)} **${e.title}** — ${formatDateKST(e.event_date)}${subtitle}`
+      })
     : ["_No events today — check back tomorrow!_"]
 
   return {
     title: "🎵 Today's K-pop & K-drama Schedule",
-    description: [
-      divider(),
-      ...lines,
-      divider(),
-      EARLY_ACCESS_NOTE,
-    ].join("\n"),
+    description: [divider(), ...lines, divider(), EARLY_ACCESS_NOTE].join("\n"),
     color: BRAND_COLOR,
+    image: { url: CHANNEL_IMAGES.schedule },
     footer: { text: FOOTER_TEXT },
     timestamp: new Date().toISOString(),
   }
@@ -104,20 +133,15 @@ export function buildDailyScheduleEmbed(items: ScheduleItem[]): DiscordEmbed {
 export function buildKpopChartEmbed(items: ChartItem[]): DiscordEmbed {
   const lines = items.length
     ? items.map(
-        (it) =>
-          `**#${it.rank}** ${it.name} — ${formatListenersM(it.lastfm_listeners)} listeners`
+        (it) => `**#${it.rank}** ${it.name} — ${formatListenersM(it.lastfm_listeners)} listeners`
       )
     : ["_Chart data syncing — try again in a few hours._"]
 
   return {
     title: "📊 This Week's K-pop Global Chart",
-    description: [
-      divider(),
-      ...lines,
-      divider(),
-      EARLY_ACCESS_NOTE,
-    ].join("\n"),
+    description: [divider(), ...lines, divider(), EARLY_ACCESS_NOTE].join("\n"),
     color: BRAND_COLOR,
+    image: { url: CHANNEL_IMAGES.charts },
     footer: { text: FOOTER_TEXT },
     timestamp: new Date().toISOString(),
   }
@@ -125,21 +149,19 @@ export function buildKpopChartEmbed(items: ChartItem[]): DiscordEmbed {
 
 export function buildDramaUpdatesEmbed(items: TmdbTvShow[]): DiscordEmbed {
   const lines = items.length
-    ? items.map(
-        (d) =>
-          `🎬 **${d.name}** — ${d.first_air_date || "TBA"}\n   _${d.overview ? d.overview.slice(0, 90) + (d.overview.length > 90 ? "…" : "") : "No description."}_`
-      )
+    ? items.map((d) => {
+        const overview = filterOverview(d.overview)
+        // 설명 있으면 이탤릭으로, 없으면 설명 줄 자체 생략
+        const descLine = overview ? `\n   _${overview}_` : ""
+        return `🎬 **${d.name}** — ${d.first_air_date || "TBA"}${descLine}`
+      })
     : ["_No dramas currently airing. Check back soon!_"]
 
   return {
     title: "🎬 Currently Airing K-Dramas",
-    description: [
-      divider(),
-      ...lines,
-      divider(),
-      EARLY_ACCESS_NOTE,
-    ].join("\n"),
+    description: [divider(), ...lines, divider(), EARLY_ACCESS_NOTE].join("\n"),
     color: BRAND_COLOR,
+    image: { url: CHANNEL_IMAGES.drama },
     footer: { text: FOOTER_TEXT },
     timestamp: new Date().toISOString(),
   }
@@ -158,7 +180,8 @@ export function buildKoreanPhraseEmbed(p: KoreanPhrase): DiscordEmbed {
       phraseCtaLink(p),
     ].join("\n"),
     color: BRAND_COLOR,
-    footer: { text: "Powered by UnfoldK.com" },
+    image: { url: CHANNEL_IMAGES.korean },
+    footer: { text: FOOTER_TEXT },
     timestamp: new Date().toISOString(),
   }
 }
@@ -169,6 +192,7 @@ export function buildKfoodEmbed(recipe?: FoodRecipeItem | null): DiscordEmbed {
       title: "🍱 K-food Kitchen — Cook Your Favorite Drama Dishes",
       description: [divider(), SERVICE_BLURBS.food, divider(), EARLY_ACCESS_NOTE].join("\n"),
       color: BRAND_COLOR,
+      image: { url: CHANNEL_IMAGES.food },
       footer: { text: FOOTER_TEXT },
       timestamp: new Date().toISOString(),
     }
@@ -184,6 +208,7 @@ export function buildKfoodEmbed(recipe?: FoodRecipeItem | null): DiscordEmbed {
     title: "🍱 Today's K-food Recipe",
     description: [divider(), ...lines, divider(), EARLY_ACCESS_NOTE].join("\n"),
     color: BRAND_COLOR,
+    image: { url: CHANNEL_IMAGES.food },
     footer: { text: FOOTER_TEXT },
     timestamp: new Date().toISOString(),
   }
@@ -195,6 +220,7 @@ export function buildCurationKEmbed(spot?: CurationSpotItem | null): DiscordEmbe
       title: "🗺️ Curation K — Korea, Mapped for Fans",
       description: [divider(), SERVICE_BLURBS.curationk, divider(), EARLY_ACCESS_NOTE].join("\n"),
       color: BRAND_COLOR,
+      image: { url: CHANNEL_IMAGES.curation },
       footer: { text: FOOTER_TEXT },
       timestamp: new Date().toISOString(),
     }
@@ -210,29 +236,24 @@ export function buildCurationKEmbed(spot?: CurationSpotItem | null): DiscordEmbe
     title: "🗺️ Today's Korean Destination",
     description: [divider(), ...lines, divider(), EARLY_ACCESS_NOTE].join("\n"),
     color: BRAND_COLOR,
+    image: { url: CHANNEL_IMAGES.curation },
     footer: { text: FOOTER_TEXT },
     timestamp: new Date().toISOString(),
   }
 }
 
-// ─── 슬래시 명령 Embed (5종) ─────────────────────────────────
+// ─── 슬래시 명령 Embed (이미지 없음 — 명령 응답용) ──────────────
 
 export function buildComebackEmbed(items: ScheduleItem[]): DiscordEmbed {
   const lines = items.length
     ? items.map(
-        (e) =>
-          `🎵 **${e.title}** — ${formatDateKST(e.event_date)}\n   ${e.artist_or_drama}`
+        (e) => `🎵 **${e.title}** — ${formatDateKST(e.event_date)}\n   ${e.artist_or_drama}`
       )
     : ["_No comebacks scheduled in the next 7 days._"]
 
   return {
     title: "🎵 This Week's K-pop Comebacks",
-    description: [
-      divider(),
-      ...lines,
-      divider(),
-      EARLY_ACCESS_NOTE,
-    ].join("\n"),
+    description: [divider(), ...lines, divider(), EARLY_ACCESS_NOTE].join("\n"),
     color: BRAND_COLOR,
     footer: { text: FOOTER_TEXT },
   }

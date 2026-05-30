@@ -41,6 +41,7 @@ export interface DiscordEmbed {
   fields?: { name: string; value: string; inline?: boolean }[]
   footer?: { text: string; icon_url?: string }
   thumbnail?: { url: string }
+  image?: { url: string } // 하단 큰 이미지
   timestamp?: string // ISO8601
 }
 
