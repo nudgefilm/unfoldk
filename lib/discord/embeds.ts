@@ -154,6 +154,8 @@ export function buildKoreanPhraseEmbed(p: KoreanPhrase): DiscordEmbed {
       `_${p.romanization}_`,
       `"${p.english}"`,
       `From: ${p.source}`,
+      divider(),
+      EARLY_ACCESS_NOTE,
     ].join("\n"),
     color: BRAND_COLOR,
     image: { url: CHANNEL_IMAGES.korean },
