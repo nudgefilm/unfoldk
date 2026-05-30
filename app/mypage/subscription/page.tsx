@@ -44,7 +44,7 @@ const sidebarLinks = [
   { icon: Calendar, label: "My Calendar", href: "/mypage/calendar" },
   { icon: Music, label: "My Artists", href: "/mypage/artists" },
   { icon: Film, label: "My Dramas", href: "/mypage/dramas" },
-  { icon: Languages, label: "Learning Progress", href: "/mypage/learning" },
+  { icon: Languages, label: "Learning Progress", href: "/mypage/learning-progress" },
   { icon: UtensilsCrossed, label: "Saved Recipes", href: "/mypage/recipes" },
   { icon: PartyPopper, label: "My Fan Events", href: "/mypage/fan-events" },
   { icon: CreditCard, label: "Subscription", href: "/mypage/subscription" },

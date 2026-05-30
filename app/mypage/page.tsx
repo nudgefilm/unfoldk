@@ -27,7 +27,7 @@ const sidebarLinks = [
   { icon: Calendar, label: "My Calendar", href: "/mypage/calendar", active: false },
   { icon: Music, label: "My Artists", href: "/mypage/artists", active: false },
   { icon: Film, label: "My Dramas", href: "/mypage/dramas", active: false },
-  { icon: Languages, label: "Learning Progress", href: "/mypage/learning", active: false },
+  { icon: Languages, label: "Learning Progress", href: "/mypage/learning-progress", active: false },
   { icon: UtensilsCrossed, label: "Saved Recipes", href: "/mypage/recipes", active: false },
   { icon: MapPin, label: "My Curation", href: "/mypage/curation", active: false },
   { icon: PartyPopper, label: "My Fan Events", href: "/mypage/fan-events", active: false },
