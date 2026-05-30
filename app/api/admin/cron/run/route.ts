@@ -15,6 +15,7 @@ import { GET as ingestFoodRecipes } from "@/app/api/cron/ingest-food-recipes/rou
 import { GET as sendReminders } from "@/app/api/cron/send-reminders/route"
 import { GET as backfillFilmingDescriptions } from "@/app/api/cron/backfill-filming-descriptions/route"
 import { GET as weeklyReport } from "@/app/api/cron/weekly-report/route"
+import { GET as kpopWeekly } from "@/app/api/cron/kpop-weekly/route"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -39,6 +40,7 @@ const PostSchema = z.object({
     "send-reminders",
     "backfill-filming-descriptions",
     "weekly-report",
+    "kpop-weekly",
   ]),
   // 선택적 쿼리 파라미터 — cron 라우트가 옵션을 받을 때 (e.g. ingest-tour-spots?only_festivals=true)
   // 값은 모두 문자열로 직렬화. 키·값 길이는 64자 cap.
@@ -62,6 +64,7 @@ const CRON_HANDLERS: Record<RouteKey, (req: Request) => Promise<Response>> = {
   "send-reminders": sendReminders,
   "backfill-filming-descriptions": backfillFilmingDescriptions,
   "weekly-report": weeklyReport,
+  "kpop-weekly": kpopWeekly,
 }
 
 export async function POST(request: Request) {

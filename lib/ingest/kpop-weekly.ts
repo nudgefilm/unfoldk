@@ -48,13 +48,16 @@ export async function runKpopWeeklyIngest(): Promise<KpopWeeklyIngestResult> {
   const weekStart = getWeekStart()
   const errors: string[] = []
 
-  // 이번 주 이미 생성됐으면 멱등 스킵
-  const { data: existing } = await admin
-    .from("kpop_weekly_report")
-    .select("week_start")
-    .eq("week_start", weekStart)
-    .maybeSingle()
-  if (existing) {
+  // 멱등 체크: report + country charts 모두 존재해야 완전 스킵
+  // report 있고 charts 없으면 charts 수집만 재실행
+  const [{ data: existingReport }, { count: existingChartCount }] = await Promise.all([
+    admin.from("kpop_weekly_report").select("week_start").eq("week_start", weekStart).maybeSingle(),
+    admin.from("kpop_country_charts").select("*", { count: "exact", head: true }).eq("week_start", weekStart),
+  ])
+  const reportDone = !!existingReport
+  const chartsDone = (existingChartCount ?? 0) > 0
+
+  if (reportDone && chartsDone) {
     return {
       source: "kpop-weekly",
       weekStart,
@@ -141,9 +144,9 @@ export async function runKpopWeeklyIngest(): Promise<KpopWeeklyIngestResult> {
   // Top 10 — 리포트 생성 대상
   const top10 = trendingArtists.slice(0, 10)
 
-  // ── Step 2: 아티스트 인사이트 생성 ─────────────────────────
+  // ── Step 2: 아티스트 인사이트 생성 (report 미존재 시만) ──────
   let insightsGenerated = 0
-  for (const artist of top3) {
+  if (!reportDone) for (const artist of top3) {
     try {
       const insight = await generateArtistInsight(artist.name, artist.listeners, artist.prev)
       if (!insight) continue
@@ -166,9 +169,9 @@ export async function runKpopWeeklyIngest(): Promise<KpopWeeklyIngestResult> {
     }
   }
 
-  // ── Step 3: 주간 리포트 생성 ────────────────────────────────
+  // ── Step 3: 주간 리포트 생성 (report 미존재 시만) ───────────
   let reportGenerated = false
-  if (top10.length > 0) {
+  if (!reportDone && top10.length > 0) {
     try {
       const reportText = await generateWeeklyKpopReport(
         top10.map((a) => ({ name: a.name, listeners: a.listeners, weeklyGrowth: a.growth }))

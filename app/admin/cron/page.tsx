@@ -43,6 +43,7 @@ const ROUTES = [
   "send-reminders",
   "backfill-filming-descriptions",
   "weekly-report",
+  "kpop-weekly",
 ] as const
 
 // 라우트별 한국어 표시명 — 카드 제목에 노출. 식별자는 그대로 두고 라벨만 매핑.
@@ -58,6 +59,7 @@ const ROUTE_DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
   "send-reminders": "send-reminders",
   "backfill-filming-descriptions": "Curation K — 촬영지 설명 backfill",
   "weekly-report": "주간 한류 리포트 생성",
+  "kpop-weekly": "KpopStats 주간 — 인사이트·리포트·국가차트",
 }
 
 // 라우트별 수동 트리거 버튼 정의 — 미지정 라우트는 단일 기본 "수동 실행" 버튼.
