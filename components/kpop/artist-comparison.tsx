@@ -1,9 +1,9 @@
 "use client"
 
-// KpopStats Artist Comparison — 팬덤 심층 분석 (작업 1~6)
+// KpopStats Artist Comparison — 팬덤 심층 분석
 // - 로그인 유저 전체 접근, 비로그인 → 로그인 유도
 // - 아티스트 직접 선택 드롭다운 (listeners 기준 정렬)
-// - 팬덤 충성도 지수 / 30일 성장 모멘텀 / 글로벌 분포 / Claude 인사이트
+// - 팬덤 충성도 지수 / 30일 성장 모멘텀 / 아티스트 프로필 / Claude 인사이트
 
 import { useEffect, useState } from "react"
 import {
@@ -29,19 +29,9 @@ interface ArtistCompareStats {
   loyalty: number | null
   growth30d: number | null
   history: Array<{ date: string; listeners: number | null }>
-}
-
-interface CountryRow {
-  country_code: string
-  country_name: string
-  a_listeners: number | null
-  b_listeners: number | null
-}
-
-function flagEmoji(cc: string): string {
-  return [...cc.toUpperCase()].map((c) =>
-    String.fromCodePoint(c.charCodeAt(0) + 0x1f1a5)
-  ).join("")
+  debut_year: number | null
+  mb_member_count: number | null
+  lastfm_tags: string[] | null
 }
 
 function fmtM(n: number | null): string {
@@ -58,14 +48,10 @@ function loyaltyLabel(loyalty: number | null): string {
   return "broad but casual reach"
 }
 
-// ─── 드롭다운 컴포넌트 ────────────────────────────────────────
+// ─── 아티스트 선택 드롭다운 ──────────────────────────────────
 
 function ArtistDropdown({
-  value,
-  options,
-  excludeId,
-  onChange,
-  label,
+  value, options, excludeId, onChange, label,
 }: {
   value: ArtistOption | null
   options: ArtistOption[]
@@ -145,15 +131,9 @@ function ArtistDropdown({
   )
 }
 
-// ─── 모멘텀 차트 ──────────────────────────────────────────────
+// ─── 30일 모멘텀 차트 ─────────────────────────────────────────
 
-function MomentumChart({
-  artistA, artistB,
-}: {
-  artistA: ArtistCompareStats
-  artistB: ArtistCompareStats
-}) {
-  // 날짜를 키로 두 아티스트 데이터 병합
+function MomentumChart({ artistA, artistB }: { artistA: ArtistCompareStats; artistB: ArtistCompareStats }) {
   const dateSet = new Set([
     ...artistA.history.map((h) => h.date),
     ...artistB.history.map((h) => h.date),
@@ -177,13 +157,7 @@ function MomentumChart({
     <ResponsiveContainer width="100%" height={160}>
       <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-        <XAxis
-          dataKey="label"
-          tick={{ fill: "#6b7280", fontSize: 10 }}
-          tickLine={false}
-          axisLine={false}
-          interval="preserveStartEnd"
-        />
+        <XAxis dataKey="label" tick={{ fill: "#6b7280", fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
         <YAxis hide />
         <Tooltip
           contentStyle={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, fontSize: 12 }}
@@ -197,6 +171,69 @@ function MomentumChart({
         <Line type="monotone" dataKey="b" stroke="#ffffff" strokeWidth={2} dot={false} connectNulls />
       </LineChart>
     </ResponsiveContainer>
+  )
+}
+
+// ─── 아티스트 프로필 카드 (단일 아티스트) ─────────────────────
+
+function ArtistProfileCard({ artist, label }: { artist: ArtistCompareStats; label: string }) {
+  const currentYear = new Date().getFullYear()
+  const activeYears = artist.debut_year ? currentYear - artist.debut_year : null
+  const tags = (artist.lastfm_tags ?? []).filter((t) => t !== "k-pop" && t !== "k pop").slice(0, 3)
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* 아티스트 헤더 */}
+      <div className="flex items-center gap-2 mb-1">
+        {artist.thumbnail_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={artist.thumbnail_url} alt={artist.name} className="w-8 h-8 rounded-full object-cover bg-[#333] flex-shrink-0" referrerPolicy="no-referrer" />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-[#333] flex-shrink-0" />
+        )}
+        <div>
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="text-sm font-semibold text-foreground">{artist.name}</p>
+        </div>
+      </div>
+
+      {/* 데뷔년도 */}
+      {artist.debut_year && (
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Debut</span>
+          <span className="text-foreground">{artist.debut_year}</span>
+        </div>
+      )}
+
+      {/* 활동 기간 */}
+      {activeYears != null && activeYears >= 0 && (
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Active</span>
+          <span className="text-foreground">{activeYears} year{activeYears !== 1 ? "s" : ""}</span>
+        </div>
+      )}
+
+      {/* 멤버 구성 */}
+      {artist.mb_member_count != null && (
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Group</span>
+          <span className="text-foreground">
+            {artist.mb_member_count === 1 ? "Solo artist" : `${artist.mb_member_count}-member group`}
+          </span>
+        </div>
+      )}
+
+      {/* 장르 태그 */}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {tags.map((tag) => (
+            <span key={tag} className="px-2 py-0.5 rounded-full bg-[#252525] text-muted-foreground text-xs capitalize">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -215,7 +252,6 @@ export function ArtistComparisonSection({
   const [data, setData] = useState<{
     artistA: ArtistCompareStats
     artistB: ArtistCompareStats
-    countries: CountryRow[]
   } | null>(null)
   const [dataLoading, setDataLoading] = useState(false)
   const [insight, setInsight] = useState<string | null>(null)
@@ -254,8 +290,6 @@ export function ArtistComparisonSection({
   useEffect(() => {
     if (!data || !artistA || !artistB) return
     setInsightLoading(true)
-    const topA = data.countries.filter((c) => c.a_listeners).slice(0, 3).map((c) => c.country_name)
-    const topB = data.countries.filter((c) => c.b_listeners).slice(0, 3).map((c) => c.country_name)
     fetch("/api/kpop/comparison-insight", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -274,8 +308,8 @@ export function ArtistComparisonSection({
           plays: data.artistB.plays,
           growth30d: data.artistB.growth30d,
         },
-        topCountriesA: topA,
-        topCountriesB: topB,
+        topCountriesA: [],
+        topCountriesB: [],
       }),
     })
       .then((r) => (r.ok ? r.json() : { insight: null }))
@@ -314,20 +348,8 @@ export function ArtistComparisonSection({
 
       {/* 아티스트 선택 드롭다운 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <ArtistDropdown
-          value={artistA}
-          options={artists}
-          excludeId={artistB?.id ?? null}
-          onChange={setArtistA}
-          label="Artist A"
-        />
-        <ArtistDropdown
-          value={artistB}
-          options={artists}
-          excludeId={artistA?.id ?? null}
-          onChange={setArtistB}
-          label="Artist B"
-        />
+        <ArtistDropdown value={artistA} options={artists} excludeId={artistB?.id ?? null} onChange={setArtistA} label="Artist A" />
+        <ArtistDropdown value={artistB} options={artists} excludeId={artistA?.id ?? null} onChange={setArtistB} label="Artist B" />
       </div>
 
       {dataLoading && (
@@ -338,6 +360,25 @@ export function ArtistComparisonSection({
 
       {!dataLoading && data && (
         <div className="flex flex-col gap-5">
+
+          {/* 아티스트 프로필 비교 */}
+          {(data.artistA.debut_year != null ||
+            data.artistA.mb_member_count != null ||
+            (data.artistA.lastfm_tags ?? []).length > 0 ||
+            data.artistB.debut_year != null ||
+            data.artistB.mb_member_count != null ||
+            (data.artistB.lastfm_tags ?? []).length > 0) && (
+            <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Artist Profile</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 divide-y sm:divide-y-0 sm:divide-x divide-border/20">
+                <ArtistProfileCard artist={data.artistA} label="Artist A" />
+                <div className="pt-4 sm:pt-0 sm:pl-5">
+                  <ArtistProfileCard artist={data.artistB} label="Artist B" />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 팬덤 충성도 지수 */}
           <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-foreground mb-4">Fan Loyalty Index</h3>
@@ -375,7 +416,7 @@ export function ArtistComparisonSection({
                 <h3 className="text-sm font-semibold text-foreground">30-Day Listener Growth</h3>
                 <div className="flex items-center gap-4 text-xs">
                   <span className="flex items-center gap-1">
-                    <span className="w-3 h-0.5 rounded" style={{ backgroundColor: "#FF4B6E", display: "inline-block" }} />
+                    <span className="w-3 h-0.5 rounded inline-block" style={{ backgroundColor: "#FF4B6E" }} />
                     {data.artistA.name}
                     {data.artistA.growth30d != null && (
                       <span className={data.artistA.growth30d >= 0 ? "text-green-400" : "text-red-400"}>
@@ -398,38 +439,6 @@ export function ArtistComparisonSection({
             </div>
           )}
 
-          {/* 글로벌 팬덤 분포 — 국가 합계 2개 이상일 때 노출 */}
-          {data.countries.length >= 2 && (
-            <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-4">Global Fandom Distribution</h3>
-              <div className="grid grid-cols-12 gap-2 mb-2 text-xs text-muted-foreground font-medium">
-                <div className="col-span-4">Country</div>
-                <div className="col-span-4 text-right">{data.artistA.name}</div>
-                <div className="col-span-4 text-right">{data.artistB.name}</div>
-              </div>
-              {data.countries.map((c) => {
-                const bothPresent = c.a_listeners != null && c.b_listeners != null
-                return (
-                  <div
-                    key={c.country_code}
-                    className={`grid grid-cols-12 gap-2 py-2 border-t border-border/10 text-sm ${bothPresent ? "text-foreground" : "text-muted-foreground"}`}
-                  >
-                    <div className="col-span-4 flex items-center gap-1.5">
-                      <span>{flagEmoji(c.country_code)}</span>
-                      <span className="truncate">{c.country_name}</span>
-                    </div>
-                    <div className={`col-span-4 text-right ${c.a_listeners ? "text-foreground" : "text-muted-foreground/40"}`}>
-                      {fmtM(c.a_listeners)}
-                    </div>
-                    <div className={`col-span-4 text-right ${c.b_listeners ? "text-foreground" : "text-muted-foreground/40"}`}>
-                      {fmtM(c.b_listeners)}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
           {/* UnfoldK 인사이트 */}
           <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-5">
             <h3 className="text-sm font-semibold text-foreground mb-3">UnfoldK Insight</h3>
@@ -445,6 +454,7 @@ export function ArtistComparisonSection({
               <p className="text-sm text-muted-foreground">Insight unavailable.</p>
             )}
           </div>
+
         </div>
       )}
     </section>

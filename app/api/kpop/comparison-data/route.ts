@@ -2,15 +2,9 @@ import { NextResponse } from "next/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 // GET /api/kpop/comparison-data?a={artist_a_id}&b={artist_b_id}
-// 두 아티스트 비교 데이터: 충성도 지수, 30일 히스토리, 국가별 분포
+// 두 아티스트 비교 데이터: 충성도 지수, 30일 히스토리, 프로필 정보
 
 export const dynamic = "force-dynamic"
-
-const COUNTRY_NAMES: Record<string, string> = {
-  US: "United States", GB: "United Kingdom", PH: "Philippines",
-  TH: "Thailand", ID: "Indonesia", BR: "Brazil",
-  FR: "France", DE: "Germany", AU: "Australia", CA: "Canada",
-}
 
 export interface ArtistCompareStats {
   id: string
@@ -21,13 +15,9 @@ export interface ArtistCompareStats {
   loyalty: number | null       // plays / listeners
   growth30d: number | null     // % change
   history: Array<{ date: string; listeners: number | null }>
-}
-
-export interface CountryCompareRow {
-  country_code: string
-  country_name: string
-  a_listeners: number | null
-  b_listeners: number | null
+  debut_year: number | null    // mb_debut_date 에서 연도 추출
+  mb_member_count: number | null  // mb_members 배열 길이 (없으면 member_count fallback)
+  lastfm_tags: string[] | null
 }
 
 export async function GET(request: Request) {
@@ -41,17 +31,25 @@ export async function GET(request: Request) {
 
   const admin = createSupabaseAdminClient()
 
-  // 1. 아티스트 기본 정보
+  // 1. 아티스트 기본 정보 + 프로필 컬럼
   const { data: artists } = await admin
     .from("kpop_artists")
-    .select("id, name, thumbnail_url")
+    .select("id, name, thumbnail_url, mb_debut_date, mb_members, lastfm_tags, member_count")
     .in("id", [aId, bId])
 
   if (!artists || artists.length < 2) {
     return NextResponse.json({ error: "Artist not found" }, { status: 404 })
   }
 
-  type ArtistRow = { id: string; name: string; thumbnail_url: string | null }
+  type ArtistRow = {
+    id: string
+    name: string
+    thumbnail_url: string | null
+    mb_debut_date: string | null
+    mb_members: Array<{ name: string; role?: string; active?: boolean }> | null
+    lastfm_tags: string[] | null
+    member_count: number | null
+  }
   const artistMap = new Map((artists as ArtistRow[]).map((a) => [a.id, a]))
 
   // 2. 최신 stats (listeners, plays)
@@ -100,50 +98,7 @@ export async function GET(request: Request) {
     return parseFloat((((last - first) / first) * 100).toFixed(1))
   }
 
-  // 5. 국가별 분포 (kpop_country_charts)
-  const { data: ccLatest } = await admin
-    .from("kpop_country_charts")
-    .select("week_start")
-    .order("week_start", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  type CCRow = { country_code: string; artist_id: string | null; listeners: number | null }
-  let countries: CountryCompareRow[] = []
-  if (ccLatest) {
-    const { data: ccData } = await admin
-      .from("kpop_country_charts")
-      .select("country_code, artist_id, listeners")
-      .in("artist_id", [aId, bId])
-      .eq("week_start", ccLatest.week_start)
-
-    const ccByCountry = new Map<string, { a: number | null; b: number | null }>()
-    for (const row of (ccData ?? []) as CCRow[]) {
-      if (!row.artist_id) continue
-      if (!ccByCountry.has(row.country_code)) {
-        ccByCountry.set(row.country_code, { a: null, b: null })
-      }
-      const entry = ccByCountry.get(row.country_code)!
-      if (row.artist_id === aId) entry.a = row.listeners
-      else if (row.artist_id === bId) entry.b = row.listeners
-    }
-
-    countries = Array.from(ccByCountry.entries())
-      .map(([code, val]) => ({
-        country_code: code,
-        country_name: COUNTRY_NAMES[code] ?? code,
-        a_listeners: val.a,
-        b_listeners: val.b,
-      }))
-      .sort((x, y) => {
-        const xMax = Math.max(x.a_listeners ?? 0, x.b_listeners ?? 0)
-        const yMax = Math.max(y.a_listeners ?? 0, y.b_listeners ?? 0)
-        return yMax - xMax
-      })
-      .slice(0, 5)
-  }
-
-  // 6. 최종 응답 조립
+  // 5. 최종 응답 조립
   function buildArtist(id: string): ArtistCompareStats {
     const info = artistMap.get(id)!
     const stat = latestStats.find((s) => s.artist_id === id)
@@ -153,6 +108,17 @@ export async function GET(request: Request) {
     const loyalty = listeners && plays && listeners > 0
       ? parseFloat((plays / listeners).toFixed(1))
       : null
+
+    // mb_debut_date → 연도
+    const debut_year = info.mb_debut_date
+      ? new Date(info.mb_debut_date).getUTCFullYear()
+      : null
+
+    // mb_members 배열 길이, 없으면 member_count fallback
+    const mb_member_count = Array.isArray(info.mb_members)
+      ? info.mb_members.length
+      : (info.member_count ?? null)
+
     return {
       id,
       name: info.name,
@@ -162,12 +128,14 @@ export async function GET(request: Request) {
       loyalty,
       growth30d: calcGrowth(hist),
       history: hist,
+      debut_year,
+      mb_member_count,
+      lastfm_tags: info.lastfm_tags ?? null,
     }
   }
 
   return NextResponse.json({
     artistA: buildArtist(aId),
     artistB: buildArtist(bId),
-    countries,
   })
 }
