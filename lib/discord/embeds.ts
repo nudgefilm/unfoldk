@@ -12,7 +12,7 @@ import {
   EARLY_ACCESS_NOTE,
   SERVICE_BLURBS,
 } from "@/lib/discord/templates"
-import type { ChartItem, ScheduleItem } from "@/lib/discord/data"
+import type { ChartItem, CurationSpotItem, FoodRecipeItem, ScheduleItem } from "@/lib/discord/data"
 import type { TmdbTvShow } from "@/lib/api/tmdb"
 import type { KoreanPhrase } from "@/lib/discord/korean-phrases"
 
@@ -163,30 +163,52 @@ export function buildKoreanPhraseEmbed(p: KoreanPhrase): DiscordEmbed {
   }
 }
 
-export function buildKfoodEmbed(): DiscordEmbed {
+export function buildKfoodEmbed(recipe?: FoodRecipeItem | null): DiscordEmbed {
+  if (!recipe) {
+    return {
+      title: "🍱 K-food Kitchen — Cook Your Favorite Drama Dishes",
+      description: [divider(), SERVICE_BLURBS.food, divider(), EARLY_ACCESS_NOTE].join("\n"),
+      color: BRAND_COLOR,
+      footer: { text: FOOTER_TEXT },
+      timestamp: new Date().toISOString(),
+    }
+  }
+  const nameLine = recipe.title_en
+    ? `**${recipe.title_en}** (${recipe.title})`
+    : `**${recipe.title}**`
+  const lines: string[] = [`🍽️ ${nameLine}`]
+  if (recipe.description_en) lines.push(`_${recipe.description_en}_`)
+  if (recipe.ready_in_minutes) lines.push(`⏱️ Ready in ${recipe.ready_in_minutes} min`)
+  lines.push("", "Try it yourself → https://www.unfoldk.com/food")
   return {
-    title: "🍱 K-food Kitchen — Cook Your Favorite Drama Dishes",
-    description: [
-      divider(),
-      SERVICE_BLURBS.food,
-      divider(),
-      EARLY_ACCESS_NOTE,
-    ].join("\n"),
+    title: "🍱 Today's K-food Recipe",
+    description: [divider(), ...lines, divider(), EARLY_ACCESS_NOTE].join("\n"),
     color: BRAND_COLOR,
     footer: { text: FOOTER_TEXT },
     timestamp: new Date().toISOString(),
   }
 }
 
-export function buildCurationKEmbed(): DiscordEmbed {
+export function buildCurationKEmbed(spot?: CurationSpotItem | null): DiscordEmbed {
+  if (!spot) {
+    return {
+      title: "🗺️ Curation K — Korea, Mapped for Fans",
+      description: [divider(), SERVICE_BLURBS.curationk, divider(), EARLY_ACCESS_NOTE].join("\n"),
+      color: BRAND_COLOR,
+      footer: { text: FOOTER_TEXT },
+      timestamp: new Date().toISOString(),
+    }
+  }
+  const nameLine = spot.name_en
+    ? `**${spot.name_en}** (${spot.name})`
+    : `**${spot.name}**`
+  const lines: string[] = [`📍 ${nameLine}`, `_${spot.category}_`]
+  if (spot.description) lines.push(spot.description)
+  if (spot.addr) lines.push(`📮 ${spot.addr}`)
+  lines.push("", "Explore Korea → https://www.unfoldk.com/curation-k")
   return {
-    title: "🗺️ Curation K — Korea, Mapped for Fans",
-    description: [
-      divider(),
-      SERVICE_BLURBS.curationk,
-      divider(),
-      EARLY_ACCESS_NOTE,
-    ].join("\n"),
+    title: "🗺️ Today's Korean Destination",
+    description: [divider(), ...lines, divider(), EARLY_ACCESS_NOTE].join("\n"),
     color: BRAND_COLOR,
     footer: { text: FOOTER_TEXT },
     timestamp: new Date().toISOString(),

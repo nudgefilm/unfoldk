@@ -18,6 +18,8 @@ import {
 } from "@/lib/discord/embeds"
 import {
   fetchAiringDramas,
+  fetchDailyCurationSpot,
+  fetchDailyFoodRecipe,
   fetchTodayKoreanPhrase,
   fetchTodaySchedule,
   fetchTop10Chart,
@@ -157,14 +159,20 @@ export async function GET() {
 
   // food / curation 추가 채널 — Webhook 설정 시 독립 발송
   const extraUrls = getExtraWebhookUrls()
-  for (const key of Object.keys(extraUrls) as ExtraChannelKey[]) {
-    const url = extraUrls[key]!
-    const embed = key === "food" ? buildKfoodEmbed() : buildCurationKEmbed()
-    try {
-      await postWebhookMessage(url, { embeds: [embed] })
-      results.push({ channel: key, method: "webhook", status: "posted" })
-    } catch (err) {
-      results.push({ channel: key, method: "webhook", status: "error", error: err instanceof Error ? err.message : String(err) })
+  if (Object.keys(extraUrls).length > 0) {
+    const [recipe, spot] = await Promise.all([
+      fetchDailyFoodRecipe(),
+      fetchDailyCurationSpot(),
+    ])
+    for (const key of Object.keys(extraUrls) as ExtraChannelKey[]) {
+      const url = extraUrls[key]!
+      const embed = key === "food" ? buildKfoodEmbed(recipe) : buildCurationKEmbed(spot)
+      try {
+        await postWebhookMessage(url, { embeds: [embed] })
+        results.push({ channel: key, method: "webhook", status: "posted" })
+      } catch (err) {
+        results.push({ channel: key, method: "webhook", status: "error", error: err instanceof Error ? err.message : String(err) })
+      }
     }
   }
 

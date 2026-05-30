@@ -133,3 +133,99 @@ export async function fetchAiringDramas(limit = 5): Promise<TmdbTvShow[]> {
 export function fetchTodayKoreanPhrase(): KoreanPhrase {
   return getDailyKoreanPhrase()
 }
+
+// ─── Extra 채널 데이터 ────────────────────────────────────────
+
+export interface FoodRecipeItem {
+  title: string
+  title_en: string | null
+  description_en: string | null
+  ready_in_minutes: number | null
+}
+
+export interface CurationSpotItem {
+  name: string
+  name_en: string | null
+  description: string | null
+  category: string
+  addr: string | null
+}
+
+// content_type_id → 요일 매핑 (UTC)
+// 0=Sun: filming  1=Mon: filming  2=Tue: 음식점(39)  3=Wed: 관광지(12)
+// 4=Thu: 행사(15)  5=Fri: 문화시설(14, 쇼핑 38은 DB 미수집)  6=Sat: 숙박(32)
+const DAY_TO_TOUR_TYPE: Record<number, { id: number; label: string }> = {
+  2: { id: 39, label: "Restaurant" },
+  3: { id: 12, label: "Tourist Attraction" },
+  4: { id: 15, label: "Festival & Event" },
+  5: { id: 14, label: "Cultural Facility" },
+  6: { id: 32, label: "Accommodation" },
+}
+
+export async function fetchDailyFoodRecipe(): Promise<FoodRecipeItem | null> {
+  const supabase = createSupabaseAdminClient()
+  const { data, error } = await supabase
+    .from("food_recipes")
+    .select("title, title_en, description_en, ready_in_minutes")
+    .not("title", "is", null)
+    .limit(50)
+  if (error || !data || data.length === 0) {
+    console.error("[discord/data] fetchDailyFoodRecipe:", error?.message ?? "no data")
+    return null
+  }
+  return data[Math.floor(Math.random() * data.length)] as FoodRecipeItem
+}
+
+export async function fetchDailyCurationSpot(): Promise<CurationSpotItem | null> {
+  const supabase = createSupabaseAdminClient()
+  const dayOfWeek = new Date().getUTCDay()
+  const tourType = DAY_TO_TOUR_TYPE[dayOfWeek]
+
+  // filming_spots: 일(0) · 월(1)
+  if (!tourType) {
+    const { data, error } = await supabase
+      .from("filming_spots")
+      .select("spot_name, drama_title, spot_description, region")
+      .eq("status", "confirmed")
+      .limit(50)
+    if (error || !data || data.length === 0) {
+      console.error("[discord/data] fetchDailyCurationSpot filming:", error?.message ?? "no data")
+      return null
+    }
+    const row = data[Math.floor(Math.random() * data.length)] as {
+      spot_name: string; drama_title: string | null; spot_description: string | null; region: string | null
+    }
+    return {
+      name: row.spot_name,
+      name_en: null,
+      description: row.spot_description ?? (row.drama_title ? `Featured in: ${row.drama_title}` : null),
+      category: "Filming Spot",
+      addr: row.region ?? null,
+    }
+  }
+
+  // tour_spots: 화~토
+  const { data, error } = await supabase
+    .from("tour_spots")
+    .select("title, eng_title, overview_en, addr1")
+    .eq("content_type_id", tourType.id)
+    .not("title", "is", null)
+    .limit(50)
+  if (error || !data || data.length === 0) {
+    console.error("[discord/data] fetchDailyCurationSpot tour:", error?.message ?? "no data")
+    return null
+  }
+  const row = data[Math.floor(Math.random() * data.length)] as {
+    title: string; eng_title: string | null; overview_en: string | null; addr1: string | null
+  }
+  const desc = row.overview_en
+    ? row.overview_en.slice(0, 150) + (row.overview_en.length > 150 ? "…" : "")
+    : null
+  return {
+    name: row.title,
+    name_en: row.eng_title ?? null,
+    description: desc,
+    category: tourType.label,
+    addr: row.addr1 ?? null,
+  }
+}

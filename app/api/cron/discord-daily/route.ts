@@ -17,6 +17,8 @@ import {
 } from "@/lib/discord/embeds"
 import {
   fetchAiringDramas,
+  fetchDailyCurationSpot,
+  fetchDailyFoodRecipe,
   fetchTodayKoreanPhrase,
   fetchTodaySchedule,
   fetchTop10Chart,
@@ -76,10 +78,14 @@ function getExtraWebhookUrls(): Partial<Record<ExtraChannelKey, string>> {
   return urls
 }
 
-function buildExtraEmbeds(): Record<ExtraChannelKey, DiscordEmbed> {
+async function buildExtraEmbeds(): Promise<Record<ExtraChannelKey, DiscordEmbed>> {
+  const [recipe, spot] = await Promise.all([
+    fetchDailyFoodRecipe(),
+    fetchDailyCurationSpot(),
+  ])
   return {
-    food: buildKfoodEmbed(),
-    curation: buildCurationKEmbed(),
+    food: buildKfoodEmbed(recipe),
+    curation: buildCurationKEmbed(spot),
   }
 }
 
@@ -238,7 +244,7 @@ export async function GET(request: Request) {
   // food / curation 추가 채널 — Webhook 설정 시 독립 발송
   const extraUrls = getExtraWebhookUrls()
   if (Object.keys(extraUrls).length > 0) {
-    const extraEmbeds = buildExtraEmbeds()
+    const extraEmbeds = await buildExtraEmbeds()
     const extraResults = await postExtraWebhooks(extraUrls, extraEmbeds)
     results = [...results, ...extraResults]
   }
