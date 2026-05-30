@@ -63,3 +63,46 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true, phraseId, status })
 }
+
+// DELETE /api/korean/learning-progress
+//   body: { phraseId: string }
+//   user_learning_progress 에서 해당 row 삭제 (Learning Progress 목록에서 제거).
+export async function DELETE(request: Request) {
+  const supabase = await createSupabaseServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 })
+  }
+
+  let body: { phraseId?: string }
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 })
+  }
+
+  const phraseId = body.phraseId
+  if (!phraseId || !UUID_REGEX.test(phraseId)) {
+    return NextResponse.json({ skipped: true, reason: "non_uuid_phrase_id" })
+  }
+
+  const { error } = await supabase
+    .from("user_learning_progress")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("phrase_id", phraseId)
+
+  if (error) {
+    console.error(
+      `[/api/korean/learning-progress DELETE] 삭제 실패 code=${error.code} message=${error.message}`
+    )
+    return NextResponse.json(
+      { error: "delete_failed", message: error.message },
+      { status: 500 }
+    )
+  }
+
+  return NextResponse.json({ ok: true, phraseId })
+}

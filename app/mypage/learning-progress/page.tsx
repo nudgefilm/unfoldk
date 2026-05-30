@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Languages, ChevronRight } from "lucide-react"
+import { Languages, ChevronRight, Trash2 } from "lucide-react"
 import { MypageShell } from "@/components/mypage/mypage-shell"
 
 interface LearnedPhrase {
@@ -49,6 +49,23 @@ function LearningProgressBody() {
     return () => { cancelled = true }
   }, [])
 
+  async function handleDelete(phraseId: string) {
+    setItems((prev) => prev.filter((p) => p.phrase_id !== phraseId))
+    const res = await fetch("/api/korean/learning-progress", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phraseId }),
+    })
+    if (!res.ok) {
+      fetch("/api/mypage/learning-progress", { cache: "no-store" })
+        .then(async (r) => {
+          const j = r.ok ? (await r.json().catch(() => ({}))) as { phrases?: LearnedPhrase[] } : {}
+          setItems(j.phrases ?? [])
+        })
+        .catch(() => {})
+    }
+  }
+
   return (
     <div>
       <div className="flex items-start justify-between gap-4 mb-6">
@@ -81,29 +98,37 @@ function LearningProgressBody() {
             {items.map((phrase) => {
               const diffColor = DIFFICULTY_COLORS[phrase.difficulty ?? ""] ?? "bg-[#252525] text-muted-foreground"
               return (
-                <Link
-                  key={phrase.phrase_id}
-                  href={`/korean?phrase_id=${phrase.phrase_id}`}
-                  className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 hover:border-primary/50 transition-colors block"
-                >
-                  <p className="text-xl font-bold text-foreground mb-1">{phrase.korean}</p>
-                  {phrase.romanization && (
-                    <p className="text-sm text-muted-foreground mb-1 italic">{phrase.romanization}</p>
-                  )}
-                  <p className="text-sm text-foreground mb-3">{phrase.english}</p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {phrase.difficulty && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${diffColor}`}>
-                        {phrase.difficulty.charAt(0).toUpperCase() + phrase.difficulty.slice(1)}
-                      </span>
+                <div key={phrase.phrase_id} className="relative group">
+                  <Link
+                    href={`/korean?phrase_id=${phrase.phrase_id}`}
+                    className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 pr-10 hover:border-primary/50 transition-colors block"
+                  >
+                    <p className="text-xl font-bold text-foreground mb-1">{phrase.korean}</p>
+                    {phrase.romanization && (
+                      <p className="text-sm text-muted-foreground mb-1 italic">{phrase.romanization}</p>
                     )}
-                    {phrase.drama_name && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-[#252525] text-muted-foreground truncate max-w-[160px]">
-                        {phrase.drama_name}
-                      </span>
-                    )}
-                  </div>
-                </Link>
+                    <p className="text-sm text-foreground mb-3">{phrase.english}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {phrase.difficulty && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${diffColor}`}>
+                          {phrase.difficulty.charAt(0).toUpperCase() + phrase.difficulty.slice(1)}
+                        </span>
+                      )}
+                      {phrase.drama_name && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[#252525] text-muted-foreground truncate max-w-[160px]">
+                          {phrase.drama_name}
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                  <button
+                    onClick={() => handleDelete(phrase.phrase_id)}
+                    className="absolute top-3 right-3 p-1.5 rounded-md text-muted-foreground opacity-40 group-hover:opacity-100 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                    aria-label="Remove expression"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )
             })}
           </div>
