@@ -14,7 +14,7 @@ interface ArtistItem {
   id: string | null  // null = kpop_artists 미매칭 제네릭 카드
   name: string
   name_ko: string | null
-  youtube_thumbnail_url: string | null
+  thumbnail_url: string | null
   member_count: number | null
 }
 
@@ -73,14 +73,18 @@ function MyArtistsBody() {
           {items.map((artist) => (
             <Link
               key={artist.id ?? artist.name}
-              href={artist.id ? `/kpop/${artist.id}` : `/kpop`}
+              href={
+                artist.id
+                  ? `/kpop/${artist.id}`
+                  : `/kpop/artists?search=${encodeURIComponent(artist.name)}`
+              }
               className="bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors cursor-pointer block"
             >
               <div className="aspect-square bg-[#252525] flex items-center justify-center overflow-hidden">
-                {artist.youtube_thumbnail_url ? (
+                {artist.thumbnail_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={artist.youtube_thumbnail_url}
+                    src={artist.thumbnail_url}
                     alt={artist.name}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"

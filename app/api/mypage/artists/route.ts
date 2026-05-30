@@ -17,7 +17,7 @@ interface KpopArtistRow {
   id: string
   name: string
   name_ko: string | null
-  youtube_thumbnail_url: string | null
+  thumbnail_url: string | null
   member_count: number | null
 }
 
@@ -26,7 +26,7 @@ interface ArtistItem {
   id: string | null
   name: string
   name_ko: string | null
-  youtube_thumbnail_url: string | null
+  thumbnail_url: string | null
   member_count: number | null
 }
 
@@ -64,7 +64,7 @@ export async function GET() {
   // 3. kpop_artists 로드 (enrichment 전용 — 없어도 결과 반환)
   const { data: allArtists } = await supabase
     .from("kpop_artists")
-    .select("id, name, name_ko, youtube_thumbnail_url, member_count")
+    .select("id, name, name_ko, thumbnail_url, member_count")
     .eq("is_active", true)
 
   // 매칭된 kpop_artists: event name 에 artist.name 이 포함된 경우
@@ -93,7 +93,7 @@ export async function GET() {
       id: null,
       name,
       name_ko: null,
-      youtube_thumbnail_url: null,
+      thumbnail_url: null,
       member_count: null,
     }))
 
