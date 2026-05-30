@@ -20,14 +20,14 @@ const BRAND_COLOR = 0xff4b6e
 const FOOTER_TEXT = "Powered by UnfoldK"
 const BASE_IMG = "https://www.unfoldk.com/images/discord"
 
-// 채널별 고정 이미지 URL
+// 채널별 고정 이미지 URL (파일명: discord-{service}.jpeg)
 const CHANNEL_IMAGES = {
-  schedule: `${BASE_IMG}/hallyu-calendar.jpeg`,
-  charts:   `${BASE_IMG}/kpop-stats.jpeg`,
-  drama:    `${BASE_IMG}/kdrama-match.jpeg`,
-  korean:   `${BASE_IMG}/hangeul-go.jpeg`,
-  food:     `${BASE_IMG}/kfood-kit.jpeg`,
-  curation: `${BASE_IMG}/curation-k.jpeg`,
+  schedule: `${BASE_IMG}/discord-hallyu-calendar.jpeg`,
+  charts:   `${BASE_IMG}/discord-kpop-stats.jpeg`,
+  drama:    `${BASE_IMG}/discord-kdrama-match.jpeg`,
+  korean:   `${BASE_IMG}/discord-hangeul-go.jpeg`,
+  food:     `${BASE_IMG}/discord-kfood-kit.jpeg`,
+  curation: `${BASE_IMG}/discord-curation-k.jpeg`,
 } as const
 
 function divider(): string {
@@ -70,28 +70,6 @@ function filterOverview(overview: string | null | undefined): string | null {
   const lower = overview.toLowerCase()
   if (SENSITIVE_WORDS.some((w) => lower.includes(w))) return null
   return overview.slice(0, 100) + (overview.length > 100 ? "…" : "")
-}
-
-// 표현 카테고리별 CTA 링크 — source/english 휴리스틱으로 분류
-function phraseCtaLink(p: KoreanPhrase): string {
-  const eng = p.english.toLowerCase()
-  const src = p.source
-
-  if (
-    src === "Let's Eat" ||
-    eng.includes("delicious") ||
-    eng.includes("eat well") ||
-    eng.includes("i'll eat") ||
-    eng.includes("i ate")
-  ) {
-    return "Try KfoodKit → https://unfoldk.com/food"
-  }
-
-  if (src !== "Daily expression") {
-    return "Watch more → https://unfoldk.com/drama"
-  }
-
-  return "Learn more → https://unfoldk.com/korean"
 }
 
 // ─── 채널 자동 포스팅 Embed ────────────────────────────────────
@@ -176,8 +154,6 @@ export function buildKoreanPhraseEmbed(p: KoreanPhrase): DiscordEmbed {
       `_${p.romanization}_`,
       `"${p.english}"`,
       `From: ${p.source}`,
-      "",
-      phraseCtaLink(p),
     ].join("\n"),
     color: BRAND_COLOR,
     image: { url: CHANNEL_IMAGES.korean },
@@ -203,7 +179,6 @@ export function buildKfoodEmbed(recipe?: FoodRecipeItem | null): DiscordEmbed {
   const lines: string[] = [`🍽️ ${nameLine}`]
   if (recipe.description_en) lines.push(`_${recipe.description_en}_`)
   if (recipe.ready_in_minutes) lines.push(`⏱️ Ready in ${recipe.ready_in_minutes} min`)
-  lines.push("", "Try it yourself → https://www.unfoldk.com/food")
   return {
     title: "🍱 Today's K-food Recipe",
     description: [divider(), ...lines, divider(), EARLY_ACCESS_NOTE].join("\n"),
@@ -231,7 +206,6 @@ export function buildCurationKEmbed(spot?: CurationSpotItem | null): DiscordEmbe
   const lines: string[] = [`📍 ${nameLine}`, `_${spot.category}_`]
   if (spot.description) lines.push(spot.description)
   if (spot.addr) lines.push(`📮 ${spot.addr}`)
-  lines.push("", "Explore Korea → https://www.unfoldk.com/curation-k")
   return {
     title: "🗺️ Today's Korean Destination",
     description: [divider(), ...lines, divider(), EARLY_ACCESS_NOTE].join("\n"),
