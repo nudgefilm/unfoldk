@@ -1155,16 +1155,19 @@ export function KoreanContent() {
                 isPro ? "" : "blur-[6px] pointer-events-none"
               }`}
             >
-              {/* 이미지 (16:9, image_url 있을 때만 표시) */}
+              {/* 이미지 (image_url 있을 때만 표시, 최대 높이 제한) */}
               {isPro && phrase?.imageUrl && (
-                <div className="relative w-full aspect-video">
-                  <Image
-                    src={phrase.imageUrl}
-                    alt={phrase.korean}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
+                <div className="px-8 pt-8">
+                  <div className="relative w-full max-h-48 overflow-hidden rounded-xl">
+                    <Image
+                      src={phrase.imageUrl}
+                      alt={phrase.korean}
+                      width={800}
+                      height={192}
+                      className="w-full h-auto max-h-48 object-cover"
+                      unoptimized
+                    />
+                  </div>
                 </div>
               )}
               <div className="p-8">
