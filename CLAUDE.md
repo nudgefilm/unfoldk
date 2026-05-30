@@ -131,9 +131,11 @@ Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
 | HallyuCalendar — 아티스트 트래킹 | 비로그인 안내, **Free 무제한** | 비로그인+Free 3건 cap, Pro 무제한 | tracking banner `!isLoggedIn` → `!isPro` |
 | HallyuCalendar — iCal / Google Calendar 구독 | Free 가능 (이미 현 상태) | 동일 (gate 추가 검토) | 변경 없음 |
 | HallyuCalendar — Concert / Fan Meet 이벤트 | Pro 유지 (RLS `is_premium`) | 동일 | RLS 레벨, 코드만으론 불가 |
-| KpopStats — Top 차트 | 비로그인 5건, **Free Top 20** | 비로그인 5건, Free Top 10, Pro Top 20 | `app/kpop/page.tsx` `visibleLimit` |
+| KpopStats — Top 차트 | **전면 무료 개방 (비로그인 포함 Top 20)** | 비로그인 5건, Free Top 10, Pro Top 20 | `app/kpop/page.tsx` (visibleLimit 제거됨) |
 | KpopStats — Spotlight (성장 추이) | Free 가능 (이미 현 상태) | 동일 | 변경 없음 |
-| KpopStats — Artist Comparison | Pro 유지 | 동일 | Pro 잠금 |
+| KpopStats — Artist Comparison | **비로그인 안내 → 로그인 유저 전체 개방** | 동일 | 변경 없음 (현행 유지) |
+| KpopStats — 주간 성장 리포트 (상세 페이지) | **Free blur + 잠금 / Pro 전체 열람** | 동일 | `app/kpop/[id]/page.tsx` `weeklyInsight` + `isPro` |
+| KpopStats — Track this artist 버튼 (상세 페이지) | **비로그인·Free → "Get notified with Hallyu Pass" / Pro → 현행** | 동일 | `app/kpop/[id]/track-artist-button.tsx` `isPro` prop |
 | KdramaMatch — AI 추천 한도 | 비로그인 3 / Free 5 / Pro 30 | 동일 | `/api/dramas/recommend` 상수 (이미 spec 일치) |
 | KdramaMatch — 시청 목록 / 별점·한줄평 | 로그인 필수 (Free 가능) | 동일 | 변경 없음 |
 | KdramaMatch — AI Drama Summary | Pro 유지 (잠금 UI) | 동일 | copy 만 변경 |

@@ -2,7 +2,7 @@
 
 // /kpop — KpopStats 공개 페이지
 // v0 디자인 유지 + /api/kpop/* 데이터 바인딩
-// 비회원 Top 5, 로그인 Top 20 (임시 Free 확대 정책)
+// 메인 차트 전면 무료 개방 (비로그인 포함 Top 20 전체 열람)
 // Artist Comparison — 로그인 유저 전체 개방 (결제 연동 전 임시)
 
 import { useEffect, useMemo, useState } from "react"
@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Search, TrendingUp, TrendingDown, Minus, Flame } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
-import { hasProAccess } from "@/lib/auth/plan"
 import { ReportButton } from "@/components/common/report-button"
 import { Toaster } from "@/components/ui/toaster"
 import { ArtistComparisonSection } from "@/components/kpop/artist-comparison"
@@ -83,8 +82,6 @@ interface ArtistListItem {
   latest_listeners: number | null
 }
 
-type PlanType = "free" | "monthly" | "annual"
-
 export default function KpopStatsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [chart, setChart] = useState<ChartItem[]>([])
@@ -100,8 +97,6 @@ export default function KpopStatsPage() {
   } | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [planType, setPlanType] = useState<PlanType>("free")
-  const [isPro, setIsPro] = useState(false)                 // monthly/annual/admin 통합 판별
 
   // 검색·More Artists 상태 — /api/kpop/artists 로 DB 기반 데이터 (Top 20 외 아티스트 노출용)
   // searchResults === null → 검색 비활성. null 이외이면 검색 결과 모드.
@@ -109,27 +104,13 @@ export default function KpopStatsPage() {
   const [searchLoading, setSearchLoading] = useState(false)
   const [moreArtists, setMoreArtists] = useState<ArtistListItem[]>([])
 
-  // 인증 + plan_type + is_admin 로드 — 노출 개수 분기용
+  // 인증 체크 — 로그인 여부만 확인 (Artist Comparison 분기 + Spotlight 버튼용)
   useEffect(() => {
     let cancelled = false
     const supabase = createSupabaseBrowserClient()
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
       if (cancelled) return
-      if (!user) {
-        setAuthChecked(true)
-        return
-      }
-      setIsLoggedIn(true)
-      const { data: profile } = await supabase
-        .from("users")
-        .select("plan_type, is_admin, trial_ends_at")
-        .eq("id", user.id)
-        .single()
-      if (cancelled) return
-      const row = profile as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
-      const pt = row?.plan_type
-      setPlanType(pt === "monthly" || pt === "annual" ? pt : "free")
-      setIsPro(hasProAccess({ planType: pt, isAdmin: row?.is_admin, trialEndsAt: row?.trial_ends_at }))
+      if (user) setIsLoggedIn(true)
       setAuthChecked(true)
     })
     return () => {
@@ -270,22 +251,8 @@ export default function KpopStatsPage() {
     FR: "France", DE: "Germany", AU: "Australia", CA: "Canada",
   }
 
-  // 노출 개수 분기
-  // 2026-05-16 임시 정책 (DECISIONS.md) — Free 도 Pro 와 동일 Top 20. 비로그인만 5건 미리보기.
-  // 결제 연동 후 Free=10 으로 복원 예정.
-  const visibleLimit = !authChecked
-    ? 5
-    : isLoggedIn
-    ? 20
-    : 5
-  void isPro
-
-  // 차트 노출 행 — 로컬 검색 필터 제거 (검색은 /api/kpop/artists DB 기반으로 이동).
-  // 검색 활성 시엔 아예 차트 섹션 자체를 hide.
-  const filteredChart = useMemo(
-    () => chart.slice(0, visibleLimit),
-    [chart, visibleLimit]
-  )
+  // 차트 노출 행 — 전면 무료 개방. API 가 already Top 20 반환. 검색 활성 시 차트 섹션 hide.
+  const filteredChart = chart
 
   // 급상승 아티스트 — rank_change > 0 인 아티스트 중 상승폭 기준 상위 3명
   const topMovers = useMemo(
@@ -558,7 +525,7 @@ export default function KpopStatsPage() {
         <section className="mb-12">
           <div className="mb-6">
             <h2 className="text-2xl font-semibold text-white">
-              Global Chart — Top {visibleLimit} this week
+              Global Chart — Top 20 this week
             </h2>
             <p className="text-muted-foreground text-sm mt-1">
               Ranked by weekly YouTube view growth
@@ -663,18 +630,6 @@ export default function KpopStatsPage() {
             )}
           </div>
 
-          {/* 비회원·Free 유저용 업그레이드 안내 */}
-          {authChecked && planType === "free" && chart.length > visibleLimit && (
-            <div className="mt-4 text-center">
-              <Link
-                href={isLoggedIn ? "/mypage/subscription" : "/"}
-                className="text-sm font-medium hover:underline"
-                style={{ color: "#FF4B6E" }}
-              >
-                {isLoggedIn ? "Upgrade to see full chart →" : "Sign in to see Top 10 →"}
-              </Link>
-            </div>
-          )}
         </section>
 
         {/* More Artists — Top 20 외 아티스트. listeners 순으로 21명. CLAUDE.md §6 노출 원칙. */}

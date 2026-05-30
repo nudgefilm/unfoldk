@@ -1,12 +1,13 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
-import { ChevronLeft, TrendingUp, Calendar as CalendarIcon, Youtube, Users } from "lucide-react"
+import { ChevronLeft, TrendingUp, Calendar as CalendarIcon, Youtube, Users, Lock } from "lucide-react"
 import { FooterSection } from "@/components/footer-section"
 import { Toaster } from "@/components/ui/toaster"
 import { ReportButton } from "@/components/common/report-button"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
+import { hasProAccess } from "@/lib/auth/plan"
 import { getEventTypeColor, getEventTypeColorAlpha } from "@/lib/calendar/event-type-colors"
 import { TrackArtistButton } from "./track-artist-button"
 import { ArtistTrendChart } from "@/components/kpop/artist-trend-chart"
@@ -134,7 +135,30 @@ export default async function ArtistDetailPage({
   const history = (historyData ?? []) as DailyStatsRow[]
   const latest = history[history.length - 1] ?? null
 
-  // 3) 다가오는 이벤트 — artist_or_drama ILIKE name(_ko).
+  // 3) Pro 체크 — users 테이블에서 plan_type 조회 (admin client 로 RLS 우회)
+  const { data: { user } } = await supabase.auth.getUser()
+  let isPro = false
+  if (user) {
+    const { data: profileRow } = await admin
+      .from("users")
+      .select("plan_type, is_admin, trial_ends_at")
+      .eq("id", user.id)
+      .single()
+    const pr = profileRow as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
+    isPro = hasProAccess({ planType: pr?.plan_type, isAdmin: pr?.is_admin, trialEndsAt: pr?.trial_ends_at })
+  }
+
+  // 4) 주간 인사이트 — 아티스트 전용 최신 1건 (Pro 게이팅 대상)
+  const { data: insightRow } = await admin
+    .from("kpop_weekly_insights")
+    .select("insight_text")
+    .eq("artist_id", id)
+    .order("week_start", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const weeklyInsight = (insightRow as { insight_text: string } | null)?.insight_text ?? null
+
+  // 5) 다가오는 이벤트 — artist_or_drama ILIKE name(_ko).
   //    RLS 가 premium 게이팅 자동 처리 (Free 는 non-premium 만, Pro 는 전체).
   //    KOPIS 는 캘린더 노출 정책에 맞춰 제외.
   const nowIso = new Date().toISOString()
@@ -279,7 +303,7 @@ export default async function ArtistDetailPage({
             {/* Track this artist — client island.
                 비로그인=StartModal, 미구독=POST(일괄 구독), 구독중=DELETE(일괄 해제).
                 매칭 로직은 아래 Upcoming Events 와 동일 (artist_or_drama ILIKE). */}
-            <TrackArtistButton artistId={artist.id} artistName={artist.name} />
+            <TrackArtistButton artistId={artist.id} artistName={artist.name} isPro={isPro} />
           </div>
         </section>
 
@@ -314,6 +338,51 @@ export default async function ArtistDetailPage({
             <ArtistTrendChart history={history} />
           </div>
         </section>
+
+        {/* Weekly Growth Report — Pro 전용.
+            데이터 없을 때 섹션 자체 미노출. Free 는 첫 문장 blur + 잠금 오버레이. */}
+        {weeklyInsight && (
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" style={{ color: "#FF4B6E" }} />
+              Weekly Growth Report
+            </h2>
+            <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6 relative overflow-hidden min-h-[80px]">
+              <p
+                className={`text-sm text-muted-foreground leading-relaxed ${
+                  !isPro ? "blur-sm select-none pointer-events-none" : ""
+                }`}
+              >
+                {isPro ? weeklyInsight : weeklyInsight.split(". ")[0] + "."}
+              </p>
+              {!isPro && (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#0d0d0f]/60">
+                  <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-5 text-center shadow-xl max-w-sm mx-4">
+                    <div
+                      className="w-11 h-11 rounded-full flex items-center justify-center mx-auto mb-3"
+                      style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
+                    >
+                      <Lock className="w-5 h-5" style={{ color: "#FF4B6E" }} />
+                    </div>
+                    <p className="text-foreground font-medium mb-1.5">
+                      See full weekly insight with Hallyu Pass
+                    </p>
+                    <p className="text-muted-foreground text-xs mb-4">
+                      Detailed growth analytics for every K-pop artist.
+                    </p>
+                    <Link
+                      href="/signup"
+                      className="inline-block text-xs font-medium px-4 py-2 rounded-full text-white whitespace-nowrap"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      Notify me at launch
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Upcoming Events — HallyuCalendar 연계.
             artist_or_drama 가 catalog 와 분리된 string field 라 ILIKE 매칭.

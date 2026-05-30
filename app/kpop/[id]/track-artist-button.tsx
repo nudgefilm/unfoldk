@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
@@ -25,9 +26,11 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 export function TrackArtistButton({
   artistId,
   artistName,
+  isPro,
 }: {
   artistId: string
   artistName: string
+  isPro: boolean
 }) {
   const { toast } = useToast()
   const [tracking, setTracking] = useState<boolean | null>(null)
@@ -35,8 +38,9 @@ export function TrackArtistButton({
   const [startModalOpen, setStartModalOpen] = useState(false)
   const [pendingNext, setPendingNext] = useState<string | undefined>(undefined)
 
-  // 초기 상태 fetch — 로그인 한 사용자만 GET 호출 (비로그인은 default false).
+  // Pro 유저만 tracking 상태 fetch
   useEffect(() => {
+    if (!isPro) return
     let cancelled = false
     ;(async () => {
       const supabase = createSupabaseBrowserClient()
@@ -63,7 +67,7 @@ export function TrackArtistButton({
     return () => {
       cancelled = true
     }
-  }, [artistId])
+  }, [artistId, isPro])
 
   const handleClick = async () => {
     const supabase = createSupabaseBrowserClient()
@@ -123,6 +127,22 @@ export function TrackArtistButton({
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Pro 아닌 유저 — "Get notified with Hallyu Pass" 즉시 렌더
+  if (!isPro) {
+    return (
+      <div className="flex-shrink-0">
+        <Link href="/signup">
+          <Button
+            className="px-6 py-2 rounded-full font-medium whitespace-nowrap"
+            style={{ backgroundColor: "#FF4B6E", color: "white" }}
+          >
+            Get notified with Hallyu Pass
+          </Button>
+        </Link>
+      </div>
+    )
   }
 
   const label = tracking ? "Tracking ✓" : "Track this artist"
