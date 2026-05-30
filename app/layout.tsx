@@ -47,6 +47,29 @@ export const metadata: Metadata = {
   },
 }
 
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "UnfoldK",
+  url: "https://www.unfoldk.com",
+  description: "The all-in-one platform for Hallyu fans — K-pop, K-drama, Korean language, and more.",
+  potentialAction: {
+    "@type": "SearchAction",
+    target: { "@type": "EntryPoint", urlTemplate: "https://www.unfoldk.com/kpop?q={search_term_string}" },
+    "query-input": "required name=search_term_string",
+  },
+}
+
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "UnfoldK",
+  url: "https://www.unfoldk.com",
+  logo: "https://www.unfoldk.com/favicon.png",
+  sameAs: [],
+  description: "UnfoldK is the ultimate Hallyu fan platform — K-pop charts, K-drama tracker, Korean name generator, and more.",
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -55,6 +78,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans antialiased bg-background pt-[72px]">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
         {/* Header 단일 마운트 — 페이지 navigation 간 unmount 안 돼 인증/프로필
             state 영속, 깜빡임 0. /admin·/login 등은 Header 내부에서 pathname 가드로 null 반환. */}
         <Header />

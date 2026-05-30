@@ -1,4 +1,18 @@
+import type { Metadata } from "next"
 import { HeroSection } from "@/components/hero-section"
+
+export const metadata: Metadata = {
+  title: "UnfoldK — Your Pass to Korean Culture | K-pop, K-drama & More",
+  description:
+    "The all-in-one platform for Hallyu fans. Track K-pop charts, discover K-dramas, learn Korean, and explore Korean food — all in one place.",
+  alternates: { canonical: "https://www.unfoldk.com" },
+  openGraph: {
+    title: "UnfoldK — Your Pass to Korean Culture | K-pop, K-drama & More",
+    description:
+      "The all-in-one platform for Hallyu fans. Track K-pop charts, discover K-dramas, learn Korean, and explore Korean food — all in one place.",
+    url: "https://www.unfoldk.com",
+  },
+}
 import { FloatingCalendarWidget } from "@/components/floating-calendar-widget"
 import { BentoSection } from "@/components/bento-section"
 

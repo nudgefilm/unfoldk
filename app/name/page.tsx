@@ -356,6 +356,83 @@ export default function NamePage() {
           </div>
         )}
       </main>
+
+      {/* SEO 콘텐츠 섹션 — 검색 유입용 롱테일 텍스트. UI 변경 없음. */}
+      <section className="max-w-[680px] mx-auto px-6 pb-16 space-y-10">
+        {/* How it works */}
+        <div>
+          <h2 className="text-xl font-bold text-white mb-3">How does our Korean name generator work?</h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Our Korean name generator matches your personality vibe and gender preference to curated Korean names.
+            Each name is composed of meaningful Korean characters (한자) selected to reflect your chosen style —
+            bright (밝은), cool (시크한), strong (강한), gentle (부드러운), creative (창의적), or smart (지적인).
+            The result is an authentic Korean name — complete with romanization and character meanings —
+            that you can share with your K-pop fan community.
+          </p>
+        </div>
+
+        {/* Why get a Korean name */}
+        <div>
+          <h2 className="text-xl font-bold text-white mb-3">Why get a Korean name?</h2>
+          <p className="text-muted-foreground text-sm leading-relaxed mb-3">
+            Millions of Hallyu fans around the world adopt Korean names as a way to connect more deeply with
+            Korean culture. Here&apos;s why getting a Korean name has become a fan tradition:
+          </p>
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li className="flex items-start gap-2">
+              <span style={{ color: "#FF4B6E" }}>✓</span>
+              <span><strong className="text-foreground">Fan identity</strong> — Use your Korean name in fandoms, on social media, or at K-pop concerts as your official fan persona.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span style={{ color: "#FF4B6E" }}>✓</span>
+              <span><strong className="text-foreground">Cultural connection</strong> — Korean names carry deep meaning through their characters, reflecting values like brightness, strength, and creativity.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span style={{ color: "#FF4B6E" }}>✓</span>
+              <span><strong className="text-foreground">K-drama immersion</strong> — If you&apos;re learning Korean through dramas, having a Korean name helps you feel closer to the language and culture.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span style={{ color: "#FF4B6E" }}>✓</span>
+              <span><strong className="text-foreground">Travel to Korea</strong> — Many fans heading to Seoul for concerts or K-drama filming locations love having a Korean name to introduce themselves.</span>
+            </li>
+          </ul>
+        </div>
+
+        {/* FAQ */}
+        <div>
+          <h2 className="text-xl font-bold text-white mb-4">Frequently asked questions</h2>
+          <div className="space-y-5">
+            {[
+              {
+                q: "Are the Korean names authentic?",
+                a: "Yes. Every name uses real Korean surname-given name combinations that native Koreans actually use. Each character carries a specific meaning, just like names given at birth in Korea.",
+              },
+              {
+                q: "Can I use my Korean name on social media?",
+                a: "Absolutely. Many K-pop fans use their Korean names as fan names on Twitter, Instagram, and TikTok. Your name comes with romanization (e.g. Lee Seo-yeon) so non-Korean speakers can read it too.",
+              },
+              {
+                q: "What is the Korean name format?",
+                a: "Korean names follow the format: Family name (성) + Given name (이름). For example, 이서연 — 이 is the family name (Lee), 서연 is the given name. Family names are typically one syllable.",
+              },
+              {
+                q: "Is the Korean name generator free?",
+                a: "Yes, completely free. No sign-up required — just pick your vibe, choose a gender feel, and get your Korean name instantly.",
+              },
+              {
+                q: "How do I find my Korean name based on my English name?",
+                a: "Enter your first name in the 'Your name' field above, then select your personality vibe and gender feel. Our generator will create a Korean name that resonates with your identity — not a phonetic transliteration, but a meaningful Korean name.",
+              },
+            ].map(({ q, a }) => (
+              <div key={q} className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4">
+                <p className="text-white font-medium text-sm mb-2">{q}</p>
+                <p className="text-muted-foreground text-sm leading-relaxed">{a}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <FooterSection />
     </div>
   )
