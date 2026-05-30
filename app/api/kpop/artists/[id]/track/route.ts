@@ -150,6 +150,12 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // kpop_artist_follows 에도 저장 — 이벤트 유무와 무관하게 팔로우 상태 보존.
+  // My Artists 페이지가 이벤트 없는 아티스트도 표시할 수 있게 함.
+  await supabase
+    .from("kpop_artist_follows")
+    .upsert({ user_id: user.id, artist_id: id }, { onConflict: "user_id,artist_id", ignoreDuplicates: true })
+
   return NextResponse.json({
     tracking: true,
     trackedCount: eventIds.length,
@@ -191,6 +197,13 @@ export async function DELETE(
     console.error("[track-artist] delete 실패:", error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // kpop_artist_follows 에서도 제거
+  await supabase
+    .from("kpop_artist_follows")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("artist_id", id)
 
   return NextResponse.json({
     tracking: false,
