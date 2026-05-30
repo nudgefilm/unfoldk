@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { requireAdmin } from "@/lib/admin/auth"
 
-// PATCH /api/admin/korean/phrases/[id] — image_url 업데이트
+// PATCH /api/admin/korean/phrases/[id] — image_url null 로 삭제
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAdmin()
   if (!auth.ok) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
 
+  const { id } = await context.params
   const body = await request.json() as { image_url?: string | null }
   if (!("image_url" in body)) {
     return NextResponse.json({ error: "image_url field required" }, { status: 400 })
@@ -19,7 +20,7 @@ export async function PATCH(
   const { error } = await supabase
     .from("korean_phrases")
     .update({ image_url: body.image_url ?? null })
-    .eq("id", params.id)
+    .eq("id", id)
 
   if (error) {
     console.error("[admin/korean/phrases PATCH] 업데이트 실패:", error)

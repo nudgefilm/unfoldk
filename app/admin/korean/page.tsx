@@ -9,10 +9,9 @@ async function loadPhrases(): Promise<{ ok: true; rows: KoreanPhraseAdminRow[] }
   const supabase = createSupabaseAdminClient()
   const { data, error } = await supabase
     .from("korean_phrases")
-    .select("id, korean, english, drama_name, difficulty, image_url, featured_date")
-    .order("featured_date", { ascending: false, nullsFirst: false })
+    .select("id, korean, english, drama_name, difficulty, image_url, featured_date, created_at")
     .order("created_at", { ascending: false })
-    .limit(500)
+    .limit(2000)
 
   if (error) {
     console.error("[admin/korean] 조회 실패:", error)

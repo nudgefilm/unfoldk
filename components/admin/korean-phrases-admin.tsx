@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useRef, useState, useMemo } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
-import { Search, ImageIcon, Check, X } from "lucide-react"
+import { Search, ImageIcon, Upload, X, ChevronLeft, ChevronRight } from "lucide-react"
 
 export interface KoreanPhraseAdminRow {
   id: string
@@ -15,21 +15,26 @@ export interface KoreanPhraseAdminRow {
   difficulty: string | null
   image_url: string | null
   featured_date: string | null
+  created_at: string
 }
 
+const PAGE_SIZE = 100
+
 interface RowState {
-  imageUrl: string
-  saving: boolean
-  saved: boolean
+  imageUrl: string   // 현재 표시 URL (업로드 완료 후 갱신)
+  uploading: boolean
 }
 
 export function KoreanPhrasesAdmin({ rows }: { rows: KoreanPhraseAdminRow[] }) {
   const { toast } = useToast()
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
   const [query, setQuery] = useState("")
+  const [page, setPage] = useState(0)
   const [rowState, setRowState] = useState<Record<string, RowState>>(() => {
     const init: Record<string, RowState> = {}
     for (const r of rows) {
-      init[r.id] = { imageUrl: r.image_url ?? "", saving: false, saved: false }
+      init[r.id] = { imageUrl: r.image_url ?? "", uploading: false }
     }
     return init
   })
@@ -45,25 +50,57 @@ export function KoreanPhrasesAdmin({ rows }: { rows: KoreanPhraseAdminRow[] }) {
     )
   }, [rows, query])
 
-  function setUrl(id: string, value: string) {
-    setRowState((prev) => ({ ...prev, [id]: { ...prev[id], imageUrl: value, saved: false } }))
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const pageRows = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  function handleQueryChange(v: string) {
+    setQuery(v)
+    setPage(0)
   }
 
-  async function save(id: string) {
-    const url = rowState[id]?.imageUrl ?? ""
-    setRowState((prev) => ({ ...prev, [id]: { ...prev[id], saving: true } }))
+  async function handleFileChange(id: string, file: File | undefined) {
+    if (!file) return
+    setRowState((prev) => ({ ...prev, [id]: { ...prev[id], uploading: true } }))
+
+    const form = new FormData()
+    form.append("file", file)
+
+    try {
+      const res = await fetch(`/api/admin/korean/phrases/${id}/image`, {
+        method: "POST",
+        body: form,
+      })
+      const json = await res.json() as { ok?: boolean; image_url?: string; error?: string }
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "업로드 실패")
+      setRowState((prev) => ({
+        ...prev,
+        [id]: { imageUrl: json.image_url ?? "", uploading: false },
+      }))
+      toast({ description: "이미지 업로드 완료" })
+    } catch (e) {
+      setRowState((prev) => ({ ...prev, [id]: { ...prev[id], uploading: false } }))
+      toast({ description: `업로드 실패: ${String(e)}`, variant: "destructive" })
+    }
+
+    // input 초기화 (같은 파일 재선택 허용)
+    const input = fileInputRefs.current[id]
+    if (input) input.value = ""
+  }
+
+  async function removeImage(id: string) {
+    setRowState((prev) => ({ ...prev, [id]: { ...prev[id], uploading: true } }))
     try {
       const res = await fetch(`/api/admin/korean/phrases/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_url: url.trim() || null }),
+        body: JSON.stringify({ image_url: null }),
       })
       if (!res.ok) throw new Error(await res.text())
-      setRowState((prev) => ({ ...prev, [id]: { ...prev[id], saving: false, saved: true } }))
-      toast({ description: "이미지 URL 저장됨" })
+      setRowState((prev) => ({ ...prev, [id]: { imageUrl: "", uploading: false } }))
+      toast({ description: "이미지 삭제됨" })
     } catch (e) {
-      setRowState((prev) => ({ ...prev, [id]: { ...prev[id], saving: false } }))
-      toast({ description: `저장 실패: ${String(e)}`, variant: "destructive" })
+      setRowState((prev) => ({ ...prev, [id]: { ...prev[id], uploading: false } }))
+      toast({ description: `삭제 실패: ${String(e)}`, variant: "destructive" })
     }
   }
 
@@ -82,25 +119,52 @@ export function KoreanPhrasesAdmin({ rows }: { rows: KoreanPhraseAdminRow[] }) {
         <Input
           placeholder="한국어 표현 / 영어 / 드라마명 검색"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => handleQueryChange(e.target.value)}
           className="pl-9 bg-[#1a1a1a] border-border/30"
         />
       </div>
 
-      {/* 결과 */}
-      <p className="text-xs text-muted-foreground">
-        {query ? `검색 결과 ${filtered.length}건` : `전체 ${filtered.length}건`}
-      </p>
+      {/* 결과 수 + 페이지 */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          {query ? `검색 결과 ${filtered.length}건` : `전체 ${filtered.length}건`}
+          {totalPages > 1 && ` · ${page + 1}/${totalPages} 페이지`}
+        </p>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="h-7 px-2"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <span className="text-xs text-muted-foreground px-1">{page + 1} / {totalPages}</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page === totalPages - 1}
+              className="h-7 px-2"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
+      </div>
 
-      <div className="space-y-3">
-        {filtered.map((row) => {
-          const state = rowState[row.id] ?? { imageUrl: "", saving: false, saved: false }
+      {/* 리스트 */}
+      <div className="space-y-2">
+        {pageRows.map((row) => {
+          const state = rowState[row.id] ?? { imageUrl: "", uploading: false }
           return (
             <div
               key={row.id}
-              className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex gap-4 items-start"
+              className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex gap-4 items-center"
             >
-              {/* 이미지 미리보기 */}
+              {/* 이미지 썸네일 */}
               <div className="flex-shrink-0 w-24 h-14 rounded-lg overflow-hidden bg-[#252528] flex items-center justify-center">
                 {state.imageUrl ? (
                   <Image
@@ -116,61 +180,97 @@ export function KoreanPhrasesAdmin({ rows }: { rows: KoreanPhraseAdminRow[] }) {
                 )}
               </div>
 
-              {/* 표현 정보 + 입력 */}
-              <div className="flex-1 min-w-0 space-y-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-foreground font-medium">{row.korean}</span>
-                  <span className="text-muted-foreground text-sm">{row.english}</span>
+              {/* 표현 정보 */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className="text-foreground font-medium text-sm">{row.korean}</span>
+                  <span className="text-muted-foreground text-xs">{row.english}</span>
                   {row.drama_name && (
-                    <span className="text-xs px-2 py-0.5 rounded bg-[#252528] text-muted-foreground">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-[#252528] text-muted-foreground">
                       {row.drama_name}
                     </span>
                   )}
                   {row.difficulty && (
-                    <span className="text-xs px-2 py-0.5 rounded bg-[#252528] text-muted-foreground capitalize">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-[#252528] text-muted-foreground capitalize">
                       {row.difficulty}
                     </span>
                   )}
                 </div>
+              </div>
 
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="이미지 URL (https://...)"
-                    value={state.imageUrl}
-                    onChange={(e) => setUrl(row.id, e.target.value)}
-                    className="bg-[#141416] border-border/20 text-sm h-8"
-                  />
+              {/* 업로드 버튼 */}
+              <div className="flex-shrink-0 flex items-center gap-2">
+                {state.imageUrl && (
                   <Button
                     size="sm"
-                    onClick={() => save(row.id)}
-                    disabled={state.saving}
-                    className="h-8 px-3 text-white flex-shrink-0"
-                    style={{ backgroundColor: state.saved ? "#22c55e" : "#FF4B6E" }}
+                    variant="ghost"
+                    onClick={() => removeImage(row.id)}
+                    disabled={state.uploading}
+                    className="h-8 px-2 text-muted-foreground hover:text-red-400"
+                    title="이미지 삭제"
                   >
-                    {state.saved ? <Check className="w-3.5 h-3.5" /> : state.saving ? "저장 중..." : "저장"}
+                    <X className="w-3.5 h-3.5" />
                   </Button>
-                  {state.imageUrl && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setUrl(row.id, "")}
-                      className="h-8 px-2 text-muted-foreground hover:text-foreground flex-shrink-0"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
+                )}
+                <input
+                  ref={(el) => { fileInputRefs.current[row.id] = el }}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => handleFileChange(row.id, e.target.files?.[0])}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => fileInputRefs.current[row.id]?.click()}
+                  disabled={state.uploading}
+                  className="h-8 px-3 text-white text-xs"
+                  style={{ backgroundColor: "#FF4B6E" }}
+                >
+                  {state.uploading ? (
+                    "업로드 중..."
+                  ) : (
+                    <>
+                      <Upload className="w-3.5 h-3.5 mr-1" />
+                      {state.imageUrl ? "교체" : "업로드"}
+                    </>
                   )}
-                </div>
+                </Button>
               </div>
             </div>
           )
         })}
 
-        {filtered.length === 0 && (
+        {pageRows.length === 0 && (
           <p className="text-muted-foreground text-sm text-center py-8">
-            검색 결과가 없습니다.
+            {query ? "검색 결과가 없습니다." : "등록된 표현이 없습니다."}
           </p>
         )}
       </div>
+
+      {/* 하단 페이지네이션 */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-1 pt-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="h-7 px-2"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <span className="text-xs text-muted-foreground px-2">{page + 1} / {totalPages}</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page === totalPages - 1}
+            className="h-7 px-2"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
