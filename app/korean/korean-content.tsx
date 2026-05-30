@@ -1155,26 +1155,26 @@ export function KoreanContent() {
                 isPro ? "" : "blur-[6px] pointer-events-none"
               }`}
             >
-              {/* 이미지 (image_url 있을 때만 표시, 최대 높이 제한) */}
+              {/* 이미지 (image_url 있을 때만) */}
               {isPro && phrase?.imageUrl && (
                 <div className="px-8 pt-8">
-                  <div className="relative w-full max-h-[420px] overflow-hidden rounded-xl">
+                  <div className="relative w-full max-h-[520px] overflow-hidden rounded-xl">
                     <Image
                       src={phrase.imageUrl}
                       alt={phrase.korean}
                       width={800}
-                      height={420}
-                      className="w-full h-auto max-h-[420px] object-cover"
+                      height={520}
+                      className="w-full h-auto max-h-[520px] object-cover"
                       unoptimized
                     />
                   </div>
-                  {/* 장면 설명 (scene_description 있을 때만) */}
-                  {phrase.sceneDescription && (
-                    <p className="mt-2 text-xs text-muted-foreground italic leading-relaxed">
-                      {phrase.sceneDescription}
-                    </p>
-                  )}
                 </div>
+              )}
+              {/* 장면 설명 (scene_description 있을 때만, 이미지 유무 무관) */}
+              {isPro && phrase?.sceneDescription && (
+                <p className="px-8 pt-3 text-xs text-muted-foreground italic leading-relaxed">
+                  {phrase.sceneDescription}
+                </p>
               )}
               <div className="p-8">
               {isPro ? (
