@@ -163,6 +163,36 @@ export function buildKoreanPhraseEmbed(p: KoreanPhrase): DiscordEmbed {
   }
 }
 
+export function buildKfoodEmbed(): DiscordEmbed {
+  return {
+    title: "🍱 K-food Kitchen — Cook Your Favorite Drama Dishes",
+    description: [
+      divider(),
+      SERVICE_BLURBS.food,
+      divider(),
+      EARLY_ACCESS_NOTE,
+    ].join("\n"),
+    color: BRAND_COLOR,
+    footer: { text: FOOTER_TEXT },
+    timestamp: new Date().toISOString(),
+  }
+}
+
+export function buildCurationKEmbed(): DiscordEmbed {
+  return {
+    title: "🗺️ Curation K — Korea, Mapped for Fans",
+    description: [
+      divider(),
+      SERVICE_BLURBS.curationk,
+      divider(),
+      EARLY_ACCESS_NOTE,
+    ].join("\n"),
+    color: BRAND_COLOR,
+    footer: { text: FOOTER_TEXT },
+    timestamp: new Date().toISOString(),
+  }
+}
+
 // ─── 슬래시 명령 Embed (5종) ─────────────────────────────────
 
 export function buildComebackEmbed(items: ScheduleItem[]): DiscordEmbed {

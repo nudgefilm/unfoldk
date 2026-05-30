@@ -8,8 +8,10 @@ import {
   type DiscordEmbed,
 } from "@/lib/discord/bot"
 import {
+  buildCurationKEmbed,
   buildDailyScheduleEmbed,
   buildDramaUpdatesEmbed,
+  buildKfoodEmbed,
   buildKoreanPhraseEmbed,
   buildKpopChartEmbed,
 } from "@/lib/discord/embeds"
@@ -57,12 +59,48 @@ function getWebhookUrls(): Record<ChannelKey, string> | null {
 }
 
 interface PostResult {
-  channel: ChannelKey
+  channel: string
   method: "webhook" | "bot"
   channel_id?: string
   webhook_url_prefix?: string // 앞 30자만 — 보안
   status: "posted" | "channel_not_found" | "error"
   error?: string
+}
+
+type ExtraChannelKey = "food" | "curation"
+
+function getExtraWebhookUrls(): Partial<Record<ExtraChannelKey, string>> {
+  const urls: Partial<Record<ExtraChannelKey, string>> = {}
+  if (process.env.DISCORD_WEBHOOK_FOOD) urls.food = process.env.DISCORD_WEBHOOK_FOOD
+  if (process.env.DISCORD_WEBHOOK_CURATION) urls.curation = process.env.DISCORD_WEBHOOK_CURATION
+  return urls
+}
+
+function buildExtraEmbeds(): Record<ExtraChannelKey, DiscordEmbed> {
+  return {
+    food: buildKfoodEmbed(),
+    curation: buildCurationKEmbed(),
+  }
+}
+
+async function postExtraWebhooks(
+  urls: Partial<Record<ExtraChannelKey, string>>,
+  embeds: Record<ExtraChannelKey, DiscordEmbed>
+): Promise<PostResult[]> {
+  const keys = Object.keys(urls) as ExtraChannelKey[]
+  return Promise.all(
+    keys.map(async (key): Promise<PostResult> => {
+      const url = urls[key]!
+      try {
+        await postWebhookMessage(url, { embeds: [embeds[key]] })
+        return { channel: key, method: "webhook", webhook_url_prefix: url.slice(0, 30), status: "posted" }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error(`[discord-daily webhook ${key}]`, msg)
+        return { channel: key, method: "webhook", status: "error", error: msg }
+      }
+    })
+  )
 }
 
 async function buildAllEmbeds(): Promise<Record<ChannelKey, DiscordEmbed>> {
@@ -195,6 +233,14 @@ export async function GET(request: Request) {
     const botResult = await postViaBotToken(embeds)
     results = botResult.results
     servers = botResult.servers
+  }
+
+  // food / curation 추가 채널 — Webhook 설정 시 독립 발송
+  const extraUrls = getExtraWebhookUrls()
+  if (Object.keys(extraUrls).length > 0) {
+    const extraEmbeds = buildExtraEmbeds()
+    const extraResults = await postExtraWebhooks(extraUrls, extraEmbeds)
+    results = [...results, ...extraResults]
   }
 
   const posted = results.filter((r) => r.status === "posted").length

@@ -9,8 +9,10 @@ import {
   type DiscordEmbed,
 } from "@/lib/discord/bot"
 import {
+  buildCurationKEmbed,
   buildDailyScheduleEmbed,
   buildDramaUpdatesEmbed,
+  buildKfoodEmbed,
   buildKoreanPhraseEmbed,
   buildKpopChartEmbed,
 } from "@/lib/discord/embeds"
@@ -46,11 +48,20 @@ function getWebhookUrls(): Record<ChannelKey, string> | null {
 }
 
 interface PostResult {
-  channel: ChannelKey
+  channel: string
   method: "webhook" | "bot"
   channel_id?: string
   status: "posted" | "channel_not_found" | "error"
   error?: string
+}
+
+type ExtraChannelKey = "food" | "curation"
+
+function getExtraWebhookUrls(): Partial<Record<ExtraChannelKey, string>> {
+  const urls: Partial<Record<ExtraChannelKey, string>> = {}
+  if (process.env.DISCORD_WEBHOOK_FOOD) urls.food = process.env.DISCORD_WEBHOOK_FOOD
+  if (process.env.DISCORD_WEBHOOK_CURATION) urls.curation = process.env.DISCORD_WEBHOOK_CURATION
+  return urls
 }
 
 export async function GET() {
@@ -144,13 +155,33 @@ export async function GET() {
     }
   }
 
+  // food / curation 추가 채널 — Webhook 설정 시 독립 발송
+  const extraUrls = getExtraWebhookUrls()
+  for (const key of Object.keys(extraUrls) as ExtraChannelKey[]) {
+    const url = extraUrls[key]!
+    const embed = key === "food" ? buildKfoodEmbed() : buildCurationKEmbed()
+    try {
+      await postWebhookMessage(url, { embeds: [embed] })
+      results.push({ channel: key, method: "webhook", status: "posted" })
+    } catch (err) {
+      results.push({ channel: key, method: "webhook", status: "error", error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
   const posted = results.filter((r) => r.status === "posted").length
   const errors = results.filter((r) => r.status === "error").length
+
+  const foodEnv = process.env.DISCORD_WEBHOOK_FOOD
+  const curationEnv = process.env.DISCORD_WEBHOOK_CURATION
 
   return NextResponse.json({
     mode: usingWebhook ? "webhook" : "bot",
     elapsedMs: Date.now() - t0,
     summary: { posted, errors, notFound: results.filter((r) => r.status === "channel_not_found").length },
     results,
+    _debug_extra_env: {
+      DISCORD_WEBHOOK_FOOD: foodEnv ? `set (${foodEnv.slice(0, 40)}…)` : "NOT SET",
+      DISCORD_WEBHOOK_CURATION: curationEnv ? `set (${curationEnv.slice(0, 40)}…)` : "NOT SET",
+    },
   }, { status: errors > 0 ? (posted > 0 ? 207 : 500) : 200 })
 }
