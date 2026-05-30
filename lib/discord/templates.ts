@@ -18,34 +18,34 @@ export const EARLY_ACCESS_NOTE = `
 🌟 UnfoldK is now live — Early Access is open!
 ✅ Live now: HallyuCalendar · KpopStats · Curation K
 🔜 Coming soon: KdramaMatch · HangeulGo · KfoodKit
-→ unfoldk.com
+→ https://www.unfoldk.com
 `.trim()
 
 // 6 서비스 short blurb — 봇 응답 시 단일 메시지 임베드.
 export const SERVICE_BLURBS = {
   calendar: `📅 **HallyuCalendar** — Never miss a comeback, premiere, concert, or fan meet.
 Live YouTube + TMDB + Ticketmaster ingestion. Free + Hallyu Pass tiers.
-→ https://www.unfoldk.com/calendar`,
+→ unfoldk.com/calendar`,
 
   kpop: `🎵 **KpopStats** — Global K-pop charts that move.
 YouTube subscribers + weekly growth · Last.fm monthly listeners · trending Top.
-→ https://www.unfoldk.com/kpop`,
+→ unfoldk.com/kpop`,
 
   drama: `🎬 **KdramaMatch** — AI-powered K-drama recommendations.
 Coming soon — sign up to be notified at launch.
-→ https://www.unfoldk.com/drama`,
+→ unfoldk.com/drama`,
 
   korean: `🇰🇷 **HangeulGo** — Learn Korean from the K-dramas you watch.
 Coming soon — sign up to be notified at launch.
-→ https://www.unfoldk.com/korean`,
+→ unfoldk.com/korean`,
 
   food: `🍱 **KfoodKit** — Cook the food from your favorite K-dramas.
 Coming soon — sign up to be notified at launch.
-→ https://www.unfoldk.com/food`,
+→ unfoldk.com/food`,
 
   curationk: `🗺️ **Curation K** — Korea, mapped for fans.
 Filming spots · K-pop pilgrimage · food · stays · My Hallyu Course.
-→ https://www.unfoldk.com/curation-k`,
+→ unfoldk.com/curation-k`,
 } as const
 
 export type ServiceKey = keyof typeof SERVICE_BLURBS
