@@ -83,7 +83,7 @@ function LearningProgressBody() {
               return (
                 <Link
                   key={phrase.phrase_id}
-                  href="/korean"
+                  href={`/korean?phrase_id=${phrase.phrase_id}`}
                   className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 hover:border-primary/50 transition-colors block"
                 >
                   <p className="text-xl font-bold text-foreground mb-1">{phrase.korean}</p>
