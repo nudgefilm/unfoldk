@@ -60,12 +60,14 @@ export async function GET() {
   if (nameSet.size === 0) return NextResponse.json({ artists: [] })
 
   const eventNames = [...nameSet].map((n) => n.toLowerCase())
+  console.log("[mypage/artists] DEBUG eventNames:", eventNames)
 
   // 3. kpop_artists 로드 (enrichment 전용 — 없어도 결과 반환)
-  const { data: allArtists } = await supabase
+  const { data: allArtists, error: artistsErr } = await supabase
     .from("kpop_artists")
     .select("id, name, name_ko, thumbnail_url, member_count")
     .eq("is_active", true)
+  console.log("[mypage/artists] DEBUG allArtists count:", allArtists?.length ?? 0, "error:", artistsErr?.message)
 
   // 매칭된 kpop_artists: event name 에 artist.name 이 포함된 경우
   const kpopMatched = ((allArtists ?? []) as KpopArtistRow[]).filter((artist) => {
@@ -73,6 +75,7 @@ export async function GET() {
     const nko = artist.name_ko?.toLowerCase() ?? null
     return eventNames.some((en) => en.includes(n) || (nko && en.includes(nko)))
   })
+  console.log("[mypage/artists] DEBUG kpopMatched:", kpopMatched.map((a) => ({ id: a.id, name: a.name, thumb: a.thumbnail_url })))
 
   // kpop 매칭이 커버한 event name 집합 (중복 제거용)
   const coveredNames = new Set<string>()
