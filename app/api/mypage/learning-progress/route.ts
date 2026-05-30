@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 // GET /api/mypage/learning-progress
 // 유저가 "Got it" 클릭한 (mastered) 표현 목록
@@ -22,7 +23,10 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 })
 
-  const { data, error } = await supabase
+  // admin client: user session RLS 가 inner join 을 간섭하는 엣지 케이스 방지.
+  // 보안: user.id 필터로 본인 데이터만 반환.
+  const admin = createSupabaseAdminClient()
+  const { data, error } = await admin
     .from("user_learning_progress")
     .select("phrase_id, last_studied_at, korean_phrases!inner(korean, romanization, english, difficulty, drama_name)")
     .eq("user_id", user.id)
@@ -31,7 +35,7 @@ export async function GET() {
 
   if (error) {
     console.error("[/api/mypage/learning-progress] 조회 실패:", error.message)
-    return NextResponse.json({ phrases: [] })
+    return NextResponse.json({ phrases: [], error: error.message })
   }
 
   type Row = {
@@ -46,7 +50,7 @@ export async function GET() {
     } | null
   }
 
-  const phrases: LearnedPhrase[] = ((data ?? []) as Row[])
+  const phrases: LearnedPhrase[] = ((data ?? []) as unknown as Row[])
     .filter((r) => r.korean_phrases)
     .map((r) => ({
       phrase_id: r.phrase_id,

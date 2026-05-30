@@ -792,13 +792,23 @@ export function KoreanContent() {
                     disabled={phraseSaved || !isAuthenticated}
                     onClick={async () => {
                       if (!phrase?.id || phraseSaved || !isAuthenticated) return
-                      setPhraseSaved(true)
+                      setPhraseSaved(true) // optimistic
                       try {
-                        await fetch("/api/korean/learning-progress", {
+                        const res = await fetch("/api/korean/learning-progress", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ phraseId: phrase.id, status: "mastered" }),
                         })
+                        if (!res.ok) {
+                          console.warn("[korean] phrase save 실패 status:", res.status)
+                          setPhraseSaved(false)
+                          return
+                        }
+                        const body = await res.json().catch(() => ({})) as { skipped?: boolean }
+                        if (body.skipped) {
+                          // fallback sentinel phrase — DB 미보유 → 저장 불가
+                          setPhraseSaved(false)
+                        }
                       } catch (err) {
                         console.warn("[korean] phrase save 실패:", err)
                         setPhraseSaved(false)
