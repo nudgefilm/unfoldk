@@ -40,11 +40,15 @@ import {
   ListChecks,
   X as CloseIcon,
   CalendarPlus,
+  Calendar,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
   Bookmark,
   BookmarkCheck,
+  MessageCircle,
+  UtensilsCrossed,
+  MapPin,
 } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -899,29 +903,49 @@ function DramaDetailModal({
                 )}
               </div>
 
-              {/* Cross-service links */}
+              {/* Cross-service links — 2×2 카드 그리드 */}
               {drama && (
-                <div className="border-t border-border/20 pt-4 mt-2">
+                <div className="border-t border-border/20 pt-5 mt-2">
                   <p className="text-muted-foreground text-xs uppercase tracking-wider mb-3">Explore more</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={`/korean?drama=${encodeURIComponent(getDisplayTitle(drama))}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[#252528] text-muted-foreground hover:text-foreground hover:bg-[#2e2e32] transition-colors"
-                    >
-                      🗣 Korean expressions
-                    </Link>
-                    <Link
-                      href={`/food?drama=${encodeURIComponent(getDisplayTitle(drama))}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[#252528] text-muted-foreground hover:text-foreground hover:bg-[#2e2e32] transition-colors"
-                    >
-                      🍜 Foods from this drama
-                    </Link>
-                    <Link
-                      href={`/curation-k?drama=${encodeURIComponent(getDisplayTitle(drama))}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[#252528] text-muted-foreground hover:text-foreground hover:bg-[#2e2e32] transition-colors"
-                    >
-                      📍 Filming locations
-                    </Link>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      {
+                        href: `/korean?drama=${encodeURIComponent(getDisplayTitle(drama))}`,
+                        icon: <MessageCircle className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                        title: "Learn Korean",
+                        sub: "from this drama →",
+                      },
+                      {
+                        href: `/food?drama=${encodeURIComponent(getDisplayTitle(drama))}`,
+                        icon: <UtensilsCrossed className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                        title: "Cook the food",
+                        sub: "from this drama →",
+                      },
+                      {
+                        href: `/curation-k?drama=${encodeURIComponent(getDisplayTitle(drama))}`,
+                        icon: <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                        title: "Filming locations",
+                        sub: "visit real spots →",
+                      },
+                      {
+                        href: `/calendar`,
+                        icon: <Calendar className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                        title: "Related events",
+                        sub: "check calendar →",
+                      },
+                    ].map(({ href, icon, title, sub }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        className="flex items-center gap-2.5 bg-[#252528] hover:bg-[#2e2e32] rounded-xl px-3 py-3 transition-colors group"
+                      >
+                        {icon}
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-foreground truncate">{title}</p>
+                          <p className="text-[10px] text-muted-foreground truncate group-hover:text-foreground/70 transition-colors">{sub}</p>
+                        </div>
+                      </Link>
+                    ))}
                   </div>
                 </div>
               )}
