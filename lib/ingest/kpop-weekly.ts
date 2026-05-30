@@ -215,10 +215,10 @@ export async function runKpopWeeklyIngest(): Promise<KpopWeeklyIngestResult> {
     try {
       const geoArtists = await getGeoTopArtists(country.name, 100)
 
-      // K팝 아티스트만 필터
+      // K팝 아티스트만 필터 (Top 10 — Artist Comparison 커버리지 확대)
       const kpopFiltered = geoArtists
         .filter((a) => nameToId.has(a.name.toLowerCase()))
-        .slice(0, 3)
+        .slice(0, 10)
 
       if (kpopFiltered.length === 0) continue
 

@@ -399,7 +399,9 @@ export function ArtistComparisonSection({
           )}
 
           {/* 글로벌 팬덤 분포 */}
-          {data.countries.length > 0 && (
+          {/* 두 아티스트 모두 ≥2개국 데이터 있을 때만 노출 */}
+          {data.countries.filter((c) => c.a_listeners).length >= 2 &&
+           data.countries.filter((c) => c.b_listeners).length >= 2 && (
             <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-5">
               <h3 className="text-sm font-semibold text-foreground mb-4">Global Fandom Distribution</h3>
               <div className="grid grid-cols-12 gap-2 mb-2 text-xs text-muted-foreground font-medium">
