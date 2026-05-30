@@ -222,6 +222,11 @@
 #### B. Discord 봇 /quiz · /koreanname 슬래시 커맨드 추가 (세션 23)
 #### C. 푸터 국기 중복 버그 수정 (세션 23)
 
+### 임시 Free 확대 정책 추가 항목 (결제 연동 시 복원 필요)
+| 기능 | 현재 (임시) | 복원 후 | 비고 |
+|------|------------|---------|------|
+| KpopStats — Artist Comparison | **로그인 유저 전체** | Pro 전용 | `components/kpop/artist-comparison.tsx` isLoggedIn 조건 |
+
 ### 다음 세션 후보
 - Discord 봇 Embed 포맷 개선 (디자인·카피 완성도 향상)
 - 결제 연동사 변경 검토 (LMS → Paddle)

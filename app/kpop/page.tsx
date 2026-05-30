@@ -2,18 +2,19 @@
 
 // /kpop — KpopStats 공개 페이지
 // v0 디자인 유지 + /api/kpop/* 데이터 바인딩
-// 비회원 Top 5, 로그인 Top 10, 유료(monthly/annual) Top 20+
-// Artist Comparison 섹션은 v0 그대로 (Pro 잠금)
+// 비회원 Top 5, 로그인 Top 20 (임시 Free 확대 정책)
+// Artist Comparison — 로그인 유저 전체 개방 (결제 연동 전 임시)
 
 import { useEffect, useMemo, useState } from "react"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { Search, TrendingUp, TrendingDown, Minus, Lock, Flame } from "lucide-react"
+import { Search, TrendingUp, TrendingDown, Minus, Flame } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 import { ReportButton } from "@/components/common/report-button"
 import { Toaster } from "@/components/ui/toaster"
+import { ArtistComparisonSection } from "@/components/kpop/artist-comparison"
 
 // ============================================
 // 숫자 포맷터 — 2_400_000_000 → "2.4B"
@@ -278,16 +279,6 @@ export default function KpopStatsPage() {
     ? 20
     : 5
   void isPro
-
-  // Artist Comparison 카드 BTS·BLACKPINK 프로필 이미지 — chart 응답에서 추출 (별도 fetch X).
-  // chart limit=20 이라 둘 다 거의 항상 포함됨. 누락 시 회색 placeholder fallback.
-  const comparisonAvatars = useMemo(
-    () => ({
-      BTS: chart.find((c) => c.name === "BTS")?.thumbnail_url ?? null,
-      BLACKPINK: chart.find((c) => c.name === "BLACKPINK")?.thumbnail_url ?? null,
-    }),
-    [chart]
-  )
 
   // 차트 노출 행 — 로컬 검색 필터 제거 (검색은 /api/kpop/artists DB 기반으로 이동).
   // 검색 활성 시엔 아예 차트 섹션 자체를 hide.
@@ -866,107 +857,8 @@ export default function KpopStatsPage() {
           </section>
         )}
 
-        {/* Artist Comparison — Pro Feature (v0 그대로 유지) */}
-        <section className="mb-16">
-          <h2 className="text-2xl font-semibold text-white mb-6">
-            Artist Comparison <span className="text-muted-foreground text-base font-normal">(Pro)</span>
-          </h2>
-
-          <div className="relative">
-            {/* Blurred Cards — isPro 면 블러 해제 */}
-            <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${isPro ? "" : "blur-[4px] pointer-events-none"}`}>
-              {/* Card 1 */}
-              <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  {comparisonAvatars.BTS ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={comparisonAvatars.BTS}
-                      alt="BTS"
-                      className="w-12 h-12 rounded-full object-cover bg-[#252525]"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-[#252525]" />
-                  )}
-                  <div>
-                    <h4 className="text-white font-medium">BTS</h4>
-                    <p className="text-muted-foreground text-sm">75M subscribers</p>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground text-sm">YouTube Views</span>
-                    <span className="text-white">2.4B</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground text-sm">Monthly Listeners</span>
-                    <span className="text-white">8.2M</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2 */}
-              <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  {comparisonAvatars.BLACKPINK ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={comparisonAvatars.BLACKPINK}
-                      alt="BLACKPINK"
-                      className="w-12 h-12 rounded-full object-cover bg-[#252525]"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-[#252525]" />
-                  )}
-                  <div>
-                    <h4 className="text-white font-medium">BLACKPINK</h4>
-                    <p className="text-muted-foreground text-sm">92M subscribers</p>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground text-sm">YouTube Views</span>
-                    <span className="text-white">1.9B</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground text-sm">Monthly Listeners</span>
-                    <span className="text-white">6.1M</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Overlay */}
-            {!isPro && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
-                  <div
-                    className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
-                  >
-                    <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
-                  </div>
-                  <p className="text-foreground font-medium mb-2">
-                    Coming with Hallyu Pass
-                  </p>
-                  <p className="text-muted-foreground text-xs mb-4">
-                    Artist comparison arrives at launch.
-                  </p>
-                  <Link href={isLoggedIn ? "/mypage/subscription" : "/"}>
-                    <Button
-                      className="px-6 py-2 rounded-full font-medium text-white"
-                      style={{ backgroundColor: "#FF4B6E" }}
-                    >
-                      Notify me
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
+        {/* Artist Comparison — 로그인 유저 전체 개방 (2026-05-16 임시 정책) */}
+        <ArtistComparisonSection isLoggedIn={isLoggedIn} authChecked={authChecked} />
         </>
         )}
       </main>
