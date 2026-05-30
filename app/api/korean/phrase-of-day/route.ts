@@ -45,7 +45,7 @@ interface PhraseRowInsert {
 }
 
 const PHRASE_SELECT =
-  "id, drama_id, drama_name, korean, romanization, english, word_breakdown, synonyms, antonyms, difficulty, audio_url, featured_date, created_at"
+  "id, drama_id, drama_name, korean, romanization, english, word_breakdown, synonyms, antonyms, difficulty, audio_url, image_url, featured_date, created_at"
 
 // PostgrestError 의 모든 필드를 단일 문자열로 압축 — 디버깅 정보 손실 없이
 // console + response detail 양쪽에 동일 포맷으로 노출.

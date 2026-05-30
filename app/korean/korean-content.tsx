@@ -17,6 +17,7 @@ import { useSearchParams } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight, X, Film, Bookmark, BookmarkCheck, UtensilsCrossed, MapPin, Calendar } from "lucide-react"
+import Image from "next/image"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -1150,10 +1151,23 @@ export function KoreanContent() {
           <div className="relative">
             {/* Pro 유저: 실제 컨텐츠 / 비-Pro: blur placeholder */}
             <div
-              className={`bg-[#1a1a1a] border border-border/30 rounded-2xl p-8 ${
+              className={`bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden ${
                 isPro ? "" : "blur-[6px] pointer-events-none"
               }`}
             >
+              {/* 이미지 (16:9, image_url 있을 때만 표시) */}
+              {isPro && phrase?.imageUrl && (
+                <div className="relative w-full aspect-video">
+                  <Image
+                    src={phrase.imageUrl}
+                    alt={phrase.korean}
+                    fill
+                    className="object-cover"
+                    unoptimized
+                  />
+                </div>
+              )}
+              <div className="p-8">
               {isPro ? (
                 grammarLoading ? (
                   <p className="text-muted-foreground text-sm">Generating grammar breakdown...</p>
@@ -1180,6 +1194,7 @@ export function KoreanContent() {
                   </div>
                 </div>
               )}
+              </div>
             </div>
 
             {/* Upgrade Overlay */}

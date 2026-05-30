@@ -11,7 +11,7 @@ import { mapKoreanPhraseRow, type KoreanPhraseApi } from "@/lib/korean/mapper"
 export const dynamic = "force-dynamic"
 
 const PHRASE_SELECT =
-  "id, drama_id, drama_name, korean, romanization, english, word_breakdown, synonyms, antonyms, difficulty, audio_url, featured_date, created_at"
+  "id, drama_id, drama_name, korean, romanization, english, word_breakdown, synonyms, antonyms, difficulty, audio_url, image_url, featured_date, created_at"
 
 interface DramaApi {
   id: string
