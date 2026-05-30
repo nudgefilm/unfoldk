@@ -1170,20 +1170,25 @@ export function KoreanContent() {
                   </div>
                 </div>
               )}
-              {/* 장면 설명 (scene_description 있을 때만, 이미지 유무 무관) */}
-              {isPro && phrase?.sceneDescription && (
-                <p className="px-8 pt-3 text-xs text-muted-foreground italic leading-relaxed">
-                  {phrase.sceneDescription}
-                </p>
-              )}
               <div className="p-8">
               {isPro ? (
                 grammarLoading ? (
                   <p className="text-muted-foreground text-sm">Generating grammar breakdown...</p>
                 ) : grammar ? (
-                  <p className="text-foreground text-sm leading-relaxed whitespace-pre-wrap">
-                    {grammar}
-                  </p>
+                  <>
+                    <p className="text-foreground text-sm leading-relaxed whitespace-pre-wrap">
+                      {grammar}
+                    </p>
+                    {/* 장면 설명 — 문법 텍스트 아래, 구분선 위 */}
+                    {phrase?.sceneDescription && (
+                      <>
+                        <hr className="my-4 border-border/20" />
+                        <p className="text-xs text-muted-foreground italic leading-relaxed">
+                          {phrase.sceneDescription}
+                        </p>
+                      </>
+                    )}
+                  </>
                 ) : (
                   <p className="text-muted-foreground text-sm">
                     Grammar explanation unavailable for this phrase.
