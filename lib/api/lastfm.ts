@@ -56,6 +56,7 @@ export interface LastfmArtistInfo {
   mbid?: string
   listeners: number | null
   playcount: number | null
+  tags: string[]  // artist.tags.tag 상위 3개 이름 (소문자 정규화)
 }
 
 interface LastfmArtistGetInfoResponse {
@@ -65,6 +66,9 @@ interface LastfmArtistGetInfoResponse {
     stats?: {
       listeners?: string
       playcount?: string
+    }
+    tags?: {
+      tag?: Array<{ name: string; url?: string }> | { name: string; url?: string }
     }
   }
 }
@@ -151,10 +155,19 @@ export async function getArtistInfo(
   const a = data.artist
   if (!a?.name) return null
 
+  // tags: 배열 or 단일 객체 (1개 태그일 때 Last.fm이 배열 대신 객체 반환)
+  const rawTags = a.tags?.tag
+  const tags: string[] = Array.isArray(rawTags)
+    ? rawTags.slice(0, 3).map((t) => t.name.toLowerCase())
+    : rawTags?.name
+    ? [rawTags.name.toLowerCase()]
+    : []
+
   return {
     name: a.name,
     mbid: a.mbid,
     listeners: a.stats?.listeners ? Number(a.stats.listeners) : null,
     playcount: a.stats?.playcount ? Number(a.stats.playcount) : null,
+    tags,
   }
 }

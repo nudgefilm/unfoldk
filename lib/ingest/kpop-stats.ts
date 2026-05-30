@@ -355,6 +355,7 @@ export async function runKpopStatsIngest(
     string,
     { listeners: number | null; playcount: number | null }
   >()
+  const tagsUpdateBatch: Array<{ id: string; tags: string[] }> = []
   const lastfmTargets = artists.filter((a) => a.lastfm_name && a.lastfm_name.length > 0)
 
   for (let i = 0; i < lastfmTargets.length; i += 5) {
@@ -377,9 +378,22 @@ export async function runKpopStatsIngest(
           listeners: r.info.listeners,
           playcount: r.info.playcount,
         })
+        // 태그가 있으면 kpop_artists.lastfm_tags 업데이트 대상으로 수집
+        if (r.info.tags.length > 0) {
+          tagsUpdateBatch.push({ id: r.artist.id, tags: r.info.tags })
+        }
       }
     }
   }
+
+  // lastfm_tags 일괄 업데이트 — 변경이 드문 데이터라 매 인제스트마다 덮어쓰기
+  for (const { id, tags } of tagsUpdateBatch) {
+    await supabase
+      .from("kpop_artists")
+      .update({ lastfm_tags: tags })
+      .eq("id", id)
+  }
+
   const lastfmFetched = lastfmStatsMap.size
 
   // 3.5 K-pop 주간 차트 — Last.fm tag.getTopArtists?tag=k-pop.

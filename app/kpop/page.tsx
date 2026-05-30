@@ -591,9 +591,8 @@ export default function KpopStatsPage() {
             {/* Table Header */}
             <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-border/30 text-sm text-muted-foreground font-medium">
               <div className="col-span-1">Rank</div>
-              <div className="col-span-4">Artist</div>
-              <div className="col-span-3 text-right">YouTube Views</div>
-              <div className="col-span-2 text-right">Last.fm Listeners</div>
+              <div className="col-span-6">Artist</div>
+              <div className="col-span-3 text-right">Last.fm Listeners</div>
               <div className="col-span-2 text-right">Change</div>
             </div>
 
@@ -627,7 +626,7 @@ export default function KpopStatsPage() {
                   </div>
 
                   {/* Artist Avatar + Name */}
-                  <div className="col-span-4 flex items-center gap-3">
+                  <div className="col-span-6 flex items-center gap-3">
                     {/* 원형 프로필 — YouTube 채널 썸네일 fallback 으로 회색 placeholder */}
                     {item.thumbnail_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -649,16 +648,8 @@ export default function KpopStatsPage() {
                     </div>
                   </div>
 
-                  {/* YouTube Views — weekly_views 우선, 없으면 total_views fallback.
-                      cron 직후엔 weekly 계산 못 한 행도 total 만큼은 채워져 있어 "—" 회피. */}
-                  <div className="col-span-3 flex items-center justify-end">
-                    <span className="text-foreground">
-                      {formatBigNumber(item.youtube_weekly_views ?? item.youtube_total_views)}
-                    </span>
-                  </div>
-
                   {/* Last.fm Listeners */}
-                  <div className="col-span-2 flex items-center justify-end">
+                  <div className="col-span-3 flex items-center justify-end">
                     <span className="text-foreground">{formatBigNumber(item.lastfm_listeners)}</span>
                   </div>
 

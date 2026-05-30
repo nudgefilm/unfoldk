@@ -43,6 +43,9 @@ interface ArtistRow {
   lastfm_name: string | null
   is_active: boolean
   member_count: number | null
+  lastfm_tags: string[] | null
+  mb_official_urls: Array<{ type: string; url: string }> | null
+  wd_agency: string | null
 }
 
 interface DailyStatsRow {
@@ -105,7 +108,7 @@ export default async function ArtistDetailPage({
   // 1) 아티스트 — anon select 정책 통과 (is_active = true 만 보임)
   const { data: artistData } = await supabase
     .from("kpop_artists")
-    .select("id, name, name_ko, debut_year, thumbnail_url, youtube_channel_id, lastfm_name, is_active, member_count")
+    .select("id, name, name_ko, debut_year, thumbnail_url, youtube_channel_id, lastfm_name, is_active, member_count, lastfm_tags, mb_official_urls, wd_agency")
     .eq("id", id)
     .maybeSingle()
 
@@ -220,20 +223,57 @@ export default async function ArtistDetailPage({
                       #{latest.lastfm_weekly_rank} K-pop this week
                     </span>
                   )}
+                  {/* Last.fm 태그 배지 — "k-pop" 제외 (K-pop 배지와 중복) */}
+                  {(artist.lastfm_tags ?? [])
+                    .filter((t) => t !== "k-pop" && t !== "k pop")
+                    .slice(0, 3)
+                    .map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-3 py-1 rounded-full bg-[#252525] text-muted-foreground text-xs capitalize"
+                      >
+                        {tag}
+                      </span>
+                    ))}
                 </div>
-                {/* YouTube 채널 외부 링크 — youtube_channel_id 있을 때만.
-                    채널 URL 패턴: youtube.com/channel/<UCxxx>. */}
-                {artist.youtube_channel_id && (
-                  <a
-                    href={`https://www.youtube.com/channel/${artist.youtube_channel_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full text-xs font-medium border border-border/40 bg-[#1a1a1a] hover:border-border/70 transition-colors text-foreground"
-                  >
-                    <Youtube className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
-                    Watch on YouTube
-                  </a>
+                {/* 소속사 — Wikidata wd_agency (데이터 있을 때만) */}
+                {artist.wd_agency && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    <span className="text-foreground font-medium">Agency:</span>{" "}
+                    {artist.wd_agency}
+                  </p>
                 )}
+                {/* 외부 링크 버튼 행 */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {/* YouTube 채널 */}
+                  {artist.youtube_channel_id && (
+                    <a
+                      href={`https://www.youtube.com/channel/${artist.youtube_channel_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-border/40 bg-[#1a1a1a] hover:border-border/70 transition-colors text-foreground"
+                    >
+                      <Youtube className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
+                      Watch on YouTube
+                    </a>
+                  )}
+                  {/* 공식 홈페이지 — mb_official_urls 에서 type="official homepage" 우선 */}
+                  {(() => {
+                    const officialSite = (artist.mb_official_urls ?? []).find(
+                      (u) => u.type === "official homepage"
+                    )
+                    return officialSite ? (
+                      <a
+                        href={officialSite.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-border/40 bg-[#1a1a1a] hover:border-border/70 transition-colors text-foreground"
+                      >
+                        <span className="w-3.5 h-3.5 text-center leading-none" aria-hidden>🔗</span>
+                        Official Site
+                      </a>
+                    ) : null
+                  })()}</div>
               </div>
             </div>
             {/* Track this artist — client island.
@@ -243,40 +283,23 @@ export default async function ArtistDetailPage({
           </div>
         </section>
 
-        {/* Stats Boxes — YouTube 3개 + Last.fm 2개 = 5개.
-            grid-cols 단계 변동: 모바일 2 → md 3 → lg 5 (한 줄). */}
+        {/* Stats Boxes — Last.fm 2개 */}
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-white mb-4">Stats</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-5">
-              <p className="text-muted-foreground text-sm mb-1">YouTube Subscribers</p>
-              <p className="text-2xl font-bold text-white">
-                {formatBigNumber(latest?.youtube_subscribers)}
-              </p>
-            </div>
-            <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-5">
-              <p className="text-muted-foreground text-sm mb-1">YouTube Total Views</p>
-              <p className="text-2xl font-bold text-white">
-                {formatBigNumber(latest?.youtube_total_views)}
-              </p>
-            </div>
-            <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-5">
-              <p className="text-muted-foreground text-sm mb-1">Total Videos</p>
-              <p className="text-2xl font-bold text-white">
-                {formatBigNumber(latest?.youtube_video_count)}
-              </p>
-            </div>
-            <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-5">
-              <p className="text-muted-foreground text-sm mb-1">Last.fm Listeners</p>
-              <p className="text-2xl font-bold text-white">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+            <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
+              <p className="text-muted-foreground text-sm mb-1">Monthly Listeners</p>
+              <p className="text-3xl font-bold text-white">
                 {formatBigNumber(latest?.lastfm_listeners)}
               </p>
+              <p className="text-xs text-muted-foreground mt-1">via Last.fm</p>
             </div>
-            <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-5">
-              <p className="text-muted-foreground text-sm mb-1">Last.fm Plays</p>
-              <p className="text-2xl font-bold text-white">
+            <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
+              <p className="text-muted-foreground text-sm mb-1">Total Plays</p>
+              <p className="text-3xl font-bold text-white">
                 {formatBigNumber(latest?.lastfm_playcount)}
               </p>
+              <p className="text-xs text-muted-foreground mt-1">via Last.fm</p>
             </div>
           </div>
         </section>
