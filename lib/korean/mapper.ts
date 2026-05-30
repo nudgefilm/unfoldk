@@ -19,6 +19,7 @@ export interface KoreanPhraseApi {
   difficulty: "beginner" | "intermediate" | "advanced" | null
   audioUrl: string | null
   imageUrl: string | null
+  sceneDescription: string | null
   featuredDate: string | null
   createdAt: string
 }
@@ -36,6 +37,7 @@ interface KoreanPhraseRowDb {
   difficulty: string | null
   audio_url: string | null
   image_url: string | null
+  scene_description: string | null
   featured_date: string | null
   created_at: string
 }
@@ -65,6 +67,7 @@ export function mapKoreanPhraseRow(row: unknown): KoreanPhraseApi {
     difficulty,
     audioUrl: r.audio_url,
     imageUrl: r.image_url,
+    sceneDescription: r.scene_description,
     featuredDate: r.featured_date,
     createdAt: r.created_at,
   }

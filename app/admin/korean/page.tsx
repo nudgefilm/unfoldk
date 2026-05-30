@@ -9,7 +9,7 @@ async function loadPhrases(): Promise<{ ok: true; rows: KoreanPhraseAdminRow[] }
   const supabase = createSupabaseAdminClient()
   const { data, error } = await supabase
     .from("korean_phrases")
-    .select("id, korean, english, drama_name, difficulty, image_url, featured_date, created_at")
+    .select("id, korean, english, drama_name, difficulty, image_url, scene_description, featured_date, created_at")
     .order("created_at", { ascending: false })
     .limit(2000)
 

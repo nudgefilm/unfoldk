@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { requireAdmin } from "@/lib/admin/auth"
 
-// PATCH /api/admin/korean/phrases/[id] — image_url null 로 삭제
+// PATCH /api/admin/korean/phrases/[id] — image_url / scene_description 업데이트
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -11,15 +11,20 @@ export async function PATCH(
   if (!auth.ok) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
 
   const { id } = await context.params
-  const body = await request.json() as { image_url?: string | null }
-  if (!("image_url" in body)) {
-    return NextResponse.json({ error: "image_url field required" }, { status: 400 })
+  const body = await request.json() as { image_url?: string | null; scene_description?: string | null }
+
+  const update: Record<string, string | null> = {}
+  if ("image_url" in body) update.image_url = body.image_url ?? null
+  if ("scene_description" in body) update.scene_description = body.scene_description ?? null
+
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json({ error: "업데이트할 필드 없음" }, { status: 400 })
   }
 
   const supabase = createSupabaseAdminClient()
   const { error } = await supabase
     .from("korean_phrases")
-    .update({ image_url: body.image_url ?? null })
+    .update(update)
     .eq("id", id)
 
   if (error) {
