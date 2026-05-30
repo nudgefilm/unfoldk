@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight, X, Film, Bookmark, BookmarkCheck } from "lucide-react"
+import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight, X, Film, Bookmark, BookmarkCheck, UtensilsCrossed, MapPin, Calendar } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -1347,6 +1347,47 @@ function PackDetailModal({
             </div>
           )}
         </div>
+
+        {/* Explore More — 드라마 있을 때 크로스링크 */}
+        {detail?.drama?.title && (
+          <div className="flex-shrink-0 border-t border-border/20 pt-4 mt-3">
+            <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">Explore more</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                {
+                  href: `/food?drama=${encodeURIComponent(detail.drama.title)}`,
+                  icon: <UtensilsCrossed className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                  title: "Cook the food",
+                  sub: "from this drama →",
+                },
+                {
+                  href: `/curation-k?drama=${encodeURIComponent(detail.drama.title)}`,
+                  icon: <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                  title: "Filming spots",
+                  sub: "visit Korea →",
+                },
+                {
+                  href: "/calendar",
+                  icon: <Calendar className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                  title: "Related events",
+                  sub: "check calendar →",
+                },
+              ].map(({ href, icon, title, sub }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="flex items-center gap-2 bg-[#141416] hover:bg-[#1e1e20] rounded-xl px-2.5 py-2.5 transition-colors group"
+                >
+                  {icon}
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-medium text-foreground truncate">{title}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{sub}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

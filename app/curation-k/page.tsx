@@ -56,6 +56,10 @@ import {
   Check,
   Bookmark,
   BookmarkCheck,
+  MessageCircle,
+  Film,
+  Calendar,
+  TrendingUp,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -3043,21 +3047,46 @@ function SpotDetailDialog({
           {tab.key === "filming" && spot.drama_title && (
             <div className="border-t border-border/20 pt-4 mt-4">
               <p className="text-muted-foreground text-xs uppercase tracking-wider mb-3">Explore more</p>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href={`/korean?drama=${encodeURIComponent(spot.drama_title)}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[#252528] text-muted-foreground hover:text-foreground hover:bg-[#2e2e32] transition-colors"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  🗣 Learn Korean from this drama
-                </Link>
-                <Link
-                  href={`/food?drama=${encodeURIComponent(spot.drama_title)}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[#252528] text-muted-foreground hover:text-foreground hover:bg-[#2e2e32] transition-colors"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  🍜 Foods from this drama
-                </Link>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  {
+                    href: `/korean?drama=${encodeURIComponent(spot.drama_title)}`,
+                    icon: <MessageCircle className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                    title: "Learn Korean",
+                    sub: "from this drama →",
+                  },
+                  {
+                    href: `/food?drama=${encodeURIComponent(spot.drama_title)}`,
+                    icon: <UtensilsCrossed className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                    title: "Cook the food",
+                    sub: "from this drama →",
+                  },
+                  {
+                    href: `/drama`,
+                    icon: <Film className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                    title: "Find K-dramas",
+                    sub: "UnfoldK picks →",
+                  },
+                  {
+                    href: `/calendar`,
+                    icon: <Calendar className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                    title: "Related events",
+                    sub: "check calendar →",
+                  },
+                ].map(({ href, icon, title, sub }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-2.5 bg-[#252528] hover:bg-[#2e2e32] rounded-xl px-3 py-3 transition-colors group"
+                  >
+                    {icon}
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{title}</p>
+                      <p className="text-[10px] text-muted-foreground truncate group-hover:text-foreground/70 transition-colors">{sub}</p>
+                    </div>
+                  </Link>
+                ))}
               </div>
             </div>
           )}
@@ -3358,6 +3387,57 @@ function KpopSpotDetailDialog({
                 </Link>
               )
             )}
+          </div>
+
+          {/* Explore More — K-pop 성지 크로스링크 */}
+          <div className="border-t border-border/20 pt-4 mt-4">
+            <p className="text-muted-foreground text-xs uppercase tracking-wider mb-3">Explore more</p>
+            <div className="grid grid-cols-2 gap-2">
+              {spot.artist_id && (
+                <Link
+                  href={`/kpop/${spot.artist_id}`}
+                  className="flex items-center gap-2.5 bg-[#252528] hover:bg-[#2e2e32] rounded-xl px-3 py-3 transition-colors group"
+                >
+                  <TrendingUp className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">Artist stats</p>
+                    <p className="text-[10px] text-muted-foreground truncate group-hover:text-foreground/70 transition-colors">KpopStats →</p>
+                  </div>
+                </Link>
+              )}
+              {[
+                {
+                  href: "/calendar",
+                  icon: <Calendar className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                  title: "Upcoming events",
+                  sub: "check calendar →",
+                },
+                {
+                  href: "/drama",
+                  icon: <Film className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                  title: "Find K-dramas",
+                  sub: "UnfoldK picks →",
+                },
+                {
+                  href: "/korean",
+                  icon: <MessageCircle className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                  title: "Learn Korean",
+                  sub: "HangeulGo →",
+                },
+              ].map(({ href, icon, title, sub }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="flex items-center gap-2.5 bg-[#252528] hover:bg-[#2e2e32] rounded-xl px-3 py-3 transition-colors group"
+                >
+                  {icon}
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{title}</p>
+                    <p className="text-[10px] text-muted-foreground truncate group-hover:text-foreground/70 transition-colors">{sub}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
 
           {/* Nearby Places — GPS 있을 때. 데이터 0건이면 미노출. */}

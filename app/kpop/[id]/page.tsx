@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
-import { ChevronLeft, TrendingUp, Calendar as CalendarIcon, Youtube, Users, Lock } from "lucide-react"
+import { ChevronLeft, TrendingUp, Calendar as CalendarIcon, Youtube, Users, Lock, MapPin, Film, MessageCircle } from "lucide-react"
 import { FooterSection } from "@/components/footer-section"
 import { Toaster } from "@/components/ui/toaster"
 import { ReportButton } from "@/components/common/report-button"
@@ -467,6 +467,45 @@ export default async function ArtistDetailPage({
 
         {/* 아티스트 입문 가이드 — 최초 온디맨드 생성 후 영구 캐싱 */}
         <ArtistGuideSection artistId={artist.id} artistName={artist.name} />
+
+        {/* Explore More — 서비스 간 크로스링크 */}
+        <section className="mt-8">
+          <h2 className="text-xl font-semibold text-white mb-4">Explore More</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {[
+              {
+                href: "/calendar",
+                icon: <CalendarIcon className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                title: "Upcoming events",
+                sub: "check the calendar →",
+              },
+              {
+                href: `/curation-k`,
+                icon: <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                title: "K-pop spots in Korea",
+                sub: "pilgrimage guide →",
+              },
+              {
+                href: "/drama",
+                icon: <Film className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
+                title: "Find K-dramas",
+                sub: "UnfoldK picks →",
+              },
+            ].map(({ href, icon, title, sub }) => (
+              <Link
+                key={href}
+                href={href}
+                className="flex items-center gap-2.5 bg-[#1a1a1a] border border-border/30 hover:border-primary/40 hover:bg-[#2a2a2c] rounded-xl px-3 py-3 transition-colors group"
+              >
+                {icon}
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-foreground truncate">{title}</p>
+                  <p className="text-[10px] text-muted-foreground truncate group-hover:text-foreground/70 transition-colors">{sub}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
 
         {/* Report incorrect info — Spotlight 패턴 동일. contentType='artist'. */}
         <div className="mt-8 pt-4 border-t border-border/20 flex justify-end">
