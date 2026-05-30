@@ -5,7 +5,7 @@
 
 ---
 
-## 현재 상태 (2026-05-30 세션 32)
+## 현재 상태 (2026-05-31 세션 33)
 
 ### 완료
 
@@ -58,9 +58,18 @@
 
 - **HangeulGo Grammar Explanation 카드 이미지 추가** (a320624)
   - `korean_phrases.image_url` 컬럼 추가 (migration 0055) ✅ 실행 완료
-  - 어드민 `/admin/korean` 신설: 표현 검색 + 이미지 URL 등록 + 저장 + 미리보기
-  - Grammar Explanation 카드 상단 16:9 이미지 표시 (없으면 현행 텍스트만 유지)
-  - 어드민 사이드바 HangeulGo 링크 추가
+  - 어드민 `/admin/korean` 신설: 표현 검색 + 이미지 업로드(Supabase Storage) + 미리보기 + 100건 페이지네이션
+  - Supabase Storage `korean-phrase-images` 버킷 + 공개 정책 ✅ 적용 완료
+  - Grammar Explanation 카드: 이미지(max-h-520px) + 문법 텍스트 + 구분선 + scene_description 순서
+
+- **HangeulGo scene_description 자동 생성** (a1cc015)
+  - `scripts/generate-scene-descriptions.ts` 신설 — Claude Haiku 배치 API (50% 할인)
+  - scene_description IS NULL 표현 전체 조회 → 1~2문장 영문 장면 설명 자동 생성 → DB 업데이트
+  - Grammar Explanation 카드 문법 텍스트 하단에 이탤릭 회색으로 표시 (없으면 미노출)
+
+- **버그 수정**
+  - MyPage Learning Progress 카드 클릭 → `/korean?phrase_id=` 파라미터 누락 수정 (5877f3a)
+  - 어드민 Korean 조회 쿼리 `created_at` SELECT 누락 수정 (ee187cd)
 
 #### 마케팅
 
