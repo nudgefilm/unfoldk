@@ -2167,16 +2167,26 @@ export default function CurationKPage() {
                 Book tours, activities &amp; stays in Korea — powered by Klook.
               </p>
             </div>
-            <a
-              href="https://affiliate.klook.com/redirect?aid=122963&aff_adid=1289666&k_site=https%3A%2F%2Fwww.klook.com%2Fcity%2F9-seoul-things-to-do%2F"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90"
-              style={{ backgroundColor: "#FF4B6E" }}
-            >
-              Explore Seoul Activities
-              <ChevronRight className="w-4 h-4" />
-            </a>
+            <div className="flex flex-wrap gap-2 justify-center sm:justify-end">
+              {[
+                { label: "K-Pop Sites", href: "https://affiliate.klook.com/redirect?aid=122963&aff_adid=1289683&k_site=https%3A%2F%2Fwww.klook.com%2Fsearch%2F%3Fquery%3Dkpop%2Bseoul" },
+                { label: "Filming Spots", href: "https://affiliate.klook.com/redirect?aid=122963&aff_adid=1289684&k_site=https%3A%2F%2Fwww.klook.com%2Fsearch%2F%3Fquery%3Dkdrama%2Bfilming%2Bseoul" },
+                { label: "Food Tours", href: "https://affiliate.klook.com/redirect?aid=122963&aff_adid=1289685&k_site=https%3A%2F%2Fwww.klook.com%2Fsearch%2F%3Fquery%3Dfood%2Btour%2Bseoul" },
+                { label: "Stays", href: "https://affiliate.klook.com/redirect?aid=122963&aff_adid=1289686&k_site=https%3A%2F%2Fwww.klook.com%2Fcity%2F9-seoul-things-to-do%2F%3Ftabs%3Dhotels" },
+              ].map(({ label, href }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: "#FF4B6E" }}
+                >
+                  {label}
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </main>
