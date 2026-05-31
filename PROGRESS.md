@@ -5,11 +5,20 @@
 
 ---
 
-## 현재 상태 (2026-05-31 세션 33)
+## 현재 상태 (2026-05-31 세션 34)
 
 ### 완료
 
 #### 개발
+
+- **Hallyu Pass 가격 인하** (878010c)
+  - 월간 $15 → $9, 연간 $120 → $72 ($6/월, 33% 할인)
+  - 수정 파일: pricing-section, start, terms, mypage/subscription, mypage, admin, send-trial-emails, testimonial-grid-section, CLAUDE.md
+
+- **Curation K — Klook 제휴 배너 추가** (b97f399 → 5eb926e)
+  - 지도 섹션 하단(`</main>` 직전) 배너 신설
+  - 초기 단일 버튼 → K-Pop Sites / Filming Spots / Food Tours / Stays 4개 카테고리 버튼으로 업그레이드
+  - 각 버튼 Klook 제휴 링크(aid=122963) 연결, `target="_blank"`
 
 - **KpopStats YouTube UI 제거 + Last.fm 강화** (f365d00)
   - 구독자/조회수 YouTube 수치 제거, Last.fm Listeners/Plays 중심으로 재편
