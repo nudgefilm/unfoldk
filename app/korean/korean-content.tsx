@@ -126,6 +126,7 @@ export function KoreanContent() {
   const [phraseSaved, setPhraseSaved] = useState(false)
   const [showSynAnt, setShowSynAnt] = useState(false)
   const [seenPhraseIds, setSeenPhraseIds] = useState<string[]>([])
+  const [phraseAlsoIn, setPhraseAlsoIn] = useState<string[]>([])
 
   // 2. 스트릭
   const [streakDays, setStreakDays] = useState(0)
@@ -294,6 +295,20 @@ export function KoreanContent() {
       })
       .finally(() => setPhraseLoading(false))
   }, [searchParams])
+
+  // ─── 동일 표현 다른 드라마 출처 조회 — phrase 변경 시마다 실행
+  useEffect(() => {
+    if (!phrase?.korean) {
+      setPhraseAlsoIn([])
+      return
+    }
+    const params = new URLSearchParams({ korean: phrase.korean })
+    if (phrase.dramaName) params.set("exclude_drama", phrase.dramaName)
+    fetch(`/api/korean/phrase-also-in?${params.toString()}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body: { dramas: string[] }) => setPhraseAlsoIn(body.dramas ?? []))
+      .catch(() => setPhraseAlsoIn([]))
+  }, [phrase?.korean, phrase?.dramaName])
 
   // ─── 스트릭 fetch (로그인 시만 유효)
   useEffect(() => {
@@ -642,8 +657,8 @@ export function KoreanContent() {
               </p>
             ) : (
               <>
-                {/* Drama Tag — 더 눈에 띄게: Film 아이콘 + "Today's drama" 라벨 + 큰 패딩·테두리 */}
-                <div className="flex justify-center mb-6">
+                {/* Drama Tag + 동일 표현 다른 드라마 출처 */}
+                <div className="flex flex-col items-center mb-6 gap-2">
                   <span
                     className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold"
                     style={{
@@ -659,6 +674,11 @@ export function KoreanContent() {
                     <span>·</span>
                     <span>{phrase.dramaName ?? "K-drama"}</span>
                   </span>
+                  {phraseAlsoIn.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      📺 이 표현은 {phraseAlsoIn.join(", ")}에서도 등장해요
+                    </p>
+                  )}
                 </div>
 
                 {/* Korean Phrase */}
