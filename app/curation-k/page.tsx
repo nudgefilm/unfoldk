@@ -2148,6 +2148,37 @@ export default function CurationKPage() {
             </div>
           )}
         </div>
+
+        {/* ───── Klook 제휴 배너 ────────────────────────────────── */}
+        <div className="mx-auto max-w-5xl px-4 pb-16 mt-4">
+          <div
+            className="rounded-2xl p-8 flex flex-col sm:flex-row items-center justify-between gap-6"
+            style={{
+              background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            <div className="flex-1 text-center sm:text-left">
+              <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "#FF4B6E" }}>
+                Plan Your Trip
+              </p>
+              <h3 className="text-xl font-bold text-white mb-1">Ready to visit in person?</h3>
+              <p className="text-sm text-white/60">
+                Book tours, activities &amp; stays in Korea — powered by Klook.
+              </p>
+            </div>
+            <a
+              href="https://affiliate.klook.com/redirect?aid=122963&aff_adid=1289666&k_site=https%3A%2F%2Fwww.klook.com%2Fcity%2F9-seoul-things-to-do%2F"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              style={{ backgroundColor: "#FF4B6E" }}
+            >
+              Explore Seoul Activities
+              <ChevronRight className="w-4 h-4" />
+            </a>
+          </div>
+        </div>
       </main>
 
       {/* ─── 핀 모달 (cluster list / pin detail) ─────────────────
