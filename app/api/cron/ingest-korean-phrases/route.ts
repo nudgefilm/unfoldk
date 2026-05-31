@@ -4,6 +4,7 @@ import { verifyCronAuth } from "@/lib/cron/auth"
 import { recordCronLog } from "@/lib/cron/log"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { generateKoreanPack } from "@/lib/claude/korean-pack-generator"
+import { generateDramaPhrases } from "@/lib/claude/korean-phrase"
 
 export const maxDuration = 300
 export const dynamic = "force-dynamic"
@@ -141,18 +142,33 @@ async function runKoreanPhrasesIngest(): Promise<IngestResult> {
     const dramaEn = target.title
 
     try {
-      const phrases = await generateKoreanPack({ dramaKo, dramaEn })
+      // 1) beginner/mixed pack (기존)
+      const packPhrases = await generateKoreanPack({ dramaKo, dramaEn })
 
-      if (phrases.length === 0) {
+      if (packPhrases.length === 0) {
         unknownDramas += 1
         details.push({ drama: target.title, inserted: 0 })
         continue
       }
 
-      // 같은 run 안에서 Claude 가 반환하는 표현은 dedupe 보장 (한 드라마 = 0 기존 표현).
-      // 안전망으로 korean 텍스트 중복은 제거.
+      // 2) intermediate 3개
+      const interResult = await generateDramaPhrases({ dramaKo, dramaEn, difficulty: "intermediate" })
+      const interPhrases = interResult.ok ? interResult.payloads : []
+      if (!interResult.ok) {
+        errors.push(`${target.title} [intermediate]: ${interResult.reason}`)
+      }
+
+      // 3) advanced 3개
+      const advResult = await generateDramaPhrases({ dramaKo, dramaEn, difficulty: "advanced" })
+      const advPhrases = advResult.ok ? advResult.payloads : []
+      if (!advResult.ok) {
+        errors.push(`${target.title} [advanced]: ${advResult.reason}`)
+      }
+
+      // 4) 전체 합치기 + korean 텍스트 기준 dedupe
+      const allPhrases = [...packPhrases, ...interPhrases, ...advPhrases]
       const seen = new Set<string>()
-      const toInsert = phrases
+      const toInsert = allPhrases
         .filter((p) => {
           if (seen.has(p.korean)) return false
           seen.add(p.korean)
