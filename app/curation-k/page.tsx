@@ -596,6 +596,20 @@ function translatePlaceName(name: string): string {
   return t.length > 0 ? t : name
 }
 
+// 페이지 로드마다 카드를 다른 순서로 노출 — Fisher-Yates 셔플, 원본 불변.
+function shuffleArray<T>(arr: T[]): T[] {
+  const out = [...arr]
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[out[i], out[j]] = [out[j], out[i]]
+  }
+  return out
+}
+
+// 접속마다 시작 탭 랜덤 선택 후보 (filming / food / stays / festivals).
+// K-Pop Sites 는 탭이 아닌 별도 섹션이므로 festivals 로 대체.
+const RANDOM_START_TABS: readonly TabKey[] = ["filming", "food", "stays", "festivals"]
+
 export default function CurationKPage() {
   const [koreaPath, setKoreaPath] = useState<string | null>(null)
 
@@ -622,7 +636,9 @@ export default function CurationKPage() {
   // 주소 변환은 REGION_MAP 동기 변환으로 전환 — Haiku lazy fetch 제거 (즉시 표시, 비용 0).
 
   // 통합 탭 그리드 (filming / attractions / food / stays / culture / festivals)
-  const [activeTab, setActiveTab] = useState<TabKey>("filming")
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    () => RANDOM_START_TABS[Math.floor(Math.random() * RANDOM_START_TABS.length)]
+  )
   const [spotsItems, setSpotsItems] = useState<SpotItem[]>([])
   const [spotsTotal, setSpotsTotal] = useState<number | null>(null)
   const [spotsLoading, setSpotsLoading] = useState(true)
@@ -1028,7 +1044,7 @@ export default function CurationKPage() {
         locked: boolean
       }) => {
         if (cancelled) return
-        setSpotsItems(body.items ?? [])
+        setSpotsItems(shuffleArray(body.items ?? []))
         setSpotsTotal(body.total ?? null)
         setSpotsLocked(body.locked === true)
       })
@@ -1053,7 +1069,7 @@ export default function CurationKPage() {
     setKpopLoading(true)
     fetch("/api/curation-k/kpop-spots?limit=12")
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { items: KpopSpotItem[] }) => setKpopSpots(body.items ?? []))
+      .then((body: { items: KpopSpotItem[] }) => setKpopSpots(shuffleArray(body.items ?? [])))
       .catch((err) => console.warn("[curation-k] kpop fetch 실패:", err))
       .finally(() => setKpopLoading(false))
   }, [])

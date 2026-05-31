@@ -233,6 +233,15 @@ export function KoreanContent() {
     totalMastered: totalMasteredOverall,
   }
 
+  // 표현 이미지 — scene image(image_url) 없으면 해당 드라마 TMDB 포스터로 폴백.
+  // packs 는 컴포넌트 마운트 시 이미 로드됨 — 추가 fetch 없음.
+  const dramaPosterFallback: string | null = phrase?.dramaId
+    ? (packs.find((p) => p.id === phrase.dramaId)?.posterUrl ?? null)
+    : null
+  const phraseDisplayImageUrl = phrase?.imageUrl ?? dramaPosterFallback
+  // scene image 는 landscape, drama poster 는 portrait — 스타일 분기에 사용.
+  const phraseImageIsScene = !!phrase?.imageUrl
+
   // ─── 인증 + Pro 권한
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
@@ -1175,16 +1184,24 @@ export function KoreanContent() {
                 isPro ? "" : "blur-[6px] pointer-events-none"
               }`}
             >
-              {/* 이미지 (image_url 있을 때만) */}
-              {isPro && phrase?.imageUrl && (
+              {/* 이미지 — scene image 우선, 없으면 드라마 TMDB 포스터 폴백 */}
+              {isPro && phraseDisplayImageUrl && (
                 <div className="px-8 pt-8">
-                  <div className="relative w-full max-h-[520px] overflow-hidden rounded-xl">
+                  <div className={`relative w-full overflow-hidden rounded-xl ${
+                    phraseImageIsScene
+                      ? "max-h-[520px]"
+                      : "flex justify-center max-h-[300px]"
+                  }`}>
                     <Image
-                      src={phrase.imageUrl}
-                      alt={phrase.korean}
-                      width={800}
-                      height={520}
-                      className="w-full h-auto max-h-[520px] object-cover"
+                      src={phraseDisplayImageUrl}
+                      alt={phrase?.korean ?? ""}
+                      width={phraseImageIsScene ? 800 : 200}
+                      height={phraseImageIsScene ? 520 : 300}
+                      className={
+                        phraseImageIsScene
+                          ? "w-full h-auto max-h-[520px] object-cover"
+                          : "h-auto max-h-[300px] object-contain"
+                      }
                       unoptimized
                     />
                   </div>
