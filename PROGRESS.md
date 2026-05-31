@@ -5,7 +5,7 @@
 
 ---
 
-## 현재 상태 (2026-05-31 세션 34)
+## 현재 상태 (2026-05-31 세션 35)
 
 ### 완료
 
@@ -75,6 +75,11 @@
   - `scripts/generate-scene-descriptions.ts` 신설 — Claude Haiku 배치 API (50% 할인)
   - scene_description IS NULL 표현 전체 조회 → 1~2문장 영문 장면 설명 자동 생성 → DB 업데이트
   - Grammar Explanation 카드 문법 텍스트 하단에 이탤릭 회색으로 표시 (없으면 미노출)
+
+- **HangeulGo 동일 표현 중복 드라마 출처 표기** (c5e24b7)
+  - `GET /api/korean/phrase-also-in?korean=&exclude_drama=` 신규 API
+  - 오늘의 표현 카드 드라마 태그 아래 "📺 이 표현은 [드라마명]에서도 등장해요" 표기
+  - 동일 `korean_text` 기준 중복 출처 없으면 미노출 / 최대 5개 드라마명
 
 - **버그 수정**
   - MyPage Learning Progress 카드 클릭 → `/korean?phrase_id=` 파라미터 누락 수정 (5877f3a)
