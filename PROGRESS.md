@@ -76,6 +76,12 @@
   - scene_description IS NULL 표현 전체 조회 → 1~2문장 영문 장면 설명 자동 생성 → DB 업데이트
   - Grammar Explanation 카드 문법 텍스트 하단에 이탤릭 회색으로 표시 (없으면 미노출)
 
+- **HangeulGo 중급·고급 드라마 문장 표현 배치 생성** (74a8dab)
+  - `generateDramaPhrases()` — Claude 1콜로 3개 배열 반환 (`lib/claude/korean-phrase.ts`)
+  - `scripts/generate-drama-phrases.ts` — 전체 드라마 순회, 드라마당 intermediate 3 + advanced 3 생성
+  - 멱등 (3개 이상 보유 시 스킵), `--dry-run` 플래그 지원
+  - 실행: `npx tsx scripts/generate-drama-phrases.ts`
+
 - **HangeulGo 동일 표현 중복 드라마 출처 표기** (c5e24b7)
   - `GET /api/korean/phrase-also-in?korean=&exclude_drama=` 신규 API
   - 오늘의 표현 카드 드라마 태그 아래 "📺 이 표현은 [드라마명]에서도 등장해요" 표기
