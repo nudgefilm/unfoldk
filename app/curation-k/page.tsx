@@ -1235,7 +1235,7 @@ export default function CurationKPage() {
       <main className="flex-1 w-full">
         {/* ───── 1. Hero + Map ─────────────────────────────── */}
         <section className="relative w-full overflow-hidden">
-          <div className="max-w-[1320px] mx-auto px-6 pt-10 pb-12 md:pt-14 md:pb-16">
+          <div className="max-w-[1320px] mx-auto px-6 pt-28 pb-12">
             <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-8 items-start">
               {/* 지도 — ⚠️ 동결 컴포넌트 (CLAUDE.md §6 "curation-k 지도 컴포넌트 수정 금지").
                   Korea polygon + 6 도시 (펄스) + 부속 도서 4종 (Baengnyeong/Ulleung/Dokdo/Marado).

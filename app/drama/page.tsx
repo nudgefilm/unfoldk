@@ -1417,7 +1417,7 @@ function KdramaMatchPageInner() {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="max-w-[1320px] mx-auto px-6 py-12">
+      <main className="max-w-[1320px] mx-auto px-6 pt-28 pb-12">
         {/* ─── 1. Hero ──────────────────────────────── */}
         {/* 2026-05-18 Phase 2.1 — Soon 배너 제거 (서비스 정식 노출).
             HangeulGo / KfoodKit 등 미구현 서비스는 ServiceComingSoonBanner 유지. */}

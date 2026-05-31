@@ -1160,7 +1160,7 @@ export default function HallyuCalendarPage() {
         lockedFeature={lockedFeature}
       />
       
-      <main className="max-w-[1320px] mx-auto px-6 py-8">
+      <main className="max-w-[1320px] mx-auto px-6 pt-28 pb-12">
         {/* Page Header */}
         <section className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-4">

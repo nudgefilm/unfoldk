@@ -662,7 +662,7 @@ export function KoreanContent() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }}>
-      <main className="max-w-[1320px] mx-auto px-5 py-12">
+      <main className="max-w-[1320px] mx-auto px-5 pt-28 pb-12">
         {/* Page Header — Soon 배너 제거 (2026-05-18). 정식 노출 후 카피 교체. */}
         <section className="text-center mb-12">
           <div className="flex items-center justify-center gap-3 mb-4">

@@ -490,7 +490,7 @@ export default function KfoodKitPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0d0d0f" }}>
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 pt-28 pb-12">
         {/* Page Header */}
         <section className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-3">KfoodKit</h1>
@@ -772,7 +772,7 @@ export default function KfoodKitPage() {
         <section className="mb-12">
           <h2 className="text-2xl font-semibold text-white mb-6">Local Ingredient Matcher</h2>
           <div className="relative">
-            <div className={isPro ? "" : "blur-[4px] pointer-events-none select-none"}>
+            <div className={isPro ? "" : "blur-sm pointer-events-none select-none"}>
               <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
                 <div className="flex items-center gap-3 mb-2">
                   <Bot className="w-6 h-6" style={{ color: "#FF4B6E" }} />
@@ -920,7 +920,7 @@ export default function KfoodKitPage() {
                   <p className="text-muted-foreground text-xs mb-4">
                     Find local substitutes for Korean ingredients and manage your shopping list.
                   </p>
-                  <Link href="/signup">
+                  <Link href="/pricing">
                     <Button
                       className="rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
@@ -968,7 +968,7 @@ export default function KfoodKitPage() {
             <div
               ref={shoppingBoxRef}
               className={`bg-[#1a1a1a] border border-border/30 rounded-xl p-6 ${
-                isPro ? "" : "blur-[4px] pointer-events-none select-none"
+                isPro ? "" : "blur-sm pointer-events-none select-none"
               }`}
             >
               {shoppingItems.length === 0 ? (
@@ -1029,9 +1029,17 @@ export default function KfoodKitPage() {
                 <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl max-w-xs">
                   <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
                   <p className="text-white font-medium mb-2">Coming with Hallyu Pass</p>
-                  <p className="text-muted-foreground text-xs">
+                  <p className="text-muted-foreground text-xs mb-4">
                     Add ingredients to your personal shopping list.
                   </p>
+                  <Link href="/pricing">
+                    <Button
+                      className="rounded-full font-medium text-white"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      Notify me at launch
+                    </Button>
+                  </Link>
                 </div>
               </div>
             )}
