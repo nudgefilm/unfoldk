@@ -167,19 +167,29 @@ export function WeeklyPicksSection({
               }}
               className="text-left bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors"
             >
-              {/* 이미지 */}
+              {/* 이미지 — image_url 있으면 표시, 없거나 실패 시 플레이스홀더 */}
               <div className="h-40 bg-[#252525] flex items-center justify-center overflow-hidden">
                 {pick.recipe.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={pick.recipe.image_url}
                     alt={pick.recipe.title}
-                    referrerPolicy="no-referrer"
+                    loading="lazy"
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const el = e.currentTarget
+                      el.style.display = "none"
+                      const placeholder = el.nextElementSibling as HTMLElement | null
+                      if (placeholder) placeholder.style.display = "flex"
+                    }}
                   />
-                ) : (
-                  <span className="text-muted-foreground text-4xl">🍜</span>
-                )}
+                ) : null}
+                <span
+                  className="text-muted-foreground text-4xl items-center justify-center"
+                  style={{ display: pick.recipe.image_url ? "none" : "flex" }}
+                >
+                  🍜
+                </span>
               </div>
 
               <div className="p-4">
@@ -224,7 +234,7 @@ export function WeeklyPicksSection({
               <p className="text-muted-foreground text-xs mb-4">
                 Weekly UnfoldK-curated picks. Available at launch.
               </p>
-              <Link href="/signup">
+              <Link href="/pricing">
                 <Button
                   className="rounded-full font-medium text-white"
                   style={{ backgroundColor: "#FF4B6E" }}

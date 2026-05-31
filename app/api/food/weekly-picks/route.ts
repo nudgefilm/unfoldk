@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server"
-import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
-import { hasProAccess } from "@/lib/auth/plan"
 import {
   detectSeason,
   generateWeeklyPicks,
@@ -10,13 +8,12 @@ import {
   type WeeklyPicksResult,
 } from "@/lib/claude/weekly-picks"
 
-// /api/food/weekly-picks — 이번 주 K-Food Picks (Pro 전용)
+// /api/food/weekly-picks — 이번 주 K-Food Picks (Free 전체 개방 2026-06-01)
 //
 // 동작:
-//   1) 인증·Pro 확인 (free / 비로그인 → 403)
-//   2) 현재 주의 week_start (월요일 UTC) 계산
-//   3) food_weekly_picks 에 동일 week_start row 있으면 즉시 반환 (캐시 히트)
-//   4) 없으면 food_recipes 후보 50건 추출 → Claude Haiku 선정 → DB 캐싱 → 반환
+//   1) 현재 주의 week_start (월요일 UTC) 계산
+//   2) food_weekly_picks 에 동일 week_start row 있으면 즉시 반환 (캐시 히트)
+//   3) 없으면 food_recipes 후보 50건 추출 → Claude Haiku 선정 → DB 캐싱 → 반환
 //
 // Next.js cache: revalidate 604800 (1주). 캐시 키는 week_start 동일 동안 매주 갱신.
 
@@ -57,27 +54,7 @@ function pickCalorie(raw: unknown): number | null {
 }
 
 export async function GET() {
-  // 1) 인증·Pro 확인
-  const supabase = await createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 })
-  }
-  const { data: profile } = await supabase
-    .from("users")
-    .select("plan_type, is_admin, trial_ends_at")
-    .eq("id", user.id)
-    .maybeSingle()
-  const planRow = profile as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
-  const isPro = hasProAccess({
-    planType: planRow?.plan_type,
-    isAdmin: planRow?.is_admin,
-    trialEndsAt: planRow?.trial_ends_at,
-  })
-  if (!isPro) {
-    return NextResponse.json({ error: "pro_required" }, { status: 403 })
-  }
-
+  // This Week's K-Food Picks — Free 전체 개방 (2026-06-01 변경, 인증 게이트 제거)
   const today = new Date()
   const weekStart = getWeekStart(today)
   const weekStartIso = weekStart.toISOString().slice(0, 10)
