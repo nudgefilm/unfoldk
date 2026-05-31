@@ -24,6 +24,8 @@ const HIDE_PREFIXES = [
 
 export function TrialBanner() {
   const pathname = usePathname()
+  // isLoggedIn: 명시적 로그인 확인 — false(초기값)이면 절대 배너 미노출
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -36,10 +38,15 @@ export function TrialBanner() {
         data: { user },
       } = await supabase.auth.getUser()
 
-      if (!mounted || !user) {
+      if (!mounted) return
+
+      if (!user) {
+        // 비로그인 — isLoggedIn false 유지, ready만 true
         setReady(true)
         return
       }
+
+      setIsLoggedIn(true)
 
       const { data } = await supabase
         .from("users")
@@ -68,8 +75,8 @@ export function TrialBanner() {
   // auth/결제/어드민 페이지에서는 미노출 (Header 가드와 동일)
   if (pathname && HIDE_PREFIXES.some((p) => pathname.startsWith(p))) return null
 
-  // 데이터 준비 전 또는 trial 없음/만료 → 렌더 없음
-  if (!ready || !trialEndsAt) return null
+  // 비로그인 또는 데이터 준비 전 → 렌더 없음
+  if (!ready || !isLoggedIn || !trialEndsAt) return null
   if (!isInTrial(trialEndsAt)) return null
 
   const days = trialDaysRemaining(trialEndsAt)
