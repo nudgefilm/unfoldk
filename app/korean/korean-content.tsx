@@ -161,12 +161,16 @@ export function KoreanContent() {
   // intermediate/advanced 표현·팩 Pro 게이트 모달 (HangeulGo Free/Pro 확정 스펙 2026-06-01)
   const [proGateOpen, setProGateOpen] = useState(false)
 
-  // Explore Expressions 섹션 — 페이지네이션
+  // Explore Expressions 섹션 — 페이지네이션 + 호버 상태 (CSS group-hover 대신 React state)
   const EXPLORE_LIMIT = 60
   const [explorePhrases, setExplorePhrases] = useState<ExplorePhrase[]>([])
   const [explorePage, setExplorePage] = useState(1)
   const [exploreTotal, setExploreTotal] = useState(0)
   const [exploreLoading, setExploreLoading] = useState(true)
+  const [hoveredExprId, setHoveredExprId] = useState<string | null>(null)
+
+  // Today's Lesson 섹션 ref — Explore 클릭 시 스크롤 타겟
+  const todaysLessonRef = useRef<HTMLElement>(null)
   const [packDetail, setPackDetail] = useState<PackDetail | null>(null)
   const [packDetailLoading, setPackDetailLoading] = useState(false)
 
@@ -506,6 +510,25 @@ export function KoreanContent() {
       .finally(() => setGrammarLoading(false))
   }, [isPro, phrase])
 
+  // ─── 액션: 특정 표현 로드 — Explore 클릭 시 Today's Lesson에 해당 표현 표시
+  const loadPhraseById = useCallback(async (phraseId: string) => {
+    setPhraseLoading(true)
+    setPhraseError(null)
+    try {
+      const res = await fetch(`/api/korean/phrase-of-day?phrase_id=${encodeURIComponent(phraseId)}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const body = (await res.json()) as { phrase: KoreanPhraseApi | null }
+      if (body.phrase) {
+        setPhrase(body.phrase)
+        setSeenPhraseIds((prev) => [...prev, body.phrase!.id])
+      }
+    } catch (err) {
+      console.error("[korean] loadPhraseById 실패:", err)
+    } finally {
+      setPhraseLoading(false)
+    }
+  }, [])
+
   // ─── 액션: 다음 표현으로 전환 — seen 이력 제외 랜덤 1건 fetch
   //    Got it / Next expression 양쪽에서 호출.
   //    이력 소진 (exhausted) 시 자동 리셋 후 재시도.
@@ -687,8 +710,8 @@ export function KoreanContent() {
           </section>
         )}
 
-        {/* Today's Lesson Card */}
-        <section className="mb-16">
+        {/* Today's Lesson Card — ref: Explore 클릭 시 스크롤 타겟 */}
+        <section ref={todaysLessonRef} className="mb-16 scroll-mt-20">
           <div className="max-w-[640px] mx-auto bg-[#1a1a1a] border border-border/30 rounded-2xl p-8">
             {phraseLoading || (phrase && !isPro && (phrase.difficulty === "intermediate" || phrase.difficulty === "advanced")) ? (
               // 로딩 중이거나, 잠금 표현이 로드돼 auto-skip 대기 중인 경우
@@ -978,8 +1001,9 @@ export function KoreanContent() {
                 const dColor = difficultyColor(pack.difficulty)
                 // 오늘의 표현 드라마와 일치 시 카드 하이라이트
                 const isTodaysDrama = !!phrase?.dramaId && phrase.dramaId === pack.id
-                // intermediate / advanced + 비-Pro → 개별 카드 잠금
-                const isPackLocked = (pack.difficulty === "intermediate" || pack.difficulty === "advanced") && !isPro
+                // intermediate / advanced + 비-Pro → 개별 카드 잠금.
+                // beginner(null 포함) 는 항상 Free 접근 — difficulty 명시적 화이트리스트로 확인.
+                const isPackLocked = !isPro && (pack.difficulty === "intermediate" || pack.difficulty === "advanced")
                 return (
                   <button
                     key={pack.id}
@@ -1354,37 +1378,45 @@ export function KoreanContent() {
             <p className="text-muted-foreground text-sm">No expressions yet.</p>
           ) : (
             <>
-              {/* 표현 박스 — flex-wrap, 6줄 높이 초과분 숨김 */}
-              <div
-                className="flex flex-wrap gap-2 overflow-hidden"
-                style={{ maxHeight: "258px" }} /* ~6줄 × (36px 높이 + 6px gap) */
-              >
-                {explorePhrases.map((ep) => {
-                  const isLocked = !isPro && (ep.difficulty === "intermediate" || ep.difficulty === "advanced")
-                  return (
-                    <button
-                      key={ep.id}
-                      type="button"
-                      onClick={() => isLocked && setProGateOpen(true)}
-                      className={`relative group inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors ${
-                        isLocked
-                          ? "bg-[#1a1a1a] border-border/20 cursor-pointer hover:border-border/40"
-                          : "bg-[#1a1a1a] border-border/30 cursor-default hover:border-primary/40"
-                      }`}
-                    >
-                      <span className="text-foreground font-medium whitespace-nowrap">{ep.korean}</span>
-                      <span className="text-muted-foreground text-xs whitespace-nowrap max-w-[140px] truncate">
-                        {ep.english}
-                      </span>
-                      {/* 잠금 hover 오버레이 */}
-                      {isLocked && (
-                        <span className="absolute inset-0 flex items-center justify-center bg-[#0d0d0f]/75 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Lock className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
+              {/* 표현 박스 — flex-wrap, 6줄 높이 제한.
+                  overflow는 wrapper div에서만 처리해 내부 box 잘림 방지. */}
+              <div style={{ maxHeight: "290px", overflow: "hidden" }}>
+                <div className="flex flex-wrap gap-2 pb-2">
+                  {explorePhrases.map((ep) => {
+                    const isLocked = !isPro && (ep.difficulty === "intermediate" || ep.difficulty === "advanced")
+                    const isHovered = hoveredExprId === ep.id
+                    return (
+                      <button
+                        key={ep.id}
+                        type="button"
+                        onMouseEnter={() => setHoveredExprId(ep.id)}
+                        onMouseLeave={() => setHoveredExprId(null)}
+                        onClick={() => {
+                          if (isLocked) { setProGateOpen(true); return }
+                          // 비잠금: Today's Lesson에 해당 표현 로드 + 스크롤
+                          loadPhraseById(ep.id)
+                          todaysLessonRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+                        }}
+                        className={`relative inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors ${
+                          isLocked
+                            ? "bg-[#1a1a1a] border-border/20 cursor-pointer hover:border-border/40"
+                            : "bg-[#1a1a1a] border-border/30 cursor-pointer hover:border-primary/40"
+                        }`}
+                      >
+                        <span className="text-foreground font-medium whitespace-nowrap">{ep.korean}</span>
+                        <span className="text-muted-foreground text-xs whitespace-nowrap max-w-[140px] truncate">
+                          {ep.english}
                         </span>
-                      )}
-                    </button>
-                  )
-                })}
+                        {/* 잠금 hover 오버레이 — CSS group-hover 대신 React state로 처리 (로그인 상태 무관하게 동작) */}
+                        {isLocked && isHovered && (
+                          <span className="absolute inset-0 flex items-center justify-center bg-[#0d0d0f]/75 rounded-lg">
+                            <Lock className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* 페이지네이션 */}
