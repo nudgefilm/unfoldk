@@ -764,19 +764,15 @@ export default function KfoodKitPage() {
           )}
         </section>
 
-        {/* This Week's K-Food Picks (Pro 전용) — Popular Recipes 아래 */}
-        <WeeklyPicksSection isPro={isPro} onRecipeClick={(id) => setActiveRecipeId(id)} />
+        {/* This Week's K-Food Picks — Free 전체 개방 (2026-06-01 변경) */}
+        <WeeklyPicksSection isPro={true} onRecipeClick={(id) => setActiveRecipeId(id)} />
 
-        {/* ── Local Ingredient Matcher + My Shopping List ──────────────
-            두 섹션을 하나의 relative 컨테이너로 통합 Pro 잠금.
-            비Pro: 전체 blur-[4px] + 중앙 단일 오버레이.
-            Pro: 정상 접근.                                         */}
-        <div className="relative mb-16">
-          <div className={isPro ? "" : "blur-[4px] pointer-events-none select-none"}>
-
-            {/* Local Ingredient Matcher */}
-            <section className="mb-12">
-              <h2 className="text-2xl font-semibold text-white mb-6">Local Ingredient Matcher</h2>
+        {/* ── Local Ingredient Matcher ────────────────────────────────
+            h2 제목은 blur 밖 → 항상 보임. 콘텐츠 박스만 blur + overlay. */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-semibold text-white mb-6">Local Ingredient Matcher</h2>
+          <div className="relative">
+            <div className={isPro ? "" : "blur-[4px] pointer-events-none select-none"}>
               <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
                 <div className="flex items-center gap-3 mb-2">
                   <Bot className="w-6 h-6" style={{ color: "#FF4B6E" }} />
@@ -913,117 +909,134 @@ export default function KfoodKitPage() {
                   </p>
                 )}
               </div>
-            </section>
-
-            {/* My Shopping List */}
-            <section>
-              <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
-                <h2 className="text-2xl font-semibold text-white">My Shopping List</h2>
-                {isPro && shoppingItems.length > 0 && (
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={handleSaveShoppingListAsImage}
-                      disabled={savingImage}
-                      className="text-xs font-medium px-3 py-1.5 rounded-full border border-[#3a3a3a] text-foreground hover:bg-[#1a1a1a] disabled:opacity-60 inline-flex items-center gap-1.5"
-                    >
-                      <Download className="w-3 h-3" />
-                      {savingImage ? "Saving…" : "Save as Image"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleClearShoppingList}
-                      className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                    >
-                      Clear all
-                    </button>
-                  </div>
-                )}
-              </div>
-              <p className="text-muted-foreground text-sm mb-6">
-                Use the Local Ingredient Matcher above to find local substitutes — then add them to
-                your shopping list.
-              </p>
-              <div
-                ref={shoppingBoxRef}
-                className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6"
-              >
-                {shoppingItems.length === 0 ? (
-                  <div className="text-center py-6">
-                    <ShoppingCart className="w-8 h-8 mx-auto mb-3 text-muted-foreground/60" />
-                    <p className="text-muted-foreground text-sm">
-                      Your list is empty. Use the Local Ingredient Matcher above and tap{" "}
-                      <span className="text-foreground font-medium">Add to List</span> on any substitute.
-                    </p>
-                  </div>
-                ) : (
-                  <ul className="space-y-2">
-                    {shoppingItems.map((item) => (
-                      <li key={item.id} className="flex items-center gap-3 group">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleShoppingItem(item.id)}
-                          aria-label={item.checked ? `Uncheck ${item.name}` : `Check ${item.name}`}
-                          className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
-                            item.checked
-                              ? "border-[#FF4B6E] bg-[#FF4B6E]"
-                              : "border-border/50 hover:border-foreground/50"
-                          }`}
-                        >
-                          {item.checked && <Check className="w-3 h-3 text-white" />}
-                        </button>
-                        <span
-                          className={`flex-1 text-sm ${
-                            item.checked ? "line-through text-muted-foreground" : "text-foreground"
-                          }`}
-                        >
-                          {item.name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveShoppingItem(item.id)}
-                          aria-label={`Remove ${item.name}`}
-                          className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                        >
-                          <XIcon className="w-4 h-4" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {isPro && shoppingItems.length > 0 && (
-                  <div className="mt-6 pt-4 border-t border-border/20 text-center">
-                    <p className="text-[11px] tracking-wider text-muted-foreground/70">
-                      unfoldk.com
-                    </p>
-                  </div>
-                )}
-              </div>
-            </section>
-
-          </div>
-
-          {/* 통합 Pro 잠금 오버레이 — 두 섹션 중앙 */}
-          {!isPro && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-8 text-center shadow-xl max-w-xs w-full mx-4">
-                <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
-                <p className="text-white font-medium mb-2">Coming with Hallyu Pass</p>
-                <p className="text-muted-foreground text-xs mb-4">
-                  Find local substitutes for Korean ingredients and manage your shopping list.
-                </p>
-                <Link href="/signup">
-                  <Button
-                    className="rounded-full font-medium text-white"
-                    style={{ backgroundColor: "#FF4B6E" }}
-                  >
-                    Notify me at launch
-                  </Button>
-                </Link>
-              </div>
             </div>
-          )}
-        </div>
+
+            {/* Pro 잠금 오버레이 — 콘텐츠 박스 중앙 */}
+            {!isPro && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-8 text-center shadow-xl max-w-xs w-full mx-4">
+                  <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
+                  <p className="text-white font-medium mb-2">Coming with Hallyu Pass</p>
+                  <p className="text-muted-foreground text-xs mb-4">
+                    Find local substitutes for Korean ingredients and manage your shopping list.
+                  </p>
+                  <Link href="/signup">
+                    <Button
+                      className="rounded-full font-medium text-white"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      Notify me at launch
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ── My Shopping List ────────────────────────────────────────
+            h2 제목은 blur 밖 → 항상 보임. 콘텐츠 박스만 blur + overlay. */}
+        <section className="mb-16">
+          <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
+            <h2 className="text-2xl font-semibold text-white">My Shopping List</h2>
+            {isPro && shoppingItems.length > 0 && (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleSaveShoppingListAsImage}
+                  disabled={savingImage}
+                  className="text-xs font-medium px-3 py-1.5 rounded-full border border-[#3a3a3a] text-foreground hover:bg-[#1a1a1a] disabled:opacity-60 inline-flex items-center gap-1.5"
+                >
+                  <Download className="w-3 h-3" />
+                  {savingImage ? "Saving…" : "Save as Image"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearShoppingList}
+                  className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
+          </div>
+          <p className="text-muted-foreground text-sm mb-6">
+            Use the Local Ingredient Matcher above to find local substitutes — then add them to
+            your shopping list.
+          </p>
+          <div className="relative">
+            <div
+              ref={shoppingBoxRef}
+              className={`bg-[#1a1a1a] border border-border/30 rounded-xl p-6 ${
+                isPro ? "" : "blur-[4px] pointer-events-none select-none"
+              }`}
+            >
+              {shoppingItems.length === 0 ? (
+                <div className="text-center py-6">
+                  <ShoppingCart className="w-8 h-8 mx-auto mb-3 text-muted-foreground/60" />
+                  <p className="text-muted-foreground text-sm">
+                    Your list is empty. Use the Local Ingredient Matcher above and tap{" "}
+                    <span className="text-foreground font-medium">Add to List</span> on any substitute.
+                  </p>
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {shoppingItems.map((item) => (
+                    <li key={item.id} className="flex items-center gap-3 group">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleShoppingItem(item.id)}
+                        aria-label={item.checked ? `Uncheck ${item.name}` : `Check ${item.name}`}
+                        className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                          item.checked
+                            ? "border-[#FF4B6E] bg-[#FF4B6E]"
+                            : "border-border/50 hover:border-foreground/50"
+                        }`}
+                      >
+                        {item.checked && <Check className="w-3 h-3 text-white" />}
+                      </button>
+                      <span
+                        className={`flex-1 text-sm ${
+                          item.checked ? "line-through text-muted-foreground" : "text-foreground"
+                        }`}
+                      >
+                        {item.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveShoppingItem(item.id)}
+                        aria-label={`Remove ${item.name}`}
+                        className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                      >
+                        <XIcon className="w-4 h-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {isPro && shoppingItems.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-border/20 text-center">
+                  <p className="text-[11px] tracking-wider text-muted-foreground/70">
+                    unfoldk.com
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Pro 잠금 오버레이 — 콘텐츠 박스 중앙 */}
+            {!isPro && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl max-w-xs">
+                  <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
+                  <p className="text-white font-medium mb-2">Coming with Hallyu Pass</p>
+                  <p className="text-muted-foreground text-xs">
+                    Add ingredients to your personal shopping list.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* This Week's K-Drama Food Guide — Free 전체 개방 (2026-06-01 변경) */}
         <DramaFoodGuideSection onRecipeClick={(id) => setActiveRecipeId(id)} />
