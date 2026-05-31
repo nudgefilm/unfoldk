@@ -53,6 +53,14 @@ interface QuizApi {
   correctLabel: "A" | "B" | "C" | "D"
 }
 
+// Explore Expressions 섹션 — 페이지네이션 목록 아이템
+interface ExplorePhrase {
+  id: string
+  korean: string
+  english: string
+  difficulty: "beginner" | "intermediate" | "advanced" | null
+}
+
 interface PackDramaApi {
   id: string
   title: string
@@ -152,6 +160,13 @@ export function KoreanContent() {
   const [packModalDramaId, setPackModalDramaId] = useState<string | null>(null)
   // intermediate/advanced 표현·팩 Pro 게이트 모달 (HangeulGo Free/Pro 확정 스펙 2026-06-01)
   const [proGateOpen, setProGateOpen] = useState(false)
+
+  // Explore Expressions 섹션 — 페이지네이션
+  const EXPLORE_LIMIT = 60
+  const [explorePhrases, setExplorePhrases] = useState<ExplorePhrase[]>([])
+  const [explorePage, setExplorePage] = useState(1)
+  const [exploreTotal, setExploreTotal] = useState(0)
+  const [exploreLoading, setExploreLoading] = useState(true)
   const [packDetail, setPackDetail] = useState<PackDetail | null>(null)
   const [packDetailLoading, setPackDetailLoading] = useState(false)
 
@@ -320,6 +335,34 @@ export function KoreanContent() {
       .then((body: { dramas: string[] }) => setPhraseAlsoIn(body.dramas ?? []))
       .catch(() => setPhraseAlsoIn([]))
   }, [phrase?.korean, phrase?.dramaName])
+
+  // ─── Today's Lesson 잠금 표현 자동 스킵
+  //    intermediate / advanced + !isPro 인 표현이 로드되면 즉시 다음 beginner 표현으로 전환.
+  //    phrase.id 변경 시에만 실행 — advanceToNext 내부 seenPhraseIds 변경은 트리거 안 함.
+  useEffect(() => {
+    if (!phrase || isPro) return
+    const isLocked = phrase.difficulty === "intermediate" || phrase.difficulty === "advanced"
+    if (isLocked) {
+      advanceToNext()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phrase?.id, isPro])
+
+  // ─── Explore Expressions 페이지 fetch
+  useEffect(() => {
+    setExploreLoading(true)
+    fetch(`/api/korean/phrases?page=${explorePage}&limit=${EXPLORE_LIMIT}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body: { phrases: ExplorePhrase[]; total: number }) => {
+        setExplorePhrases(body.phrases ?? [])
+        setExploreTotal(body.total ?? 0)
+      })
+      .catch((err) => {
+        console.error("[korean] explore fetch 실패:", err)
+        setExplorePhrases([])
+      })
+      .finally(() => setExploreLoading(false))
+  }, [explorePage])
 
   // ─── 스트릭 fetch (로그인 시만 유효)
   useEffect(() => {
@@ -647,7 +690,8 @@ export function KoreanContent() {
         {/* Today's Lesson Card */}
         <section className="mb-16">
           <div className="max-w-[640px] mx-auto bg-[#1a1a1a] border border-border/30 rounded-2xl p-8">
-            {phraseLoading ? (
+            {phraseLoading || (phrase && !isPro && (phrase.difficulty === "intermediate" || phrase.difficulty === "advanced")) ? (
+              // 로딩 중이거나, 잠금 표현이 로드돼 auto-skip 대기 중인 경우
               <p className="text-center text-muted-foreground py-12">Loading today&apos;s phrase...</p>
             ) : phraseLimited ? (
               <div className="py-12 flex flex-col items-center text-center">
@@ -666,60 +710,6 @@ export function KoreanContent() {
               <p className="text-center text-muted-foreground py-12">
                 {phraseError ?? "No phrase available."}
               </p>
-            ) : (phrase.difficulty === "intermediate" || phrase.difficulty === "advanced") && !isPro ? (
-              // intermediate / advanced 표현 Pro 잠금 (HangeulGo Free/Pro 확정 스펙 2026-06-01)
-              <>
-                {/* Drama tag — 맥락 정보는 유지 */}
-                <div className="flex flex-col items-center mb-6 gap-2">
-                  <span
-                    className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold"
-                    style={{
-                      backgroundColor: "rgba(255, 75, 110, 0.15)",
-                      color: "#FF4B6E",
-                      border: "1px solid rgba(255, 75, 110, 0.35)",
-                    }}
-                  >
-                    <Film className="w-4 h-4" />
-                    <span className="text-foreground/70 font-normal uppercase tracking-wider text-[10px]">
-                      Today&apos;s drama
-                    </span>
-                    <span>·</span>
-                    <span>{phrase.dramaName ?? "K-drama"}</span>
-                  </span>
-                </div>
-                <div className="py-6 flex flex-col items-center text-center">
-                  {/* 난이도 뱃지 */}
-                  <span
-                    className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full mb-5"
-                    style={
-                      phrase.difficulty === "intermediate"
-                        ? { backgroundColor: "rgba(251, 191, 36, 0.15)", color: "#fbbf24" }
-                        : { backgroundColor: "rgba(239, 68, 68, 0.15)", color: "#ef4444" }
-                    }
-                  >
-                    <Lock className="w-3 h-3" />
-                    {phrase.difficulty === "intermediate" ? "Intermediate" : "Advanced"}
-                  </span>
-                  <div
-                    className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
-                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
-                  >
-                    <Lock className="w-7 h-7" style={{ color: "#FF4B6E" }} />
-                  </div>
-                  <p className="text-foreground font-medium mb-2">Coming with Hallyu Pass</p>
-                  <p className="text-muted-foreground text-sm mb-5">
-                    Intermediate and advanced expressions unlock with Hallyu Pass.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setProGateOpen(true)}
-                    className="text-sm font-medium px-5 py-2.5 rounded-full text-white transition-opacity hover:opacity-90"
-                    style={{ backgroundColor: "#FF4B6E" }}
-                  >
-                    Notify me at launch
-                  </button>
-                </div>
-              </>
             ) : (
               <>
                 {/* Drama Tag + 동일 표현 다른 드라마 출처 */}
@@ -1343,6 +1333,90 @@ export function KoreanContent() {
               </div>
             )}
           </div>
+        </section>
+
+        {/* ── Explore Expressions ──────────────────────────────────────
+            페이지당 60개 표현, 6줄 높이 제한, 넘치면 다음 페이지.
+            intermediate / advanced + !isPro → hover 시 🔒 표시.        */}
+        <section className="mb-16">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-semibold text-foreground">Explore Expressions</h2>
+            {!exploreLoading && exploreTotal > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {exploreTotal.toLocaleString()} expressions
+              </span>
+            )}
+          </div>
+
+          {exploreLoading ? (
+            <p className="text-muted-foreground text-sm">Loading expressions...</p>
+          ) : explorePhrases.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No expressions yet.</p>
+          ) : (
+            <>
+              {/* 표현 박스 — flex-wrap, 6줄 높이 초과분 숨김 */}
+              <div
+                className="flex flex-wrap gap-2 overflow-hidden"
+                style={{ maxHeight: "258px" }} /* ~6줄 × (36px 높이 + 6px gap) */
+              >
+                {explorePhrases.map((ep) => {
+                  const isLocked = !isPro && (ep.difficulty === "intermediate" || ep.difficulty === "advanced")
+                  return (
+                    <button
+                      key={ep.id}
+                      type="button"
+                      onClick={() => isLocked && setProGateOpen(true)}
+                      className={`relative group inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors ${
+                        isLocked
+                          ? "bg-[#1a1a1a] border-border/20 cursor-pointer hover:border-border/40"
+                          : "bg-[#1a1a1a] border-border/30 cursor-default hover:border-primary/40"
+                      }`}
+                    >
+                      <span className="text-foreground font-medium whitespace-nowrap">{ep.korean}</span>
+                      <span className="text-muted-foreground text-xs whitespace-nowrap max-w-[140px] truncate">
+                        {ep.english}
+                      </span>
+                      {/* 잠금 hover 오버레이 */}
+                      {isLocked && (
+                        <span className="absolute inset-0 flex items-center justify-center bg-[#0d0d0f]/75 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Lock className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* 페이지네이션 */}
+              {(() => {
+                const totalPages = Math.max(1, Math.ceil(exploreTotal / EXPLORE_LIMIT))
+                if (totalPages <= 1) return null
+                return (
+                  <div className="flex items-center justify-between mt-5">
+                    <button
+                      type="button"
+                      onClick={() => setExplorePage((p) => Math.max(1, p - 1))}
+                      disabled={explorePage <= 1}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-[#1a1a1a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" /> Previous
+                    </button>
+                    <span className="text-xs text-muted-foreground">
+                      {explorePage} / {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setExplorePage((p) => Math.min(totalPages, p + 1))}
+                      disabled={explorePage >= totalPages}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-[#1a1a1a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Next <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )
+              })()}
+            </>
+          )}
         </section>
       </main>
 
