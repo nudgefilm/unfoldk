@@ -44,8 +44,8 @@
 
 ```
 Free          무료        제한적 기본 기능
-Hallyu Pass   $15/월     5개 서비스 Pro 전체
-Hallyu Pass   $120/년    Pro + 20% 할인 ($10/월)
+Hallyu Pass   $9/월      5개 서비스 Pro 전체
+Hallyu Pass   $72/년     Pro + 33% 할인 ($6/월)
 ```
 
 가입 시 Hallyu Pass 기본 선택 (전환 최적화). 카드 내 Monthly/Annually 토글.

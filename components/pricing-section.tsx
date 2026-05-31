@@ -168,13 +168,13 @@ export function PricingSection() {
               <div className="self-stretch flex flex-col justify-start items-start gap-1">
                 <div className="flex justify-start items-center gap-2">
                   <div className="text-3xl font-medium leading-10 text-white">
-                    {isAnnual ? "$10" : "$15"}
+                    {isAnnual ? "$6" : "$9"}
                   </div>
                   <div className="text-sm font-medium leading-tight text-white/70">
                     /month
                   </div>
                   {isAnnual && (
-                    <span className="text-sm text-white/50 line-through">$15</span>
+                    <span className="text-sm text-white/50 line-through">$9</span>
                   )}
                 </div>
                 {isAnnual && (

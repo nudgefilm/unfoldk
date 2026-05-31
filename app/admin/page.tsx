@@ -201,10 +201,10 @@ async function loadStats(): Promise<DashboardStats> {
     supabase.from("coupons").select("id", { count: "exact", head: true }).not("used_by", "is", null),
   ])
 
-  // 월 환산 매출: monthly $15 + annual $10 (연 $120 / 12)
+  // 월 환산 매출: monthly $9 + annual $6 (연 $72 / 12)
   const monthly = monthlyCount ?? 0
   const annual = annualCount ?? 0
-  const mrrUsd = monthly * 15 + annual * 10
+  const mrrUsd = monthly * 9 + annual * 6
 
   return {
     totalUsers: totalUsers ?? 0,

@@ -201,7 +201,7 @@ function StartPageInner() {
                 )}
               </div>
               <p className="font-medium" style={{ color: "#FF4B6E" }}>
-                {isAnnual ? "$10/month" : "$15/month"}
+                {isAnnual ? "$6/month" : "$9/month"}
               </p>
               <p className="text-muted-foreground text-xs mt-1">Full access to all 6 services</p>
             </button>

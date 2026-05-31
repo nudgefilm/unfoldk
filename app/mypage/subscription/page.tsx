@@ -53,9 +53,9 @@ const sidebarLinks = [
 
 // ⚠️ Billing History 는 LMS API 동기화 미구현 — v0 mock 유지 (spec: "현재처럼 표시")
 const billingHistory = [
-  { date: "May 7, 2026", description: "Hallyu Pass", amount: "$15.00", status: "Paid" },
-  { date: "Apr 7, 2026", description: "Hallyu Pass", amount: "$15.00", status: "Paid" },
-  { date: "Mar 7, 2026", description: "Hallyu Pass", amount: "$15.00", status: "Paid" },
+  { date: "May 7, 2026", description: "Hallyu Pass", amount: "$9.00", status: "Paid" },
+  { date: "Apr 7, 2026", description: "Hallyu Pass", amount: "$9.00", status: "Paid" },
+  { date: "Mar 7, 2026", description: "Hallyu Pass", amount: "$9.00", status: "Paid" },
 ]
 
 type PlanType = "free" | "monthly" | "annual"
@@ -113,8 +113,8 @@ export default function SubscriptionPage() {
   // 데이터 로드 전엔 본문 영역 비움 (사이드바 골격은 그대로 노출)
   const isPaid = planType === "monthly" || planType === "annual"
   const planLabel: string = isPaid ? "Hallyu Pass" : "Free"
-  const monthlyPriceLabel = planType === "annual" ? "$10.00/month" : "$15.00/month"
-  const annualNote = planType === "annual" ? "$120/year, billed annually" : ""
+  const monthlyPriceLabel = planType === "annual" ? "$6.00/month" : "$9.00/month"
+  const annualNote = planType === "annual" ? "$72/year, billed annually" : ""
   const expiresLabel = planExpiresAt
     ? new Date(planExpiresAt).toLocaleDateString("en-US", {
         year: "numeric",
@@ -326,7 +326,7 @@ export default function SubscriptionPage() {
                     )}
                     <h3 className="text-foreground font-semibold text-lg mb-2">Monthly</h3>
                     <div className="mb-1">
-                      <span className="text-3xl font-bold text-foreground">$15</span>
+                      <span className="text-3xl font-bold text-foreground">$9</span>
                       <span className="text-muted-foreground">/month</span>
                     </div>
                     <p className="text-muted-foreground text-sm mb-4">Billed monthly. Cancel anytime.</p>
@@ -359,10 +359,10 @@ export default function SubscriptionPage() {
                     </span>
                     <h3 className="text-foreground font-semibold text-lg mb-2">Annual</h3>
                     <div className="mb-1">
-                      <span className="text-3xl font-bold text-foreground">$10</span>
+                      <span className="text-3xl font-bold text-foreground">$6</span>
                       <span className="text-muted-foreground">/month</span>
                     </div>
-                    <p className="text-muted-foreground text-sm mb-4">$120/year, billed annually</p>
+                    <p className="text-muted-foreground text-sm mb-4">$72/year, billed annually</p>
                     {planType !== "annual" && (
                       <Button
                         className="w-full rounded-full font-medium text-white"
@@ -446,7 +446,7 @@ function FreeUserView() {
           <div className="bg-[#1a1a1a] rounded-xl p-6 relative border border-border/30">
             <h3 className="text-foreground font-semibold text-lg mb-2">Monthly</h3>
             <div className="mb-4">
-              <span className="text-3xl font-bold text-foreground">$15</span>
+              <span className="text-3xl font-bold text-foreground">$9</span>
               <span className="text-muted-foreground">/month</span>
             </div>
             <p className="text-muted-foreground text-sm mb-5">Billed monthly. Cancel anytime.</p>
@@ -455,7 +455,7 @@ function FreeUserView() {
               style={{ backgroundColor: "#FF4B6E" }}
               onClick={() => setShowPaymentModal(true)}
             >
-              Upgrade to Monthly — $15/mo
+              Upgrade to Monthly — $9/mo
             </Button>
           </div>
 
@@ -472,16 +472,16 @@ function FreeUserView() {
             </span>
             <h3 className="text-foreground font-semibold text-lg mb-2">Annual</h3>
             <div className="mb-1">
-              <span className="text-3xl font-bold text-foreground">$10</span>
+              <span className="text-3xl font-bold text-foreground">$6</span>
               <span className="text-muted-foreground">/month</span>
             </div>
-            <p className="text-muted-foreground text-sm mb-5">$120/year, billed annually</p>
+            <p className="text-muted-foreground text-sm mb-5">$72/year, billed annually</p>
             <Button
               className="w-full rounded-full font-medium text-white"
               style={{ backgroundColor: "#FF4B6E" }}
               onClick={() => setShowPaymentModal(true)}
             >
-              Upgrade to Annual — $10/mo
+              Upgrade to Annual — $6/mo
             </Button>
           </div>
         </div>

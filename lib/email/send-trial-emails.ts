@@ -146,7 +146,7 @@ export async function sendTrialD7Email(input: {
       <div style="font-size:20px;font-weight:700;color:#ffffff;margin-top:4px;">${escapeHtml(expiresLabel)}</div>
     </div>
     <p style="font-size:14px;color:#b3b3b3;line-height:1.6;margin:0 0 20px;">
-      Hallyu Pass is <strong style="color:#ffffff;">$15/month</strong> or <strong style="color:#ffffff;">$120/year</strong> (save 33%). Cancel anytime.
+      Hallyu Pass is <strong style="color:#ffffff;">$9/month</strong> or <strong style="color:#ffffff;">$72/year</strong> (save 33%). Cancel anytime.
     </p>
     ${ctaButton("Upgrade to Hallyu Pass", PRICING_URL)}
   `
@@ -192,7 +192,7 @@ export async function sendTrialD1Email(input: {
       Your Hallyu Pass trial expires on <strong style="color:#ffffff;">${escapeHtml(expiresLabel)}</strong>. After that, you'll lose access to Pro features. Upgrade today to keep everything uninterrupted.
     </p>
     <p style="font-size:14px;color:#b3b3b3;line-height:1.6;margin:0 0 20px;">
-      Hallyu Pass is <strong style="color:#ffffff;">$15/month</strong> or <strong style="color:#ffffff;">$120/year</strong>. Cancel anytime.
+      Hallyu Pass is <strong style="color:#ffffff;">$9/month</strong> or <strong style="color:#ffffff;">$72/year</strong>. Cancel anytime.
     </p>
     ${ctaButton("Upgrade now — keep your access", PRICING_URL)}
   `
@@ -242,7 +242,7 @@ export async function sendTrialEndedEmail(input: {
       </div>
     </div>
     <p style="font-size:14px;color:#b3b3b3;line-height:1.6;margin:0 0 20px;">
-      <strong style="color:#ffffff;">$15/month</strong> or <strong style="color:#ffffff;">$120/year</strong> (save 33%). Cancel anytime.
+      <strong style="color:#ffffff;">$9/month</strong> or <strong style="color:#ffffff;">$72/year</strong> (save 33%). Cancel anytime.
     </p>
     ${ctaButton("Upgrade to Hallyu Pass", PRICING_URL)}
   `

@@ -35,7 +35,7 @@ const testimonials = [
   },
   {
     quote:
-      "Hallyu Pass is genuinely the best $15 I spend each month. It's like Netflix but for K-culture.",
+      "Hallyu Pass is genuinely the best $9 I spend each month. It's like Netflix but for K-culture.",
     name: "Jake W.",
     company: "USA",
     avatar: "/images/avatars/darlene-robertson.png",

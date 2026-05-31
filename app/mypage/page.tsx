@@ -458,7 +458,7 @@ export default function MyPage() {
                     </span>
                   </div>
                   <p className="text-muted-foreground text-sm">
-                    Next billing: <span className="text-foreground">June 7, 2026</span> · <span className="text-foreground">$15.00</span>
+                    Next billing: <span className="text-foreground">June 7, 2026</span> · <span className="text-foreground">$9.00</span>
                   </p>
                 </div>
                 
