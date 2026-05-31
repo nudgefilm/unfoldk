@@ -244,6 +244,135 @@ function normalizePhrase(raw: unknown): KoreanPhrasePayload | null {
 }
 
 // ============================================================
+// 배치 생성 — 중급/고급 문장 패턴 표현 (scripts/generate-drama-phrases.ts 전용)
+// ============================================================
+
+const SENTENCE_SYSTEM_PROMPT = `You are a Korean language tutor for UnfoldK HangeulGo, a Hallyu-themed Korean learning app for global K-drama fans.
+
+Generate THREE Korean sentences inspired by the tone and themes of the given K-drama. Strict rules:
+
+- Do NOT quote any actual line from the drama directly. Generate inspired example sentences only.
+- Each sentence must be grammatically complete and naturally usable in conversation.
+- difficulty "intermediate": 5–12 words, grammar patterns like -고/-아서/-(으)면/-(으)려고, polite -요/-습니다 form. Everyday situations: expressing feelings, asking questions, making plans, describing events.
+- difficulty "advanced": 8–18 words, complex patterns like -(으)ㄹ 것 같다/-(으)ㄴ/는데/honorifics/-기 때문에/idiomatic expressions. Nuanced emotions, formal speech, indirect expressions.
+- word_breakdown: 3–5 logical units per sentence (eojeol or particle group).
+- synonyms: 1–2 alternatives (or empty).
+- antonyms: 0–1 opposite (or empty).
+- romanization: Revised Romanization (RR), lowercase.
+- english: natural English equivalent, no surrounding quotes.
+
+Use the report_korean_phrases tool to return all three structured phrases at once.`
+
+const SENTENCE_TOOL: Anthropic.Tool = {
+  name: "report_korean_phrases",
+  description: "Report three Korean learning sentences inspired by a K-drama (NOT direct quotes).",
+  input_schema: {
+    type: "object",
+    properties: {
+      phrases: {
+        type: "array",
+        minItems: 3,
+        maxItems: 3,
+        items: {
+          type: "object",
+          properties: {
+            korean:       { type: "string" },
+            romanization: { type: "string" },
+            english:      { type: "string" },
+            word_breakdown: {
+              type: "array",
+              maxItems: 5,
+              items: {
+                type: "object",
+                properties: {
+                  word:         { type: "string" },
+                  romanization: { type: "string" },
+                  meaning:      { type: "string" },
+                },
+                required: ["word", "romanization", "meaning"],
+              },
+            },
+            synonyms: { type: "array", maxItems: 2, items: { type: "string" } },
+            antonyms: { type: "array", maxItems: 1, items: { type: "string" } },
+          },
+          required: ["korean", "romanization", "english", "word_breakdown", "synonyms", "antonyms"],
+        },
+      },
+    },
+    required: ["phrases"],
+  },
+}
+
+export interface GenerateDramaPhrasesInput {
+  dramaKo: string
+  dramaEn: string
+  difficulty: "intermediate" | "advanced"
+}
+
+export type GenerateDramaPhrasesResult =
+  | { ok: true; payloads: KoreanPhrasePayload[] }
+  | { ok: false; reason: string; detail?: string }
+
+export async function generateDramaPhrases(
+  input: GenerateDramaPhrasesInput
+): Promise<GenerateDramaPhrasesResult> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return { ok: false, reason: "missing_api_key" }
+  }
+
+  const userMessage = `Drama (Korean): ${input.dramaKo}
+Drama (English): ${input.dramaEn}
+Difficulty: ${input.difficulty}
+
+Generate three ${input.difficulty} Korean sentences inspired by this drama's tone and themes. Use the report_korean_phrases tool.`
+
+  console.log(
+    `[claude/korean-phrase] generateDramaPhrases 호출 model=${MODEL} drama=${input.dramaEn} difficulty=${input.difficulty}`
+  )
+
+  try {
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 2000,
+      tools: [SENTENCE_TOOL],
+      tool_choice: { type: "tool", name: "report_korean_phrases" },
+      system: SENTENCE_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userMessage }],
+    })
+
+    const toolBlock = response.content.find(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
+    )
+    if (!toolBlock) {
+      return { ok: false, reason: "no_tool_use_block" }
+    }
+
+    const raw = toolBlock.input as { phrases?: unknown[] }
+    const phrases = Array.isArray(raw?.phrases) ? raw.phrases : []
+    const payloads: KoreanPhrasePayload[] = phrases
+      .map((p) => normalizePhrase(p))
+      .filter((p): p is KoreanPhrasePayload => p !== null)
+      .map((p) => ({ ...p, difficulty: input.difficulty }))
+
+    if (payloads.length === 0) {
+      return { ok: false, reason: "invalid_payload", detail: JSON.stringify(raw).slice(0, 200) }
+    }
+
+    return { ok: true, payloads }
+  } catch (err) {
+    if (err instanceof Anthropic.APIError) {
+      const detail = `status=${err.status} message=${err.message}`
+      console.error(`[claude/korean-phrase] generateDramaPhrases APIError ${detail}`)
+      return { ok: false, reason: `api_error_${err.status}`, detail }
+    }
+    if (err instanceof Error) {
+      return { ok: false, reason: "exception", detail: `${err.name}: ${err.message}` }
+    }
+    return { ok: false, reason: "unknown_exception", detail: String(err) }
+  }
+}
+
+// ============================================================
 // Pro 전용 — AI 문법 설명
 // ============================================================
 
