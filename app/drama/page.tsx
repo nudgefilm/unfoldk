@@ -235,25 +235,38 @@ function StatusPill({ status }: { status: ApiDrama["status"] }) {
 }
 
 // Drama Card — 클릭 시 상세 모달 오픈. 톤은 기존 v0 유지.
+// 2026년 드라마는 Pro 잠금 (KdramaMatch Free/Pro 확정 스펙 2026-06-01).
 function DramaCard({
   drama,
   onAdd,
   onOpenDetail,
   isSaved,
   onToggleSave,
+  isPro,
+  onProLocked,
 }: {
   drama: ApiDrama
   onAdd: (dramaId: string) => void
   onOpenDetail: (dramaId: string) => void
   isSaved?: boolean
   onToggleSave?: (dramaId: string) => void
+  isPro?: boolean
+  onProLocked?: () => void
 }) {
   const displayTitle = getDisplayTitle(drama)
+  // 2026년 이상 드라마 + 비-Pro → 상세 잠금
+  const isLocked = drama.year === 2026 && !isPro
+
+  const handleDetailClick = () => {
+    if (isLocked) { onProLocked?.(); return }
+    onOpenDetail(drama.id)
+  }
+
   return (
     <div className="bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors group">
       <button
         type="button"
-        onClick={() => onOpenDetail(drama.id)}
+        onClick={handleDetailClick}
         className="w-full aspect-[2/3] bg-[#252525] flex items-center justify-center relative text-left"
       >
         {drama.posterUrl ? (
@@ -266,16 +279,36 @@ function DramaCard({
         ) : (
           <span className="text-muted-foreground text-sm">Poster</span>
         )}
-        {drama.status && (
+        {/* 상태 필 — 비잠금 카드만 */}
+        {drama.status && !isLocked && (
           <div className="absolute top-2 left-2">
             <StatusPill status={drama.status} />
           </div>
         )}
+        {/* 2026 Pro 뱃지 — 우상단 */}
+        {isLocked && (
+          <div className="absolute top-2 right-2 z-10">
+            <span
+              className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: "rgba(255,75,110,0.92)", color: "white" }}
+            >
+              <Lock className="w-2.5 h-2.5" /> Pro
+            </span>
+          </div>
+        )}
+        {/* hover 오버레이 — 잠금 시 "Unlock with Hallyu Pass", 일반 시 Play */}
         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <Play className="w-12 h-12 text-white" fill="white" />
+          {isLocked ? (
+            <div className="text-center px-4">
+              <Lock className="w-8 h-8 text-white mx-auto mb-2" />
+              <p className="text-white text-xs font-medium leading-snug">Unlock with<br />Hallyu Pass</p>
+            </div>
+          ) : (
+            <Play className="w-12 h-12 text-white" fill="white" />
+          )}
         </div>
-        {/* 북마크 오버레이 — 항상 노출. 미로그인 클릭 시 로그인 이동 (handleToggleDramaSave 내부 처리) */}
-        {onToggleSave && (
+        {/* 북마크 — 비잠금 카드만 */}
+        {!isLocked && onToggleSave && (
           <div
             role="button"
             tabIndex={0}
@@ -332,11 +365,12 @@ function DramaCard({
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => onOpenDetail(drama.id)}
+            onClick={handleDetailClick}
             className="text-xs font-medium flex items-center gap-1 hover:underline"
-            style={{ color: "#FF4B6E" }}
+            style={{ color: isLocked ? "#888" : "#FF4B6E" }}
           >
-            <Play className="w-3 h-3" /> Details
+            {isLocked ? <Lock className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+            {isLocked ? "Pro only" : "Details"}
           </button>
           <button
             type="button"
@@ -356,18 +390,29 @@ function TrendingCard({
   item,
   onAdd,
   onOpenDetail,
+  isPro,
+  onProLocked,
 }: {
   item: TrendingItem
   onAdd: (id: string) => void
   onOpenDetail: (id: string) => void
+  isPro?: boolean
+  onProLocked?: () => void
 }) {
   const d = item.drama
   const displayTitle = getDisplayTitle(d)
+  const isLocked = d.year === 2026 && !isPro
+
+  const handleClick = () => {
+    if (isLocked) { onProLocked?.(); return }
+    onOpenDetail(d.id)
+  }
+
   return (
-    <div className="flex-shrink-0 w-[180px] bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors">
+    <div className="flex-shrink-0 w-[180px] bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors group">
       <button
         type="button"
-        onClick={() => onOpenDetail(d.id)}
+        onClick={handleClick}
         className="w-full aspect-[2/3] bg-[#252525] relative"
       >
         {d.posterUrl ? (
@@ -382,21 +427,42 @@ function TrendingCard({
             Poster
           </div>
         )}
-        {d.status && (
+        {d.status && !isLocked && (
           <div className="absolute top-2 left-2">
             <StatusPill status={d.status} />
           </div>
         )}
-        <span
-          onClick={(e) => {
-            e.stopPropagation()
-            onAdd(d.id)
-          }}
-          className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-black/70 hover:bg-black flex items-center justify-center cursor-pointer"
-          aria-label="Add to watchlist"
-        >
-          <Plus className="w-4 h-4 text-white" />
-        </span>
+        {isLocked && (
+          <div className="absolute top-2 right-2 z-10">
+            <span
+              className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: "rgba(255,75,110,0.92)", color: "white" }}
+            >
+              <Lock className="w-2.5 h-2.5" /> Pro
+            </span>
+          </div>
+        )}
+        {/* hover 오버레이 */}
+        {isLocked && (
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <div className="text-center px-2">
+              <Lock className="w-6 h-6 text-white mx-auto mb-1" />
+              <p className="text-white text-[10px] font-medium leading-snug">Unlock with<br />Hallyu Pass</p>
+            </div>
+          </div>
+        )}
+        {!isLocked && (
+          <span
+            onClick={(e) => {
+              e.stopPropagation()
+              onAdd(d.id)
+            }}
+            className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-black/70 hover:bg-black flex items-center justify-center cursor-pointer"
+            aria-label="Add to watchlist"
+          >
+            <Plus className="w-4 h-4 text-white" />
+          </span>
+        )}
       </button>
       <div className="p-3">
         <h4 className="text-foreground font-medium text-sm line-clamp-1">{displayTitle}</h4>
@@ -428,11 +494,16 @@ function TrendingCard({
 function NowAiringCard({
   drama,
   onOpenDetail,
+  isPro,
+  onProLocked,
 }: {
   drama: ApiDrama
   onOpenDetail: (id: string) => void
+  isPro?: boolean
+  onProLocked?: () => void
 }) {
   const displayTitle = getDisplayTitle(drama)
+  const isLocked = drama.year === 2026 && !isPro
   const dDayLabel = buildDDayLabel(drama.nextEpisodeDate)
   // Asia/Seoul 기준 next_episode_date 가 오늘 이상 (미래 포함) 일 때만 캘린더 등록 의미 있음.
   // 과거·null 은 stale 또는 미확정이라 추가 비활성.
@@ -456,11 +527,14 @@ function NowAiringCard({
   return (
     <div
       data-na-card
-      className="flex-shrink-0 w-[260px] bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors snap-start"
+      className="flex-shrink-0 w-[260px] bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors snap-start group"
     >
       <button
         type="button"
-        onClick={() => onOpenDetail(drama.id)}
+        onClick={() => {
+          if (isLocked) { onProLocked?.(); return }
+          onOpenDetail(drama.id)
+        }}
         className="w-full aspect-video bg-[#252525] relative"
       >
         {(drama.backdropPath || drama.posterUrl) ? (
@@ -476,6 +550,26 @@ function NowAiringCard({
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+        {/* 2026 Pro 뱃지 */}
+        {isLocked && (
+          <div className="absolute top-2 right-2 z-10">
+            <span
+              className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: "rgba(255,75,110,0.92)", color: "white" }}
+            >
+              <Lock className="w-2.5 h-2.5" /> Pro
+            </span>
+          </div>
+        )}
+        {/* 잠금 hover 오버레이 */}
+        {isLocked && (
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <div className="text-center px-4">
+              <Lock className="w-7 h-7 text-white mx-auto mb-1.5" />
+              <p className="text-white text-xs font-medium leading-snug">Unlock with Hallyu Pass</p>
+            </div>
+          </div>
+        )}
         <div className="absolute bottom-2 left-3 right-3 text-left">
           <p className="text-white text-sm font-semibold line-clamp-1">{displayTitle}</p>
         </div>
@@ -490,6 +584,7 @@ function NowAiringCard({
           </span>
           <span className="text-foreground text-xs font-medium">{dDayLabel}</span>
         </div>
+        {/* 캘린더 버튼은 잠금과 무관하게 유지 (방영 일정 등록은 Pro 불필요) */}
         <button
           type="button"
           onClick={handleAddToCalendar}
@@ -987,6 +1082,9 @@ function KdramaMatchPageInner() {
   const [isPro, setIsPro] = useState(false)
   // 저장된 드라마 Set — watchlist 기반 (any status)
   const [savedDramaIds, setSavedDramaIds] = useState<Set<string>>(new Set())
+  // 2026 드라마 Pro 게이트 모달
+  const [proGateOpen, setProGateOpen] = useState(false)
+  const handleProLocked = () => setProGateOpen(true)
 
   // Browse All — URL 쿼리 파라미터에서 초기 상태 읽기 (뒤로가기 시 필터 유지)
   //   ?genre=Romance&genre=Thriller  (multi)
@@ -1356,7 +1454,7 @@ function KdramaMatchPageInner() {
                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
               >
                 {nowAiring.map((d) => (
-                  <NowAiringCard key={d.id} drama={d} onOpenDetail={openModal} />
+                  <NowAiringCard key={d.id} drama={d} onOpenDetail={openModal} isPro={isPro} onProLocked={handleProLocked} />
                 ))}
               </div>
               {naCanScrollLeft && (
@@ -1488,6 +1586,8 @@ function KdramaMatchPageInner() {
                     onOpenDetail={openModal}
                     isSaved={savedDramaIds.has(d.id)}
                     onToggleSave={handleToggleDramaSave}
+                    isPro={isPro}
+                    onProLocked={handleProLocked}
                   />
                 ))}
               </div>
@@ -1512,6 +1612,8 @@ function KdramaMatchPageInner() {
                   item={item}
                   onAdd={handleAddToWatchlist}
                   onOpenDetail={openModal}
+                  isPro={isPro}
+                  onProLocked={handleProLocked}
                 />
               ))}
             </div>
@@ -1624,6 +1726,8 @@ function KdramaMatchPageInner() {
                     onOpenDetail={openModal}
                     isSaved={savedDramaIds.has(d.id)}
                     onToggleSave={handleToggleDramaSave}
+                    isPro={isPro}
+                    onProLocked={handleProLocked}
                   />
                 ))}
               </div>
@@ -1787,6 +1891,48 @@ function KdramaMatchPageInner() {
       </main>
 
       <FooterSection />
+
+      {/* 2026 드라마 Pro 게이트 모달 */}
+      {proGateOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+          onClick={() => setProGateOpen(false)}
+        >
+          <div
+            className="relative bg-[#1a1a1a] border border-border/50 rounded-2xl p-6 text-center max-w-sm w-full shadow-xl animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setProGateOpen(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Close"
+            >
+              <CloseIcon className="w-5 h-5" />
+            </button>
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
+              style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
+            >
+              <Lock className="w-7 h-7" style={{ color: "#FF4B6E" }} />
+            </div>
+            <h3 className="text-foreground font-semibold text-lg mb-2">
+              2026 Dramas — Coming with Hallyu Pass
+            </h3>
+            <p className="text-muted-foreground text-sm mb-5 leading-relaxed">
+              Full access to 2026 K-drama details, episode summaries, and character maps arrives with Hallyu Pass.
+            </p>
+            <Link
+              href="/signup"
+              className="inline-block text-sm font-medium px-6 py-2.5 rounded-full text-white"
+              style={{ backgroundColor: "#FF4B6E" }}
+              onClick={() => setProGateOpen(false)}
+            >
+              Notify me at launch
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Drama detail modal — 단일 인스턴스, 활성 id 로 트리거 */}
       <DramaDetailModal

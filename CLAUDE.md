@@ -122,6 +122,11 @@ Hallyu Pass   $72/년     Pro + 33% 할인 ($6/월)
 - 아티스트 전체 브라우징: `/kpop/artists` (리스너순 정렬, 그룹/솔로 필터, 페이지네이션)
 - `kpop_artists.member_count`: NULL=미분류 / 1=솔로 / 2+=그룹. 어드민에서 backfill.
 
+### KpopStats Free/Pro 확정 스펙 (2026-06-01)
+- 메인 페이지 (`/kpop`): 전체 Free 오픈 (비로그인 포함 Top 20)
+- 아티스트 상세 (`/kpop/[id]`): Today's Trending Top 5에 포함된 아티스트만 Free 접근 가능
+- 나머지 아티스트 상세 → Pro 잠금 (잠금 UI: "Coming with Hallyu Pass")
+
 ### 결제 연동 전 임시 Free 확대 정책 (2026-05-16~ / 결제 연동 시 복원)
 **배경**: Lemon Squeezy 결제 연동 전까지 Free 유저도 핵심 기능을 충분히 체험할 수 있도록 게이팅 완화. 결제 연동 시 아래 표의 "복원 후" 상태로 되돌리는 commit 필요.
 
@@ -152,6 +157,11 @@ Hallyu Pass   $72/년     Pro + 33% 할인 ($6/월)
 1. 본 표의 "복원 후" 컬럼 코드 한 줄씩 되돌림 (각 위치에 `// 2026-05-16 임시 정책` 주석 박제됨, grep 으로 일괄 찾기 가능).
 2. Pro 잠금 카피 "Coming with Hallyu Pass" → "Upgrade — $15/month" 등 결제 유도 카피로 회귀.
 3. DECISIONS.md "결제 연동 전 임시 Free 확대 정책" 항목 closed 표시.
+
+### Curation K Free/Pro 확정 스펙 (2026-06-01)
+- **My Hallyu Course → Pro 잠금** (blur + centered overlay 패턴)
+- 나머지 전체 Free 개방 (지도 핀 / 카드 / 탭 / 모달 등)
+- 구현 파일: `app/curation-k/page.tsx` — `!isPro` 분기를 blur-background + overlay 패턴으로 교체
 
 ### Curation K 확정 스펙 (2026-05-16 확정)
 
@@ -276,6 +286,15 @@ Hallyu API:
 - 국가별 청취자: `geo.getTopArtists` 는 아티스트별 호출 → 25명 × 1콜, 캐싱 필수
 - X(Twitter) 환경변수: `TWITTER_API_KEY` (도입 시 등록)
 
+### KdramaMatch Free/Pro 확정 스펙 (2026-06-01)
+- 전체 기능 Free 개방 (AI 추천 횟수 제한 없음, Drama Summary 등 모두 개방)
+- **2026년 드라마 상세 페이지만 Pro 잠금** (`drama.year === 2026 && !isPro`)
+  - 카드 우상단 🔒 Pro 뱃지 표시
+  - hover 시 "Unlock with Hallyu Pass" 오버레이
+  - 클릭 시 상세 페이지 이동 차단 → 업그레이드 안내 모달
+  - 2025년 이하 → 기존과 동일 / Pro 유저 → 2026년도 정상 접근
+- `DramaCard`, `TrendingCard`, `NowAiringCard` 모두 동일 적용
+
 ### KdramaMatch 확정 스펙 (2026-05-16 확정)
 
 **현재 수집 중 (기존 유지)**
@@ -309,6 +328,15 @@ Supabase (자체):
 - MyDramaList API: TMDB로 대체 가능, 연동 공수 대비 효과 낮음 — MAU 쌓인 후 재검토
 - 유저 리뷰: MAU 쌓인 후 도입
 - 제작 국가 (`origin_country`): 한국 드라마 필터링은 기존 로직으로 충분
+
+### HangeulGo Free/Pro 확정 스펙 (2026-06-01)
+- **Beginner 표현 → Free 전체 개방**
+- **Intermediate / Advanced 표현 → Pro 잠금** (`phrase.difficulty === 'intermediate' || 'advanced'` + `!isPro`)
+  - Today's Lesson 카드: 잠금 상태 표시 (드라마 태그만 노출, 표현 내용 숨김) + CTA 버튼
+  - Drama Learning Packs 카드: 🔒 Pro 뱃지 + hover "Unlock with Hallyu Pass" 오버레이 + 클릭 → 업그레이드 모달
+- Drama Learning Packs 전체 잠금 오버레이(`!isPro`) 제거 → 개별 카드 단위 잠금으로 전환
+- Grammar Explanation → 기존대로 Pro 유지 (변경 없음)
+- Pro 유저 → 전체 정상 접근
 
 ### HangeulGo 확정 스펙 (2026-05-16 확정)
 
@@ -348,6 +376,14 @@ Phase 3 — 차별화:
 - ElevenLabs: 요청마다 실시간 호출 금지 — 사전 생성 + CDN 캐싱 필수
 - 드라마 대사 원문 다량 사용 금지 — 학습 목적 인용 범위 내 사용
 - K팝 가사 직접 게시 금지 — 표현 설명 형태로만 활용
+
+### KfoodKit Free/Pro 확정 스펙 (2026-06-01)
+- **Local Ingredient Matcher** (구 "UnfoldK Ingredient Finder") → Pro 잠금
+- **My Shopping List** → Pro 잠금
+- 위 두 섹션은 하나의 `relative` 컨테이너로 통합, 전체 `blur-[4px]` + 중앙 단일 오버레이
+- **This Week's K-Drama Food Guide** → **Free 전체 개방** (Pro 잠금 제거, 2026-06-01 변경)
+- 나머지 전체 Free 개방
+- 구현 파일: `app/food/page.tsx` · `components/food/drama-food-guide-section.tsx` (`isPro` prop 완전 제거)
 
 ### KfoodKit 확정 스펙 (2026-05-16 확정)
 
@@ -400,6 +436,16 @@ Phase 3 — 한국 현지 연계:
 - Phase 1: ~$0
 - Phase 2: ~$31/월 (Spoonacular $29 + Claude)
 - Phase 3: ~$31/월 (TourAPI 무료 + 기존)
+
+### Fan Meet 탭 확정 스펙 (2026-06-01)
+
+- **Ticketmaster 행사**: Fan Meet 탭 캘린더 노출 + 외부 티켓 링크 (Get Tickets 버튼)
+- **유저 등록 행사**: Submit a Fan Event → 어드민 승인 → Fan Meet 탭 캘린더 자동 노출
+  - 행사 카드 모달: `registration_link`(Google Form 등) 우선 → 없으면 `contact_email` (mailto:)
+  - UnfoldK는 캘린더 노출까지만 / 접수 현황은 주최자 직접 관리
+  - 향후 MAU 증가 시 내부 신청폼 전환 검토
+- **DB**: `fan_event_requests` + `hallyu_calendar_events` 모두 `contact_email`, `registration_link` 컬럼 (migration 0056) — 승인 시 admin route 가 복사
+- **Pro 잠금**: Fan Meet 탭 전체 Pro 전용 유지
 
 ### curation-k 지도 컴포넌트 수정 금지 (동결)
 - `app/curation-k/page.tsx` 상단의 SVG 한국 지도 영역 — `KOREA_CITIES`, `KOREA_ISLANDS`, `proj()`, polygon 스타일, 펄스 애니메이션 — **모두 동결**.

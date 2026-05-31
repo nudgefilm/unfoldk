@@ -1,6 +1,58 @@
-# PROGRESS_2026_05.md — 2026년 5월 세션 기록 (세션 23~30)
+# PROGRESS_2026_05.md — 2026년 5월~6월 세션 기록 (세션 23~37)
 
-> PROGRESS.md 에서 분리 보관. 세션 31부터는 PROGRESS.md 참조.
+> PROGRESS.md 에서 분리 보관. 현재 상태는 PROGRESS.md 참조.
+
+---
+
+## 세션 37 (2026-06-01) — Fan Meet 탭 유저 등록 행사 연동
+
+- **migration 0056** `fan_event_requests` + `hallyu_calendar_events`에 `contact_email`, `registration_link` 컬럼 추가
+- 어드민 승인 시 두 컬럼 자동 복사 (`app/api/admin/fan-events/[id]/route.ts`)
+- 캘린더 이벤트 API 응답에 `contactEmail`, `registrationLink` 추가
+- `EventDetailModal` — `source_api='fan_event_request'` 행사에 Register Now / Contact Organizer 버튼
+- `mypage/fan-events` 폼 + Edit 모달 — Apply Info 섹션(Registration Link + Contact Email) 추가
+- 어드민 fan-events 테이블 — Form/Email 링크 뱃지 노출
+- CLAUDE.md Fan Meet 탭 확정 스펙 추가
+
+**⚠️ 사용자 액션 필요**: Supabase SQL Editor에서 migration 0056 실행
+```sql
+ALTER TABLE public.fan_event_requests
+  ADD COLUMN IF NOT EXISTS contact_email text,
+  ADD COLUMN IF NOT EXISTS registration_link text;
+ALTER TABLE public.hallyu_calendar_events
+  ADD COLUMN IF NOT EXISTS contact_email text,
+  ADD COLUMN IF NOT EXISTS registration_link text;
+```
+
+---
+
+## 세션 36 (2026-05-31)
+
+- **Hallyu Pass 가격 인하**: $15/월 → $9/월, $120/년 → $72/년
+- **Curation K Klook 제휴 배너** (4개 카테고리 버튼, aid=122963)
+- **KpopStats YouTube UI 제거** — Last.fm Listeners/Plays 중심 재편
+- **MusicBrainz 동기화** 191/280명
+- **migration 0050~0055**: kpop_weekly_features, enrichment, comparison_cache, country_charts_expand, artist_follows, korean_phrases_image
+- **Discord 봇 채널별 이미지 6개 + 링크 중복 제거**
+- **Artist Comparison 전면 개편** — 충성도·모멘텀·Claude 인사이트·Artist Profile 카드
+- **KpopStats 전면 무료 개방**: 메인 Top 20 비로그인 포함 / 상세 Pro 게이팅
+- **My Artists 페이지 근본 수정** — thumbnail_url 버그, admin client 전환, unmatched 카드 제거
+- **SEO 전체**: 8개 서비스 metadata + JSON-LD + sitemap 296페이지
+- **크로스링크**: KdramaMatch·KpopStats·HangeulGo·Curation K 4방향 연결
+- **HangeulGo**: Grammar Explanation 이미지(migration 0055) + scene_description 자동생성 + 중급·고급 배치생성 + 이미지 폴백
+- **Curation K**: 랜덤 셔플·탭 시작
+- **HangeulGo 동일 표현 중복 드라마 출처 표기**
+- **마케팅**: Reddit r/BeginnerKorean 첫 포스팅 170뷰, Google SC 296페이지 제출
+
+---
+
+## 세션 31~35 (2026-05-30)
+
+- **서비스 간 크로스링크 전면 연결** (KdramaMatch / KpopStats / HangeulGo / Curation K)
+- **HangeulGo ingest cron**: intermediate·advanced 표현 자동 생성 추가
+- **KpopStats My Artists**: kpop_artist_follows + user_calendar_subscriptions 합산
+- **TrackArtistButton**: 비로그인·Free → "Get notified with Hallyu Pass"
+- **KpopStats 상세 Weekly Growth Report** blur + Pro 잠금
 
 ---
 

@@ -25,6 +25,8 @@ export interface AdminFanEventRow {
   social_instagram: string | null
   social_x: string | null
   social_other: string | null
+  contact_email: string | null
+  registration_link: string | null
   prior_approved_count: number
 }
 
@@ -131,6 +133,33 @@ export function FanEventsTable({ rows }: { rows: AdminFanEventRow[] }) {
                       >
                         이전 승인 {r.prior_approved_count}회
                       </span>
+                    )}
+                    {/* 신청 버튼용 연락처·링크 (0056) */}
+                    {(r.registration_link || r.contact_email) && (
+                      <div className="flex items-center gap-2 mt-1.5">
+                        {r.registration_link && (
+                          <a
+                            href={r.registration_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] hover:underline"
+                            style={{ color: "#22c55e" }}
+                            title={r.registration_link}
+                          >
+                            Form
+                          </a>
+                        )}
+                        {r.contact_email && (
+                          <a
+                            href={`mailto:${r.contact_email}`}
+                            className="text-[10px] hover:underline"
+                            style={{ color: "#22c55e" }}
+                            title={r.contact_email}
+                          >
+                            Email
+                          </a>
+                        )}
+                      </div>
                     )}
                     {/* 0017 소셜 링크 — 신청자가 입력했을 때만 노출. 새 탭으로 진위 확인 진입. */}
                     {(r.social_instagram || r.social_x || r.social_other) && (

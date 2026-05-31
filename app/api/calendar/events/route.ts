@@ -61,7 +61,7 @@ export async function GET(request: Request) {
   // source_api 는 Featured 섹션의 Ticketmaster 우선 정렬에 사용
   const { data, error } = await queryClient
     .from("hallyu_calendar_events")
-    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium, thumbnail_url, source_api, url, venue_name, venue_city, venue_country_code, created_at")
+    .select("id, type, title, artist_or_drama, event_date, event_time_label, description, is_premium, thumbnail_url, source_api, url, venue_name, venue_city, venue_country_code, created_at, contact_email, registration_link")
     .gte("event_date", startOfMonth.toISOString())
     .lt("event_date", startOfNextMonth.toISOString())
     .order("event_date", { ascending: true })
@@ -93,6 +93,8 @@ export async function GET(request: Request) {
       venueCity: row.venue_city ?? undefined,
       venueCountryCode: row.venue_country_code ?? undefined,
       createdAt: row.created_at,
+      contactEmail: row.contact_email ?? undefined,
+      registrationLink: row.registration_link ?? undefined,
     }
   })
 

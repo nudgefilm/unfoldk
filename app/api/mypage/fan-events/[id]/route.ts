@@ -28,6 +28,8 @@ const PatchSchema = z.object({
   social_instagram: z.string().max(100).nullable().optional(),
   social_x: z.string().max(100).nullable().optional(),
   social_other: z.string().max(500).nullable().optional(),
+  contact_email: z.string().email().max(200).nullable().optional(),
+  registration_link: z.string().url().max(2000).nullable().optional(),
 })
 
 export async function PATCH(
@@ -86,6 +88,9 @@ export async function PATCH(
     update.social_instagram = parsed.data.social_instagram
   if (parsed.data.social_x !== undefined) update.social_x = parsed.data.social_x
   if (parsed.data.social_other !== undefined) update.social_other = parsed.data.social_other
+  if (parsed.data.contact_email !== undefined) update.contact_email = parsed.data.contact_email
+  if (parsed.data.registration_link !== undefined)
+    update.registration_link = parsed.data.registration_link
 
   // 2차 가드 — RLS 정책이 본인 + pending 재검증 후에만 통과
   const { data, error } = await supabase

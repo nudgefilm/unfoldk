@@ -78,6 +78,8 @@ interface FanEventRequest {
   social_instagram: string | null
   social_x: string | null
   social_other: string | null
+  contact_email: string | null
+  registration_link: string | null
 }
 
 interface FormState {
@@ -89,6 +91,8 @@ interface FormState {
   social_instagram: string                                          // username 만 (prefix 폼 UI)
   social_x: string                                                  // username 만
   social_other: string                                              // 자유 URL
+  contact_email: string                                             // 주최자 연락처 이메일 (캘린더 신청 버튼)
+  registration_link: string                                         // Google Form 등 신청 URL (우선)
 }
 
 const EMPTY_FORM: FormState = {
@@ -100,6 +104,8 @@ const EMPTY_FORM: FormState = {
   social_instagram: "",
   social_x: "",
   social_other: "",
+  contact_email: "",
+  registration_link: "",
 }
 
 // 파일명 안전화 — Storage 정책과 호환되는 ASCII slug.
@@ -269,6 +275,8 @@ export default function MyFanEventsPage() {
           social_instagram: form.social_instagram.trim().replace(/^@/, "") || null,
           social_x: form.social_x.trim().replace(/^@/, "") || null,
           social_other: form.social_other.trim() || null,
+          contact_email: form.contact_email.trim() || null,
+          registration_link: form.registration_link.trim() || null,
         }),
       })
 
@@ -484,6 +492,35 @@ export default function MyFanEventsPage() {
                   onChange={handleFileChange}
                   className="hidden"
                 />
+              </div>
+
+              {/* Apply / Contact Info — 캘린더 카드 신청 버튼. registration_link 우선. */}
+              <div className="space-y-2">
+                <label className="text-muted-foreground text-xs block">
+                  Apply Info <span className="text-muted-foreground/70 ml-1">(optional — shown as Apply button on the calendar card)</span>
+                </label>
+                <div className="flex items-stretch rounded-lg overflow-hidden border border-[#2a2a2a] focus-within:border-[#FF4B6E]/50">
+                  <LinkIcon className="w-5 h-5 text-muted-foreground mx-3 self-center flex-shrink-0" />
+                  <Input
+                    type="url"
+                    value={form.registration_link}
+                    onChange={(e) => setForm((f) => ({ ...f, registration_link: e.target.value }))}
+                    placeholder="Registration link (Google Form, etc.)"
+                    className="h-11 flex-1 bg-[#0d0d0f] border-0 rounded-none text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                    maxLength={2000}
+                  />
+                </div>
+                <div className="flex items-stretch rounded-lg overflow-hidden border border-[#2a2a2a] focus-within:border-[#FF4B6E]/50">
+                  <span className="text-muted-foreground text-xs px-3 self-center flex-shrink-0">@</span>
+                  <Input
+                    type="email"
+                    value={form.contact_email}
+                    onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))}
+                    placeholder="Contact email (used if no registration link)"
+                    className="h-11 flex-1 bg-[#0d0d0f] border-0 rounded-none text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                    maxLength={200}
+                  />
+                </div>
               </div>
 
               {/* Social Links — 모두 선택. instagram/x 는 prefix 박스로 username 만 입력,
@@ -714,6 +751,8 @@ function EditFanEventModal({
       social_instagram: request.social_instagram ?? "",
       social_x: request.social_x ?? "",
       social_other: request.social_other ?? "",
+      contact_email: request.contact_email ?? "",
+      registration_link: request.registration_link ?? "",
     })
     setErrorMsg("")
   }, [request])
@@ -790,6 +829,8 @@ function EditFanEventModal({
       social_instagram: form.social_instagram.trim().replace(/^@/, "") || null,
       social_x: form.social_x.trim().replace(/^@/, "") || null,
       social_other: form.social_other.trim() || null,
+      contact_email: form.contact_email.trim() || null,
+      registration_link: form.registration_link.trim() || null,
     }
     if (newProofUrl !== undefined) {
       body.proof_url = newProofUrl
@@ -915,6 +956,35 @@ function EditFanEventModal({
               onChange={handleFileChange}
               className="hidden"
             />
+          </div>
+
+          {/* Apply Info (선택) — 캘린더 카드 신청 버튼 */}
+          <div className="space-y-2">
+            <label className="text-muted-foreground text-xs block">
+              Apply Info <span className="text-muted-foreground/70 ml-1">(optional)</span>
+            </label>
+            <div className="flex items-stretch rounded-lg overflow-hidden border border-[#2a2a2a] focus-within:border-[#FF4B6E]/50">
+              <LinkIcon className="w-5 h-5 text-muted-foreground mx-3 self-center flex-shrink-0" />
+              <Input
+                type="url"
+                value={form.registration_link}
+                onChange={(e) => setForm((f) => ({ ...f, registration_link: e.target.value }))}
+                placeholder="Registration link (Google Form, etc.)"
+                className="h-11 flex-1 bg-[#0d0d0f] border-0 rounded-none text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                maxLength={2000}
+              />
+            </div>
+            <div className="flex items-stretch rounded-lg overflow-hidden border border-[#2a2a2a] focus-within:border-[#FF4B6E]/50">
+              <span className="text-muted-foreground text-xs px-3 self-center flex-shrink-0">@</span>
+              <Input
+                type="email"
+                value={form.contact_email}
+                onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))}
+                placeholder="Contact email"
+                className="h-11 flex-1 bg-[#0d0d0f] border-0 rounded-none text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                maxLength={200}
+              />
+            </div>
           </div>
 
           {/* Social Links (선택) — 신규 폼과 동일 패턴 */}

@@ -58,6 +58,10 @@
       "schedule": "0 5 * * 1"
     },
     {
+      "path": "/api/cron/ingest-musicbrainz-releases",
+      "schedule": "0 5 * * 2"
+    },
+    {
       "path": "/api/cron/trial-notifications",
       "schedule": "15 9 * * *"
     },

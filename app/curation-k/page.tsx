@@ -1820,30 +1820,76 @@ export default function CurationKPage() {
         />
         <div className="max-w-[1320px] mx-auto px-6 mb-16">
           {!isPro ? (
-            <div className="relative bg-[#141418] border border-border/30 rounded-2xl p-10 text-center">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-                style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
-              >
-                <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+            // blur-background + centered overlay 패턴 (KfoodKit/HangeulGo 동일 패턴)
+            <div className="relative">
+              {/* 폼 미리보기 — blur 처리 */}
+              <div className="blur-[4px] pointer-events-none select-none">
+                <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">Drama</p>
+                      <div className="h-10 bg-[#0d0d0f] border border-border/40 rounded-full" />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">Destination</p>
+                      <div className="h-10 bg-[#0d0d0f] border border-border/40 rounded-full" />
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">Travel style</p>
+                    <div className="flex flex-wrap gap-2">
+                      {["Relaxed", "Immersive", "Photo tour", "Food-focused"].map((s) => (
+                        <div
+                          key={s}
+                          className="px-4 py-2 rounded-full text-xs border text-muted-foreground"
+                          style={{ backgroundColor: "#0d0d0f", borderColor: "rgba(255,255,255,0.1)" }}
+                        >
+                          {s}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">Duration</p>
+                    <div className="flex gap-2">
+                      {["1 day", "2 days", "3 days"].map((d) => (
+                        <div
+                          key={d}
+                          className="px-4 py-2 rounded-full text-xs border text-muted-foreground"
+                          style={{ backgroundColor: "#0d0d0f", borderColor: "rgba(255,255,255,0.1)" }}
+                        >
+                          {d}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="h-10 w-48 rounded-full" style={{ backgroundColor: "rgba(255,75,110,0.3)" }} />
+                </div>
               </div>
-              <p className="text-foreground font-medium mb-2">Coming with Hallyu Pass</p>
-              <p className="text-muted-foreground text-xs mb-4 max-w-md mx-auto">
-                Personalized Hallyu day-trip routes built from your drama taste —
-                arriving at launch.
-              </p>
-              <Link
-                href={
-                  isAuthenticated === false ? "/login?redirect=/curation-k" : "/signup"
-                }
-              >
-                <Button
-                  className="px-6 py-2 rounded-full font-medium text-white"
-                  style={{ backgroundColor: "#FF4B6E" }}
-                >
-                  Notify me at launch
-                </Button>
-              </Link>
+              {/* Pro 잠금 오버레이 */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-[#141418] border border-border/50 rounded-xl p-8 text-center shadow-xl max-w-sm w-full mx-4">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
+                  >
+                    <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+                  </div>
+                  <p className="text-foreground font-medium mb-2">Coming with Hallyu Pass</p>
+                  <p className="text-muted-foreground text-xs mb-4 max-w-sm mx-auto">
+                    Personalized Hallyu day-trip routes built from your drama taste —
+                    arriving at launch.
+                  </p>
+                  <Link href={isAuthenticated === false ? "/login?redirect=/curation-k" : "/signup"}>
+                    <Button
+                      className="px-6 py-2 rounded-full font-medium text-white"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      Notify me at launch
+                    </Button>
+                  </Link>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-6">

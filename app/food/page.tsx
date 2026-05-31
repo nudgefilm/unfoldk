@@ -767,288 +767,265 @@ export default function KfoodKitPage() {
         {/* This Week's K-Food Picks (Pro 전용) — Popular Recipes 아래 */}
         <WeeklyPicksSection isPro={isPro} onRecipeClick={(id) => setActiveRecipeId(id)} />
 
-        {/* AI Ingredient Substitution (Pro Feature) — isPro 면 블러·오버레이 해제 */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-semibold text-white mb-6">UnfoldK Ingredient Finder</h2>
-          <div className="relative">
-            <div
-              className={`bg-[#1a1a1a] border border-border/30 rounded-xl p-6 ${
-                isPro ? "" : "blur-[4px] pointer-events-none"
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <Bot className="w-6 h-6" style={{ color: "#FF4B6E" }} />
-                <h3 className="text-lg font-semibold text-white">Local Ingredient Finder</h3>
-              </div>
-              <p className="text-muted-foreground text-sm mb-6">
-                Enter a Korean dish name and select your country — UnfoldK will show you where
-                to find every ingredient at your local stores.
-              </p>
+        {/* ── Local Ingredient Matcher + My Shopping List ──────────────
+            두 섹션을 하나의 relative 컨테이너로 통합 Pro 잠금.
+            비Pro: 전체 blur-[4px] + 중앙 단일 오버레이.
+            Pro: 정상 접근.                                         */}
+        <div className="relative mb-16">
+          <div className={isPro ? "" : "blur-[4px] pointer-events-none select-none"}>
 
-              <form
-                onSubmit={handleFinderSubmit}
-                className="grid grid-cols-1 md:grid-cols-[1fr_240px_auto] gap-3 mb-6"
-              >
-                {/* 음식명 입력 */}
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">
-                    Korean Dish Name
-                  </label>
-                  <Input
-                    value={finderDish}
-                    onChange={(e) => setFinderDish(e.target.value)}
-                    placeholder="e.g. 부추김치, 비빔밥, 김치찌개"
-                    maxLength={80}
-                    className="bg-[#0d0d0f] border-[#2a2a2a] rounded-lg text-foreground placeholder:text-muted-foreground"
-                  />
+            {/* Local Ingredient Matcher */}
+            <section className="mb-12">
+              <h2 className="text-2xl font-semibold text-white mb-6">Local Ingredient Matcher</h2>
+              <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <Bot className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+                  <h3 className="text-lg font-semibold text-white">Local Ingredient Matcher</h3>
                 </div>
-
-                {/* 국가 선택 — 지역별 optgroup */}
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">
-                    Your country
-                  </label>
-                  <select
-                    value={finderCountry}
-                    onChange={(e) => setFinderCountry(e.target.value)}
-                    className="w-full h-10 bg-[#0d0d0f] border border-[#2a2a2a] rounded-lg px-3 text-foreground focus:outline-none focus:ring-1 focus:ring-[#FF4B6E]"
-                  >
-                    {COUNTRY_GROUPS.map((grp) => (
-                      <optgroup key={grp.region} label={grp.region}>
-                        {grp.options.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 제출 */}
-                <div className="md:self-end">
-                  <Button
-                    type="submit"
-                    disabled={finderLoading || finderDish.trim().length === 0}
-                    className="h-10 rounded-full font-medium text-white px-5 w-full md:w-auto"
-                    style={{ backgroundColor: "#FF4B6E" }}
-                  >
-                    <Sparkles className="w-4 h-4 mr-1.5" />
-                    {finderLoading ? "Finding..." : "Find"}
-                  </Button>
-                </div>
-              </form>
-
-              {/* 결과 / 에러 / 빈 상태 */}
-              {finderError ? (
-                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 text-sm text-red-400">
-                  {finderError}
-                </div>
-              ) : finderResult ? (
-                <div className="space-y-3">
-                  {/* 재료별 카드 — 원재료(한글) / 현지 대체품(영문) / 구매처 / 난이도 + Add to List */}
-                  {finderResult.items.map((item, i) => {
-                    const inList = shoppingItems.some(
-                      (s) => s.name.toLowerCase() === item.substitute_en.toLowerCase()
-                    )
-                    const diffColors: Record<FinderItem["difficulty"], string> = {
-                      Easy: "bg-green-500/20 text-green-400",
-                      Medium: "bg-yellow-500/20 text-yellow-400",
-                      Hard: "bg-red-500/20 text-red-400",
-                    }
-                    return (
-                      <div
-                        key={i}
-                        className="bg-[#252525] rounded-lg p-4 grid grid-cols-1 md:grid-cols-[1.2fr_1.5fr_1.4fr_auto] gap-3 items-center"
-                      >
-                        {/* 원재료 한글 */}
-                        <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
-                            Ingredient
-                          </p>
-                          <p className="text-foreground font-medium truncate">
-                            {item.ingredient_ko}
-                          </p>
-                        </div>
-                        {/* 현지 대체품 영문 */}
-                        <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
-                            Local substitute
-                          </p>
-                          <p className="text-foreground text-sm truncate">
-                            {item.substitute_en}
-                          </p>
-                        </div>
-                        {/* 구매처 + 난이도 */}
-                        <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
-                            Where to buy
-                          </p>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-muted-foreground text-sm truncate">
-                              {item.store}
-                            </span>
-                            <span
-                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${diffColors[item.difficulty]}`}
-                            >
-                              {item.difficulty}
-                            </span>
-                          </div>
-                        </div>
-                        {/* Add to List */}
-                        <div className="md:justify-self-end">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={inList}
-                            onClick={() => handleAddToShoppingList(item.substitute_en)}
-                            className="h-8 px-3 text-xs bg-transparent border-[#3a3a3a] text-foreground hover:bg-[#1a1a1a] whitespace-nowrap"
-                          >
-                            {inList ? (
-                              <>
-                                <Check className="w-3 h-3 mr-1" />
-                                Added
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="w-3 h-3 mr-1" />
-                                Add to List
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {finderResult.items.length === 0 && (
-                    <p className="text-muted-foreground text-sm">
-                      No essential ingredients identified for this dish — try a different name.
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">
-                  Enter a Korean dish above — UnfoldK will list each essential ingredient
-                  and where to source it locally.
+                <p className="text-muted-foreground text-sm mb-6">
+                  Enter a Korean dish name and select your country — UnfoldK will show you where
+                  to find every ingredient at your local stores.
                 </p>
-              )}
-            </div>
 
-            {/* Upgrade Overlay */}
-            {!isPro && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
-                  <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
-                  <p className="text-white font-medium mb-2">Coming with Hallyu Pass</p>
-                  <p className="text-muted-foreground text-xs mb-4">Available at launch.</p>
-                  <Link href="/signup">
+                <form
+                  onSubmit={handleFinderSubmit}
+                  className="grid grid-cols-1 md:grid-cols-[1fr_240px_auto] gap-3 mb-6"
+                >
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">
+                      Korean Dish Name
+                    </label>
+                    <Input
+                      value={finderDish}
+                      onChange={(e) => setFinderDish(e.target.value)}
+                      placeholder="e.g. 부추김치, 비빔밥, 김치찌개"
+                      maxLength={80}
+                      className="bg-[#0d0d0f] border-[#2a2a2a] rounded-lg text-foreground placeholder:text-muted-foreground"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">
+                      Your country
+                    </label>
+                    <select
+                      value={finderCountry}
+                      onChange={(e) => setFinderCountry(e.target.value)}
+                      className="w-full h-10 bg-[#0d0d0f] border border-[#2a2a2a] rounded-lg px-3 text-foreground focus:outline-none focus:ring-1 focus:ring-[#FF4B6E]"
+                    >
+                      {COUNTRY_GROUPS.map((grp) => (
+                        <optgroup key={grp.region} label={grp.region}>
+                          {grp.options.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="md:self-end">
                     <Button
-                      className="rounded-full font-medium text-white"
+                      type="submit"
+                      disabled={finderLoading || finderDish.trim().length === 0}
+                      className="h-10 rounded-full font-medium text-white px-5 w-full md:w-auto"
                       style={{ backgroundColor: "#FF4B6E" }}
                     >
-                      Notify me at launch
+                      <Sparkles className="w-4 h-4 mr-1.5" />
+                      {finderLoading ? "Finding..." : "Find"}
                     </Button>
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
+                  </div>
+                </form>
 
-        {/* My Shopping List — localStorage 영속화. 로그인·Pro 불필요. */}
-        <section className="mb-16">
-          <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
-            <h2 className="text-2xl font-semibold text-white">My Shopping List</h2>
-            {shoppingItems.length > 0 && (
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleSaveShoppingListAsImage}
-                  disabled={savingImage}
-                  className="text-xs font-medium px-3 py-1.5 rounded-full border border-[#3a3a3a] text-foreground hover:bg-[#1a1a1a] disabled:opacity-60 inline-flex items-center gap-1.5"
-                >
-                  <Download className="w-3 h-3" />
-                  {savingImage ? "Saving…" : "Save as Image"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleClearShoppingList}
-                  className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                >
-                  Clear all
-                </button>
+                {finderError ? (
+                  <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 text-sm text-red-400">
+                    {finderError}
+                  </div>
+                ) : finderResult ? (
+                  <div className="space-y-3">
+                    {finderResult.items.map((item, i) => {
+                      const inList = shoppingItems.some(
+                        (s) => s.name.toLowerCase() === item.substitute_en.toLowerCase()
+                      )
+                      const diffColors: Record<FinderItem["difficulty"], string> = {
+                        Easy: "bg-green-500/20 text-green-400",
+                        Medium: "bg-yellow-500/20 text-yellow-400",
+                        Hard: "bg-red-500/20 text-red-400",
+                      }
+                      return (
+                        <div
+                          key={i}
+                          className="bg-[#252525] rounded-lg p-4 grid grid-cols-1 md:grid-cols-[1.2fr_1.5fr_1.4fr_auto] gap-3 items-center"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
+                              Ingredient
+                            </p>
+                            <p className="text-foreground font-medium truncate">{item.ingredient_ko}</p>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
+                              Local substitute
+                            </p>
+                            <p className="text-foreground text-sm truncate">{item.substitute_en}</p>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
+                              Where to buy
+                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-muted-foreground text-sm truncate">{item.store}</span>
+                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${diffColors[item.difficulty]}`}>
+                                {item.difficulty}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="md:justify-self-end">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={inList}
+                              onClick={() => handleAddToShoppingList(item.substitute_en)}
+                              className="h-8 px-3 text-xs bg-transparent border-[#3a3a3a] text-foreground hover:bg-[#1a1a1a] whitespace-nowrap"
+                            >
+                              {inList ? (
+                                <><Check className="w-3 h-3 mr-1" />Added</>
+                              ) : (
+                                <><Plus className="w-3 h-3 mr-1" />Add to List</>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {finderResult.items.length === 0 && (
+                      <p className="text-muted-foreground text-sm">
+                        No essential ingredients identified for this dish — try a different name.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    Enter a Korean dish above — UnfoldK will list each essential ingredient
+                    and where to source it locally.
+                  </p>
+                )}
               </div>
-            )}
+            </section>
+
+            {/* My Shopping List */}
+            <section>
+              <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
+                <h2 className="text-2xl font-semibold text-white">My Shopping List</h2>
+                {isPro && shoppingItems.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleSaveShoppingListAsImage}
+                      disabled={savingImage}
+                      className="text-xs font-medium px-3 py-1.5 rounded-full border border-[#3a3a3a] text-foreground hover:bg-[#1a1a1a] disabled:opacity-60 inline-flex items-center gap-1.5"
+                    >
+                      <Download className="w-3 h-3" />
+                      {savingImage ? "Saving…" : "Save as Image"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearShoppingList}
+                      className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
+              </div>
+              <p className="text-muted-foreground text-sm mb-6">
+                Use the Local Ingredient Matcher above to find local substitutes — then add them to
+                your shopping list.
+              </p>
+              <div
+                ref={shoppingBoxRef}
+                className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6"
+              >
+                {shoppingItems.length === 0 ? (
+                  <div className="text-center py-6">
+                    <ShoppingCart className="w-8 h-8 mx-auto mb-3 text-muted-foreground/60" />
+                    <p className="text-muted-foreground text-sm">
+                      Your list is empty. Use the Local Ingredient Matcher above and tap{" "}
+                      <span className="text-foreground font-medium">Add to List</span> on any substitute.
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="space-y-2">
+                    {shoppingItems.map((item) => (
+                      <li key={item.id} className="flex items-center gap-3 group">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleShoppingItem(item.id)}
+                          aria-label={item.checked ? `Uncheck ${item.name}` : `Check ${item.name}`}
+                          className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                            item.checked
+                              ? "border-[#FF4B6E] bg-[#FF4B6E]"
+                              : "border-border/50 hover:border-foreground/50"
+                          }`}
+                        >
+                          {item.checked && <Check className="w-3 h-3 text-white" />}
+                        </button>
+                        <span
+                          className={`flex-1 text-sm ${
+                            item.checked ? "line-through text-muted-foreground" : "text-foreground"
+                          }`}
+                        >
+                          {item.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveShoppingItem(item.id)}
+                          aria-label={`Remove ${item.name}`}
+                          className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        >
+                          <XIcon className="w-4 h-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {isPro && shoppingItems.length > 0 && (
+                  <div className="mt-6 pt-4 border-t border-border/20 text-center">
+                    <p className="text-[11px] tracking-wider text-muted-foreground/70">
+                      unfoldk.com
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+
           </div>
-          <p className="text-muted-foreground text-sm mb-6">
-            Use the Ingredient Finder above to find local substitutes — then add them to
-            your shopping list.
-          </p>
-          <div
-            ref={shoppingBoxRef}
-            className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6"
-          >
-            {shoppingItems.length === 0 ? (
-              <div className="text-center py-6">
-                <ShoppingCart className="w-8 h-8 mx-auto mb-3 text-muted-foreground/60" />
-                <p className="text-muted-foreground text-sm">
-                  Your list is empty. Use the Ingredient Finder above and tap{" "}
-                  <span className="text-foreground font-medium">Add to List</span> on any substitute.
+
+          {/* 통합 Pro 잠금 오버레이 — 두 섹션 중앙 */}
+          {!isPro && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-8 text-center shadow-xl max-w-xs w-full mx-4">
+                <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: "#FF4B6E" }} />
+                <p className="text-white font-medium mb-2">Coming with Hallyu Pass</p>
+                <p className="text-muted-foreground text-xs mb-4">
+                  Find local substitutes for Korean ingredients and manage your shopping list.
                 </p>
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {shoppingItems.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center gap-3 group"
+                <Link href="/signup">
+                  <Button
+                    className="rounded-full font-medium text-white"
+                    style={{ backgroundColor: "#FF4B6E" }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => handleToggleShoppingItem(item.id)}
-                      aria-label={item.checked ? `Uncheck ${item.name}` : `Check ${item.name}`}
-                      className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
-                        item.checked
-                          ? "border-[#FF4B6E] bg-[#FF4B6E]"
-                          : "border-border/50 hover:border-foreground/50"
-                      }`}
-                    >
-                      {item.checked && <Check className="w-3 h-3 text-white" />}
-                    </button>
-                    <span
-                      className={`flex-1 text-sm ${
-                        item.checked
-                          ? "line-through text-muted-foreground"
-                          : "text-foreground"
-                      }`}
-                    >
-                      {item.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveShoppingItem(item.id)}
-                      aria-label={`Remove ${item.name}`}
-                      className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                    >
-                      <XIcon className="w-4 h-4" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {/* 워터마크 — 항목 있을 때만. PNG 캡처 시 함께 포함 (브랜드 출처). */}
-            {shoppingItems.length > 0 && (
-              <div className="mt-6 pt-4 border-t border-border/20 text-center">
-                <p className="text-[11px] tracking-wider text-muted-foreground/70">
-                  unfoldk.com
-                </p>
+                    Notify me at launch
+                  </Button>
+                </Link>
               </div>
-            )}
-          </div>
-        </section>
+            </div>
+          )}
+        </div>
 
-        {/* This Week's K-Drama Food Guide — My Shopping List 아래. 데이터 없으면 자동 미노출. */}
+        {/* This Week's K-Drama Food Guide — Free 전체 개방 (2026-06-01 변경) */}
         <DramaFoodGuideSection onRecipeClick={(id) => setActiveRecipeId(id)} />
       </main>
 

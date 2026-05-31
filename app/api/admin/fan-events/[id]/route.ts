@@ -41,7 +41,7 @@ export async function PATCH(
   // 1. 신청 행 조회 (이미 처리된 건 제외)
   const { data: req, error: fetchErr } = await supabase
     .from("fan_event_requests")
-    .select("id, user_id, title, description, event_date, location, status, proof_url")
+    .select("id, user_id, title, description, event_date, location, status, proof_url, contact_email, registration_link")
     .eq("id", id)
     .single()
 
@@ -91,6 +91,8 @@ export async function PATCH(
     source_id: `fer-${req.id}`,                          // unique 제약 회피
     is_premium: false,
     thumbnail_url: proofIsImage ? req.proof_url : null,
+    contact_email: (req as { contact_email?: string | null }).contact_email ?? null,
+    registration_link: (req as { registration_link?: string | null }).registration_link ?? null,
   })
   if (insertErr) {
     console.error("[admin/fan-events] 캘린더 삽입 실패:", insertErr.message)

@@ -22,6 +22,9 @@ export interface AdminFanEventRow {
   social_instagram: string | null
   social_x: string | null
   social_other: string | null
+  // 0056 신청 버튼용 연락처·링크
+  contact_email: string | null
+  registration_link: string | null
   // 이 사용자의 "본 row 를 제외한" 누적 승인 횟수 — 어드민이 같은 사용자
   // 반복 승인 패턴(쿠폰 farming)을 즉시 인지할 수 있도록 행마다 노출.
   prior_approved_count: number
@@ -37,7 +40,7 @@ async function loadRequests(): Promise<LoadResult> {
   const { data, error } = await supabase
     .from("fan_event_requests")
     .select(
-      "id, user_id, title, description, event_date, location, proof_url, status, admin_note, created_at, reviewed_at, social_instagram, social_x, social_other"
+      "id, user_id, title, description, event_date, location, proof_url, status, admin_note, created_at, reviewed_at, social_instagram, social_x, social_other, contact_email, registration_link"
     )
     .order("created_at", { ascending: false })
     .limit(500)

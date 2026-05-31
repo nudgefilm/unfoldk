@@ -33,6 +33,8 @@ interface CalendarEvent {
   venueCity?: string
   venueCountryCode?: string              // ISO 3166-1 alpha-2 (US, GB, JP, BR ...)
   createdAt?: string                     // ISO string — Featured 정렬 키 (등록순)
+  contactEmail?: string                  // fan_event_request 행사 주최자 연락처 이메일
+  registrationLink?: string              // fan_event_request 행사 신청 URL (Google Form 등)
 }
 
 // ISO 3166-1 alpha-2 → flag emoji (regional indicator symbols).
@@ -79,9 +81,14 @@ function shouldShowWatchNow(event: CalendarEvent): boolean {
   return event.sourceApi === "tmdb" && !!event.url
 }
 
-// 이벤트 1차 CTA 가 외부 링크 (Get Tickets / Watch Now) 인지 — Add to GCal 강등 판정용.
+// 유저 등록 fan_event_request 행사의 신청 버튼 — registration_link 우선, 없으면 contact_email.
+function shouldShowApplyButton(event: CalendarEvent): boolean {
+  return event.sourceApi === "fan_event_request" && (!!event.registrationLink || !!event.contactEmail)
+}
+
+// 이벤트 1차 CTA 가 외부 링크인지 — Add to GCal 강등 판정용.
 function hasExternalPrimaryCta(event: CalendarEvent): boolean {
-  return shouldShowGetTickets(event) || shouldShowWatchNow(event)
+  return shouldShowGetTickets(event) || shouldShowWatchNow(event) || shouldShowApplyButton(event)
 }
 
 const tabs = ["All", "K-pop", "K-drama", "Concert", "Fan Meet"] as const
@@ -357,6 +364,23 @@ function EventDetailModal({
               >
                 <Play className="w-4 h-4 mr-2" />
                 Watch Now
+              </Button>
+            </a>
+          )}
+          {/* Apply / Contact — fan_event_request 행사. registration_link 우선, 없으면 mailto: */}
+          {shouldShowApplyButton(event) && (
+            <a
+              href={event.registrationLink ?? `mailto:${event.contactEmail}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block"
+            >
+              <Button
+                className="w-full py-3 rounded-xl font-medium text-white"
+                style={{ backgroundColor: "#FF4B6E" }}
+              >
+                <Ticket className="w-4 h-4 mr-2" />
+                {event.registrationLink ? "Register Now" : "Contact Organizer"}
               </Button>
             </a>
           )}

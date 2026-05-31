@@ -26,6 +26,8 @@ const PostSchema = z.object({
   social_instagram: z.string().max(100).optional().nullable(),
   social_x: z.string().max(100).optional().nullable(),
   social_other: z.string().max(500).optional().nullable(),
+  contact_email: z.string().email().max(200).optional().nullable(),
+  registration_link: z.string().url().max(2000).optional().nullable(),
 })
 
 export async function GET() {
@@ -126,6 +128,8 @@ export async function POST(request: Request) {
       social_instagram: parsed.data.social_instagram?.trim() || null,
       social_x: parsed.data.social_x?.trim() || null,
       social_other: parsed.data.social_other?.trim() || null,
+      contact_email: parsed.data.contact_email?.trim() || null,
+      registration_link: parsed.data.registration_link?.trim() || null,
       status: "pending",
     })
     .select("id, status, created_at")

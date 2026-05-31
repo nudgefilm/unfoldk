@@ -150,6 +150,8 @@ export function KoreanContent() {
 
   // 6. Drama Pack 모달 — 카드 클릭 시 해당 드라마의 표현 목록 노출
   const [packModalDramaId, setPackModalDramaId] = useState<string | null>(null)
+  // intermediate/advanced 표현·팩 Pro 게이트 모달 (HangeulGo Free/Pro 확정 스펙 2026-06-01)
+  const [proGateOpen, setProGateOpen] = useState(false)
   const [packDetail, setPackDetail] = useState<PackDetail | null>(null)
   const [packDetailLoading, setPackDetailLoading] = useState(false)
 
@@ -664,6 +666,60 @@ export function KoreanContent() {
               <p className="text-center text-muted-foreground py-12">
                 {phraseError ?? "No phrase available."}
               </p>
+            ) : (phrase.difficulty === "intermediate" || phrase.difficulty === "advanced") && !isPro ? (
+              // intermediate / advanced 표현 Pro 잠금 (HangeulGo Free/Pro 확정 스펙 2026-06-01)
+              <>
+                {/* Drama tag — 맥락 정보는 유지 */}
+                <div className="flex flex-col items-center mb-6 gap-2">
+                  <span
+                    className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold"
+                    style={{
+                      backgroundColor: "rgba(255, 75, 110, 0.15)",
+                      color: "#FF4B6E",
+                      border: "1px solid rgba(255, 75, 110, 0.35)",
+                    }}
+                  >
+                    <Film className="w-4 h-4" />
+                    <span className="text-foreground/70 font-normal uppercase tracking-wider text-[10px]">
+                      Today&apos;s drama
+                    </span>
+                    <span>·</span>
+                    <span>{phrase.dramaName ?? "K-drama"}</span>
+                  </span>
+                </div>
+                <div className="py-6 flex flex-col items-center text-center">
+                  {/* 난이도 뱃지 */}
+                  <span
+                    className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full mb-5"
+                    style={
+                      phrase.difficulty === "intermediate"
+                        ? { backgroundColor: "rgba(251, 191, 36, 0.15)", color: "#fbbf24" }
+                        : { backgroundColor: "rgba(239, 68, 68, 0.15)", color: "#ef4444" }
+                    }
+                  >
+                    <Lock className="w-3 h-3" />
+                    {phrase.difficulty === "intermediate" ? "Intermediate" : "Advanced"}
+                  </span>
+                  <div
+                    className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
+                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
+                  >
+                    <Lock className="w-7 h-7" style={{ color: "#FF4B6E" }} />
+                  </div>
+                  <p className="text-foreground font-medium mb-2">Coming with Hallyu Pass</p>
+                  <p className="text-muted-foreground text-sm mb-5">
+                    Intermediate and advanced expressions unlock with Hallyu Pass.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setProGateOpen(true)}
+                    className="text-sm font-medium px-5 py-2.5 rounded-full text-white transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: "#FF4B6E" }}
+                  >
+                    Notify me at launch
+                  </button>
+                </div>
+              </>
             ) : (
               <>
                 {/* Drama Tag + 동일 표현 다른 드라마 출처 */}
@@ -930,15 +986,20 @@ export function KoreanContent() {
             >
               {filteredPacks.map((pack) => {
                 const dColor = difficultyColor(pack.difficulty)
-                // 오늘의 표현 드라마와 일치 시 카드 하이라이트 (primary 테두리 + ring + 우상단 Today 배지)
+                // 오늘의 표현 드라마와 일치 시 카드 하이라이트
                 const isTodaysDrama = !!phrase?.dramaId && phrase.dramaId === pack.id
+                // intermediate / advanced + 비-Pro → 개별 카드 잠금
+                const isPackLocked = (pack.difficulty === "intermediate" || pack.difficulty === "advanced") && !isPro
                 return (
                   <button
                     key={pack.id}
                     type="button"
-                    onClick={() => setPackModalDramaId(pack.id)}
-                    className={`flex-shrink-0 w-[240px] bg-[#1a1a1a] rounded-xl overflow-hidden transition-colors cursor-pointer text-left ${
-                      isTodaysDrama
+                    onClick={() => {
+                      if (isPackLocked) { setProGateOpen(true); return }
+                      setPackModalDramaId(pack.id)
+                    }}
+                    className={`flex-shrink-0 w-[240px] bg-[#1a1a1a] rounded-xl overflow-hidden transition-colors cursor-pointer text-left group ${
+                      isTodaysDrama && !isPackLocked
                         ? "ring-2 ring-primary border border-primary"
                         : "border border-border/30 hover:border-primary/50"
                     }`}
@@ -960,14 +1021,34 @@ export function KoreanContent() {
                           Drama Thumbnail
                         </div>
                       )}
-                      {/* Today 배지 — 오늘의 표현 드라마와 일치한 카드 우상단 */}
-                      {isTodaysDrama && (
+                      {/* Today 배지 */}
+                      {isTodaysDrama && !isPackLocked && (
                         <span
                           className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider text-white shadow-md"
                           style={{ backgroundColor: "#FF4B6E" }}
                         >
                           Today
                         </span>
+                      )}
+                      {/* Pro 뱃지 — 잠금 카드 우상단 */}
+                      {isPackLocked && (
+                        <div className="absolute top-2 right-2 z-10">
+                          <span
+                            className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                            style={{ backgroundColor: "rgba(255,75,110,0.92)", color: "white" }}
+                          >
+                            <Lock className="w-2.5 h-2.5" /> Pro
+                          </span>
+                        </div>
+                      )}
+                      {/* hover 오버레이 — 잠금 카드만 */}
+                      {isPackLocked && (
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <div className="text-center px-3">
+                            <Lock className="w-7 h-7 text-white mx-auto mb-1.5" />
+                            <p className="text-white text-xs font-medium leading-snug">Unlock with<br />Hallyu Pass</p>
+                          </div>
+                        </div>
                       )}
                     </div>
 
@@ -997,7 +1078,11 @@ export function KoreanContent() {
                         />
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {pack.progressPercent}% completed
+                        {isPackLocked ? (
+                          <span style={{ color: "#aaa" }}>Pro only</span>
+                        ) : (
+                          `${pack.progressPercent}% completed`
+                        )}
                       </p>
                     </div>
                   </button>
@@ -1025,23 +1110,7 @@ export function KoreanContent() {
                 <ChevronRight className="w-5 h-5" />
               </button>
             )}
-            {!isPro && (
-              <div className="absolute inset-0 flex items-center justify-center z-20 rounded-xl"
-                style={{ backgroundColor: "rgba(13, 13, 15, 0.88)" }}>
-                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
-                  <div
-                    className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-                    style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
-                  >
-                    <Lock className="w-6 h-6" style={{ color: "#FF4B6E" }} />
-                  </div>
-                  <p className="text-foreground font-medium mb-2">Coming with Hallyu Pass</p>
-                  <p className="text-muted-foreground text-sm">
-                    Unlock all Drama Learning Packs with Hallyu Pass
-                  </p>
-                </div>
-              </div>
-            )}
+            {/* 전체 오버레이 제거 — 개별 카드 단위 잠금으로 전환 (HangeulGo Free/Pro 확정 스펙 2026-06-01) */}
             </div>
             </>
           )}
@@ -1286,6 +1355,48 @@ export function KoreanContent() {
           loading={packDetailLoading}
           phraseContextMap={phraseContextMap}
         />
+      )}
+
+      {/* Intermediate / Advanced Pro 게이트 모달 */}
+      {proGateOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+          onClick={() => setProGateOpen(false)}
+        >
+          <div
+            className="relative bg-[#1a1a1a] border border-border/50 rounded-2xl p-6 text-center max-w-sm w-full shadow-xl animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setProGateOpen(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
+              style={{ backgroundColor: "rgba(255, 75, 110, 0.15)" }}
+            >
+              <Lock className="w-7 h-7" style={{ color: "#FF4B6E" }} />
+            </div>
+            <h3 className="text-foreground font-semibold text-lg mb-2">
+              Intermediate &amp; Advanced — Coming with Hallyu Pass
+            </h3>
+            <p className="text-muted-foreground text-sm mb-5 leading-relaxed">
+              Beginner expressions are free for everyone. Intermediate and advanced K-drama phrases unlock with Hallyu Pass.
+            </p>
+            <Link
+              href="/signup"
+              className="inline-block text-sm font-medium px-6 py-2.5 rounded-full text-white"
+              style={{ backgroundColor: "#FF4B6E" }}
+              onClick={() => setProGateOpen(false)}
+            >
+              Notify me at launch
+            </Link>
+          </div>
+        </div>
       )}
 
       <FooterSection />

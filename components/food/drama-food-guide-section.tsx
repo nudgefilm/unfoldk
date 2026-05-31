@@ -7,7 +7,7 @@ import { ChevronRight, Utensils, RefreshCw } from "lucide-react"
 //
 // food_recipes.featured_week 기반 주간 드라마 3개 노출.
 // 데이터 없으면 섹션 자체 미노출 (null 반환).
-// 로그인·Pro 불필요 — 자유 열람, 레시피 모달은 기존 권한 체크 위임.
+// Free 전체 개방 (2026-06-01 변경 — Pro 잠금 제거).
 
 interface FoodItem {
   recipe_id: string
@@ -117,17 +117,14 @@ export function DramaFoodGuideSection({
 
                     {/* 텍스트 */}
                     <div className="flex-1 min-w-0 pt-0.5">
-                      {/* 음식명 */}
                       <p className="text-sm font-medium text-white leading-tight mb-1 truncate">
                         {food.food_name_en ?? food.food_name}
                       </p>
-                      {/* 에피소드 태그 */}
                       {food.episode_tag && (
                         <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-[#2a2a2a] text-muted-foreground mb-1 leading-none">
                           {food.episode_tag}
                         </span>
                       )}
-                      {/* 장면 설명 */}
                       {food.scene_description && (
                         <p className="text-[11px] text-muted-foreground leading-snug line-clamp-5">
                           {food.scene_description}
