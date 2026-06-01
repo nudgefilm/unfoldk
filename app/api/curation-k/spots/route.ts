@@ -242,7 +242,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       { items, total: count ?? null, page, pageSize, locked: false },
-      { headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800" } }
+      { headers: { "Cache-Control": "no-store" } }
     )
   }
 
@@ -358,7 +358,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       { items, total, page, pageSize, locked: false },
-      { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } }
+      { headers: { "Cache-Control": "no-store" } }
     )
   }
 
@@ -378,7 +378,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json(
     { items, total: count ?? null, page, pageSize, locked: false },
-    { headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800" } }
+    { headers: { "Cache-Control": "no-store" } }
   )
 }
 

@@ -711,6 +711,19 @@ export default function CurationKPage() {
   const [geoItems, setGeoItems] = useState<GeoArtistItem[]>([])
   const [geoLoading, setGeoLoading] = useState(true)
 
+  // ─── 0. bfcache / 라우터 캐시 복귀 시 전체 카드 재셔플 ─────────
+  // pageshow(persisted) 로 브라우저 뒤로가기 복귀 감지 → 기존 items 재셔플.
+  useEffect(() => {
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setSpotsItems((prev) => (prev.length > 0 ? shuffleArray(prev) : prev))
+        setKpopSpots((prev) => (prev.length > 0 ? shuffleArray(prev) : prev))
+      }
+    }
+    window.addEventListener("pageshow", handlePageShow)
+    return () => window.removeEventListener("pageshow", handlePageShow)
+  }, [])
+
   // ─── 1. 한국 polygon ───────────────────────────────────────
   useEffect(() => {
     let cancelled = false

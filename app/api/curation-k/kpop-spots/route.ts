@@ -100,6 +100,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json(
     { items: rows.slice(0, limit) },
-    { headers: { "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=3600" } }
+    { headers: { "Cache-Control": "no-store" } }
   )
 }
