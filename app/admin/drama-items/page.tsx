@@ -154,10 +154,10 @@ export default function DramaItemsAdminPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full tracking-wide"
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wide"
                       style={{ color: CATEGORY_COLOR[item.category], background: `${CATEGORY_COLOR[item.category]}20` }}
                     >
-                      {CATEGORY_KO[item.category] ?? item.category}
+                      {item.category}
                     </span>
                     <span className="text-muted-foreground text-xs">
                       {item.drama_title}
