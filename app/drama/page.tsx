@@ -824,10 +824,7 @@ function DramaDetailModal({
                         key={p.provider_id}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a1a1a] border border-border/30 text-xs text-foreground"
                       >
-                        {p.logo_path && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.logo_path} alt="" className="w-4 h-4 rounded" />
-                        )}
+                        <Play className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#FF4B6E" }} />
                         {p.provider_name}
                       </span>
                     ))}
@@ -847,10 +844,6 @@ function DramaDetailModal({
                         key={n.id}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a1a1a] border border-border/30 text-xs text-foreground"
                       >
-                        {n.logo_path && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={n.logo_path} alt="" className="w-4 h-4 rounded" />
-                        )}
                         {n.name}
                       </span>
                     ))}
