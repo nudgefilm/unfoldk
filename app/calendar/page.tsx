@@ -1254,6 +1254,8 @@ export default function HallyuCalendarPage() {
                 const isLocked = !isPro && lockedTabs.includes(tab)
                 return (
                   <div key={tab} className="relative">
+                    {/* 잠긴 탭: 비로그인 AuthGate 차단. 로그인 비Pro: 탭 전환 허용 + UpgradeModal. */}
+                    <AuthGate isLoggedIn={isLocked ? isLoggedIn : null}>
                     <button
                       onClick={() => handleTabClick(tab)}
                       className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors relative flex items-center gap-1.5 ${
@@ -1265,13 +1267,13 @@ export default function HallyuCalendarPage() {
                       {tab}
                       {isLocked && <Lock className="w-3 h-3" />}
                       {activeTab === tab && (
-                        <span 
+                        <span
                           className="absolute bottom-0 left-0 right-0 h-0.5"
                           style={{ backgroundColor: "#FF4B6E" }}
                         />
                       )}
                     </button>
-
+                    </AuthGate>
                   </div>
                 )
               })}
