@@ -3756,7 +3756,7 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
                 y={tr.toY(l.lat)}
                 textAnchor="middle"
                 dominantBaseline="central"
-                fill="rgba(255,255,255,0.07)"
+                fill="rgba(255,255,255,0.20)"
                 fontSize="11"
                 fontWeight="500"
               >
