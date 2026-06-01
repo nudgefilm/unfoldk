@@ -164,7 +164,7 @@ export function KoreanContent() {
 
   // Explore Expressions 섹션 — 클라이언트 셔플 + 페이지네이션 + 호버 상태
   // 마운트 시 전체 fetch → Fisher-Yates 셔플 → 클라이언트 사이드 슬라이싱
-  const EXPLORE_PAGE_SIZE = 60
+  const EXPLORE_PAGE_SIZE = 30
   const [allShuffledPhrases, setAllShuffledPhrases] = useState<ExplorePhrase[]>([])
   const [explorePage, setExplorePage] = useState(1)
   const [exploreTotal, setExploreTotal] = useState(0)
