@@ -3923,16 +3923,19 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
             <rect width={W} height={H} fill="#0d0d0f" />
             <rect width={W} height={H} fill="url(#cmg)" />
 
-            {/* 서울 구 경계선 */}
-            {tr && tr.districtBounds.map((poly, idx) => (
-              <polygon
-                key={`db-${idx}`}
-                points={poly.map(([lat, lng]) => `${tr.toX(lng)},${tr.toY(lat)}`).join(" ")}
-                fill="none"
-                stroke="rgba(255,255,255,0.15)"
-                strokeWidth="0.8"
-              />
-            ))}
+            {/* 구 경계선·섬 외곽선 — 제주는 강화 스타일 */}
+            {tr && tr.districtBounds.map((poly, idx) => {
+              const isJeju = poly.some(([lat]) => lat < 34.0)
+              return (
+                <polygon
+                  key={`db-${idx}`}
+                  points={poly.map(([lat, lng]) => `${tr.toX(lng)},${tr.toY(lat)}`).join(" ")}
+                  fill="none"
+                  stroke={isJeju ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.15)"}
+                  strokeWidth={isJeju ? "1.5" : "0.8"}
+                />
+              )
+            })}
 
             {/* 강 — 뷰포트 안 강만 렌더링, smoothPath 로 곡선 처리 */}
             {tr && tr.rivers.map((river) => (
@@ -3975,23 +3978,62 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
               />
             )}
 
-            {/* 번호 핀 — 절반 크기 */}
-            {resolvedPins.map((pos, i) => (
-              <g key={`pin-${i}`}>
-                <circle cx={pos.x} cy={pos.y} r={MINI_MAP_PIN_R + 2} fill="rgba(255,75,110,0.10)" />
-                <circle cx={pos.x} cy={pos.y} r={MINI_MAP_PIN_R} fill="#FF4B6E" />
-                <text
-                  x={pos.x}
-                  y={pos.y}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fill="white"
-                  fontSize="6"
-                  fontWeight="700"
-                >
-                  {i + 1}
-                </text>
-              </g>
+            {/* 번호 핀 + 장소명 — 절반 크기, 우측 여백 부족 시 좌측 표시 */}
+            {resolvedPins.map((pos, i) => {
+              const rawName = dayStops[i]?.name ?? ""
+              const label = rawName.length > 10 ? rawName.slice(0, 10) + "…" : rawName
+              const toRight = pos.x <= W * 0.72
+              const labelX = toRight ? pos.x + MINI_MAP_PIN_R + 3 : pos.x - MINI_MAP_PIN_R - 3
+              return (
+                <g key={`pin-${i}`}>
+                  <circle cx={pos.x} cy={pos.y} r={MINI_MAP_PIN_R + 2} fill="rgba(255,75,110,0.10)" />
+                  <circle cx={pos.x} cy={pos.y} r={MINI_MAP_PIN_R} fill="#FF4B6E" />
+                  <text
+                    x={pos.x}
+                    y={pos.y}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fill="white"
+                    fontSize="6"
+                    fontWeight="700"
+                  >
+                    {i + 1}
+                  </text>
+                  {label && (
+                    <text
+                      x={labelX}
+                      y={pos.y}
+                      textAnchor={toRight ? "start" : "end"}
+                      dominantBaseline="central"
+                      fill="rgba(255,255,255,0.75)"
+                      fontSize="7"
+                      fontWeight="500"
+                    >
+                      {label}
+                    </text>
+                  )}
+                </g>
+              )
+            })}
+            {/* 나침반 방향 — 네 모서리 */}
+            {[
+              { d: "N", x: W / 2, y: 10,    a: "middle" },
+              { d: "S", x: W / 2, y: H - 6, a: "middle" },
+              { d: "W", x: 8,     y: H / 2, a: "start"  },
+              { d: "E", x: W - 8, y: H / 2, a: "end"    },
+            ].map(({ d, x, y, a }) => (
+              <text
+                key={d}
+                x={x}
+                y={y}
+                textAnchor={a as "start" | "middle" | "end"}
+                dominantBaseline="central"
+                fill="rgba(255,255,255,0.40)"
+                fontSize="8"
+                fontWeight="600"
+              >
+                {d}
+              </text>
             ))}
           </svg>
         )}
