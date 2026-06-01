@@ -33,25 +33,22 @@ export function TrialBanner() {
     const supabase = createSupabaseBrowserClient()
     let mounted = true
 
-    async function load() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!mounted) return
-
-      if (!user) {
-        // 비로그인 — isLoggedIn false 유지, ready만 true
-        setReady(true)
+    async function loadUser(userId: string | null) {
+      if (!userId) {
+        if (mounted) {
+          setIsLoggedIn(false)
+          setTrialEndsAt(null)
+          setReady(true)
+        }
         return
       }
 
-      setIsLoggedIn(true)
+      if (mounted) setIsLoggedIn(true)
 
       const { data } = await supabase
         .from("users")
         .select("trial_ends_at, plan_type")
-        .eq("id", user.id)
+        .eq("id", userId)
         .maybeSingle()
 
       if (!mounted) return
@@ -66,9 +63,23 @@ export function TrialBanner() {
       setReady(true)
     }
 
-    load()
+    // 초기 로드: 서버 검증으로 JWT 유효성 확인 (getSession 대신 getUser 사용)
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!mounted) return
+      loadUser(user?.id ?? null)
+    })
+
+    // 로그아웃·로그인 이벤트 실시간 반응 — 로그아웃 시 배너 즉시 숨김
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return
+      loadUser(session?.user?.id ?? null)
+    })
+
     return () => {
       mounted = false
+      subscription.unsubscribe()
     }
   }, [])
 
