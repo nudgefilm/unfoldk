@@ -162,9 +162,10 @@ export function KoreanContent() {
   // intermediate/advanced 표현·팩 Pro 게이트 모달 (HangeulGo Free/Pro 확정 스펙 2026-06-01)
   const [proGateOpen, setProGateOpen] = useState(false)
 
-  // Explore Expressions 섹션 — 페이지네이션 + 호버 상태 (CSS group-hover 대신 React state)
-  const EXPLORE_LIMIT = 60
-  const [explorePhrases, setExplorePhrases] = useState<ExplorePhrase[]>([])
+  // Explore Expressions 섹션 — 클라이언트 셔플 + 페이지네이션 + 호버 상태
+  // 마운트 시 전체 fetch → Fisher-Yates 셔플 → 클라이언트 사이드 슬라이싱
+  const EXPLORE_PAGE_SIZE = 100
+  const [allShuffledPhrases, setAllShuffledPhrases] = useState<ExplorePhrase[]>([])
   const [explorePage, setExplorePage] = useState(1)
   const [exploreTotal, setExploreTotal] = useState(0)
   const [exploreLoading, setExploreLoading] = useState(true)
@@ -353,21 +354,28 @@ export function KoreanContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phrase?.id, isPro])
 
-  // ─── Explore Expressions 페이지 fetch
+  // ─── Explore Expressions — 마운트 시 전체 fetch + 클라이언트 랜덤 셔플
+  // 페이지 로드마다 다른 조합 노출. 이후 페이지네이션은 셔플된 배열 슬라이싱.
   useEffect(() => {
     setExploreLoading(true)
-    fetch(`/api/korean/phrases?page=${explorePage}&limit=${EXPLORE_LIMIT}`)
+    fetch("/api/korean/phrases?page=1&limit=500")
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((body: { phrases: ExplorePhrase[]; total: number }) => {
-        setExplorePhrases(body.phrases ?? [])
+        const arr = body.phrases ?? []
+        // Fisher-Yates 셔플
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1))
+          ;[arr[i], arr[j]] = [arr[j], arr[i]]
+        }
+        setAllShuffledPhrases(arr)
         setExploreTotal(body.total ?? 0)
       })
       .catch((err) => {
         console.error("[korean] explore fetch 실패:", err)
-        setExplorePhrases([])
+        setAllShuffledPhrases([])
       })
       .finally(() => setExploreLoading(false))
-  }, [explorePage])
+  }, [])
 
   // ─── 스트릭 fetch (로그인 시만 유효)
   useEffect(() => {
@@ -1372,8 +1380,8 @@ export function KoreanContent() {
         </section>
 
         {/* ── Explore Expressions ──────────────────────────────────────
-            페이지당 60개 표현, 6줄 높이 제한, 넘치면 다음 페이지.
-            intermediate / advanced + !isPro → hover 시 🔒 표시.        */}
+            마운트 시 전체 표현 랜덤 셔플 → 클라이언트 페이지네이션.
+            페이지당 100개, 10줄 높이. intermediate / advanced + !isPro → 🔒 */}
         <section className="mb-16">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-semibold text-foreground">Explore Expressions</h2>
@@ -1386,15 +1394,19 @@ export function KoreanContent() {
 
           {exploreLoading ? (
             <p className="text-muted-foreground text-sm">Loading expressions...</p>
-          ) : explorePhrases.length === 0 ? (
+          ) : allShuffledPhrases.length === 0 ? (
             <p className="text-muted-foreground text-sm">No expressions yet.</p>
           ) : (
             <>
-              {/* 표현 박스 — flex-wrap, 6줄 높이 제한.
-                  overflow는 wrapper div에서만 처리해 내부 box 잘림 방지. */}
-              <div style={{ maxHeight: "290px", overflow: "hidden" }}>
-                <div className="flex flex-wrap gap-2 pb-2">
-                  {explorePhrases.map((ep) => {
+              {/* 표현 박스 — flex-wrap, 10줄 높이.
+                  maxHeight: 10행×40px + 9갭×8px + 하단여유 = 480px.
+                  overflow hidden 이전에 pb-2 충분히 확보해 마지막 행 잘림 방지. */}
+              <div style={{ maxHeight: "490px", overflow: "hidden", paddingBottom: "0" }}>
+                <div className="flex flex-wrap gap-2" style={{ paddingBottom: "10px" }}>
+                  {allShuffledPhrases.slice(
+                    (explorePage - 1) * EXPLORE_PAGE_SIZE,
+                    explorePage * EXPLORE_PAGE_SIZE,
+                  ).map((ep) => {
                     const isLocked = !isPro && (ep.difficulty === "intermediate" || ep.difficulty === "advanced")
                     const isHovered = hoveredExprId === ep.id
                     return (
@@ -1433,7 +1445,7 @@ export function KoreanContent() {
 
               {/* 페이지네이션 */}
               {(() => {
-                const totalPages = Math.max(1, Math.ceil(exploreTotal / EXPLORE_LIMIT))
+                const totalPages = Math.max(1, Math.ceil(allShuffledPhrases.length / EXPLORE_PAGE_SIZE))
                 if (totalPages <= 1) return null
                 return (
                   <div className="flex items-center justify-between mt-5">

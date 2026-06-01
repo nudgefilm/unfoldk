@@ -2,11 +2,11 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
-// GET /api/korean/phrases — Explore Expressions 섹션용 페이지네이션 목록
+// GET /api/korean/phrases — Explore Expressions 섹션용 전체 목록
 //
 // 쿼리:
 //   page  : 1-based 페이지 번호 (기본 1)
-//   limit : 페이지당 항목 수 (기본 60, 최대 120)
+//   limit : 페이지당 항목 수 (기본 60, 최대 500) — 클라이언트가 한 번에 전체 fetch 후 셔플
 //
 // 응답: { phrases, total, page, limit }
 
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic"
 
 const QuerySchema = z.object({
   page:  z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(120).default(60),
+  limit: z.coerce.number().int().min(1).max(500).default(60),
 })
 
 export async function GET(request: Request) {
