@@ -29,51 +29,66 @@ async function loadCollectionStats(): Promise<ServiceCollectionStat[]> {
   const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString()
 
   const [
-    calLatest,
+    calTotal,
     calToday,
-    kpopLatest,
+    calLatest,
+    kpopArtistTotal,
     kpopToday,
+    kpopLatest,
     dramaTotal,
+    dramaToday,
     dramaCronLog,
     foodTotal,
-    foodTagged,
+    foodToday,
     foodCronLog,
     phraseTotal,
-    phraseTagged,
+    phraseToday,
     phraseCronLog,
     spotTotal,
+    spotToday,
     tourTotal,
+    tourToday,
     curationCronLog,
   ] = await Promise.all([
-    // HallyuCalendar — 마지막 수집 이벤트
-    supabase.from("hallyu_calendar_events").select("created_at").order("created_at", { ascending: false }).limit(1),
+    // HallyuCalendar — 총 이벤트
+    supabase.from("hallyu_calendar_events").select("id", { count: "exact", head: true }),
     // HallyuCalendar — 오늘 추가
     supabase.from("hallyu_calendar_events").select("id", { count: "exact", head: true }).gte("created_at", startOfDay),
+    // HallyuCalendar — 최종 업데이트(마지막 수집 이벤트)
+    supabase.from("hallyu_calendar_events").select("created_at").order("created_at", { ascending: false }).limit(1),
+    // KpopStats — 총 아티스트
+    supabase.from("kpop_artists").select("id", { count: "exact", head: true }),
+    // KpopStats — 오늘 통계 수집된 아티스트
+    supabase.from("kpop_stats_daily").select("artist_id", { count: "exact", head: true }).eq("date", todayUtc),
     // KpopStats — 최신 통계 날짜
     supabase.from("kpop_stats_daily").select("date").order("date", { ascending: false }).limit(1),
-    // KpopStats — 오늘 업데이트된 아티스트
-    supabase.from("kpop_stats_daily").select("artist_id", { count: "exact", head: true }).eq("date", todayUtc),
     // KdramaMatch — 총 드라마
     supabase.from("dramas").select("id", { count: "exact", head: true }),
+    // KdramaMatch — 오늘 추가
+    supabase.from("dramas").select("id", { count: "exact", head: true }).gte("created_at", startOfDay),
     // KdramaMatch — 마지막 cron 로그
     supabase.from("cron_logs").select("executed_at, status").eq("route", "ingest-tmdb-dramas").order("executed_at", { ascending: false }).limit(1),
     // KfoodKit — 총 레시피
     supabase.from("food_recipes").select("id", { count: "exact", head: true }),
-    // KfoodKit — 드라마 태깅된 레시피
-    supabase.from("food_recipes").select("id", { count: "exact", head: true }).not("drama_title", "is", null),
+    // KfoodKit — 오늘 추가
+    supabase.from("food_recipes").select("id", { count: "exact", head: true }).gte("created_at", startOfDay),
     // KfoodKit — 마지막 cron 로그
     supabase.from("cron_logs").select("executed_at, status").eq("route", "ingest-food-recipes").order("executed_at", { ascending: false }).limit(1),
     // HangeulGo — 총 표현
     supabase.from("korean_phrases").select("id", { count: "exact", head: true }),
-    // HangeulGo — emotion_tag 태깅
-    supabase.from("korean_phrases").select("id", { count: "exact", head: true }).not("emotion_tag", "is", null),
+    // HangeulGo — 오늘 추가
+    supabase.from("korean_phrases").select("id", { count: "exact", head: true }).gte("created_at", startOfDay),
     // HangeulGo — 마지막 cron 로그
     supabase.from("cron_logs").select("executed_at, status").eq("route", "ingest-korean-phrases").order("executed_at", { ascending: false }).limit(1),
     // Curation K — 총 촬영지
     supabase.from("filming_spots").select("id", { count: "exact", head: true }),
+    // Curation K — 오늘 추가 촬영지
+    supabase.from("filming_spots").select("id", { count: "exact", head: true }).gte("created_at", startOfDay),
     // Curation K — 총 관광지
     supabase.from("tour_spots").select("id", { count: "exact", head: true }),
-    // Curation K — 마지막 cron 로그 (ingest-curation-k 또는 구 ingest-tour-spots)
+    // Curation K — 오늘 추가 관광지
+    supabase.from("tour_spots").select("id", { count: "exact", head: true }).gte("created_at", startOfDay),
+    // Curation K — 마지막 cron 로그
     supabase.from("cron_logs").select("executed_at, status").in("route", ["ingest-curation-k", "ingest-tour-spots", "ingest-filming-kpop"]).eq("status", "success").order("executed_at", { ascending: false }).limit(1),
   ])
 
@@ -81,25 +96,21 @@ async function loadCollectionStats(): Promise<ServiceCollectionStat[]> {
   const calLastIso: string | null = (calLatest.data?.[0] as { created_at: string } | undefined)?.created_at ?? null
   const kpopLastDate: string | null = (kpopLatest.data?.[0] as { date: string } | undefined)?.date ?? null
 
-  // cron_logs 최신 행 파싱 — executed_at + status
   const dramaCron = (dramaCronLog.data?.[0] as CronLogRow | undefined) ?? null
-  const foodCron = (foodCronLog.data?.[0] as CronLogRow | undefined) ?? null
+  const foodCron  = (foodCronLog.data?.[0]  as CronLogRow | undefined) ?? null
   const phraseCron = (phraseCronLog.data?.[0] as CronLogRow | undefined) ?? null
   const curationCron = (curationCronLog.data?.[0] as CronLogRow | undefined) ?? null
 
-  const calHours = hoursAgo(calLastIso)
+  const calHours  = hoursAgo(calLastIso)
   const kpopHours = kpopLastDate ? hoursAgo(kpopLastDate + "T23:59:59Z") : null
-  // 주간 cron 임계값: 8일(7일+24h 여유). 마지막 성공이 8일 이내면 ok.
   const WEEKLY_OK_HOURS = 8 * 24
-  // 일간 cron 임계값: 48h
-  const DAILY_OK_HOURS = 48
+  const DAILY_OK_HOURS  = 48
 
   function cronStatus(cron: CronLogRow | null, thresholdHours: number): ServiceCollectionStat["status"] {
     if (!cron) return "unknown"
     if (cron.status !== "success") return "warn"
     const h = hoursAgo(cron.executed_at)
-    if (h === null) return "unknown"
-    return h < thresholdHours ? "ok" : "warn"
+    return h === null ? "unknown" : h < thresholdHours ? "ok" : "warn"
   }
 
   return [
@@ -108,8 +119,9 @@ async function loadCollectionStats(): Promise<ServiceCollectionStat[]> {
       status: calHours === null ? "unknown" : calHours < 48 ? "ok" : "warn",
       lastUpdated: calLastIso,
       rows: [
-        { key: "마지막 수집", value: fmtTime(calLastIso) },
-        { key: "오늘 추가", value: `${calToday.count ?? 0}건` },
+        { key: "총 수집",       value: `${(calTotal.count ?? 0).toLocaleString()}건` },
+        { key: "오늘 추가",     value: `${calToday.count ?? 0}건` },
+        { key: "최종 업데이트", value: fmtTime(calLastIso) },
       ],
     },
     {
@@ -117,8 +129,9 @@ async function loadCollectionStats(): Promise<ServiceCollectionStat[]> {
       status: kpopHours === null ? "unknown" : kpopHours < 48 ? "ok" : "warn",
       lastUpdated: kpopLastDate ? kpopLastDate + "T00:00:00Z" : null,
       rows: [
-        { key: "최신 통계 날짜", value: kpopLastDate ?? "—" },
-        { key: "오늘 업데이트", value: `${kpopToday.count ?? 0}명` },
+        { key: "총 수집",       value: `${(kpopArtistTotal.count ?? 0).toLocaleString()}명` },
+        { key: "오늘 추가",     value: `${kpopToday.count ?? 0}명` },
+        { key: "최종 업데이트", value: kpopLastDate ?? "—" },
       ],
     },
     {
@@ -126,9 +139,9 @@ async function loadCollectionStats(): Promise<ServiceCollectionStat[]> {
       status: cronStatus(dramaCron, WEEKLY_OK_HOURS),
       lastUpdated: dramaCron?.executed_at ?? null,
       rows: [
-        { key: "총 드라마", value: `${(dramaTotal.count ?? 0).toLocaleString()}편` },
-        { key: "마지막 cron", value: fmtTime(dramaCron?.executed_at ?? null) },
-        { key: "상태", value: dramaCron ? (dramaCron.status === "success" ? "성공" : "실패") : "—" },
+        { key: "총 수집",       value: `${(dramaTotal.count ?? 0).toLocaleString()}편` },
+        { key: "오늘 추가",     value: `${dramaToday.count ?? 0}편` },
+        { key: "최종 업데이트", value: fmtTime(dramaCron?.executed_at ?? null) },
       ],
     },
     {
@@ -136,9 +149,9 @@ async function loadCollectionStats(): Promise<ServiceCollectionStat[]> {
       status: cronStatus(foodCron, WEEKLY_OK_HOURS),
       lastUpdated: foodCron?.executed_at ?? null,
       rows: [
-        { key: "총 레시피", value: `${(foodTotal.count ?? 0).toLocaleString()}건` },
-        { key: "드라마 태깅", value: `${foodTagged.count ?? 0}건` },
-        { key: "마지막 cron", value: fmtTime(foodCron?.executed_at ?? null) },
+        { key: "총 수집",       value: `${(foodTotal.count ?? 0).toLocaleString()}건` },
+        { key: "오늘 추가",     value: `${foodToday.count ?? 0}건` },
+        { key: "최종 업데이트", value: fmtTime(foodCron?.executed_at ?? null) },
       ],
     },
     {
@@ -146,9 +159,9 @@ async function loadCollectionStats(): Promise<ServiceCollectionStat[]> {
       status: cronStatus(phraseCron, DAILY_OK_HOURS),
       lastUpdated: phraseCron?.executed_at ?? null,
       rows: [
-        { key: "총 표현", value: `${(phraseTotal.count ?? 0).toLocaleString()}건` },
-        { key: "emotion 태깅", value: `${phraseTagged.count ?? 0}건` },
-        { key: "마지막 cron", value: fmtTime(phraseCron?.executed_at ?? null) },
+        { key: "총 수집",       value: `${(phraseTotal.count ?? 0).toLocaleString()}건` },
+        { key: "오늘 추가",     value: `${phraseToday.count ?? 0}건` },
+        { key: "최종 업데이트", value: fmtTime(phraseCron?.executed_at ?? null) },
       ],
     },
     {
@@ -156,9 +169,9 @@ async function loadCollectionStats(): Promise<ServiceCollectionStat[]> {
       status: cronStatus(curationCron, WEEKLY_OK_HOURS),
       lastUpdated: curationCron?.executed_at ?? null,
       rows: [
-        { key: "촬영지", value: `${(spotTotal.count ?? 0).toLocaleString()}곳` },
-        { key: "관광지·맛집 등", value: `${(tourTotal.count ?? 0).toLocaleString()}건` },
-        { key: "마지막 cron", value: fmtTime(curationCron?.executed_at ?? null) },
+        { key: "총 수집",       value: `${((spotTotal.count ?? 0) + (tourTotal.count ?? 0)).toLocaleString()}건` },
+        { key: "오늘 추가",     value: `${(spotToday.count ?? 0) + (tourToday.count ?? 0)}건` },
+        { key: "최종 업데이트", value: fmtTime(curationCron?.executed_at ?? null) },
       ],
     },
   ]
