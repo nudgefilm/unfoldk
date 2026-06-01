@@ -29,8 +29,11 @@ export default function DramaItemsAdminPage() {
   const [items, setItems] = useState<DramaItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<"pending" | "approved" | "all">("pending")
+  const [page, setPage] = useState(1)
   const [urlDraft, setUrlDraft] = useState<Record<string, string>>({})
   const [, startTransition] = useTransition()
+
+  const PAGE_SIZE = 20
 
   useEffect(() => {
     setLoading(true)
@@ -46,6 +49,9 @@ export default function DramaItemsAdminPage() {
     if (filter === "approved") return it.is_approved
     return true
   })
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
   async function patch(id: string, payload: Record<string, unknown>) {
     const res = await fetch(`/api/admin/drama-items/${id}`, {
@@ -111,7 +117,7 @@ export default function DramaItemsAdminPage() {
           <button
             key={f}
             type="button"
-            onClick={() => setFilter(f)}
+            onClick={() => { setFilter(f); setPage(1) }}
             className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
               filter === f
                 ? "text-white border-[#FF4B6E]"
@@ -130,7 +136,7 @@ export default function DramaItemsAdminPage() {
         <p className="text-muted-foreground text-sm">항목 없음</p>
       ) : (
         <div className="space-y-3">
-          {filtered.map((item) => (
+          {paged.map((item) => (
             <div
               key={item.id}
               className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 space-y-3"
@@ -185,6 +191,43 @@ export default function DramaItemsAdminPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {!loading && filtered.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between pt-2 border-t border-border/30">
+          <p className="text-muted-foreground text-sm">
+            {((safePage - 1) * PAGE_SIZE + 1)}–{Math.min(safePage * PAGE_SIZE, filtered.length)} / {filtered.length}건
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                safePage <= 1
+                  ? "border-border/20 text-muted-foreground/40 cursor-not-allowed"
+                  : "border-border/40 text-foreground hover:bg-secondary/50"
+              }`}
+            >
+              이전
+            </button>
+            <span className="text-sm text-muted-foreground px-1">
+              {safePage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                safePage >= totalPages
+                  ? "border-border/20 text-muted-foreground/40 cursor-not-allowed"
+                  : "border-border/40 text-foreground hover:bg-secondary/50"
+              }`}
+            >
+              다음
+            </button>
+          </div>
         </div>
       )}
 
