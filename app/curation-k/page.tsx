@@ -3750,6 +3750,84 @@ const RIVER_PATHS: ReadonlyArray<RiverPath> = [
   ]},
 ]
 
+// ─── 해안선 — 개방형 곡선 [lat, lng] ────────────────────────────
+interface CoastlinePath {
+  readonly name: string
+  readonly opacity: number
+  readonly width: number
+  readonly points: ReadonlyArray<readonly [number, number]>
+}
+const COASTLINE_PATHS: ReadonlyArray<CoastlinePath> = [
+  // 부산 동해안 (광안리~해운대~기장)
+  { name: "Busan-E", opacity: 0.25, width: 1.5, points: [
+    [35.097, 129.036], [35.120, 129.090], [35.153, 129.118],
+    [35.158, 129.160], [35.179, 129.194], [35.222, 129.212], [35.272, 129.218],
+  ]},
+  // 부산 남해안 (남포동~영도)
+  { name: "Busan-S", opacity: 0.25, width: 1.5, points: [
+    [35.112, 129.033], [35.095, 129.020], [35.085, 129.018],
+    [35.072, 129.038], [35.068, 129.068], [35.072, 129.092],
+  ]},
+  // 강원 동해안 (속초~강릉~삼척)
+  { name: "Gangwon-E", opacity: 0.20, width: 1.5, points: [
+    [38.210, 128.595], [38.088, 128.614], [37.918, 128.700],
+    [37.755, 128.907], [37.622, 128.992], [37.452, 129.165],
+  ]},
+]
+
+// ─── 도시 외곽 경계 + 주요 도로선 ──────────────────────────────
+interface CityFeature {
+  readonly name: string
+  readonly closed: boolean   // true=외곽 폴리곤, false=도로 라인
+  readonly opacity: number
+  readonly width: number
+  readonly points: ReadonlyArray<readonly [number, number]>
+}
+const CITY_FEATURES: ReadonlyArray<CityFeature> = [
+  // ─── 경주 ──────────────────────────────────────────────────
+  { name: "Gyeongju-box", closed: true,  opacity: 0.15, width: 0.8, points: [
+    [35.870, 129.200], [35.870, 129.310], [35.800, 129.310], [35.800, 129.200],
+  ]},
+  { name: "Gyeongju-rd",  closed: false, opacity: 0.15, width: 0.6, points: [
+    [35.854, 129.215], [35.854, 129.280],
+  ]},
+  // ─── 전주 ──────────────────────────────────────────────────
+  { name: "Jeonju-box",   closed: true,  opacity: 0.15, width: 0.8, points: [
+    [35.845, 127.095], [35.845, 127.165], [35.798, 127.165], [35.798, 127.095],
+  ]},
+  { name: "Jeonju-rd",    closed: false, opacity: 0.15, width: 0.6, points: [
+    [35.820, 127.125], [35.820, 127.158],
+  ]},
+  // ─── 광주 ──────────────────────────────────────────────────
+  { name: "Gwangju-box",  closed: true,  opacity: 0.15, width: 0.8, points: [
+    [35.182, 126.855], [35.182, 126.945], [35.128, 126.945], [35.128, 126.855],
+  ]},
+  { name: "Gwangju-rd",   closed: false, opacity: 0.15, width: 0.6, points: [
+    [35.155, 126.890], [35.155, 126.938],
+  ]},
+  // ─── 대전 ──────────────────────────────────────────────────
+  { name: "Daejeon-box",  closed: true,  opacity: 0.15, width: 0.8, points: [
+    [36.390, 127.348], [36.390, 127.465], [36.300, 127.465], [36.300, 127.348],
+  ]},
+  { name: "Daejeon-rd",   closed: false, opacity: 0.15, width: 0.6, points: [
+    [36.332, 127.380], [36.332, 127.438],
+  ]},
+  // ─── 대구 ──────────────────────────────────────────────────
+  { name: "Daegu-box",    closed: true,  opacity: 0.15, width: 0.8, points: [
+    [35.900, 128.555], [35.900, 128.645], [35.840, 128.645], [35.840, 128.555],
+  ]},
+  { name: "Daegu-rd",     closed: false, opacity: 0.15, width: 0.6, points: [
+    [35.870, 128.570], [35.870, 128.628],
+  ]},
+  // ─── 인천 ──────────────────────────────────────────────────
+  { name: "Incheon-box",  closed: true,  opacity: 0.15, width: 0.8, points: [
+    [37.500, 126.590], [37.500, 126.735], [37.415, 126.735], [37.415, 126.590],
+  ]},
+  { name: "Incheon-rd",   closed: false, opacity: 0.15, width: 0.6, points: [
+    [37.475, 126.602], [37.475, 126.640],
+  ]},
+]
+
 // 핀 반지름 — 컴포넌트 밖 상수로 관리
 const MINI_MAP_PIN_R = 5
 
@@ -3862,8 +3940,14 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
     const rivers = RIVER_PATHS.filter((r) =>
       r.points.some(([lat, lng]) => inView(lat, lng))
     )
+    const coastlines = COASTLINE_PATHS.filter((c) =>
+      c.points.some(([lat, lng]) => inView(lat, lng))
+    )
+    const cityFeatures = CITY_FEATURES.filter((f) =>
+      f.points.some(([lat, lng]) => inView(lat, lng))
+    )
 
-    return { toX, toY, labels, districtBounds, rivers }
+    return { toX, toY, labels, districtBounds, rivers, coastlines, cityFeatures }
   }, [dayStops])
 
   // 겹침 해소된 핀 위치
@@ -3932,7 +4016,7 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
                   points={poly.map(([lat, lng]) => `${tr.toX(lng)},${tr.toY(lat)}`).join(" ")}
                   fill="none"
                   stroke={isJeju ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.15)"}
-                  strokeWidth={isJeju ? "1.5" : "0.8"}
+                  strokeWidth={isJeju ? "2.0" : "0.8"}
                 />
               )
             })}
@@ -3949,6 +4033,46 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
                 strokeLinejoin="round"
               />
             ))}
+
+            {/* 해안선 — 부산 동·남해안, 강원 동해안 */}
+            {tr && tr.coastlines.map((c) => (
+              <path
+                key={c.name}
+                d={smoothPath(c.points.map(([lat, lng]) => ({ x: tr.toX(lng), y: tr.toY(lat) })))}
+                fill="none"
+                stroke={`rgba(255,255,255,${c.opacity})`}
+                strokeWidth={c.width}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ))}
+
+            {/* 도시 외곽 경계 + 주요 도로선 */}
+            {tr && tr.cityFeatures.map((f) => {
+              const pts = f.points.map(([lat, lng]) => ({
+                x: tr.toX(lng), y: tr.toY(lat),
+              }))
+              const ptStr = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")
+              const strokeAttr = `rgba(255,255,255,${f.opacity})`
+              return f.closed ? (
+                <polygon
+                  key={f.name}
+                  points={ptStr}
+                  fill="none"
+                  stroke={strokeAttr}
+                  strokeWidth={f.width}
+                />
+              ) : (
+                <polyline
+                  key={f.name}
+                  points={ptStr}
+                  fill="none"
+                  stroke={strokeAttr}
+                  strokeWidth={f.width}
+                  strokeLinecap="round"
+                />
+              )
+            })}
 
             {/* 지역 배경 레이블 — 폰트 축소 */}
             {tr?.labels.map((l) => (
