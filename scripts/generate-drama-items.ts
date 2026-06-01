@@ -80,12 +80,12 @@ interface DramaRow {
   id: string
   title: string
   overview: string | null
-  genres: string[] | null
+  genre: string | null
 }
 
 // ── Claude Haiku 추출 ─────────────────────────────────────────
 async function extractItems(drama: DramaRow): Promise<ExtractedItem[]> {
-  const genreText = drama.genres?.join(", ") || "Korean drama"
+  const genreText = drama.genre || "Korean drama"
   const overviewText = drama.overview
     ? drama.overview.slice(0, 500)
     : "No overview available."
@@ -144,7 +144,7 @@ async function main() {
   // 1) 드라마 목록 조회
   const { data: dramas, error: dramasErr } = await supabase
     .from("dramas")
-    .select("id, title, overview, genres")
+    .select("id, title, overview, genre")
     .order("popularity", { ascending: false })
     .limit(LIMIT)
 
