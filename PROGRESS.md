@@ -4,7 +4,7 @@
 
 ---
 
-## 현재 상태 (2026-06-01 세션 38 기준)
+## 현재 상태 (2026-06-02 세션 39 기준)
 
 ### HallyuCalendar
 - Fan Meet 탭 유저 등록 행사 연동 (migration 0056, contact_email/registration_link)
@@ -38,6 +38,48 @@
 ### Curation K
 - My Hallyu Course Pro 잠금 blur + centered overlay 패턴 통일
 
+### KdramaMatch (세션 39 추가)
+- Streaming 섹션 로고 이미지 제거 → Play 아이콘 + 텍스트 (깨짐 원천 차단)
+- **Shop this drama** 기능 신설
+  - `drama_items` 테이블 (migration SQL 별도 실행 필요)
+  - `name_ko` / `description_ko` 컬럼 추가 (migration SQL 별도 실행 필요)
+  - `scripts/generate-drama-items.ts`: Claude Haiku 아이템 자동 추출 (EN+KO 병행)
+  - `app/api/dramas/[id]/shop/route.ts`: 승인된 아이템 공개 API
+  - `lib/drama-items/generate.ts`: 공통 추출 로직 (스크립트·Cron 재사용)
+  - `app/api/cron/ingest-drama-items/route.ts`: 신규 드라마 대상 주간 자동 생성 Cron
+  - vercel.json `"30 6 * * 1"` (ingest-tmdb-dramas 05:30 + 1h)
+  - DramaDetailModal 하단 Shop this drama 섹션 (Free: 이름+카테고리, Pro: 링크+브랜드)
+
+### 어드민 (세션 39 추가)
+- `app/admin/users/page.tsx`: 페이지당 50명 페이지네이션 (서버 count 포함 range 쿼리)
+- `app/admin/users/page.tsx`: Trial 컬럼 "이탈" 상태 추가 (agreed_to_terms=false + trial_ends_at=null)
+- `app/admin/page.tsx`: 데이터 수집 현황 카드 3항목 통일 (총 수집 / 오늘 추가 / 최종 업데이트)
+- `app/admin/drama-items/page.tsx`: Shop this drama 어드민 검수 페이지 신설
+  - 미승인/승인/삭제/구매링크 입력, 페이지당 20개 페이지네이션
+  - 카테고리 영문 뱃지, 드라마명 영/한 병기, 아이템명·설명 영/한 병기
+
+### Curation K (세션 39 추가)
+- K-Pop Pilgrimage Sites / Who fans love in 카드 AuthGate 적용
+- My Hallyu Course Notify me → /signup
+- Festivals 탭 proLocked: true 전환 (Free → Pro)
+- `/api/curation-k/stats` 캐시 제거 → 히어로 수치·지도 호버 실시간 반영
+- `lib/ingest/tour-spots.ts` existing 조회 페이지네이션 버그 수정 (1,000행 cap 우회)
+
+### 비로그인 접근 정책 (세션 39 추가)
+- `components/auth-gate.tsx` 툴팁 문구 콤마 수정, 위치 카드 중앙으로 통일
+- Calendar Subscribe/iCal → StartModal 오픈 (비로그인 정상 진입)
+- KpopStats Track this artist → StartModal, Artist Comparison Sign in → StartModal
+- KdramaMatch Drama Summary Notify me / Sign in to track → AuthGate
+- HangeulGo 팩 카드 전체 / Grammar Notify me / Explore 표현 칩 → AuthGate
+- KfoodKit Ingredient Matcher / Shopping List Notify me → AuthGate
+- KfoodKit DramaFoodGuideSection → AuthGate 적용
+- Curation K 잠긴 탭 버튼 (AuthGate), My Hallyu Course Notify me (AuthGate)
+- HallyuCalendar Concert/Fan Meet 탭 AuthGate
+- /signup 폐기 페이지 → StartModal 패턴으로 전면 교체
+
+### HangeulGo (세션 39 추가)
+- Explore Expressions 6줄→30개(~10줄), 랜덤 셔플 + 클라이언트 페이지네이션
+
 ### 공통
 - Free/Pro 확정 스펙 전 서비스 CLAUDE.md 기록
 - Trial Banner: 비로그인 상태 노출 버그 수정 (isLoggedIn 명시적 상태 추가)
@@ -47,11 +89,24 @@
 
 ## 다음 할 일
 
+- [ ] drama_items 테이블 migration 실행 (Supabase SQL Editor)
+  ```sql
+  CREATE TABLE drama_items (...);  -- PROGRESS 참조
+  ALTER TABLE drama_items ADD COLUMN IF NOT EXISTS name_ko text;
+  ALTER TABLE drama_items ADD COLUMN IF NOT EXISTS description_ko text;
+  ```
+- [ ] `npx tsx scripts/generate-drama-items.ts --dry-run` 확인 후 실행
 - [ ] KpopStats Today's Trending Top 5 → Free / 나머지 상세 → Pro 잠금
 - [ ] kpop_albums 초기 수집: `npx tsx scripts/sync-musicbrainz-releases.ts --dry-run` 확인 후 실행
 - [ ] KpopStats → HallyuCalendar 컴백 연결
 - [ ] filming_spots 어드민 Phase 2
 - [ ] 결제 연동 (Lemon Squeezy 재심사 완료 후)
+
+---
+
+## 사용자 액션 필요
+
+- **drama_items migration SQL** Supabase에서 직접 실행 필요 (CLAUDE.md Shop this drama 스펙 참조)
 
 ---
 
