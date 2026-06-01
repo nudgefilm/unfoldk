@@ -3657,11 +3657,44 @@ const SEOUL_DISTRICT_BOUNDARIES: ReadonlyArray<ReadonlyArray<readonly [number, n
   [[37.538, 127.082], [37.538, 127.157], [37.472, 127.157], [37.472, 127.082]],
 ]
 
-// 한강 중심선 (단순화)
-const SEOUL_HAN_RIVER: ReadonlyArray<readonly [number, number]> = [
-  [37.536, 126.834], [37.535, 126.875], [37.528, 126.913],
-  [37.522, 126.948], [37.516, 126.990], [37.511, 127.030],
-  [37.513, 127.075], [37.517, 127.115], [37.523, 127.145],
+// 전국 주요 강 — 단순화된 중심선 [lat, lng]. width 로 강 크기 구분.
+// 뷰포트 교차 여부로 자동 필터링.
+interface RiverPath {
+  readonly name: string
+  readonly width: number
+  readonly points: ReadonlyArray<readonly [number, number]>
+}
+const RIVER_PATHS: ReadonlyArray<RiverPath> = [
+  // 한강 — 서울 관통, 서→동
+  { name: "Han River", width: 3.5, points: [
+    [37.536, 126.834], [37.535, 126.875], [37.528, 126.913],
+    [37.522, 126.948], [37.516, 126.990], [37.511, 127.030],
+    [37.513, 127.075], [37.517, 127.115], [37.523, 127.145],
+  ]},
+  // 수영강 — 부산 동부 (해운대·센텀 인근)
+  { name: "Suyeong River", width: 2, points: [
+    [35.213, 129.107], [35.192, 129.112], [35.172, 129.125], [35.158, 129.143],
+  ]},
+  // 낙동강 — 부산 서부
+  { name: "Nakdong River", width: 2.5, points: [
+    [35.172, 128.902], [35.120, 128.940], [35.072, 128.962], [35.045, 128.985],
+  ]},
+  // 금호강 — 대구 북부, 동→서
+  { name: "Geumho River", width: 2, points: [
+    [35.912, 128.512], [35.900, 128.562], [35.882, 128.624], [35.864, 128.678],
+  ]},
+  // 영산강 — 광주 관통
+  { name: "Yeongsan River", width: 2, points: [
+    [35.207, 126.834], [35.180, 126.860], [35.158, 126.892], [35.143, 126.918],
+  ]},
+  // 소양강 — 춘천 (강원)
+  { name: "Soyang River", width: 2, points: [
+    [37.912, 127.706], [37.884, 127.733], [37.860, 127.746], [37.840, 127.752],
+  ]},
+  // 남대천 — 강릉, 동해로 흘러내림
+  { name: "Namdae Stream", width: 1.5, points: [
+    [37.762, 128.882], [37.757, 128.893], [37.749, 128.900], [37.744, 128.907],
+  ]},
 ]
 
 // 핀 반지름 — 컴포넌트 밖 상수로 관리
@@ -3695,6 +3728,25 @@ function resolveOverlaps(
     if (!moved) break
   }
   return res
+}
+
+// 여러 점을 통과하는 부드러운 SVG path 생성 (midpoint quadratic bezier)
+function smoothPath(pts: Array<{ x: number; y: number }>): string {
+  if (pts.length < 2) return ""
+  if (pts.length === 2)
+    return `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)} L ${pts[1].x.toFixed(1)},${pts[1].y.toFixed(1)}`
+  let d = `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`
+  for (let i = 0; i < pts.length - 1; i++) {
+    const mx = ((pts[i].x + pts[i + 1].x) / 2).toFixed(1)
+    const my = ((pts[i].y + pts[i + 1].y) / 2).toFixed(1)
+    if (i === 0) {
+      d += ` L ${mx},${my}`
+    } else {
+      d += ` Q ${pts[i].x.toFixed(1)},${pts[i].y.toFixed(1)} ${mx},${my}`
+    }
+  }
+  d += ` L ${pts[pts.length - 1].x.toFixed(1)},${pts[pts.length - 1].y.toFixed(1)}`
+  return d
 }
 
 // ─── CourseMiniMap — 동선 다이어그램 ────────────────────────────
@@ -3754,9 +3806,11 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
     const districtBounds = SEOUL_DISTRICT_BOUNDARIES.filter((poly) =>
       poly.some(([lat, lng]) => inView(lat, lng))
     )
-    const riverVisible = SEOUL_HAN_RIVER.some(([lat, lng]) => inView(lat, lng))
+    const rivers = RIVER_PATHS.filter((r) =>
+      r.points.some(([lat, lng]) => inView(lat, lng))
+    )
 
-    return { toX, toY, labels, districtBounds, riverVisible }
+    return { toX, toY, labels, districtBounds, rivers }
   }, [dayStops])
 
   // 겹침 해소된 핀 위치
@@ -3827,16 +3881,18 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
               />
             ))}
 
-            {/* 한강 */}
-            {tr && tr.riverVisible && (
-              <polyline
-                points={SEOUL_HAN_RIVER.map(([lat, lng]) => `${tr.toX(lng)},${tr.toY(lat)}`).join(" ")}
+            {/* 강 — 뷰포트 안 강만 렌더링, smoothPath 로 곡선 처리 */}
+            {tr && tr.rivers.map((river) => (
+              <path
+                key={river.name}
+                d={smoothPath(river.points.map(([lat, lng]) => ({ x: tr.toX(lng), y: tr.toY(lat) })))}
                 fill="none"
-                stroke="rgba(100,160,255,0.28)"
-                strokeWidth="2"
+                stroke="rgba(100,160,255,0.30)"
+                strokeWidth={river.width}
                 strokeLinecap="round"
+                strokeLinejoin="round"
               />
-            )}
+            ))}
 
             {/* 지역 배경 레이블 — 폰트 축소 */}
             {tr?.labels.map((l) => (
