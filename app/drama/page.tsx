@@ -665,6 +665,7 @@ function DramaDetailModal({
       .then((body: { items: typeof shopItems }) => setShopItems(body.items ?? []))
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === "AbortError") return
+        console.error("[drama-modal] shop fetch 실패:", err)
         setShopItems([])
       })
       .finally(() => setShopLoading(false))
@@ -1013,60 +1014,6 @@ function DramaDetailModal({
                 )}
               </div>
 
-              {/* Shop this drama — 승인된 아이템만 노출. Free: 이름+카테고리, Pro: 구매링크+브랜드 */}
-              {!shopLoading && shopItems.length > 0 && (
-                <div className="border-t border-border/20 pt-5 mt-2">
-                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-3">
-                    Shop this drama
-                  </p>
-                  <div className="space-y-2">
-                    {shopItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="bg-[#252528] rounded-xl px-3 py-2.5 flex items-start justify-between gap-3"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                            <span
-                              className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
-                              style={{
-                                color: item.category === "fashion" ? "#FF4B6E" : item.category === "beauty" ? "#a78bfa" : "#22d3ee",
-                                background: item.category === "fashion" ? "rgba(255,75,110,0.15)" : item.category === "beauty" ? "rgba(167,139,250,0.15)" : "rgba(34,211,238,0.15)",
-                              }}
-                            >
-                              {item.category}
-                            </span>
-                            <span className="text-foreground text-sm font-medium truncate">{item.name}</span>
-                          </div>
-                          {isPro && item.brand && (
-                            <p className="text-muted-foreground text-xs">{item.brand}</p>
-                          )}
-                          {isPro && item.description && (
-                            <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed line-clamp-2">{item.description}</p>
-                          )}
-                        </div>
-                        {isPro && item.purchase_url ? (
-                          <a
-                            href={item.purchase_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg text-white whitespace-nowrap"
-                            style={{ backgroundColor: "#FF4B6E" }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Buy →
-                          </a>
-                        ) : isPro ? (
-                          <span className="flex-shrink-0 text-xs text-muted-foreground whitespace-nowrap">링크 준비 중</span>
-                        ) : (
-                          <span className="flex-shrink-0 text-xs text-muted-foreground whitespace-nowrap">Pro</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Cross-service links — 2×2 카드 그리드 */}
               {drama && (
                 <div className="border-t border-border/20 pt-5 mt-2">
@@ -1110,6 +1057,82 @@ function DramaDetailModal({
                         </div>
                       </Link>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Shop this drama — Explore more 아래 표시. 카테고리별 그룹핑. */}
+              {/* Free: 이름+카테고리, Pro: 구매링크+브랜드+설명 */}
+              {!shopLoading && shopItems.length > 0 && (
+                <div className="border-t border-border/20 pt-5 mt-2">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-3">
+                    Shop this drama
+                  </p>
+                  <div className="space-y-4">
+                    {(["fashion", "beauty", "lifestyle"] as const).map((cat) => {
+                      const catItems = shopItems.filter((item) => item.category === cat)
+                      if (catItems.length === 0) return null
+                      const catColor =
+                        cat === "fashion" ? "#FF4B6E"
+                        : cat === "beauty" ? "#a78bfa"
+                        : "#22d3ee"
+                      const catBg =
+                        cat === "fashion" ? "rgba(255,75,110,0.15)"
+                        : cat === "beauty" ? "rgba(167,139,250,0.15)"
+                        : "rgba(34,211,238,0.15)"
+                      return (
+                        <div key={cat}>
+                          <p
+                            className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 px-1"
+                            style={{ color: catColor }}
+                          >
+                            {cat}
+                          </p>
+                          <div className="space-y-1.5">
+                            {catItems.map((item) => (
+                              <div
+                                key={item.id}
+                                className="bg-[#252528] rounded-xl px-3 py-2.5 flex items-start justify-between gap-3"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                                    <span
+                                      className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                                      style={{ color: catColor, background: catBg }}
+                                    >
+                                      {cat}
+                                    </span>
+                                    <span className="text-foreground text-sm font-medium truncate">{item.name}</span>
+                                  </div>
+                                  {isPro && item.brand && (
+                                    <p className="text-muted-foreground text-xs">{item.brand}</p>
+                                  )}
+                                  {isPro && item.description && (
+                                    <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed line-clamp-2">{item.description}</p>
+                                  )}
+                                </div>
+                                {isPro && item.purchase_url ? (
+                                  <a
+                                    href={item.purchase_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg text-white whitespace-nowrap"
+                                    style={{ backgroundColor: "#FF4B6E" }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    Buy →
+                                  </a>
+                                ) : isPro ? (
+                                  <span className="flex-shrink-0 text-xs text-muted-foreground whitespace-nowrap">링크 준비 중</span>
+                                ) : (
+                                  <span className="flex-shrink-0 text-xs text-muted-foreground whitespace-nowrap">Pro</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
