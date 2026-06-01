@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/toaster"
 interface DramaItem {
   id: string
   drama_title: string
+  drama_title_ko: string | null
   name: string
   category: "fashion" | "beauty" | "lifestyle"
   brand: string | null
@@ -16,6 +17,12 @@ interface DramaItem {
   purchase_url: string | null
   is_approved: boolean
   created_at: string
+}
+
+const CATEGORY_KO: Record<string, string> = {
+  fashion: "패션",
+  beauty: "뷰티",
+  lifestyle: "라이프스타일",
 }
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -145,12 +152,17 @@ export default function DramaItemsAdminPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full tracking-wide"
                       style={{ color: CATEGORY_COLOR[item.category], background: `${CATEGORY_COLOR[item.category]}20` }}
                     >
-                      {item.category}
+                      {CATEGORY_KO[item.category] ?? item.category}
                     </span>
-                    <span className="text-muted-foreground text-xs">{item.drama_title}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {item.drama_title}
+                      {item.drama_title_ko && (
+                        <span className="ml-1 text-muted-foreground/60">({item.drama_title_ko})</span>
+                      )}
+                    </span>
                     {item.is_approved && (
                       <span className="text-[10px] text-green-400 border border-green-400/30 px-1.5 py-0.5 rounded">승인됨</span>
                     )}

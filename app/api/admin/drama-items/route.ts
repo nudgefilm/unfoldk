@@ -14,7 +14,7 @@ export async function GET() {
   const admin = createSupabaseAdminClient()
   const { data, error } = await admin
     .from("drama_items")
-    .select("id, drama_id, name, category, brand, description, purchase_url, is_approved, created_at, dramas(title)")
+    .select("id, drama_id, name, category, brand, description, purchase_url, is_approved, created_at, dramas(title, title_ko)")
     .order("is_approved", { ascending: true })
     .order("created_at", { ascending: false })
 
@@ -25,7 +25,8 @@ export async function GET() {
   const items = (data ?? []).map((row) => ({
     id: row.id,
     drama_id: row.drama_id,
-    drama_title: (row.dramas as { title: string } | null)?.title ?? "—",
+    drama_title: (row.dramas as { title: string; title_ko: string | null } | null)?.title ?? "—",
+    drama_title_ko: (row.dramas as { title: string; title_ko: string | null } | null)?.title_ko ?? null,
     name: row.name,
     category: row.category,
     brand: row.brand,
