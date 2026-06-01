@@ -4,7 +4,7 @@
 
 ---
 
-## 현재 상태 (2026-06-02 세션 39 기준)
+## 현재 상태 (2026-06-02 세션 40 기준)
 
 ### HallyuCalendar
 - Fan Meet 탭 유저 등록 행사 연동 (migration 0056, contact_email/registration_link)
@@ -38,7 +38,7 @@
 ### Curation K
 - My Hallyu Course Pro 잠금 blur + centered overlay 패턴 통일
 
-### KdramaMatch (세션 39 추가)
+### KdramaMatch (세션 39–40 추가)
 - Streaming 섹션 로고 이미지 제거 → Play 아이콘 + 텍스트 (깨짐 원천 차단)
 - **Shop this drama** 기능 신설
   - `drama_items` 테이블 (migration SQL 별도 실행 필요)
@@ -49,6 +49,9 @@
   - `app/api/cron/ingest-drama-items/route.ts`: 신규 드라마 대상 주간 자동 생성 Cron
   - vercel.json `"30 6 * * 1"` (ingest-tmdb-dramas 05:30 + 1h)
   - DramaDetailModal 하단 Shop this drama 섹션 (Free: 이름+카테고리, Pro: 링크+브랜드)
+  - `name_ko` / `description_ko` 영/한 병기 (Claude 생성 시 동시 생성)
+  - max_tokens 800→2000 (한국어 추가로 응답 잘림 수정)
+  - `--limit` 없으면 전체 드라마 대상 실행 (기본값 50 제거)
 
 ### 어드민 (세션 39 추가)
 - `app/admin/users/page.tsx`: 페이지당 50명 페이지네이션 (서버 count 포함 range 쿼리)
@@ -58,12 +61,14 @@
   - 미승인/승인/삭제/구매링크 입력, 페이지당 20개 페이지네이션
   - 카테고리 영문 뱃지, 드라마명 영/한 병기, 아이템명·설명 영/한 병기
 
-### Curation K (세션 39 추가)
+### Curation K (세션 39–40 추가)
 - K-Pop Pilgrimage Sites / Who fans love in 카드 AuthGate 적용
 - My Hallyu Course Notify me → /signup
 - Festivals 탭 proLocked: true 전환 (Free → Pro)
 - `/api/curation-k/stats` 캐시 제거 → 히어로 수치·지도 호버 실시간 반영
 - `lib/ingest/tour-spots.ts` existing 조회 페이지네이션 버그 수정 (1,000행 cap 우회)
+- IN THE DATABASE 7개 카테고리 전체 표시 (Filming/Attractions/Food/Stays/Shopping/Culture/Festivals)
+- 지도 도시 호버 툴팁 Shopping 추가 → 7개 통일
 
 ### 비로그인 접근 정책 (세션 39 추가)
 - `components/auth-gate.tsx` 툴팁 문구 콤마 수정, 위치 카드 중앙으로 통일
