@@ -1123,7 +1123,7 @@ function DramaDetailModal({
                                     Buy →
                                   </a>
                                 ) : isPro ? (
-                                  <span className="flex-shrink-0 text-xs text-muted-foreground whitespace-nowrap">링크 준비 중</span>
+                                  <span className="flex-shrink-0 text-xs text-gray-600 cursor-not-allowed whitespace-nowrap">Link</span>
                                 ) : (
                                   <span className="flex-shrink-0 text-xs text-muted-foreground whitespace-nowrap">Pro</span>
                                 )}
