@@ -6,6 +6,7 @@
 // Artist Comparison — 로그인 유저 전체 개방 (결제 연동 전 임시)
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
 import { Search, TrendingUp, TrendingDown, Minus, Flame } from "lucide-react"
@@ -14,6 +15,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ReportButton } from "@/components/common/report-button"
 import { Toaster } from "@/components/ui/toaster"
 import { ArtistComparisonSection } from "@/components/kpop/artist-comparison"
+import { AuthGate } from "@/components/auth-gate"
 
 // ============================================
 // 숫자 포맷터 — 2_400_000_000 → "2.4B"
@@ -83,6 +85,7 @@ interface ArtistListItem {
 }
 
 export default function KpopStatsPage() {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [chart, setChart] = useState<ChartItem[]>([])
   const [chartLoading, setChartLoading] = useState(true)
@@ -371,7 +374,9 @@ export default function KpopStatsPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {searchResults.map((a) => (
-                  <ArtistCard key={a.id} item={a} />
+                  <AuthGate key={a.id} isLoggedIn={isLoggedIn}>
+                    <ArtistCard item={a} />
+                  </AuthGate>
                 ))}
               </div>
             )}
@@ -413,10 +418,10 @@ export default function KpopStatsPage() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {trending.map((item) => (
+                <AuthGate key={item.artist_id} isLoggedIn={isLoggedIn}>
                 <Link
-                  key={item.artist_id}
                   href={`/kpop/${item.artist_id}`}
-                  className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex flex-col items-center text-center cursor-pointer hover:bg-[#2a2a2c] hover:border-primary/40 transition-colors"
+                  className="block bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex flex-col items-center text-center cursor-pointer hover:bg-[#2a2a2c] hover:border-primary/40 transition-colors"
                 >
                   {/* Rank badge — 좌상단 absolute 대신 상단 inline */}
                   <span
@@ -456,6 +461,7 @@ export default function KpopStatsPage() {
                     </p>
                   )}
                 </Link>
+                </AuthGate>
               ))}
             </div>
           )}
@@ -480,10 +486,10 @@ export default function KpopStatsPage() {
                 ? `↑${item.rank_change} 지난주 대비 급상승`
                 : `↑${item.rank_change} 지난주 대비 상승`
               return (
+                <AuthGate key={item.artist_id} isLoggedIn={isLoggedIn}>
                 <Link
-                  key={item.artist_id}
                   href={`/kpop/${item.artist_id}`}
-                  className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex items-center gap-4 hover:bg-[#2a2a2c] hover:border-green-500/40 transition-colors"
+                  className="block bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex items-center gap-4 hover:bg-[#2a2a2c] hover:border-green-500/40 transition-colors"
                 >
                   {/* 상승폭 배지 */}
                   <div className="flex-shrink-0 w-14 h-14 rounded-xl bg-green-500/10 flex flex-col items-center justify-center gap-0.5">
@@ -515,6 +521,7 @@ export default function KpopStatsPage() {
                     </div>
                   </div>
                 </Link>
+                </AuthGate>
               )
             })}
           </div>
@@ -565,10 +572,10 @@ export default function KpopStatsPage() {
               </div>
             ) : (
               filteredChart.map((item) => (
+                <AuthGate key={item.artist_id} isLoggedIn={isLoggedIn} tooltipInside className="w-full border-b border-border/20 last:border-b-0">
                 <Link
-                  key={item.artist_id}
                   href={`/kpop/${item.artist_id}`}
-                  className="w-full grid grid-cols-12 gap-4 px-6 py-4 border-b border-border/20 last:border-b-0 cursor-pointer hover:bg-[#2a2a2c] transition-colors text-left"
+                  className="w-full grid grid-cols-12 gap-4 px-6 py-4 cursor-pointer hover:bg-[#2a2a2c] transition-colors text-left"
                 >
                   {/* Rank Badge */}
                   <div className="col-span-1 flex items-center">
@@ -626,6 +633,7 @@ export default function KpopStatsPage() {
                     ) : null}
                   </div>
                 </Link>
+                </AuthGate>
               ))
             )}
           </div>
@@ -638,7 +646,9 @@ export default function KpopStatsPage() {
             <h2 className="text-2xl font-semibold text-white mb-6">More Artists</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {moreArtists.map((a) => (
-                <ArtistCard key={a.id} item={a} />
+                <AuthGate key={a.id} isLoggedIn={isLoggedIn}>
+                  <ArtistCard item={a} />
+                </AuthGate>
               ))}
             </div>
             <div className="flex justify-center mt-6">

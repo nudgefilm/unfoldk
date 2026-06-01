@@ -23,6 +23,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/components/ui/use-toast"
+import { AuthGate } from "@/components/auth-gate"
 import type { KoreanPhraseApi } from "@/lib/korean/mapper"
 
 interface PackApi {
@@ -593,7 +594,7 @@ export function KoreanContent() {
   //    phrase-of-day GET 이 자동으로 미학습 랜덤으로 우회 (in-memory 가 아니라 영구).
   const handleMarkLearned = useCallback(async () => {
     if (!isAuthenticated) {
-      window.location.href = "/login?redirect=/korean"
+      window.location.href = "/signup"
       return
     }
     // Optimistic +1 — fallback sentinel(비-UUID) 은 서버가 skip 하므로 제외
@@ -812,6 +813,7 @@ export function KoreanContent() {
                 {/* Synonyms / Antonyms — 접이식 (있을 때만) */}
                 {hasSynAnt && (
                   <div className="mb-8">
+                    <AuthGate isLoggedIn={isAuthenticated} className="w-full">
                     <button
                       type="button"
                       onClick={() => setShowSynAnt((v) => !v)}
@@ -824,6 +826,7 @@ export function KoreanContent() {
                       />
                       {showSynAnt ? "Hide" : "Show"} synonyms &amp; antonyms
                     </button>
+                    </AuthGate>
                     {showSynAnt && (
                       <div className="mt-3 bg-[#141416] rounded-xl p-4 space-y-2 text-sm">
                         {phrase.synonyms.length > 0 && (
@@ -853,27 +856,33 @@ export function KoreanContent() {
 
                 {/* Action Buttons */}
                 <div className="flex gap-3">
+                  <AuthGate isLoggedIn={isAuthenticated} className="flex-1">
                   <Button
                     onClick={handleMarkLearned}
                     disabled={phraseLoading}
-                    className="flex-1 rounded-xl py-3 font-medium text-white flex items-center justify-center gap-2"
+                    className="w-full rounded-xl py-3 font-medium text-white flex items-center justify-center gap-2"
                     style={{ backgroundColor: "#FF4B6E" }}
                   >
                     <Check className="w-4 h-4" />
                     Got it
                   </Button>
+                  </AuthGate>
+                  {/* Review again — 비로그인도 차단 (Play pronunciation 만 예외) */}
+                  <AuthGate isLoggedIn={isAuthenticated} className="flex-1">
                   <Button
                     onClick={() => playKoreanAudio(phrase.korean, phrase.audioUrl)}
                     variant="outline"
-                    className="flex-1 rounded-xl py-3 font-medium border-border/50 hover:bg-secondary/50 flex items-center justify-center gap-2"
+                    className="w-full rounded-xl py-3 font-medium border-border/50 hover:bg-secondary/50 flex items-center justify-center gap-2"
                   >
                     <RotateCcw className="w-4 h-4" />
                     Review again
                   </Button>
+                  </AuthGate>
                 </div>
 
                 {/* Next expression — streak 영향 없이 다음 랜덤 표현으로 이동. 세션 이력 제외. */}
                 <div className="mt-3 text-center">
+                  <AuthGate isLoggedIn={isAuthenticated}>
                   <button
                     type="button"
                     onClick={advanceToNext}
@@ -882,13 +891,15 @@ export function KoreanContent() {
                   >
                     Next expression →
                   </button>
+                  </AuthGate>
                 </div>
                 {/* 북마크 — learning_progress 에 'learning' 상태로 저장 */}
                 <div className="mt-2 text-center">
+                  <AuthGate isLoggedIn={isAuthenticated}>
                   <button
                     type="button"
                     title={phraseSaved ? "Saved" : "Save"}
-                    disabled={phraseSaved || !isAuthenticated}
+                    disabled={phraseSaved}
                     onClick={async () => {
                       if (!phrase?.id || phraseSaved || !isAuthenticated) return
                       setPhraseSaved(true) // optimistic
@@ -920,6 +931,7 @@ export function KoreanContent() {
                       : <><Bookmark className="w-3.5 h-3.5" /> Save phrase</>
                     }
                   </button>
+                  </AuthGate>
                 </div>
               </>
             )}

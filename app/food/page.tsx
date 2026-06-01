@@ -13,6 +13,7 @@ import { WeeklyPicksSection } from "@/components/food/weekly-picks-section"
 import { DramaFoodGuideSection } from "@/components/food/drama-food-guide-section"
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/components/ui/use-toast"
+import { AuthGate } from "@/components/auth-gate"
 
 // AI Ingredient Finder — 한류 팬 밀집 20개국. 지역별 <optgroup> 그룹화.
 // 이모지 + ISO alpha-2 코드. /api/food/ingredient-finder 에 country 로 전송.
@@ -537,6 +538,7 @@ export default function KfoodKitPage() {
                 </div>
                 {/* Start → 매칭 레시피 모달 오픈. recipeId 없으면 버튼 미노출. */}
                 {challengeRecipeId && (
+                  <AuthGate isLoggedIn={isLoggedIn}>
                   <Button
                     type="button"
                     onClick={() => setActiveRecipeId(challengeRecipeId)}
@@ -546,6 +548,7 @@ export default function KfoodKitPage() {
                     Start Challenge
                     <ChevronRight className="w-4 h-4 ml-1" />
                   </Button>
+                  </AuthGate>
                 )}
               </div>
             </div>
@@ -595,11 +598,11 @@ export default function KfoodKitPage() {
                   ? `${recipe.title} (${recipe.title_en})`
                   : recipe.title
                 return (
+                  <AuthGate key={recipe.id} isLoggedIn={isLoggedIn}>
                   <button
-                    key={recipe.id}
                     type="button"
                     onClick={() => setActiveRecipeId(recipe.id)}
-                    className="text-left bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors"
+                    className="w-full text-left bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors"
                   >
                     {/* 이미지 — 16:9 (aspect-video) 비율 통일. object-cover 로 영역 채움.
                         `relative` 는 우상단 북마크 absolute 위치용 — 시각 변경 없음. */}
@@ -691,6 +694,7 @@ export default function KfoodKitPage() {
                       </span>
                     </div>
                   </button>
+                  </AuthGate>
                 )
               })}
 
@@ -765,7 +769,7 @@ export default function KfoodKitPage() {
         </section>
 
         {/* This Week's K-Food Picks — Free 전체 개방 (2026-06-01 변경) */}
-        <WeeklyPicksSection isPro={true} onRecipeClick={(id) => setActiveRecipeId(id)} />
+        <WeeklyPicksSection isPro={true} onRecipeClick={(id) => { if (isLoggedIn) setActiveRecipeId(id) }} />
 
         {/* ── Local Ingredient Matcher ────────────────────────────────
             h2 제목은 blur 밖 → 항상 보임. 콘텐츠 박스만 blur + overlay. */}
@@ -1047,7 +1051,7 @@ export default function KfoodKitPage() {
         </section>
 
         {/* This Week's K-Drama Food Guide — Free 전체 개방 (2026-06-01 변경) */}
-        <DramaFoodGuideSection onRecipeClick={(id) => setActiveRecipeId(id)} />
+        <DramaFoodGuideSection onRecipeClick={(id) => { if (isLoggedIn) setActiveRecipeId(id) }} />
       </main>
 
       {/* 레시피 상세 모달 — 카드 클릭 시 마운트, lazy fetch.

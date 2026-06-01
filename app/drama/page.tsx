@@ -53,6 +53,7 @@ import {
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
+import { AuthGate } from "@/components/auth-gate"
 import type { DramaApi } from "@/lib/dramas/mapper"
 
 // 필터 칩 옵션
@@ -1454,7 +1455,9 @@ function KdramaMatchPageInner() {
                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
               >
                 {nowAiring.map((d) => (
-                  <NowAiringCard key={d.id} drama={d} onOpenDetail={openModal} isPro={isPro} onProLocked={handleProLocked} />
+                  <AuthGate key={d.id} isLoggedIn={isAuthenticated} className="flex-shrink-0 snap-start">
+                    <NowAiringCard drama={d} onOpenDetail={openModal} isPro={isPro} onProLocked={handleProLocked} />
+                  </AuthGate>
                 ))}
               </div>
               {naCanScrollLeft && (
@@ -1579,16 +1582,17 @@ function KdramaMatchPageInner() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 {recommendations.map((d) => (
-                  <DramaCard
-                    key={d.id}
-                    drama={d}
-                    onAdd={handleAddToWatchlist}
-                    onOpenDetail={openModal}
-                    isSaved={savedDramaIds.has(d.id)}
-                    onToggleSave={handleToggleDramaSave}
-                    isPro={isPro}
-                    onProLocked={handleProLocked}
-                  />
+                  <AuthGate key={d.id} isLoggedIn={isAuthenticated}>
+                    <DramaCard
+                      drama={d}
+                      onAdd={handleAddToWatchlist}
+                      onOpenDetail={openModal}
+                      isSaved={savedDramaIds.has(d.id)}
+                      onToggleSave={handleToggleDramaSave}
+                      isPro={isPro}
+                      onProLocked={handleProLocked}
+                    />
+                  </AuthGate>
                 ))}
               </div>
             )}
@@ -1607,14 +1611,15 @@ function KdramaMatchPageInner() {
             </div>
             <div className="flex gap-4 overflow-x-auto pb-2 -mx-6 px-6">
               {trending.map((item) => (
-                <TrendingCard
-                  key={item.drama.id}
-                  item={item}
-                  onAdd={handleAddToWatchlist}
-                  onOpenDetail={openModal}
-                  isPro={isPro}
-                  onProLocked={handleProLocked}
-                />
+                <AuthGate key={item.drama.id} isLoggedIn={isAuthenticated} className="flex-shrink-0">
+                  <TrendingCard
+                    item={item}
+                    onAdd={handleAddToWatchlist}
+                    onOpenDetail={openModal}
+                    isPro={isPro}
+                    onProLocked={handleProLocked}
+                  />
+                </AuthGate>
               ))}
             </div>
           </section>
@@ -1719,16 +1724,17 @@ function KdramaMatchPageInner() {
             <>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 {browseAll.map((d) => (
-                  <DramaCard
-                    key={d.id}
-                    drama={d}
-                    onAdd={handleAddToWatchlist}
-                    onOpenDetail={openModal}
-                    isSaved={savedDramaIds.has(d.id)}
-                    onToggleSave={handleToggleDramaSave}
-                    isPro={isPro}
-                    onProLocked={handleProLocked}
-                  />
+                  <AuthGate key={d.id} isLoggedIn={isAuthenticated}>
+                    <DramaCard
+                      drama={d}
+                      onAdd={handleAddToWatchlist}
+                      onOpenDetail={openModal}
+                      isSaved={savedDramaIds.has(d.id)}
+                      onToggleSave={handleToggleDramaSave}
+                      isPro={isPro}
+                      onProLocked={handleProLocked}
+                    />
+                  </AuthGate>
                 ))}
               </div>
 

@@ -490,7 +490,46 @@ Phase 3 — 한국 현지 연계:
 
 ---
 
-## 7. 자주 하는 실수 (하지 말 것)
+## 7. 비로그인 접근 정책 (2026-06-01 확정)
+
+### 원칙
+- **비로그인 → 각 서비스 메인 페이지 접근 가능** (카드/버튼 인터랙션 제외)
+- **비로그인 → 카드/버튼 호버 시 툴팁** "Sign up to access — it's free" 표시
+- **비로그인 → 카드/버튼 클릭 비활성화** (cursor-not-allowed, overlay 클릭 차단)
+- **Pro 잠금 섹션은 비로그인에도 동일 잠금** 유지 (변경 없음)
+
+### 구현 방법
+공통 래퍼 `AuthGate` (`components/auth-gate.tsx`) 사용:
+- `isLoggedIn === false` 일 때만 활성화 (null = 인증 확인 중 → 차단 없음)
+- `tooltipInside` prop: `overflow:hidden` 부모 안에서 툴팁을 요소 내부 중앙에 표시
+
+### 예외 (비로그인 전체 접근 가능)
+- `/pricing`, `/about`, `/signup`, `/login` 페이지 전체
+- 각 서비스 메인 페이지 자체 (카드 제외)
+- HangeulGo — Play pronunciation 버튼 (TTS 재생만, 학습 기록 불필요)
+
+### 적용 현황
+| 서비스 | 적용 대상 |
+|--------|----------|
+| HallyuCalendar | 이벤트 카드 (Top3, Featured, 달력 그리드, Upcoming 아코디언) |
+| KdramaMatch | DramaCard, TrendingCard, NowAiringCard |
+| KpopStats | 차트 행, Trending 카드, Top Movers 카드, More Artists 카드, 검색 결과 카드 |
+| HangeulGo | Got it / Review again / Next expression / Save phrase / Show synonyms & antonyms |
+| KfoodKit | Browse All 레시피 카드, Start Challenge 버튼 |
+| Curation K | SpotCard (SpotsTabPanel 내부) |
+
+### 관련 파일
+- `components/auth-gate.tsx` — 공통 래퍼 (신규)
+- `app/calendar/page.tsx` — isBlurred 제거 + AuthGate 래핑
+- `app/drama/page.tsx` — 카드 AuthGate 래핑
+- `app/kpop/page.tsx` — 카드/링크 AuthGate 래핑
+- `app/korean/korean-content.tsx` — 버튼 AuthGate 래핑
+- `app/food/page.tsx` — 카드 AuthGate 래핑
+- `app/curation-k/page.tsx` — SpotCard AuthGate 래핑
+
+---
+
+## 8-1. 자주 하는 실수 (하지 말 것)
 
 ```
 ❌ YouTube API 를 tubewatch.kr 와 같은 GCP 프로젝트 → 쿼터 초과 시 양쪽 중단
@@ -539,7 +578,7 @@ Phase 3 — 한국 현지 연계:
 
 ---
 
-## 8. 세션 운영
+## 9. 세션 운영
 
 ### 시작
 1. PROGRESS.md 먼저 읽고 현재 상태 파악
@@ -565,7 +604,7 @@ Phase 3 — 한국 현지 연계:
 
 ---
 
-## 9. 문제 해결 원칙
+## 10. 문제 해결 원칙
 
 1. 가장 단순한 방법 먼저 시도 (SQL 직접 수정, 이미지 URL 직접 입력 등)
 2. API 검증·디버깅 라우트 추가 전에 사용자에게 직접 확인 요청

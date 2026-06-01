@@ -11,6 +11,7 @@ import { hasProAccess } from "@/lib/auth/plan"
 import { ReportButton } from "@/components/common/report-button"
 import { getEventTypeColor } from "@/lib/calendar/event-type-colors"
 import { StartModal } from "@/components/start-modal"
+import { AuthGate } from "@/components/auth-gate"
 import { toast } from "sonner"
 import { Toaster } from "@/components/ui/sonner"
 
@@ -622,9 +623,8 @@ function UpcomingAccordionItem({
   onUpgradeNeeded: () => void
   kpopArtistId?: string
 }) {
-  // 결제 연동 전 임시 정책 (2026-05-16, DECISIONS.md) — 비로그인만 3개 blur.
-  // 로그인 (Free 포함) 은 전체 노출. 결제 연동 후 isPro 기준으로 복원.
-  const isBlurred = !isLoggedIn && index >= 3
+  // isBlurred 제거 — 비로그인 접근 정책 전환으로 AuthGate 래퍼가 클릭 차단 담당 (2026-06-01).
+  const isBlurred = false
 
   // 리마인더 — 확장 시 처음 1회 fetch, 토글 시 300ms debounce save
   const [reminders, setReminders] = useState({ d7: false, d1: true, dayOf: true })
@@ -700,14 +700,12 @@ function UpcomingAccordionItem({
 
   return (
     <div
-      className={`bg-[#1a1a1a] border border-border/30 rounded-xl transition-colors ${
-        isBlurred ? "blur-[4px] pointer-events-none" : "hover:border-primary/50"
-      } ${isPast ? "opacity-40" : ""}`}
+      className={`bg-[#1a1a1a] border border-border/30 rounded-xl transition-colors hover:border-primary/50 ${isPast ? "opacity-40" : ""}`}
     >
       {/* Header row — 클릭 시 아코디언 토글 */}
       <div
-        onClick={() => !isBlurred && onToggle()}
-        className={`flex items-center justify-between p-4 ${isBlurred ? "" : "cursor-pointer"}`}
+        onClick={() => onToggle()}
+        className="flex items-center justify-between p-4 cursor-pointer"
       >
         <div className="flex items-center gap-4">
           <div
@@ -730,7 +728,7 @@ function UpcomingAccordionItem({
       </div>
 
       {/* Expanded body */}
-      {isExpanded && !isBlurred && (
+      {isExpanded && (
         <div className="px-4 pb-4 pt-3 border-t border-border/20 space-y-4">
           {/* Venue — Ticketmaster 콘서트·팬미팅 만. EventDetailModal 과 동일 포맷. */}
           {event.venueName && (
@@ -1206,8 +1204,8 @@ export default function HallyuCalendarPage() {
               {thisWeekTop3.map((event, idx) => {
                 const artistId = kpopArtistMap[event.artist ?? ""]
                 return (
+                  <AuthGate key={event.id} isLoggedIn={isLoggedIn}>
                   <div
-                    key={event.id}
                     className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-4 cursor-pointer hover:border-primary/40 transition-colors"
                     onClick={() => handleEventClick(event)}
                   >
@@ -1240,6 +1238,7 @@ export default function HallyuCalendarPage() {
                       </Link>
                     )}
                   </div>
+                  </AuthGate>
                 )
               })}
             </div>
@@ -1405,8 +1404,8 @@ export default function HallyuCalendarPage() {
                     {/* Event tags - clickable */}
                     <div className="mt-1 space-y-1">
                       {dayEvents.map((event) => (
+                        <AuthGate key={event.id} isLoggedIn={isLoggedIn} className="w-full">
                         <button
-                          key={event.id}
                           onClick={() => handleEventClick(event)}
                           className={`w-full text-left text-[10px] md:text-xs font-medium text-white px-1.5 py-0.5 rounded truncate hover:opacity-80 transition-opacity cursor-pointer ${
                             isPastEvent(event.date) ? "opacity-40" : ""
@@ -1416,6 +1415,7 @@ export default function HallyuCalendarPage() {
                         >
                           {event.title}
                         </button>
+                        </AuthGate>
                       ))}
                     </div>
                   </div>
@@ -1470,11 +1470,11 @@ export default function HallyuCalendarPage() {
                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
               >
               {featuredEvents.map((event) => (
+                <AuthGate key={event.id} isLoggedIn={isLoggedIn} className="flex-shrink-0 w-72 snap-start">
                 <button
-                  key={event.id}
                   type="button"
                   onClick={() => handleEventClick(event)}
-                  className="flex-shrink-0 w-72 snap-start bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors text-left"
+                  className="w-full bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors text-left"
                 >
                   {/* 프레임 16:9 가로 고정 — Ticketmaster 표준 비율.
                       object-contain 으로 원본 비율 유지: Ticketmaster 16:9 는 가득, TMDB 2:3 포스터는 좌우 레터박스. */}
@@ -1505,6 +1505,7 @@ export default function HallyuCalendarPage() {
                     )}
                   </div>
                 </button>
+                </AuthGate>
               ))}
               </div>
               {/* 우측 페이드 — "더 있어요" 신호 (특히 모바일). overflow 없을 땐 빈 영역에 겹쳐 사실상 비표시. */}
@@ -1544,52 +1545,27 @@ export default function HallyuCalendarPage() {
               ? "Upcoming this month"
               : `Events in ${viewDate.toLocaleString("en-US", { month: "long" })}`}
           </h2>
-          <div className="space-y-4 relative">
+          <div className="space-y-4">
             {upcomingEvents.map((event, index) => (
-              <UpcomingAccordionItem
-                key={event.id}
-                event={event}
-                index={index}
-                monthShort={monthShort}
-                viewDate={viewDate}
-                isPro={isPro}
-                isPast={isPastEvent(event.date)}
-                isLoggedIn={isLoggedIn}
-                isExpanded={expandedEventId === event.id}
-                onToggle={() =>
-                  setExpandedEventId(expandedEventId === event.id ? null : event.id)
-                }
-                onLoginNeeded={() => setAccordionStartOpen(true)}
-                onUpgradeNeeded={() => setShowUpgradeModal(true)}
-                kpopArtistId={kpopArtistMap[event.artist ?? ""]}
-              />
+              <AuthGate key={event.id} isLoggedIn={isLoggedIn} className="w-full">
+                <UpcomingAccordionItem
+                  event={event}
+                  index={index}
+                  monthShort={monthShort}
+                  viewDate={viewDate}
+                  isPro={isPro}
+                  isPast={isPastEvent(event.date)}
+                  isLoggedIn={isLoggedIn}
+                  isExpanded={expandedEventId === event.id}
+                  onToggle={() =>
+                    setExpandedEventId(expandedEventId === event.id ? null : event.id)
+                  }
+                  onLoginNeeded={() => setAccordionStartOpen(true)}
+                  onUpgradeNeeded={() => setShowUpgradeModal(true)}
+                  kpopArtistId={kpopArtistMap[event.artist ?? ""]}
+                />
+              </AuthGate>
             ))}
-
-            {/* Blur Upsell Overlay — 비로그인만 노출 (2026-05-16 임시 정책, DECISIONS.md).
-                결제 연동 후 isPro 기준 복원. */}
-            {!isLoggedIn && upcomingEvents.length > 3 && (
-              <div
-                className="absolute bottom-0 left-0 right-0 flex items-center justify-center pointer-events-auto"
-                style={{
-                  height: `${Math.min(upcomingEvents.length - 3, 2) * 82 + 16}px`,
-                  background: "linear-gradient(to bottom, transparent, rgba(13, 13, 15, 0.8) 30%)"
-                }}
-              >
-                <div className="bg-[#1a1a1a] border border-border/50 rounded-xl p-6 text-center shadow-xl">
-                  <p className="text-foreground font-medium mb-4">
-                    Sign in to see all events
-                  </p>
-                  <Link href="/">
-                    <Button
-                      className="px-6 py-2 rounded-full font-medium text-white"
-                      style={{ backgroundColor: "#FF4B6E" }}
-                    >
-                      Sign in — free
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            )}
           </div>
         </section>
 

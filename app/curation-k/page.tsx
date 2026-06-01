@@ -63,6 +63,7 @@ import {
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
+import { AuthGate } from "@/components/auth-gate"
 
 // ─── 지도 인프라 ─────────────────────────────────────────────
 const LNG_MIN = 124.3
@@ -2728,8 +2729,8 @@ function SpotsTabPanel({
               ? getFestivalStatus(item.event_start_date, item.event_end_date)
               : null
           return (
+            <AuthGate key={item.id} isLoggedIn={isAuthenticated}>
             <SpotCard
-              key={item.id}
               image={item.image_url}
               title={item.title}
               subtitle={
@@ -2748,6 +2749,7 @@ function SpotsTabPanel({
               isSaved={savedIds?.has(item.id)}
               onSaveToggle={onSaveToggle ? () => onSaveToggle(item) : undefined}
             />
+            </AuthGate>
           )
         })}
       </div>
