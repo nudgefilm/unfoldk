@@ -1499,6 +1499,11 @@ export default function CurationKPage() {
                                 value={stat?.stays}
                               />
                               <RegionTooltipRow
+                                label="Shopping"
+                                color="#a3e635"
+                                value={stat?.shopping}
+                              />
+                              <RegionTooltipRow
                                 label="Culture"
                                 color="#f472b6"
                                 value={stat?.culture}
@@ -1574,44 +1579,33 @@ export default function CurationKPage() {
                   </p>
                 </div>
 
-                {/* 통계 배지 — Filming · Attractions · Food · Shopping(데이터 있을 때만) */}
+                {/* 통계 배지 — 7개 카테고리 전체, 0건인 항목은 미표시 */}
                 {stats && (
                   <div className="mt-6 pt-5 border-t border-border/30">
                     <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">
                       In the database
                     </p>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
-                      <span className="inline-flex items-baseline gap-1.5">
-                        <span className="font-semibold" style={{ color: "#FF4B6E" }}>
-                          {stats.filming.toLocaleString()}
-                        </span>
-                        <span className="text-muted-foreground text-xs">Filming</span>
-                      </span>
-                      <span className="text-muted-foreground/40">·</span>
-                      <span className="inline-flex items-baseline gap-1.5">
-                        <span className="font-semibold" style={{ color: "#22d3ee" }}>
-                          {stats.attractions.toLocaleString()}
-                        </span>
-                        <span className="text-muted-foreground text-xs">Attractions</span>
-                      </span>
-                      <span className="text-muted-foreground/40">·</span>
-                      <span className="inline-flex items-baseline gap-1.5">
-                        <span className="font-semibold" style={{ color: "#facc15" }}>
-                          {stats.food.toLocaleString()}
-                        </span>
-                        <span className="text-muted-foreground text-xs">Food</span>
-                      </span>
-                      {stats.shopping > 0 && (
-                        <>
-                          <span className="text-muted-foreground/40">·</span>
-                          <span className="inline-flex items-baseline gap-1.5">
-                            <span className="font-semibold" style={{ color: "#a3e635" }}>
-                              {stats.shopping.toLocaleString()}
-                            </span>
-                            <span className="text-muted-foreground text-xs">Shopping</span>
-                          </span>
-                        </>
-                      )}
+                      {([
+                        { key: "filming",     label: "Filming",     color: "#FF4B6E" },
+                        { key: "attractions", label: "Attractions", color: "#22d3ee" },
+                        { key: "food",        label: "Food",        color: "#facc15" },
+                        { key: "stays",       label: "Stays",       color: "#a78bfa" },
+                        { key: "shopping",    label: "Shopping",    color: "#a3e635" },
+                        { key: "culture",     label: "Culture",     color: "#f472b6" },
+                        { key: "festivals",   label: "Festivals",   color: "#fb923c" },
+                      ] as const).flatMap(({ key, label, color }, i, arr) => {
+                        const val = stats[key as keyof typeof stats] as number
+                        if (!val) return []
+                        const isLast = arr.slice(i + 1).every(({ key: k }) => !(stats[k as keyof typeof stats] as number))
+                        return [
+                          <span key={key} className="inline-flex items-baseline gap-1.5">
+                            <span className="font-semibold" style={{ color }}>{val.toLocaleString()}</span>
+                            <span className="text-muted-foreground text-xs">{label}</span>
+                          </span>,
+                          ...(!isLast ? [<span key={`${key}-dot`} className="text-muted-foreground/40">·</span>] : []),
+                        ]
+                      })}
                     </div>
                   </div>
                 )}
