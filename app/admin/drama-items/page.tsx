@@ -40,6 +40,8 @@ export default function DramaItemsAdminPage() {
   const [filter, setFilter] = useState<"pending" | "approved" | "all">("pending")
   const [page, setPage] = useState(1)
   const [urlDraft, setUrlDraft] = useState<Record<string, string>>({})
+  const [confirmApproveAll, setConfirmApproveAll] = useState(false)
+  const [approvingAll, setApprovingAll] = useState(false)
   const [, startTransition] = useTransition()
 
   const PAGE_SIZE = 20
@@ -109,15 +111,41 @@ export default function DramaItemsAdminPage() {
     })
   }
 
+  async function onApproveAll() {
+    const pending = items.filter((it) => !it.is_approved)
+    if (pending.length === 0) return
+    setApprovingAll(true)
+    try {
+      await Promise.all(pending.map((it) => patch(it.id, { is_approved: true })))
+      setItems((prev) => prev.map((it) => it.is_approved ? it : { ...it, is_approved: true }))
+      toast({ title: `${pending.length}건 일괄 승인 완료` })
+    } finally {
+      setApprovingAll(false)
+      setConfirmApproveAll(false)
+    }
+  }
+
   const pendingCount = items.filter((it) => !it.is_approved).length
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-foreground text-2xl font-semibold mb-1">Shop this drama — 아이템 검수</h1>
-        <p className="text-muted-foreground text-sm">
-          미승인 {pendingCount}건 · 전체 {items.length}건
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-foreground text-2xl font-semibold mb-1">Shop this drama — 아이템 검수</h1>
+          <p className="text-muted-foreground text-sm">
+            미승인 {pendingCount}건 · 전체 {items.length}건
+          </p>
+        </div>
+        {pendingCount > 0 && (
+          <Button
+            onClick={() => setConfirmApproveAll(true)}
+            disabled={loading}
+            className="text-white flex-shrink-0"
+            style={{ backgroundColor: "#22c55e" }}
+          >
+            전체 일괄 승인 ({pendingCount})
+          </Button>
+        )}
       </div>
 
       {/* 필터 탭 */}
@@ -249,6 +277,43 @@ export default function DramaItemsAdminPage() {
             >
               다음
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 일괄 승인 확인 모달 */}
+      {confirmApproveAll && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+          onClick={() => !approvingAll && setConfirmApproveAll(false)}
+        >
+          <div
+            className="bg-[#1a1a1a] border border-border/50 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-foreground font-semibold text-lg mb-2">전체 일괄 승인</h3>
+            <p className="text-muted-foreground text-sm mb-5 leading-relaxed">
+              미승인 <span className="text-foreground font-medium">{pendingCount}건</span>을 모두 승인합니다.
+              구매 링크가 없는 아이템도 포함됩니다. 계속하시겠습니까?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setConfirmApproveAll(false)}
+                disabled={approvingAll}
+                className="h-9 px-4"
+              >
+                취소
+              </Button>
+              <Button
+                onClick={onApproveAll}
+                disabled={approvingAll}
+                className="h-9 px-4 text-white"
+                style={{ backgroundColor: "#22c55e" }}
+              >
+                {approvingAll ? "처리 중…" : `${pendingCount}건 승인`}
+              </Button>
+            </div>
           </div>
         </div>
       )}
