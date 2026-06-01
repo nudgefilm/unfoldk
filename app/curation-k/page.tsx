@@ -1883,7 +1883,7 @@ export default function CurationKPage() {
                     Personalized Hallyu day-trip routes built from your drama taste —
                     arriving at launch.
                   </p>
-                  <Link href="/pricing">
+                  <Link href="/signup">
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
@@ -2747,10 +2747,10 @@ function SpotsTabPanel({
               badgeColor={festStatus?.color ?? tab.color}
               fallbackIcon={<tab.Icon className="w-6 h-6 text-muted-foreground" />}
               fallbackImage={PLACEHOLDER_IMAGES[tab.key]}
-              onClick={() => onSelectSpot(item)}
+              onClick={tab.key !== "festivals" ? () => onSelectSpot(item) : undefined}
               isLoggedIn={isAuthenticated === true}
               isSaved={savedIds?.has(item.id)}
-              onSaveToggle={onSaveToggle ? () => onSaveToggle(item) : undefined}
+              onSaveToggle={tab.key !== "festivals" && onSaveToggle ? () => onSaveToggle(item) : undefined}
             />
             </AuthGate>
           )

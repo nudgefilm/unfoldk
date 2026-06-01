@@ -89,7 +89,7 @@ export default function MyCalendarPage() {
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) {
-        router.replace("/")
+        router.replace("/signup")
         return
       }
       if (cancelled) return

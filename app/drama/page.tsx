@@ -988,7 +988,7 @@ function DramaDetailModal({
                         UnfoldK episode summary + character map arrive at launch.
                       </p>
                       <Link
-                        href="/pricing"
+                        href="/signup"
                         className="inline-block text-xs font-medium px-4 py-2 rounded-full text-white whitespace-nowrap"
                         style={{ backgroundColor: "#FF4B6E" }}
                       >
@@ -1858,7 +1858,7 @@ function KdramaMatchPageInner() {
                   <p className="text-muted-foreground text-xs mb-4">
                     Episode breakdowns, relationship maps, and similar-drama matches arrive at launch.
                   </p>
-                  <Link href="/pricing">
+                  <Link href="/signup">
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
@@ -1929,7 +1929,7 @@ function KdramaMatchPageInner() {
               Full access to 2026 K-drama details, episode summaries, and character maps arrives with Hallyu Pass.
             </p>
             <Link
-              href="/pricing"
+              href="/signup"
               className="inline-block text-sm font-medium px-6 py-2.5 rounded-full text-white"
               style={{ backgroundColor: "#FF4B6E" }}
               onClick={() => setProGateOpen(false)}

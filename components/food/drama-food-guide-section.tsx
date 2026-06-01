@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { ChevronRight, Utensils, RefreshCw } from "lucide-react"
+import { AuthGate } from "@/components/auth-gate"
 
 // KfoodKit — This Week's K-Drama Food Guide 섹션
 //
@@ -30,8 +31,10 @@ interface DramaGuideData {
 
 export function DramaFoodGuideSection({
   onRecipeClick,
+  isLoggedIn,
 }: {
   onRecipeClick: (recipeId: string) => void
+  isLoggedIn?: boolean
 }) {
   const [data, setData] = useState<DramaGuideData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -92,8 +95,8 @@ export function DramaFoodGuideSection({
                 <p className="px-4 py-3 text-xs text-muted-foreground">No dishes yet.</p>
               ) : (
                 drama.foods.map((food) => (
+                  <AuthGate key={food.recipe_id} isLoggedIn={isLoggedIn ?? null}>
                   <button
-                    key={food.recipe_id}
                     type="button"
                     onClick={() => onRecipeClick(food.recipe_id)}
                     className="w-full text-left flex items-start gap-3 px-3 py-3 hover:bg-[#252525] transition-colors group"
@@ -134,6 +137,7 @@ export function DramaFoodGuideSection({
 
                     <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </button>
+                  </AuthGate>
                 ))
               )}
             </div>

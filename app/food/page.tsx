@@ -924,7 +924,7 @@ export default function KfoodKitPage() {
                   <p className="text-muted-foreground text-xs mb-4">
                     Find local substitutes for Korean ingredients and manage your shopping list.
                   </p>
-                  <Link href="/pricing">
+                  <Link href="/signup">
                     <Button
                       className="rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
@@ -1036,7 +1036,7 @@ export default function KfoodKitPage() {
                   <p className="text-muted-foreground text-xs mb-4">
                     Add ingredients to your personal shopping list.
                   </p>
-                  <Link href="/pricing">
+                  <Link href="/signup">
                     <Button
                       className="rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
@@ -1051,7 +1051,7 @@ export default function KfoodKitPage() {
         </section>
 
         {/* This Week's K-Drama Food Guide — Free 전체 개방 (2026-06-01 변경) */}
-        <DramaFoodGuideSection onRecipeClick={(id) => { if (isLoggedIn) setActiveRecipeId(id) }} />
+        <DramaFoodGuideSection isLoggedIn={isLoggedIn} onRecipeClick={(id) => { if (isLoggedIn) setActiveRecipeId(id) }} />
       </main>
 
       {/* 레시피 상세 모달 — 카드 클릭 시 마운트, lazy fetch.
