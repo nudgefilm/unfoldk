@@ -14,6 +14,10 @@
       "schedule": "30 5 * * 1"
     },
     {
+      "path": "/api/cron/ingest-drama-items",
+      "schedule": "30 6 * * 1"
+    },
+    {
       "path": "/api/cron/ingest-ticketmaster",
       "schedule": "30 6 * * *"
     },
