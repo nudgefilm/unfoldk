@@ -862,6 +862,7 @@ function UpcomingAccordionItem({
 }
 
 export default function HallyuCalendarPage() {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<string>("All")
   // 권역 필터 — venue_country_code 가 권역 배열에 포함되는지로 매칭.
   // "ONLINE" = venue 정보 없는 이벤트 (드라마·컴백·스트리밍). "ALL" 은 필터 미적용.
@@ -884,6 +885,7 @@ export default function HallyuCalendarPage() {
   const [fanEventsStartOpen, setFanEventsStartOpen] = useState(false)
   // Upcoming 아코디언에서 비로그인 액션(Add to GCal / Reminder) 시도 시 OAuth 모달
   const [accordionStartOpen, setAccordionStartOpen] = useState(false)
+  const [subscribeStartOpen, setSubscribeStartOpen] = useState(false)
   // 한 번에 한 항목만 확장 — null = 모두 닫힘
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
   // K-pop 아티스트명 → /kpop/[id] 연결용 룩업 맵
@@ -1168,23 +1170,21 @@ export default function HallyuCalendarPage() {
             Never miss a K-pop comeback or K-drama premiere
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/mypage/calendar">
-              <Button
-                className="px-6 py-3 rounded-full font-medium"
-                style={{ backgroundColor: "#FF4B6E", color: "white" }}
-              >
-                <Calendar className="w-4 h-4 mr-2" />
-                Subscribe to Google Calendar
-              </Button>
-            </Link>
-            <Link href="/mypage/calendar">
-              <Button
-                variant="outline"
-                className="px-6 py-3 rounded-full font-medium border-border/50 hover:bg-secondary/50"
-              >
-                Copy iCal Link
-              </Button>
-            </Link>
+            <Button
+              onClick={() => isLoggedIn ? router.push("/mypage/calendar") : setSubscribeStartOpen(true)}
+              className="px-6 py-3 rounded-full font-medium"
+              style={{ backgroundColor: "#FF4B6E", color: "white" }}
+            >
+              <Calendar className="w-4 h-4 mr-2" />
+              Subscribe to Google Calendar
+            </Button>
+            <Button
+              onClick={() => isLoggedIn ? router.push("/mypage/calendar") : setSubscribeStartOpen(true)}
+              variant="outline"
+              className="px-6 py-3 rounded-full font-medium border-border/50 hover:bg-secondary/50"
+            >
+              Copy iCal Link
+            </Button>
           </div>
         </section>
 
@@ -1340,13 +1340,14 @@ export default function HallyuCalendarPage() {
               <span className="text-muted-foreground text-sm">
                 Sign in to track unlimited artists — free during preview.
               </span>
-              <Link
-                href="/signup"
+              <button
+                type="button"
+                onClick={() => setSubscribeStartOpen(true)}
                 className="text-sm font-medium hover:underline"
                 style={{ color: "#FF4B6E" }}
               >
                 Sign in
-              </Link>
+              </button>
             </div>
           </section>
         )}
@@ -1605,6 +1606,11 @@ export default function HallyuCalendarPage() {
         open={accordionStartOpen}
         onOpenChange={setAccordionStartOpen}
         next="/calendar"
+      />
+      <StartModal
+        open={subscribeStartOpen}
+        onOpenChange={setSubscribeStartOpen}
+        next="/mypage/calendar"
       />
 
       <FooterSection />

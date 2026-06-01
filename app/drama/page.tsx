@@ -1858,6 +1858,7 @@ function KdramaMatchPageInner() {
                   <p className="text-muted-foreground text-xs mb-4">
                     Episode breakdowns, relationship maps, and similar-drama matches arrive at launch.
                   </p>
+                  <AuthGate isLoggedIn={isAuthenticated}>
                   <Link href="/signup">
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white"
@@ -1866,6 +1867,7 @@ function KdramaMatchPageInner() {
                       Notify me at launch
                     </Button>
                   </Link>
+                  </AuthGate>
                 </div>
               </div>
             )}
@@ -1885,6 +1887,7 @@ function KdramaMatchPageInner() {
                 all in one place.
               </p>
             </div>
+            <AuthGate isLoggedIn={isAuthenticated}>
             <Link
               href={isAuthenticated === false ? "/signup" : "/mypage/dramas"}
               className="inline-flex items-center justify-center gap-1.5 text-sm font-medium px-5 h-11 rounded-full text-white whitespace-nowrap"
@@ -1892,6 +1895,7 @@ function KdramaMatchPageInner() {
             >
               {isAuthenticated === false ? "Sign in to track" : "Manage my dramas →"}
             </Link>
+            </AuthGate>
           </div>
         </section>
       </main>

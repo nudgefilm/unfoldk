@@ -1019,14 +1019,12 @@ export function KoreanContent() {
             >
               {filteredPacks.map((pack) => {
                 const dColor = difficultyColor(pack.difficulty)
-                // 오늘의 표현 드라마와 일치 시 카드 하이라이트
                 const isTodaysDrama = !!phrase?.dramaId && phrase.dramaId === pack.id
-                // intermediate / advanced + 비-Pro → 개별 카드 잠금.
-                // beginner(null 포함) 는 항상 Free 접근 — difficulty 명시적 화이트리스트로 확인.
                 const isPackLocked = !isPro && (pack.difficulty === "intermediate" || pack.difficulty === "advanced")
                 return (
+                  // 비로그인: AuthGate로 모든 팩 차단. 로그인: 기존 Pro 잠금 로직 유지.
+                  <AuthGate key={pack.id} isLoggedIn={isAuthenticated}>
                   <button
-                    key={pack.id}
                     type="button"
                     onClick={() => {
                       if (isPackLocked) { setProGateOpen(true); return }
@@ -1120,6 +1118,7 @@ export function KoreanContent() {
                       </p>
                     </div>
                   </button>
+                  </AuthGate>
                 )
               })}
             </div>
@@ -1365,6 +1364,7 @@ export function KoreanContent() {
                   <p className="text-muted-foreground text-xs mb-4">
                     UnfoldK Grammar Explanations arrive at launch.
                   </p>
+                  <AuthGate isLoggedIn={isAuthenticated}>
                   <Link href="/signup">
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white"
@@ -1373,6 +1373,7 @@ export function KoreanContent() {
                       Notify me at launch
                     </Button>
                   </Link>
+                  </AuthGate>
                 </div>
               </div>
             )}
@@ -1409,8 +1410,9 @@ export function KoreanContent() {
                     const isLocked = !isPro && (ep.difficulty === "intermediate" || ep.difficulty === "advanced")
                     const isHovered = hoveredExprId === ep.id
                     return (
+                      // 비로그인: AuthGate로 모든 표현 클릭 차단
+                      <AuthGate key={ep.id} isLoggedIn={isAuthenticated}>
                       <button
-                        key={ep.id}
                         type="button"
                         onMouseEnter={() => setHoveredExprId(ep.id)}
                         onMouseLeave={() => setHoveredExprId(null)}
@@ -1437,6 +1439,7 @@ export function KoreanContent() {
                           </span>
                         )}
                       </button>
+                      </AuthGate>
                     )
                   })}
                 </div>

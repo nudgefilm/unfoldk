@@ -11,6 +11,7 @@ import {
   ResponsiveContainer, CartesianGrid,
 } from "recharts"
 import Link from "next/link"
+import { StartModal } from "@/components/start-modal"
 
 interface ArtistOption {
   id: string
@@ -319,8 +320,10 @@ export function ArtistComparisonSection({
   }, [data])
 
   // 비로그인 상태 (auth 확인 완료 후)
+  const [compStartOpen, setCompStartOpen] = useState(false)
   if (authChecked && !isLoggedIn) {
     return (
+      <>
       <section className="mb-16">
         <h2 className="text-2xl font-semibold text-white mb-6">Artist Comparison</h2>
         <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-8 text-center">
@@ -328,15 +331,18 @@ export function ArtistComparisonSection({
           <p className="text-muted-foreground text-sm mb-5">
             Compare fan loyalty, growth momentum, and global reach for any two K-pop artists.
           </p>
-          <Link
-            href="/signup"
+          <button
+            type="button"
+            onClick={() => setCompStartOpen(true)}
             className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-sm font-medium text-white"
             style={{ backgroundColor: "#FF4B6E" }}
           >
             Sign in to UnfoldK
-          </Link>
+          </button>
         </div>
       </section>
+      <StartModal open={compStartOpen} onOpenChange={setCompStartOpen} next="/kpop" />
+      </>
     )
   }
 

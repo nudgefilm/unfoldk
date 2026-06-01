@@ -16,6 +16,7 @@ import { ReportButton } from "@/components/common/report-button"
 import { Toaster } from "@/components/ui/toaster"
 import { ArtistComparisonSection } from "@/components/kpop/artist-comparison"
 import { AuthGate } from "@/components/auth-gate"
+import { StartModal } from "@/components/start-modal"
 
 // ============================================
 // 숫자 포맷터 — 2_400_000_000 → "2.4B"
@@ -86,6 +87,7 @@ interface ArtistListItem {
 
 export default function KpopStatsPage() {
   const router = useRouter()
+  const [kpopStartOpen, setKpopStartOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [chart, setChart] = useState<ChartItem[]>([])
   const [chartLoading, setChartLoading] = useState(true)
@@ -706,14 +708,13 @@ export default function KpopStatsPage() {
                   </div>
                 </div>
                 {!isLoggedIn && (
-                  <Link href="/signup" className="flex-shrink-0">
-                    <Button
-                      className="px-6 py-2 rounded-full font-medium text-white whitespace-nowrap"
-                      style={{ backgroundColor: "#FF4B6E" }}
-                    >
-                      Track this artist
-                    </Button>
-                  </Link>
+                  <Button
+                    onClick={() => setKpopStartOpen(true)}
+                    className="flex-shrink-0 px-6 py-2 rounded-full font-medium text-white whitespace-nowrap"
+                    style={{ backgroundColor: "#FF4B6E" }}
+                  >
+                    Track this artist
+                  </Button>
                 )}
               </div>
 
@@ -832,6 +833,7 @@ export default function KpopStatsPage() {
 
       {/* 토스트 컨테이너 — root layout 에 미마운트라 페이지 레벨에서 로컬 마운트.
           ReportButton 의 submit/error 토스트가 silent no-op 되는 것 방지 (CLAUDE.md §10). */}
+      <StartModal open={kpopStartOpen} onOpenChange={setKpopStartOpen} next="/kpop" />
       <Toaster />
 
       <FooterSection />

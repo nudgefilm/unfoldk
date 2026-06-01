@@ -924,6 +924,7 @@ export default function KfoodKitPage() {
                   <p className="text-muted-foreground text-xs mb-4">
                     Find local substitutes for Korean ingredients and manage your shopping list.
                   </p>
+                  <AuthGate isLoggedIn={isLoggedIn}>
                   <Link href="/signup">
                     <Button
                       className="rounded-full font-medium text-white"
@@ -932,6 +933,7 @@ export default function KfoodKitPage() {
                       Notify me at launch
                     </Button>
                   </Link>
+                  </AuthGate>
                 </div>
               </div>
             )}
@@ -1036,6 +1038,7 @@ export default function KfoodKitPage() {
                   <p className="text-muted-foreground text-xs mb-4">
                     Add ingredients to your personal shopping list.
                   </p>
+                  <AuthGate isLoggedIn={isLoggedIn}>
                   <Link href="/signup">
                     <Button
                       className="rounded-full font-medium text-white"
@@ -1044,6 +1047,7 @@ export default function KfoodKitPage() {
                       Notify me at launch
                     </Button>
                   </Link>
+                  </AuthGate>
                 </div>
               </div>
             )}
