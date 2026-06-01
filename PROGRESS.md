@@ -4,7 +4,7 @@
 
 ---
 
-## 현재 상태 (2026-06-02 세션 40 기준)
+## 현재 상태 (2026-06-02 세션 41 기준)
 
 ### HallyuCalendar
 - Fan Meet 탭 유저 등록 행사 연동 (migration 0056, contact_email/registration_link)
@@ -61,7 +61,10 @@
   - 미승인/승인/삭제/구매링크 입력, 페이지당 20개 페이지네이션
   - 카테고리 영문 뱃지, 드라마명 영/한 병기, 아이템명·설명 영/한 병기
 
-### Curation K (세션 39–40 추가)
+### KdramaMatch (세션 41 추가)
+- Browse All 드라마명 검색 입력창 추가 (`?q=` 파라미터, 400ms 디바운스, URL 동기화, X 버튼 초기화)
+
+### Curation K (세션 39–41 추가)
 - K-Pop Pilgrimage Sites / Who fans love in 카드 AuthGate 적용
 - My Hallyu Course Notify me → /signup
 - Festivals 탭 proLocked: true 전환 (Free → Pro)
@@ -69,6 +72,14 @@
 - `lib/ingest/tour-spots.ts` existing 조회 페이지네이션 버그 수정 (1,000행 cap 우회)
 - IN THE DATABASE 7개 카테고리 전체 표시 (Filming/Attractions/Food/Stays/Shopping/Culture/Festivals)
 - 지도 도시 호버 툴팁 Shopping 추가 → 7개 통일
+- Travel Style 5종 개편: Filming Tour(43) / Sightseeing(1907) / Foodie(1823) / Cultural(1167) / Shopping(735) — DB 실제 건수 칩 표시
+- `fetchContext` style별 content_type_id 분기 (filming→[12,14,39], shopping→[38,39,12] 등)
+- My Hallyu Course 코스 생성 결과 하단 **CourseMiniMap** 동선 다이어그램 추가
+  - `report_itinerary` tool stop에 lat/lng 필드 추가 (Claude 좌표 반환)
+  - SVG 560×220 순수 구현 (외부 지도 API 없음), 기존 Curation K 다크 스타일 동일
+  - 격자 배경 + 한국 주요 지역 38개 배경 레이블 (bounding box 안 자동 필터)
+  - 핑크 번호 핀(①②③) + 점선 동선 연결 + 하단 범례
+  - 다일 코스 Day 탭 전환, 좌표 없는 경우 자동 숨김
 
 ### 비로그인 접근 정책 (세션 39 추가)
 - `components/auth-gate.tsx` 툴팁 문구 콤마 수정, 위치 카드 중앙으로 통일
