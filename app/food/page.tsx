@@ -769,7 +769,7 @@ export default function KfoodKitPage() {
         </section>
 
         {/* This Week's K-Food Picks — Free 전체 개방 (2026-06-01 변경) */}
-        <WeeklyPicksSection isPro={true} onRecipeClick={(id) => { if (isLoggedIn) setActiveRecipeId(id) }} />
+        <WeeklyPicksSection isPro={true} isLoggedIn={isLoggedIn} onRecipeClick={(id) => { if (isLoggedIn) setActiveRecipeId(id) }} />
 
         {/* ── Local Ingredient Matcher ────────────────────────────────
             h2 제목은 blur 밖 → 항상 보임. 콘텐츠 박스만 blur + overlay. */}

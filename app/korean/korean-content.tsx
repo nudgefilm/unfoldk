@@ -1365,7 +1365,7 @@ export function KoreanContent() {
                   <p className="text-muted-foreground text-xs mb-4">
                     UnfoldK Grammar Explanations arrive at launch.
                   </p>
-                  <Link href="/signup">
+                  <Link href="/pricing">
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
@@ -1517,7 +1517,7 @@ export function KoreanContent() {
               Beginner expressions are free for everyone. Intermediate and advanced K-drama phrases unlock with Hallyu Pass.
             </p>
             <Link
-              href="/signup"
+              href="/pricing"
               className="inline-block text-sm font-medium px-6 py-2.5 rounded-full text-white"
               style={{ backgroundColor: "#FF4B6E" }}
               onClick={() => setProGateOpen(false)}

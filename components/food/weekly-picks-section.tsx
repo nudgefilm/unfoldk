@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Lock, Sparkles, Clock, Flame, Loader2 } from "lucide-react"
+import { AuthGate } from "@/components/auth-gate"
 
 // KfoodKit — This Week's K-Food Picks 섹션
 //
@@ -39,9 +40,11 @@ const SEASON_EMOJI: Record<string, string> = {
 
 export function WeeklyPicksSection({
   isPro,
+  isLoggedIn,
   onRecipeClick,
 }: {
   isPro: boolean
+  isLoggedIn?: boolean
   onRecipeClick: (recipeId: string) => void
 }) {
   const [data, setData] = useState<WeeklyPicksResponse | null>(null)
@@ -158,14 +161,14 @@ export function WeeklyPicksSection({
             </div>
           )}
           {(isPro ? displayData.picks : displayData.picks).map((pick) => (
+            <AuthGate key={pick.recipe_id} isLoggedIn={isLoggedIn ?? null}>
             <button
-              key={pick.recipe_id}
               type="button"
               onClick={() => {
                 if (!isPro) return
                 onRecipeClick(pick.recipe.id)
               }}
-              className="text-left bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors"
+              className="w-full text-left bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden hover:border-primary/50 transition-colors"
             >
               {/* 이미지 — image_url 있으면 표시, 없거나 실패 시 플레이스홀더 */}
               <div className="h-40 bg-[#252525] flex items-center justify-center overflow-hidden">
@@ -222,6 +225,7 @@ export function WeeklyPicksSection({
                 </div>
               </div>
             </button>
+            </AuthGate>
           ))}
         </div>
 

@@ -652,11 +652,13 @@ export default function KpopStatsPage() {
               ))}
             </div>
             <div className="flex justify-center mt-6">
-              <Link href="/kpop/artists">
-                <Button variant="outline" className="rounded-full px-6">
-                  View all artists
-                </Button>
-              </Link>
+              <AuthGate isLoggedIn={isLoggedIn}>
+                <Link href="/kpop/artists">
+                  <Button variant="outline" className="rounded-full px-6">
+                    View all artists
+                  </Button>
+                </Link>
+              </AuthGate>
             </div>
           </section>
         )}
@@ -704,7 +706,7 @@ export default function KpopStatsPage() {
                   </div>
                 </div>
                 {!isLoggedIn && (
-                  <Link href="/" className="flex-shrink-0">
+                  <Link href="/signup" className="flex-shrink-0">
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white whitespace-nowrap"
                       style={{ backgroundColor: "#FF4B6E" }}

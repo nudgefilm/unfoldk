@@ -1168,8 +1168,8 @@ export default function HallyuCalendarPage() {
             Never miss a K-pop comeback or K-drama premiere
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/mypage/calendar">
-              <Button 
+            <Link href={isLoggedIn ? "/mypage/calendar" : "/signup"}>
+              <Button
                 className="px-6 py-3 rounded-full font-medium"
                 style={{ backgroundColor: "#FF4B6E", color: "white" }}
               >
@@ -1177,8 +1177,8 @@ export default function HallyuCalendarPage() {
                 Subscribe to Google Calendar
               </Button>
             </Link>
-            <Link href="/mypage/calendar">
-              <Button 
+            <Link href={isLoggedIn ? "/mypage/calendar" : "/signup"}>
+              <Button
                 variant="outline"
                 className="px-6 py-3 rounded-full font-medium border-border/50 hover:bg-secondary/50"
               >
@@ -1341,7 +1341,7 @@ export default function HallyuCalendarPage() {
                 Sign in to track unlimited artists — free during preview.
               </span>
               <Link
-                href="/"
+                href="/signup"
                 className="text-sm font-medium hover:underline"
                 style={{ color: "#FF4B6E" }}
               >

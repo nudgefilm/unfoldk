@@ -1785,8 +1785,8 @@ export default function CurationKPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {kpopSpots.map((spot) => (
+                <AuthGate key={spot.id} isLoggedIn={isAuthenticated}>
                 <SpotCard
-                  key={spot.id}
                   image={spot.image_url}
                   title={spot.spot_name}
                   subtitle={spot.artist_name}
@@ -1797,7 +1797,9 @@ export default function CurationKPage() {
                   fallbackIcon={<MicVocal className="w-6 h-6 text-muted-foreground" />}
                   fallbackImage={PLACEHOLDER_IMAGES.kpop}
                   onClick={() => setSelectedKpopSpot(spot)}
+                  isLoggedIn={isAuthenticated === true}
                 />
+                </AuthGate>
               ))}
             </div>
           )}
@@ -1881,7 +1883,7 @@ export default function CurationKPage() {
                     Personalized Hallyu day-trip routes built from your drama taste —
                     arriving at launch.
                   </p>
-                  <Link href={isAuthenticated === false ? "/login?redirect=/curation-k" : "/signup"}>
+                  <Link href="/pricing">
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
@@ -2180,10 +2182,10 @@ export default function CurationKPage() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {geoItems.map((g) => (
+                <AuthGate key={g.artistId} isLoggedIn={isAuthenticated}>
                 <Link
-                  key={g.artistId}
                   href={`/kpop/${g.artistId}`}
-                  className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4 hover:border-primary/40 hover:bg-[#222226] transition-colors flex items-center gap-3"
+                  className="block bg-[#1a1a1a] border border-border/30 rounded-xl p-4 hover:border-primary/40 hover:bg-[#222226] transition-colors flex items-center gap-3"
                 >
                   {g.thumbnail_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -2207,6 +2209,7 @@ export default function CurationKPage() {
                     </p>
                   </div>
                 </Link>
+                </AuthGate>
               ))}
             </div>
           )}
