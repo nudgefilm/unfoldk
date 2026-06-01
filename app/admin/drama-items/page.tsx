@@ -11,9 +11,11 @@ interface DramaItem {
   drama_title: string
   drama_title_ko: string | null
   name: string
+  name_ko: string | null
   category: "fashion" | "beauty" | "lifestyle"
   brand: string | null
   description: string | null
+  description_ko: string | null
   purchase_url: string | null
   is_approved: boolean
   created_at: string
@@ -167,10 +169,18 @@ export default function DramaItemsAdminPage() {
                       <span className="text-[10px] text-green-400 border border-green-400/30 px-1.5 py-0.5 rounded">승인됨</span>
                     )}
                   </div>
-                  <p className="text-foreground font-medium">{item.name}</p>
+                  <p className="text-foreground font-medium">
+                    {item.name}
+                    {item.name_ko && (
+                      <span className="ml-1.5 text-muted-foreground font-normal text-sm">({item.name_ko})</span>
+                    )}
+                  </p>
                   {item.brand && <p className="text-muted-foreground text-sm">{item.brand}</p>}
                   {item.description && (
                     <p className="text-muted-foreground text-xs mt-1 leading-relaxed">{item.description}</p>
+                  )}
+                  {item.description_ko && (
+                    <p className="text-muted-foreground/70 text-xs mt-0.5 leading-relaxed">{item.description_ko}</p>
                   )}
                 </div>
                 <div className="flex gap-2 flex-shrink-0">

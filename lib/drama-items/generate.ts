@@ -9,18 +9,22 @@ export type DramaItemCategory = "fashion" | "beauty" | "lifestyle"
 export interface DramaItemInsert {
   drama_id: string
   name: string
+  name_ko: string | null
   category: DramaItemCategory
   brand: string | null
   description: string | null
+  description_ko: string | null
   purchase_url: null
   is_approved: false
 }
 
 interface ExtractedItem {
   name: string
+  name_ko: string | null
   category: DramaItemCategory
   brand: string | null
   description: string | null
+  description_ko: string | null
 }
 
 export interface GenerateItemsResult {
@@ -58,13 +62,15 @@ Overview: ${overviewText}
 
 Extract 3 to 5 iconic fashion, beauty, or lifestyle items strongly associated with this drama's aesthetic, characters, or memorable scenes. Focus on items fans would actually want to buy.
 
-Return a JSON array with this exact structure:
+Return a JSON array with this exact structure (include both English and Korean for name and description):
 [
   {
-    "name": "item name (specific, not generic)",
+    "name": "item name in English (specific, not generic)",
+    "name_ko": "아이템명 한국어",
     "category": "fashion" | "beauty" | "lifestyle",
     "brand": "brand name if identifiable, otherwise null",
-    "description": "1-2 sentences why fans love this item from the drama"
+    "description": "1-2 sentences in English why fans love this item from the drama",
+    "description_ko": "팬들이 이 아이템을 좋아하는 이유 1-2문장 한국어"
   }
 ]`,
       },
@@ -86,9 +92,11 @@ Return a JSON array with this exact structure:
     items.push({
       drama_id: drama.id,
       name: String(item.name ?? "").slice(0, 200),
+      name_ko: item.name_ko ? String(item.name_ko).slice(0, 200) : null,
       category: cat as DramaItemCategory,
       brand: item.brand ? String(item.brand).slice(0, 100) : null,
       description: item.description ? String(item.description).slice(0, 500) : null,
+      description_ko: item.description_ko ? String(item.description_ko).slice(0, 500) : null,
       purchase_url: null,
       is_approved: false,
     })
