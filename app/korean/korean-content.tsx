@@ -1398,11 +1398,10 @@ export function KoreanContent() {
             <p className="text-muted-foreground text-sm">No expressions yet.</p>
           ) : (
             <>
-              {/* 표현 박스 — flex-wrap, 10줄 높이.
-                  maxHeight: 10행×40px + 9갭×8px + 하단여유 = 480px.
-                  overflow hidden 이전에 pb-2 충분히 확보해 마지막 행 잘림 방지. */}
-              <div style={{ maxHeight: "490px", overflow: "hidden", paddingBottom: "0" }}>
-                <div className="flex flex-wrap gap-2" style={{ paddingBottom: "10px" }}>
+              {/* 표현 박스 — flex-wrap. slice()로 이미 100개 제한하므로 overflow:hidden 불필요.
+                  pb-4로 마지막 행 하단 여백 확보. */}
+              <div>
+                <div className="flex flex-wrap gap-2 pb-4">
                   {allShuffledPhrases.slice(
                     (explorePage - 1) * EXPLORE_PAGE_SIZE,
                     explorePage * EXPLORE_PAGE_SIZE,
