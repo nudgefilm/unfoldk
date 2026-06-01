@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
-import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 export const dynamic = "force-dynamic"
 
-// GET /api/dramas/[id]/shop — 드라마 승인된 쇼핑 아이템 목록
+// GET /api/dramas/[id]/shop — 드라마 승인된 쇼핑 아이템 목록 (공개 엔드포인트)
 // 응답: { items: DramaItem[] }
-// RLS: is_approved=true 만 공개 (policy "drama_items_select_approved")
+// admin client 사용 — 공개 read 이므로 RLS 우회 후 코드 레벨에서 is_approved 필터
 
 export async function GET(
   _req: Request,
@@ -16,7 +16,7 @@ export async function GET(
     return NextResponse.json({ error: "invalid_id" }, { status: 400 })
   }
 
-  const supabase = await createSupabaseServerClient()
+  const supabase = createSupabaseAdminClient()
   const { data, error } = await supabase
     .from("drama_items")
     .select("id, name, category, brand, description, purchase_url")
@@ -25,7 +25,7 @@ export async function GET(
     .order("created_at", { ascending: true })
 
   if (error) {
-    console.error("[dramas/shop] 조회 실패:", error.message)
+    console.error("[dramas/shop] 조회 실패:", error.message, "drama_id:", id)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
