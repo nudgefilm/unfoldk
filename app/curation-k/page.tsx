@@ -3593,52 +3593,87 @@ function extractFirstUrl(raw: string): string | null {
 
 // 한국 주요 지역·동네 좌표 — CourseMiniMap 배경 레이블용
 const DISTRICT_LABELS: ReadonlyArray<{ name: string; lat: number; lng: number }> = [
-  // Seoul
-  { name: "Hongdae",     lat: 37.5571, lng: 126.9234 },
-  { name: "Itaewon",     lat: 37.5345, lng: 126.9940 },
-  { name: "Myeongdong",  lat: 37.5635, lng: 126.9822 },
-  { name: "Insadong",    lat: 37.5742, lng: 126.9856 },
-  { name: "Gangnam",     lat: 37.4979, lng: 127.0276 },
-  { name: "Sinchon",     lat: 37.5558, lng: 126.9367 },
-  { name: "Bukchon",     lat: 37.5823, lng: 126.9852 },
-  { name: "Seongsu",     lat: 37.5447, lng: 127.0558 },
-  { name: "Mapo",        lat: 37.5614, lng: 126.9088 },
-  { name: "Yeouido",     lat: 37.5219, lng: 126.9241 },
-  { name: "Jamsil",      lat: 37.5133, lng: 127.1028 },
-  { name: "Dongdaemun",  lat: 37.5714, lng: 127.0092 },
-  { name: "Jongno",      lat: 37.5735, lng: 126.9789 },
-  { name: "Apgujeong",   lat: 37.5270, lng: 127.0291 },
-  { name: "Hapjeong",    lat: 37.5499, lng: 126.9142 },
-  { name: "Yongsan",     lat: 37.5326, lng: 126.9903 },
-  { name: "Cheongdam",   lat: 37.5224, lng: 127.0500 },
-  { name: "Noryangjin",  lat: 37.5138, lng: 126.9425 },
-  { name: "Jamsil",      lat: 37.5133, lng: 127.1028 },
-  // Busan
-  { name: "Haeundae",    lat: 35.1631, lng: 129.1635 },
-  { name: "Gwangalli",   lat: 35.1530, lng: 129.1185 },
-  { name: "Nampo-dong",  lat: 35.0979, lng: 129.0306 },
-  { name: "Gamcheon",    lat: 35.0975, lng: 129.0130 },
-  { name: "Centum",      lat: 35.1686, lng: 129.1320 },
-  // Jeju
-  { name: "Jeju City",   lat: 33.4996, lng: 126.5312 },
-  { name: "Seogwipo",    lat: 33.2541, lng: 126.5600 },
-  { name: "Jungmun",     lat: 33.2484, lng: 126.4122 },
-  { name: "Hallim",      lat: 33.3872, lng: 126.2378 },
-  // Gangwon
-  { name: "Gangneung",   lat: 37.7519, lng: 128.8761 },
-  { name: "Sokcho",      lat: 38.2048, lng: 128.5912 },
-  { name: "Chuncheon",   lat: 37.8747, lng: 127.7342 },
-  // Other cities
-  { name: "Gyeongju",    lat: 35.8562, lng: 129.2247 },
-  { name: "Jeonju",      lat: 35.8468, lng: 127.1296 },
-  { name: "Incheon",     lat: 37.4563, lng: 126.7052 },
-  { name: "Suwon",       lat: 37.2636, lng: 127.0286 },
-  { name: "Daejeon",     lat: 36.3504, lng: 127.3845 },
-  { name: "Daegu",       lat: 35.8714, lng: 128.6014 },
+  // ─── 서울 ──────────────────────────────────────────────────────
+  { name: "Hongdae",      lat: 37.5571, lng: 126.9234 },
+  { name: "Itaewon",      lat: 37.5345, lng: 126.9940 },
+  { name: "Myeongdong",   lat: 37.5635, lng: 126.9822 },
+  { name: "Insadong",     lat: 37.5742, lng: 126.9856 },
+  { name: "Gangnam",      lat: 37.4979, lng: 127.0276 },
+  { name: "Sinchon",      lat: 37.5558, lng: 126.9367 },
+  { name: "Bukchon",      lat: 37.5823, lng: 126.9852 },
+  { name: "Seongsu",      lat: 37.5447, lng: 127.0558 },
+  { name: "Mapo",         lat: 37.5614, lng: 126.9088 },
+  { name: "Yeouido",      lat: 37.5219, lng: 126.9241 },
+  { name: "Jamsil",       lat: 37.5133, lng: 127.1028 },
+  { name: "Dongdaemun",   lat: 37.5714, lng: 127.0092 },
+  { name: "Jongno",       lat: 37.5735, lng: 126.9789 },
+  { name: "Apgujeong",    lat: 37.5270, lng: 127.0291 },
+  { name: "Hapjeong",     lat: 37.5499, lng: 126.9142 },
+  { name: "Yongsan",      lat: 37.5326, lng: 126.9903 },
+  { name: "Cheongdam",    lat: 37.5224, lng: 127.0500 },
+  { name: "Noryangjin",   lat: 37.5138, lng: 126.9425 },
+  // ─── 부산 ──────────────────────────────────────────────────────
+  { name: "Haeundae",     lat: 35.1631, lng: 129.1635 },
+  { name: "Gwangalli",    lat: 35.1530, lng: 129.1185 },
+  { name: "Nampo-dong",   lat: 35.0979, lng: 129.0306 },
+  { name: "Gamcheon",     lat: 35.0975, lng: 129.0130 },
+  { name: "Centum",       lat: 35.1686, lng: 129.1320 },
+  { name: "Seomyeon",     lat: 35.1578, lng: 129.0597 },
+  { name: "Gijang",       lat: 35.2445, lng: 129.0938 },
+  { name: "Songjeong",    lat: 35.1793, lng: 129.1945 },
+  { name: "Dongnae",      lat: 35.2025, lng: 129.0834 },
+  // ─── 제주 ──────────────────────────────────────────────────────
+  { name: "Jeju City",    lat: 33.4996, lng: 126.5312 },
+  { name: "Seogwipo",     lat: 33.2541, lng: 126.5600 },
+  { name: "Jungmun",      lat: 33.2484, lng: 126.4122 },
+  { name: "Hallim",       lat: 33.3872, lng: 126.2378 },
+  { name: "Seongsan",     lat: 33.4270, lng: 126.9200 },
+  { name: "Hyeopjae",     lat: 33.3949, lng: 126.2394 },
+  { name: "Aewol",        lat: 33.4638, lng: 126.3021 },
+  { name: "Pyoseon",      lat: 33.3173, lng: 126.8178 },
+  // ─── 강원 ──────────────────────────────────────────────────────
+  { name: "Gangneung",    lat: 37.7519, lng: 128.8761 },
+  { name: "Sokcho",       lat: 38.2048, lng: 128.5912 },
+  { name: "Chuncheon",    lat: 37.8747, lng: 127.7342 },
+  { name: "Pyeongchang",  lat: 37.3706, lng: 128.3906 },
+  { name: "Yangyang",     lat: 38.0733, lng: 128.6178 },
+  { name: "Samcheok",     lat: 37.4502, lng: 129.1658 },
+  // ─── 경주 ──────────────────────────────────────────────────────
+  { name: "Gyeongju",     lat: 35.8562, lng: 129.2247 },
+  { name: "Hwangnidan",   lat: 35.8315, lng: 129.2214 },
+  { name: "Bulguksa",     lat: 35.7900, lng: 129.3316 },
+  { name: "Cheomseongdae",lat: 35.8347, lng: 129.2191 },
+  { name: "Bomun",        lat: 35.8495, lng: 129.2876 },
+  // ─── 전주 ──────────────────────────────────────────────────────
+  { name: "Jeonju",       lat: 35.8468, lng: 127.1296 },
+  { name: "Hanok Village",lat: 35.8168, lng: 127.1532 },
+  { name: "Nambu Market", lat: 35.8104, lng: 127.1490 },
+  // ─── 광주 ──────────────────────────────────────────────────────
+  { name: "Gwangju",      lat: 35.1595, lng: 126.8526 },
+  { name: "Yanglim",      lat: 35.1444, lng: 126.9052 },
+  { name: "Chungjangno",  lat: 35.1471, lng: 126.9184 },
+  // ─── 대전 ──────────────────────────────────────────────────────
+  { name: "Daejeon",      lat: 36.3504, lng: 127.3845 },
+  { name: "Sungsimdang",  lat: 36.3264, lng: 127.4269 },
+  { name: "Yuseong",      lat: 36.3626, lng: 127.3558 },
+  // ─── 대구 ──────────────────────────────────────────────────────
+  { name: "Daegu",        lat: 35.8714, lng: 128.6014 },
+  { name: "Dongseongno",  lat: 35.8686, lng: 128.5954 },
+  { name: "Seomun Mkt",   lat: 35.8741, lng: 128.5797 },
+  { name: "Bongnidan",    lat: 35.8561, lng: 128.6003 },
+  // ─── 인천·경기 ─────────────────────────────────────────────────
+  { name: "Incheon",      lat: 37.4563, lng: 126.7052 },
+  { name: "Chinatown",    lat: 37.4748, lng: 126.6162 },
+  { name: "Wolmido",      lat: 37.4740, lng: 126.5997 },
+  { name: "Songdo",       lat: 37.3890, lng: 126.6425 },
+  { name: "Suwon",        lat: 37.2636, lng: 127.0286 },
+  { name: "Hwaseong",     lat: 37.2880, lng: 127.0149 },
 ]
 
-// 서울 주요 구 경계 — 단순화된 폴리곤 [lat, lng]. opacity 0.15 얇은 선.
-const SEOUL_DISTRICT_BOUNDARIES: ReadonlyArray<ReadonlyArray<readonly [number, number]>> = [
+// 전국 구·지역 경계 + 섬 외곽선 — 단순화된 폴리곤 [lat, lng]. opacity 0.15 얇은 선.
+// 뷰포트 교차 시 자동 표시.
+const DISTRICT_BOUNDARIES: ReadonlyArray<ReadonlyArray<readonly [number, number]>> = [
+  // ─── 서울 구 경계 ──────────────────────────────────────────────
   // 종로구
   [[37.620, 126.942], [37.617, 127.023], [37.577, 127.001], [37.573, 126.960], [37.589, 126.942]],
   // 중구
@@ -3655,6 +3690,24 @@ const SEOUL_DISTRICT_BOUNDARIES: ReadonlyArray<ReadonlyArray<readonly [number, n
   [[37.510, 126.985], [37.510, 127.062], [37.448, 127.062], [37.448, 126.985]],
   // 송파구
   [[37.538, 127.082], [37.538, 127.157], [37.472, 127.157], [37.472, 127.082]],
+  // ─── 부산 구 경계 ──────────────────────────────────────────────
+  // 해운대구
+  [[35.183, 129.100], [35.183, 129.205], [35.125, 129.205], [35.125, 129.100]],
+  // 수영구 (광안리)
+  [[35.173, 129.072], [35.173, 129.120], [35.128, 129.120], [35.128, 129.072]],
+  // 부산진구 (서면)
+  [[35.178, 129.043], [35.178, 129.082], [35.138, 129.082], [35.138, 129.043]],
+  // 중구 (남포동)
+  [[35.112, 129.015], [35.112, 129.048], [35.090, 129.048], [35.090, 129.015]],
+  // 기장군
+  [[35.270, 129.075], [35.270, 129.230], [35.160, 129.230], [35.160, 129.075]],
+  // ─── 제주 섬 외곽선 (시계방향, 12점 단순화) ──────────────────────
+  [
+    [33.545, 126.220], [33.558, 126.430], [33.543, 126.650],
+    [33.515, 126.830], [33.477, 126.955], [33.388, 127.010],
+    [33.268, 126.970], [33.200, 126.810], [33.175, 126.500],
+    [33.215, 126.170], [33.335, 126.082], [33.465, 126.108],
+  ],
 ]
 
 // 전국 주요 강 — 단순화된 중심선 [lat, lng]. width 로 강 크기 구분.
@@ -3803,7 +3856,7 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
       lat >= minLat2 && lat <= maxLat2 && lng >= minLng2 && lng <= maxLng2
 
     const labels = DISTRICT_LABELS.filter((l) => inView(l.lat, l.lng))
-    const districtBounds = SEOUL_DISTRICT_BOUNDARIES.filter((poly) =>
+    const districtBounds = DISTRICT_BOUNDARIES.filter((poly) =>
       poly.some(([lat, lng]) => inView(lat, lng))
     )
     const rivers = RIVER_PATHS.filter((r) =>
