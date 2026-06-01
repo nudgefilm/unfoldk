@@ -14,7 +14,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 //   { total, filming, attractions, culture, festivals, stays, food,
 //     byRegion: { [area_code]: { filming, attractions, culture, festivals, stays, food } } }
 
-export const revalidate = 3600
+export const dynamic = "force-dynamic"
 
 type CategoryKey = "filming" | "attractions" | "culture" | "festivals" | "stays" | "food" | "shopping"
 
@@ -192,7 +192,7 @@ export async function GET() {
     },
     {
       headers: {
-        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=7200",
+        "Cache-Control": "no-store",
       },
     }
   )
