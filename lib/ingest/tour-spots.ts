@@ -226,18 +226,33 @@ async function runCategory(
   }
 
   // 2) 기존 (content_id → modified_time) 맵 — 증분 비교 용도
-  const { data: existingRows, error: exErr } = await supabase
-    .from("tour_spots")
-    .select("content_id, modified_time")
-    .eq("content_type_id", config.contentTypeId)
-
-  if (exErr) {
-    result.errors.push(`existing 조회 실패: ${exErr.message}`)
-    // 그래도 진행 — 증분 비교 못 하면 전부 upsert 됨
-  }
+  // PostgREST 기본 cap(1,000행)을 우회하기 위해 1,000건씩 페이지네이션으로 전체 조회.
+  const PAGE_SIZE = 1000
   const existingMap = new Map<string, string | null>()
-  for (const r of (existingRows ?? []) as Array<{ content_id: string; modified_time: string | null }>) {
-    existingMap.set(r.content_id, r.modified_time)
+  let pageNo = 0
+  let fetchErr = false
+  while (true) {
+    const from = pageNo * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+    const { data, error } = await supabase
+      .from("tour_spots")
+      .select("content_id, modified_time")
+      .eq("content_type_id", config.contentTypeId)
+      .range(from, to)
+    if (error) {
+      result.errors.push(`existing 조회 실패 (page ${pageNo}): ${error.message}`)
+      fetchErr = true
+      break
+    }
+    const rows = (data ?? []) as Array<{ content_id: string; modified_time: string | null }>
+    for (const r of rows) {
+      existingMap.set(r.content_id, r.modified_time)
+    }
+    if (rows.length < PAGE_SIZE) break  // 마지막 페이지
+    pageNo++
+  }
+  if (fetchErr) {
+    // 오류 발생 시에도 진행 — 증분 비교 못 한 항목은 전부 upsert 됨
   }
 
   // 3) area 순회 fetch
