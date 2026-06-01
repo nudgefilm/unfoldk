@@ -49,7 +49,7 @@ export async function extractDramaItems(drama: {
 
   const msg = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 800,
+    max_tokens: 2000,
     system: "You extract K-drama related fashion/beauty/lifestyle items. Return valid JSON array only, no markdown.",
     messages: [
       {
