@@ -17,7 +17,7 @@ import { hasProAccess } from "@/lib/auth/plan"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-const TRAVEL_STYLE = z.enum(["relaxed", "packed", "foodie", "cultural"])
+const TRAVEL_STYLE = z.enum(["filming", "sightseeing", "foodie", "cultural", "shopping"])
 const DURATION_DAYS = z.union([
   z.literal(1),
   z.literal(2),
@@ -107,6 +107,8 @@ const ITINERARY_TOOL: Anthropic.Tool = {
             type: "number",
             description: "Estimated travel time TO this stop in minutes.",
           },
+          lat: { type: "number", description: "Latitude (WGS84 decimal degrees). Include for well-known landmarks and tourist spots; omit if uncertain." },
+          lng: { type: "number", description: "Longitude (WGS84 decimal degrees). Include for well-known landmarks and tourist spots; omit if uncertain." },
         },
         required: ["name", "address", "reason"],
       },
@@ -118,25 +120,40 @@ const SYSTEM_PROMPT = `You are UnfoldK's Hallyu trip planner, building day-trip 
 
 Rules:
 - Generate exactly the requested number of days.
-- Each day MUST have at least one stop in morning / afternoon / evening (3–4 stops total per day is ideal for "relaxed", 5–6 for "packed").
+- Each day MUST have at least one stop in morning / afternoon / evening (3–4 stops per day is standard; filming and cultural styles may have fewer but richer stops).
 - Use real Korean place names from the context list when relevant. When citing the drama, anchor the visit to the actual filming spot or themed café provided.
-- Match the traveler's style:
-  · relaxed → fewer stops, longer downtime, café-leaning
-  · packed → more stops, tighter transit
-  · foodie → restaurants and markets dominate
-  · cultural → palaces, museums, historical districts
+- Match the traveler's style precisely:
+  · filming → drama filming locations are the primary anchors; visit the exact spots shown on screen, then explore the surrounding neighborhood
+  · sightseeing → major landmarks and must-see tourist attractions fill the day; mix iconic spots with hidden gems
+  · foodie → restaurants, street food stalls, and traditional markets dominate; tie food choices to local specialties and drama-featured dishes
+  · cultural → museums, palaces, temples, galleries, and historical districts; prioritize [culture] and [attraction] spots from the context list
+  · shopping → shopping districts, local markets, and specialty stores; mix with nearby cafés for breaks
 - The entire itinerary stays within the destination region. Explore different neighborhoods and districts each day to give a full experience of the area. On the last day, loop back toward the starting district.
 - Be honest about transport: Seoul metro, taxi for short hops. Mention realistic duration_minutes (5–60 for in-city hops).
 - Reasons are concise — 1–2 sentences, no marketing fluff.
+- For each stop, include lat and lng (WGS84 decimal degrees) when the location is a recognizable landmark, neighborhood, or tourist spot. Omit for small unknown local venues.
 - Output ONLY the tool call. No prose.`
+
+// travel_style → 우선 fetch 할 content_type_id 목록
+// 12: 관광지(Attractions) / 14: 문화시설(Culture) / 15: 축제(Festivals)
+// 32: 숙박(Stays) / 38: 쇼핑(Shopping) / 39: 음식점(Food)
+const STYLE_CONTENT_TYPES: Record<string, number[]> = {
+  filming:     [12, 14, 39],          // 촬영지 중심 + 주변 관광·카페
+  sightseeing: [12, 14],              // 관광지 + 문화시설
+  foodie:      [39, 12],              // 음식점 위주 + 관광지
+  cultural:    [14, 12],              // 문화시설 위주 + 관광지
+  shopping:    [38, 39, 12],          // 쇼핑 + 음식점 + 관광지
+}
 
 // ─── 컨텍스트 fetch — 드라마 촬영지 + 출발 지역 spots ──────────
 async function fetchContext(
   supabase: ReturnType<typeof createSupabaseServerClient> extends Promise<infer T> ? T : never,
   drama_title: string,
-  area_codes: number[]      // 출발 + 도착 (중복 제거)
+  area_codes: number[],     // 출발 + 도착 (중복 제거)
+  travel_style: string,
 ) {
   const safeDrama = drama_title.replace(/[%_]/g, "")
+  const contentTypes = STYLE_CONTENT_TYPES[travel_style] ?? [12, 14, 39]
 
   const filmingPromise = supabase
     .from("filming_spots")
@@ -146,14 +163,14 @@ async function fetchContext(
     .order("confidence", { ascending: false, nullsFirst: false })
     .limit(10)
 
-  // 도착·출발 지역 양쪽 tour_spots — 동선 가이드에 쓰임. 각 지역에서 최대 12건.
+  // 도착·출발 지역 양쪽 tour_spots — style 에 맞는 content_type 우선 fetch. 각 지역 최대 12건.
   const tourPromise =
     area_codes.length > 0
       ? supabase
           .from("tour_spots")
           .select("eng_title, title, addr1, area_code, content_type_id")
           .in("area_code", area_codes)
-          .in("content_type_id", [12, 14, 39]) // attractions / culture / food
+          .in("content_type_id", contentTypes)
           .not("image_url", "is", null)
           .limit(area_codes.length * 12)
       : Promise.resolve({ data: null, error: null })
@@ -179,7 +196,10 @@ async function fetchContext(
     name: (r.eng_title ?? r.title).trim(),
     address: r.addr1 ?? "",
     area_code: r.area_code,
-    type: r.content_type_id === 12 ? "attraction" : r.content_type_id === 14 ? "culture" : "food",
+    type: r.content_type_id === 12 ? "attraction"
+        : r.content_type_id === 14 ? "culture"
+        : r.content_type_id === 38 ? "shopping"
+        : "food",
   }))
 
   return { filming: filmingList, tour: tourList }
@@ -226,8 +246,8 @@ export async function POST(request: Request) {
   )
   const sameRegion = departure_region === arrival_region
 
-  // 3) 컨텍스트 fetch — 출발+도착 양쪽 spots
-  const context = await fetchContext(supabase, drama_title, areaCodes)
+  // 3) 컨텍스트 fetch — 출발+도착 양쪽 spots (style 별 content_type 분기)
+  const context = await fetchContext(supabase, drama_title, areaCodes, travel_style)
 
   const formatTourLine = (t: {
     name: string

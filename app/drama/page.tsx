@@ -49,6 +49,7 @@ import {
   MessageCircle,
   UtensilsCrossed,
   MapPin,
+  Search,
 } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -1184,6 +1185,13 @@ function KdramaMatchPageInner() {
     const p = Number(searchParams.get("page"))
     return Number.isInteger(p) && p > 0 ? p : 1
   })
+  const [searchInputValue, setSearchInputValue] = useState<string>(() =>
+    searchParams.get("q") ?? ""
+  )
+  const [browseSearch, setBrowseSearch] = useState<string>(() =>
+    searchParams.get("q") ?? ""
+  )
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [browseAll, setBrowseAll] = useState<ApiDrama[]>([])
   const [browseTotal, setBrowseTotal] = useState<number>(0)
@@ -1258,6 +1266,7 @@ function KdramaMatchPageInner() {
     if (browseStatus !== "all") apiParams.append("status", browseStatus)
     if (browseYear !== "all") apiParams.append("year", browseYear)
     if (browsePlatform !== "all") apiParams.append("platform", browsePlatform)
+    if (browseSearch.trim()) apiParams.set("q", browseSearch.trim())
     apiParams.set("sort", browseSort)
     apiParams.set("limit", String(BROWSE_PAGE_SIZE))
     apiParams.set("offset", String((browsePage - 1) * BROWSE_PAGE_SIZE))
@@ -1268,6 +1277,7 @@ function KdramaMatchPageInner() {
     if (browseStatus !== "all") urlParams.set("status", browseStatus)
     if (browseYear !== "all") urlParams.set("year", browseYear)
     if (browsePlatform !== "all") urlParams.set("platform", browsePlatform)
+    if (browseSearch.trim()) urlParams.set("q", browseSearch.trim())
     if (browseSort !== "popularity") urlParams.set("sort", browseSort)
     if (browsePage !== 1) urlParams.set("page", String(browsePage))
     const queryStr = urlParams.toString()
@@ -1297,6 +1307,7 @@ function KdramaMatchPageInner() {
     browseStatus,
     browseYear,
     browsePlatform,
+    browseSearch,
     browseSort,
     browsePage,
     pathname,
@@ -1380,6 +1391,15 @@ function KdramaMatchPageInner() {
   const setBrowseSortReset = (v: BrowseSort) => {
     setBrowseSort(v)
     setBrowsePage(1)
+  }
+
+  const handleSearchChange = (value: string) => {
+    setSearchInputValue(value)
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => {
+      setBrowseSearch(value.trim())
+      setBrowsePage(1)
+    }, 400)
   }
 
   // 페이지 변경 — Browse All 섹션 상단으로 부드럽게 스크롤
@@ -1698,6 +1718,28 @@ function KdramaMatchPageInner() {
             URL 쿼리 동기화로 뒤로가기·새로고침에서 상태 보존. */}
         <section ref={browseSectionRef} className="mb-16 scroll-mt-24">
           <h2 className="text-2xl font-semibold text-foreground mb-4">Browse all dramas</h2>
+
+          {/* Search input */}
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              value={searchInputValue}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search by drama name..."
+              className="w-full bg-[#1a1a1a] border border-border/30 rounded-xl pl-9 pr-9 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors"
+            />
+            {searchInputValue && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange("")}
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <CloseIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
           <div className="space-y-3 mb-6">
             {/* Genre — 멀티 선택 */}

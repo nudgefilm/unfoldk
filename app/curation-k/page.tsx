@@ -364,7 +364,7 @@ const PLACEHOLDER_IMAGES: Record<string, string> = {
 }
 
 // ─── My Hallyu Course — 폼 / 결과 / 저장 목록 타입 ─────────────
-type TravelStyle = "relaxed" | "packed" | "foodie" | "cultural"
+type TravelStyle = "filming" | "sightseeing" | "foodie" | "cultural" | "shopping"
 type DurationDays = 1 | 2 | 3 | 5 | 7
 
 interface CourseStop {
@@ -373,6 +373,8 @@ interface CourseStop {
   reason?: string
   transport?: string
   duration_minutes?: number
+  lat?: number
+  lng?: number
 }
 
 interface CourseDay {
@@ -446,11 +448,12 @@ interface TravelCourse {
   gmaps_url: string
 }
 
-const TRAVEL_STYLE_OPTIONS: ReadonlyArray<{ value: TravelStyle; label: string }> = [
-  { value: "relaxed", label: "Relaxed" },
-  { value: "packed", label: "Packed" },
-  { value: "foodie", label: "Foodie" },
-  { value: "cultural", label: "Cultural" },
+const TRAVEL_STYLE_OPTIONS: ReadonlyArray<{ value: TravelStyle; label: string; count: number }> = [
+  { value: "filming",    label: "Filming Tour",  count: 43 },
+  { value: "sightseeing",label: "Sightseeing",   count: 1907 },
+  { value: "foodie",     label: "Foodie",         count: 1823 },
+  { value: "cultural",   label: "Cultural",       count: 1167 },
+  { value: "shopping",   label: "Shopping",       count: 735 },
 ]
 
 const DURATION_OPTIONS: ReadonlyArray<{ value: DurationDays; label: string }> = [
@@ -663,7 +666,7 @@ export default function CurationKPage() {
 
   // ── My Hallyu Course (Pro) ────────────────────────────────
   const [courseDrama, setCourseDrama] = useState<string>("")
-  const [courseStyle, setCourseStyle] = useState<TravelStyle>("relaxed")
+  const [courseStyle, setCourseStyle] = useState<TravelStyle>("filming")
   const [courseDays, setCourseDays] = useState<DurationDays>(1)
   const [courseArrival, setCourseArrival] = useState<string>("Seoul")
   const [courseGenerating, setCourseGenerating] = useState(false)
@@ -1854,7 +1857,7 @@ export default function CurationKPage() {
                   <div className="mb-4">
                     <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">Travel style</p>
                     <div className="flex flex-wrap gap-2">
-                      {["Relaxed", "Immersive", "Photo tour", "Food-focused"].map((s) => (
+                      {["Filming Tour", "Sightseeing", "Foodie", "Cultural", "Shopping"].map((s) => (
                         <div
                           key={s}
                           className="px-4 py-2 rounded-full text-xs border text-muted-foreground"
@@ -1990,6 +1993,11 @@ export default function CurationKPage() {
                           }
                         >
                           {opt.label}
+                          <span className="ml-1 opacity-60 font-normal">
+                            {opt.count >= 1000
+                              ? `${(opt.count / 1000).toFixed(1).replace(/\.0$/, "")}k`
+                              : opt.count}
+                          </span>
                         </button>
                       )
                     })}
@@ -3583,6 +3591,245 @@ function extractFirstUrl(raw: string): string | null {
   return urlMatch?.[0] ?? null
 }
 
+// 한국 주요 지역·동네 좌표 — CourseMiniMap 배경 레이블용
+const DISTRICT_LABELS: ReadonlyArray<{ name: string; lat: number; lng: number }> = [
+  // Seoul
+  { name: "Hongdae",     lat: 37.5571, lng: 126.9234 },
+  { name: "Itaewon",     lat: 37.5345, lng: 126.9940 },
+  { name: "Myeongdong",  lat: 37.5635, lng: 126.9822 },
+  { name: "Insadong",    lat: 37.5742, lng: 126.9856 },
+  { name: "Gangnam",     lat: 37.4979, lng: 127.0276 },
+  { name: "Sinchon",     lat: 37.5558, lng: 126.9367 },
+  { name: "Bukchon",     lat: 37.5823, lng: 126.9852 },
+  { name: "Seongsu",     lat: 37.5447, lng: 127.0558 },
+  { name: "Mapo",        lat: 37.5614, lng: 126.9088 },
+  { name: "Yeouido",     lat: 37.5219, lng: 126.9241 },
+  { name: "Jamsil",      lat: 37.5133, lng: 127.1028 },
+  { name: "Dongdaemun",  lat: 37.5714, lng: 127.0092 },
+  { name: "Jongno",      lat: 37.5735, lng: 126.9789 },
+  { name: "Apgujeong",   lat: 37.5270, lng: 127.0291 },
+  { name: "Hapjeong",    lat: 37.5499, lng: 126.9142 },
+  { name: "Yongsan",     lat: 37.5326, lng: 126.9903 },
+  { name: "Cheongdam",   lat: 37.5224, lng: 127.0500 },
+  { name: "Noryangjin",  lat: 37.5138, lng: 126.9425 },
+  { name: "Jamsil",      lat: 37.5133, lng: 127.1028 },
+  // Busan
+  { name: "Haeundae",    lat: 35.1631, lng: 129.1635 },
+  { name: "Gwangalli",   lat: 35.1530, lng: 129.1185 },
+  { name: "Nampo-dong",  lat: 35.0979, lng: 129.0306 },
+  { name: "Gamcheon",    lat: 35.0975, lng: 129.0130 },
+  { name: "Centum",      lat: 35.1686, lng: 129.1320 },
+  // Jeju
+  { name: "Jeju City",   lat: 33.4996, lng: 126.5312 },
+  { name: "Seogwipo",    lat: 33.2541, lng: 126.5600 },
+  { name: "Jungmun",     lat: 33.2484, lng: 126.4122 },
+  { name: "Hallim",      lat: 33.3872, lng: 126.2378 },
+  // Gangwon
+  { name: "Gangneung",   lat: 37.7519, lng: 128.8761 },
+  { name: "Sokcho",      lat: 38.2048, lng: 128.5912 },
+  { name: "Chuncheon",   lat: 37.8747, lng: 127.7342 },
+  // Other cities
+  { name: "Gyeongju",    lat: 35.8562, lng: 129.2247 },
+  { name: "Jeonju",      lat: 35.8468, lng: 127.1296 },
+  { name: "Incheon",     lat: 37.4563, lng: 126.7052 },
+  { name: "Suwon",       lat: 37.2636, lng: 127.0286 },
+  { name: "Daejeon",     lat: 36.3504, lng: 127.3845 },
+  { name: "Daegu",       lat: 35.8714, lng: 128.6014 },
+]
+
+// ─── CourseMiniMap — 동선 다이어그램 ────────────────────────────
+// stop 의 lat/lng 를 SVG 좌표로 변환 후 번호 핀 + 점선 동선 표시.
+// 배경: #0d0d0f + 격자 + DISTRICT_LABELS 지역 레이블 (아주 연하게).
+// 기존 Curation K SVG 지도 동결 영역 미접촉.
+function CourseMiniMap({ days }: { days: CourseDay[] }) {
+  const [selectedDay, setSelectedDay] = useState(0)
+
+  const W = 560
+  const H = 220
+  const PAD = 0.30
+
+  type StopWithCoords = CourseStop & { lat: number; lng: number }
+
+  const dayStops = useMemo<StopWithCoords[]>(() => {
+    const d = days[Math.min(selectedDay, days.length - 1)]
+    if (!d) return []
+    return [...d.morning, ...d.afternoon, ...d.evening].filter(
+      (s): s is StopWithCoords =>
+        typeof s.lat === "number" &&
+        typeof s.lng === "number" &&
+        !isNaN(s.lat) &&
+        !isNaN(s.lng) &&
+        s.lat !== 0 &&
+        s.lng !== 0
+    )
+  }, [days, selectedDay])
+
+  const tr = useMemo(() => {
+    if (dayStops.length === 0) return null
+
+    const lats = dayStops.map((s) => s.lat)
+    const lngs = dayStops.map((s) => s.lng)
+    let minLat = Math.min(...lats)
+    let maxLat = Math.max(...lats)
+    let minLng = Math.min(...lngs)
+    let maxLng = Math.max(...lngs)
+
+    const MIN_SPAN = 0.012
+    if (maxLat - minLat < MIN_SPAN) { const m = (maxLat + minLat) / 2; minLat = m - MIN_SPAN / 2; maxLat = m + MIN_SPAN / 2 }
+    if (maxLng - minLng < MIN_SPAN) { const m = (maxLng + minLng) / 2; minLng = m - MIN_SPAN / 2; maxLng = m + MIN_SPAN / 2 }
+
+    const pLat = (maxLat - minLat) * PAD
+    const pLng = (maxLng - minLng) * PAD
+    const minLat2 = minLat - pLat
+    const maxLat2 = maxLat + pLat
+    const minLng2 = minLng - pLng
+    const maxLng2 = maxLng + pLng
+
+    const toX = (lng: number) => ((lng - minLng2) / (maxLng2 - minLng2)) * W
+    const toY = (lat: number) => (1 - (lat - minLat2) / (maxLat2 - minLat2)) * H
+
+    const labels = DISTRICT_LABELS.filter(
+      (l) => l.lat >= minLat2 && l.lat <= maxLat2 && l.lng >= minLng2 && l.lng <= maxLng2
+    )
+
+    return { toX, toY, labels }
+  }, [dayStops])
+
+  // 모든 day 에 좌표가 없으면 컴포넌트 자체를 숨김
+  const hasAnyCoords = days.some((d) =>
+    [...d.morning, ...d.afternoon, ...d.evening].some(
+      (s) => typeof s.lat === "number" && s.lat !== 0
+    )
+  )
+  if (!hasAnyCoords) return null
+
+  const PIN_R = 10
+
+  return (
+    <div className="mt-4 pt-4 border-t border-border/20">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-muted-foreground text-[11px] uppercase tracking-wider">Route Map</p>
+        {days.length > 1 && (
+          <div className="flex gap-1">
+            {days.map((d, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setSelectedDay(i)}
+                className="px-3 py-1 rounded-full text-[11px] font-medium border transition-colors"
+                style={
+                  selectedDay === i
+                    ? { backgroundColor: "#FF4B6E", borderColor: "#FF4B6E", color: "#fff" }
+                    : { backgroundColor: "#0d0d0f", borderColor: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }
+                }
+              >
+                Day {d.day}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div
+        className="rounded-xl overflow-hidden border border-border/30"
+        style={{ backgroundColor: "#0d0d0f" }}
+      >
+        {dayStops.length === 0 ? (
+          <div className="flex items-center justify-center h-28 text-muted-foreground/50 text-xs">
+            Map not available for this day
+          </div>
+        ) : (
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ display: "block" }}>
+            <defs>
+              <pattern id="cmg" width="32" height="32" patternUnits="userSpaceOnUse">
+                <path d="M 32 0 L 0 0 0 32" fill="none" stroke="rgba(255,255,255,0.033)" strokeWidth="1" />
+              </pattern>
+            </defs>
+            <rect width={W} height={H} fill="#0d0d0f" />
+            <rect width={W} height={H} fill="url(#cmg)" />
+
+            {/* 지역 배경 레이블 */}
+            {tr?.labels.map((l) => (
+              <text
+                key={`${l.name}-${l.lat}`}
+                x={tr.toX(l.lng)}
+                y={tr.toY(l.lat)}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fill="rgba(255,255,255,0.07)"
+                fontSize="11"
+                fontWeight="500"
+              >
+                {l.name}
+              </text>
+            ))}
+
+            {/* 점선 동선 */}
+            {tr && dayStops.length > 1 && (
+              <polyline
+                points={dayStops.map((s) => `${tr.toX(s.lng)},${tr.toY(s.lat)}`).join(" ")}
+                fill="none"
+                stroke="#FF4B6E"
+                strokeWidth="1.5"
+                strokeDasharray="5 4"
+                strokeOpacity="0.45"
+              />
+            )}
+
+            {/* 번호 핀 */}
+            {tr && dayStops.map((stop, i) => {
+              const x = tr.toX(stop.lng)
+              const y = tr.toY(stop.lat)
+              return (
+                <g key={`pin-${i}`}>
+                  <circle cx={x} cy={y} r={PIN_R + 4} fill="rgba(255,75,110,0.10)" />
+                  <circle cx={x} cy={y} r={PIN_R} fill="#FF4B6E" />
+                  <text
+                    x={x}
+                    y={y}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fill="white"
+                    fontSize="8"
+                    fontWeight="700"
+                  >
+                    {i + 1}
+                  </text>
+                </g>
+              )
+            })}
+          </svg>
+        )}
+      </div>
+
+      {/* 범례 */}
+      {dayStops.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+          {dayStops.map((stop, i) => (
+            <div key={`leg-${i}`} className="flex items-center gap-1.5 min-w-0">
+              <span
+                className="inline-flex items-center justify-center rounded-full text-white flex-shrink-0"
+                style={{
+                  width: 16,
+                  height: 16,
+                  backgroundColor: "#FF4B6E",
+                  fontSize: 8,
+                  fontWeight: 700,
+                }}
+              >
+                {i + 1}
+              </span>
+              <span className="text-muted-foreground text-[11px] truncate max-w-[100px]">
+                {stop.name}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // My Hallyu Course — 일정 카드 (생성 결과 + 저장 코스 확장 양쪽 사용)
 function CourseItineraryView({
   itinerary,
@@ -3695,6 +3942,8 @@ function CourseItineraryView({
           </div>
         ))}
       </div>
+
+      <CourseMiniMap days={itinerary.days} />
     </div>
   )
 }
@@ -3774,14 +4023,16 @@ function RegionTooltipRow({
 
 function prettyTravelStyle(s: TravelStyle): string {
   switch (s) {
-    case "relaxed":
-      return "Relaxed"
-    case "packed":
-      return "Packed"
+    case "filming":
+      return "Filming Tour"
+    case "sightseeing":
+      return "Sightseeing"
     case "foodie":
       return "Foodie"
     case "cultural":
       return "Cultural"
+    case "shopping":
+      return "Shopping"
     default:
       return s
   }
