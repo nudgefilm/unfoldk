@@ -625,12 +625,20 @@ function DramaDetailModal({
   const [aiCharacters, setAiCharacters] = useState<string | null>(null)
   const [aiCharactersLoading, setAiCharactersLoading] = useState(false)
 
+  // Shop this drama — 승인된 아이템 fetch
+  const [shopItems, setShopItems] = useState<{
+    id: string; name: string; category: string; brand: string | null
+    description: string | null; purchase_url: string | null
+  }[]>([])
+  const [shopLoading, setShopLoading] = useState(false)
+
   useEffect(() => {
     if (!dramaId) {
       setDrama(null)
       setOstArtists([])
       setAiSummary(null)
       setAiCharacters(null)
+      setShopItems([])
       return
     }
     const ctrl = new AbortController()
@@ -648,6 +656,18 @@ function DramaDetailModal({
         setError("Failed to load drama details.")
       })
       .finally(() => setLoading(false))
+    // Shop this drama — 승인된 아이템 fetch (모든 유저)
+    setShopItems([])
+    setShopLoading(true)
+    fetch(`/api/dramas/${dramaId}/shop`, { signal: ctrl.signal })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body: { items: typeof shopItems }) => setShopItems(body.items ?? []))
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return
+        setShopItems([])
+      })
+      .finally(() => setShopLoading(false))
+
     return () => ctrl.abort()
   }, [dramaId])
 
@@ -991,6 +1011,60 @@ function DramaDetailModal({
                   </div>
                 )}
               </div>
+
+              {/* Shop this drama — 승인된 아이템만 노출. Free: 이름+카테고리, Pro: 구매링크+브랜드 */}
+              {!shopLoading && shopItems.length > 0 && (
+                <div className="border-t border-border/20 pt-5 mt-2">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-3">
+                    Shop this drama
+                  </p>
+                  <div className="space-y-2">
+                    {shopItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="bg-[#252528] rounded-xl px-3 py-2.5 flex items-start justify-between gap-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                            <span
+                              className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                              style={{
+                                color: item.category === "fashion" ? "#FF4B6E" : item.category === "beauty" ? "#a78bfa" : "#22d3ee",
+                                background: item.category === "fashion" ? "rgba(255,75,110,0.15)" : item.category === "beauty" ? "rgba(167,139,250,0.15)" : "rgba(34,211,238,0.15)",
+                              }}
+                            >
+                              {item.category}
+                            </span>
+                            <span className="text-foreground text-sm font-medium truncate">{item.name}</span>
+                          </div>
+                          {isPro && item.brand && (
+                            <p className="text-muted-foreground text-xs">{item.brand}</p>
+                          )}
+                          {isPro && item.description && (
+                            <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed line-clamp-2">{item.description}</p>
+                          )}
+                        </div>
+                        {isPro && item.purchase_url ? (
+                          <a
+                            href={item.purchase_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg text-white whitespace-nowrap"
+                            style={{ backgroundColor: "#FF4B6E" }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Buy →
+                          </a>
+                        ) : isPro ? (
+                          <span className="flex-shrink-0 text-xs text-muted-foreground whitespace-nowrap">링크 준비 중</span>
+                        ) : (
+                          <span className="flex-shrink-0 text-xs text-muted-foreground whitespace-nowrap">Pro</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Cross-service links — 2×2 카드 그리드 */}
               {drama && (

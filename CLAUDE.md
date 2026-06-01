@@ -286,6 +286,18 @@ Hallyu API:
 - 국가별 청취자: `geo.getTopArtists` 는 아티스트별 호출 → 25명 × 1콜, 캐싱 필수
 - X(Twitter) 환경변수: `TWITTER_API_KEY` (도입 시 등록)
 
+### Shop this drama 확정 스펙 (2026-06-02)
+- 위치: KdramaMatch 드라마 상세 페이지(DramaDetailModal) 하단 섹션
+- Claude Haiku로 드라마별 패션/뷰티/라이프스타일 아이템 3~5개 자동 추출
+- 어드민 검토/승인 후 구매 링크 수동 연결 (`is_approved = false` → 어드민 승인 시 `true`)
+- **Free**: 아이템명 + 카테고리만 노출
+- **Pro**: 구매 링크 + 브랜드 상세 노출
+- DB: `drama_items` 테이블 (`drama_id`, `name`, `category`, `brand`, `description`, `purchase_url`, `is_approved`, `created_at`)
+- 추출 스크립트: `scripts/generate-drama-items.ts` (dry-run 옵션 포함)
+- 어드민: `app/admin/drama-items/page.tsx` (미승인 목록 + 승인/거절/링크 입력)
+- API: `app/api/dramas/[id]/shop/route.ts` (승인된 아이템만 반환)
+- 아이템 없으면(승인된 항목 0건) 섹션 미표시
+
 ### KdramaMatch Free/Pro 확정 스펙 (2026-06-01)
 - 전체 기능 Free 개방 (AI 추천 횟수 제한 없음, Drama Summary 등 모두 개방)
 - **2026년 드라마 상세 페이지만 Pro 잠금** (`drama.year === 2026 && !isPro`)
