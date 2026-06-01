@@ -309,7 +309,7 @@ const TABS: readonly TabDef[] = [
     label: "Festivals",
     Icon: PartyPopper,
     color: "#fb923c",
-    proLocked: false,
+    proLocked: true,
     emptyMessage: "No upcoming festivals. Check back soon.",
   },
 ] as const
@@ -609,7 +609,8 @@ function shuffleArray<T>(arr: T[]): T[] {
 
 // 접속마다 시작 탭 랜덤 선택 후보 (filming / food / stays / festivals).
 // K-Pop Sites 는 탭이 아닌 별도 섹션이므로 festivals 로 대체.
-const RANDOM_START_TABS: readonly TabKey[] = ["filming", "food", "stays", "festivals"]
+// Filming Spots 만 Free 탭 — 나머지 모두 Pro 잠금.
+const RANDOM_START_TABS: readonly TabKey[] = ["filming"]
 
 export default function CurationKPage() {
   const [koreaPath, setKoreaPath] = useState<string | null>(null)
@@ -1707,8 +1708,12 @@ export default function CurationKPage() {
               const isActive = activeTab === tab.key
               const showLock = tab.proLocked && !isPro
               return (
-                <button
+                // Pro 잠금 탭: 비로그인 AuthGate 차단. 로그인 비Pro: 탭 전환 허용 + Pro lock overlay 표시.
+                <AuthGate
                   key={tab.key}
+                  isLoggedIn={tab.proLocked ? isAuthenticated : null}
+                >
+                <button
                   role="tab"
                   aria-selected={isActive}
                   type="button"
@@ -1732,6 +1737,7 @@ export default function CurationKPage() {
                   {tab.label}
                   {showLock && <Lock className="w-3 h-3 opacity-70" />}
                 </button>
+                </AuthGate>
               )
             })}
           </div>
@@ -1896,6 +1902,7 @@ export default function CurationKPage() {
                     Personalized Hallyu day-trip routes built from your drama taste —
                     arriving at launch.
                   </p>
+                  <AuthGate isLoggedIn={isAuthenticated}>
                   <Link href="/signup">
                     <Button
                       className="px-6 py-2 rounded-full font-medium text-white"
@@ -1904,6 +1911,7 @@ export default function CurationKPage() {
                       Notify me at launch
                     </Button>
                   </Link>
+                  </AuthGate>
                 </div>
               </div>
             </div>
@@ -2695,11 +2703,8 @@ function SpotsTabPanel({
             <p className="text-muted-foreground text-xs mb-4">
               {tab.label} are part of Hallyu Pass — get notified when it goes live.
             </p>
-            <Link
-              href={
-                isAuthenticated === false ? "/login?redirect=/curation-k" : "/signup"
-              }
-            >
+            <AuthGate isLoggedIn={isAuthenticated}>
+            <Link href="/signup">
               <Button
                 className="px-6 py-2 rounded-full font-medium text-white"
                 style={{ backgroundColor: "#FF4B6E" }}
@@ -2707,6 +2712,7 @@ function SpotsTabPanel({
                 Notify me at launch
               </Button>
             </Link>
+            </AuthGate>
           </div>
         </div>
       </div>
