@@ -4102,12 +4102,14 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
               />
             )}
 
-            {/* 번호 핀 + 장소명 — 절반 크기, 우측 여백 부족 시 좌측 표시 */}
+            {/* 번호 핀 + 장소명 전체 — 우측 여백 충분하면 오른쪽, 부족하면 하단 */}
             {resolvedPins.map((pos, i) => {
-              const rawName = dayStops[i]?.name ?? ""
-              const label = rawName.length > 10 ? rawName.slice(0, 10) + "…" : rawName
-              const toRight = pos.x <= W * 0.72
-              const labelX = toRight ? pos.x + MINI_MAP_PIN_R + 3 : pos.x - MINI_MAP_PIN_R - 3
+              const label = dayStops[i]?.name ?? ""
+              // 핀 중심이 60% 이하 위치면 우측, 초과면 하단으로 배치
+              const toRight = pos.x <= W * 0.60
+              const labelX = toRight ? pos.x + MINI_MAP_PIN_R + 3 : pos.x
+              const labelY = toRight ? pos.y : pos.y + MINI_MAP_PIN_R + 7
+              const anchor = toRight ? "start" : "middle"
               return (
                 <g key={`pin-${i}`}>
                   <circle cx={pos.x} cy={pos.y} r={MINI_MAP_PIN_R + 2} fill="rgba(255,75,110,0.10)" />
@@ -4126,10 +4128,10 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
                   {label && (
                     <text
                       x={labelX}
-                      y={pos.y}
-                      textAnchor={toRight ? "start" : "end"}
+                      y={labelY}
+                      textAnchor={anchor}
                       dominantBaseline="central"
-                      fill="rgba(255,255,255,0.75)"
+                      fill="rgba(255,255,255,0.80)"
                       fontSize="7"
                       fontWeight="500"
                     >
