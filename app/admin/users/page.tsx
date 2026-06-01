@@ -14,6 +14,7 @@ interface AdminUserRow {
   name: string | null
   plan_type: "free" | "monthly" | "annual"
   is_admin: boolean
+  agreed_to_terms: boolean
   created_at: string
   trial_ends_at: string | null
 }
@@ -29,7 +30,7 @@ async function loadUsers(page: number): Promise<LoadResult> {
 
   const { data, error, count } = await supabase
     .from("users")
-    .select("id, email, name, plan_type, is_admin, created_at, trial_ends_at", { count: "exact" })
+    .select("id, email, name, plan_type, is_admin, agreed_to_terms, created_at, trial_ends_at", { count: "exact" })
     .order("created_at", { ascending: false })
     .range(from, to)
 

@@ -15,11 +15,16 @@ export interface AdminUserRow {
   name: string | null
   plan_type: PlanType
   is_admin: boolean
+  agreed_to_terms: boolean
   created_at: string
   trial_ends_at: string | null
 }
 
-function TrialBadge({ trialEndsAt }: { trialEndsAt: string | null }) {
+function TrialBadge({ trialEndsAt, agreedToTerms }: { trialEndsAt: string | null; agreedToTerms: boolean }) {
+  // 가입 미완료(이탈) — agreed_to_terms=false + trial_ends_at=null
+  if (!agreedToTerms && !trialEndsAt) {
+    return <span className="text-xs text-[#888]">이탈</span>
+  }
   if (!trialEndsAt) return <span className="text-muted-foreground text-xs">—</span>
   if (!isInTrial(trialEndsAt)) {
     return <span className="text-xs text-[#888]">Expired</span>
@@ -138,7 +143,7 @@ export function UsersTable({ users: initial }: { users: AdminUserRow[] }) {
                   </Select>
                 </td>
                 <td className="px-4 py-3">
-                  <TrialBadge trialEndsAt={u.trial_ends_at} />
+                  <TrialBadge trialEndsAt={u.trial_ends_at} agreedToTerms={u.agreed_to_terms} />
                 </td>
                 <td className="px-4 py-3">
                   <Switch
