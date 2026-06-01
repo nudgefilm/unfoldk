@@ -47,7 +47,7 @@ loadEnv()
 const args = process.argv.slice(2)
 const DRY_RUN = args.includes("--dry-run")
 const limitIdx = args.indexOf("--limit")
-const LIMIT = limitIdx !== -1 ? parseInt(args[limitIdx + 1] ?? "50", 10) : 50
+const LIMIT = limitIdx !== -1 ? parseInt(args[limitIdx + 1] ?? "0", 10) : null
 
 // ── Supabase 직접 초기화 (스크립트용 — admin client 경로 우회) ─
 const supabase = createClient(
@@ -56,13 +56,15 @@ const supabase = createClient(
 )
 
 async function main() {
-  console.log(`[generate-drama-items] DRY_RUN=${DRY_RUN} LIMIT=${LIMIT}`)
+  console.log(`[generate-drama-items] DRY_RUN=${DRY_RUN} LIMIT=${LIMIT ?? "전체"}`)
 
-  const { data: dramas, error } = await supabase
+  let query = supabase
     .from("dramas")
     .select("id, title, overview, genre")
     .order("popularity", { ascending: false })
-    .limit(LIMIT)
+  if (LIMIT !== null) query = query.limit(LIMIT)
+
+  const { data: dramas, error } = await query
 
   if (error || !dramas) {
     console.error("dramas 조회 실패:", error?.message)
