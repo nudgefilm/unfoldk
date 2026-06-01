@@ -4,7 +4,7 @@
 
 ---
 
-## 현재 상태 (2026-06-02 세션 41 기준)
+## 현재 상태 (2026-06-02 세션 42 기준)
 
 ### HallyuCalendar
 - Fan Meet 탭 유저 등록 행사 연동 (migration 0056, contact_email/registration_link)
@@ -81,6 +81,34 @@
   - 핑크 번호 핀(①②③) + 점선 동선 연결 + 하단 범례
   - 다일 코스 Day 탭 전환, 좌표 없는 경우 자동 숨김
 
+### KdramaMatch (세션 42 추가)
+- Browse All 검색창 `?q=` URL 동기화, 400ms 디바운스, X 초기화 (세션 41에서 이어짐)
+- **Shop this drama** 섹션 Explore more 아래로 이동 + 카테고리 그룹핑 (fashion/beauty/lifestyle)
+- Shop this drama fetch 에러 로그 추가
+- shop API `createSupabaseServerClient` → `createSupabaseAdminClient` 전환 (RLS 우회, 500 오류 수정)
+- **`0058_drama_items.sql` migration 추가** (테이블 미생성이 500 오류 근본 원인)
+- Shop this drama 구매 링크 없는 아이템: "링크 준비 중" → 비활성 "Link" 텍스트
+
+### 어드민 (세션 42 추가)
+- `app/admin/drama-items/page.tsx`: **전체 일괄 승인** 버튼 추가 (헤더 우측, 미승인 0건 자동 숨김)
+  - 클릭 → 확인 모달 (미승인 건수 명시) → Promise.all 병렬 처리
+
+### Curation K (세션 42 추가)
+- **CourseMiniMap 대규모 개선** (세션 41→42 연속 작업)
+  - Travel Style 5종 DB 건수 칩 표시 + 기본값 filming으로 변경
+  - 핀 사이즈 절반(R=5), 겹침 방지 force-directed 알고리즘
+  - 서울 구 경계선 8개 (opacity 0.15, 0.8px)
+  - 전국 강 7개 (한강 3.5px 곡선, 낙동강·수영강·금호강·영산강·소양강·남대천)
+  - 지역명 레이블 대폭 확장: 부산 4개·제주 4개·강원 3개·경주 5개·전주·광주·대전·대구·인천 등 총 70개+
+  - 부산 5개 구 경계선 + 제주 섬 외곽선 (12점 폴리곤) 추가
+  - 부산 동·남해안선, 강원 동해안선 (opacity 0.20~0.25 곡선)
+  - 경주·전주·광주·대전·대구·인천 외곽 사각형 + 중심 도로선 (opacity 0.15)
+  - 제주 섬 외곽 opacity 0.35, strokeWidth 2.0 (명확한 섬 윤곽)
+  - 핀 옆 장소명 전체 표시 (말줄임표 제거), 우측/하단 오프셋 자동 전환
+  - 동서남북 N/S/E/W 나침반 레이블 (opacity 0.40)
+  - `smoothPath()` 함수로 강·해안선 곡선 처리
+  - `DISTRICT_BOUNDARIES` 통합 (서울+부산+제주), `COASTLINE_PATHS`, `CITY_FEATURES` 신설
+
 ### 비로그인 접근 정책 (세션 39 추가)
 - `components/auth-gate.tsx` 툴팁 문구 콤마 수정, 위치 카드 중앙으로 통일
 - Calendar Subscribe/iCal → StartModal 오픈 (비로그인 정상 진입)
@@ -105,12 +133,7 @@
 
 ## 다음 할 일
 
-- [ ] drama_items 테이블 migration 실행 (Supabase SQL Editor)
-  ```sql
-  CREATE TABLE drama_items (...);  -- PROGRESS 참조
-  ALTER TABLE drama_items ADD COLUMN IF NOT EXISTS name_ko text;
-  ALTER TABLE drama_items ADD COLUMN IF NOT EXISTS description_ko text;
-  ```
+- [ ] **drama_items migration 0058 실행** (Supabase SQL Editor — `supabase/migrations/0058_drama_items.sql`)
 - [ ] `npx tsx scripts/generate-drama-items.ts --dry-run` 확인 후 실행
 - [ ] KpopStats Today's Trending Top 5 → Free / 나머지 상세 → Pro 잠금
 - [ ] kpop_albums 초기 수집: `npx tsx scripts/sync-musicbrainz-releases.ts --dry-run` 확인 후 실행
@@ -122,7 +145,7 @@
 
 ## 사용자 액션 필요
 
-- **drama_items migration SQL** Supabase에서 직접 실행 필요 (CLAUDE.md Shop this drama 스펙 참조)
+- **migration 0058** (`supabase/migrations/0058_drama_items.sql`) Supabase SQL Editor 실행 → drama_items 테이블 생성 → Shop this drama 정상 작동
 
 ---
 
