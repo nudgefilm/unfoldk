@@ -3637,9 +3637,69 @@ const DISTRICT_LABELS: ReadonlyArray<{ name: string; lat: number; lng: number }>
   { name: "Daegu",       lat: 35.8714, lng: 128.6014 },
 ]
 
+// 서울 주요 구 경계 — 단순화된 폴리곤 [lat, lng]. opacity 0.15 얇은 선.
+const SEOUL_DISTRICT_BOUNDARIES: ReadonlyArray<ReadonlyArray<readonly [number, number]>> = [
+  // 종로구
+  [[37.620, 126.942], [37.617, 127.023], [37.577, 127.001], [37.573, 126.960], [37.589, 126.942]],
+  // 중구
+  [[37.577, 126.980], [37.577, 127.020], [37.553, 127.020], [37.553, 126.980]],
+  // 용산구
+  [[37.558, 126.960], [37.558, 127.007], [37.516, 127.007], [37.516, 126.960]],
+  // 마포구
+  [[37.572, 126.897], [37.572, 126.960], [37.534, 126.960], [37.519, 126.920], [37.519, 126.897]],
+  // 성동구
+  [[37.580, 127.007], [37.580, 127.075], [37.537, 127.075], [37.537, 127.007]],
+  // 강남구
+  [[37.538, 127.007], [37.538, 127.110], [37.477, 127.110], [37.477, 127.007]],
+  // 서초구
+  [[37.510, 126.985], [37.510, 127.062], [37.448, 127.062], [37.448, 126.985]],
+  // 송파구
+  [[37.538, 127.082], [37.538, 127.157], [37.472, 127.157], [37.472, 127.082]],
+]
+
+// 한강 중심선 (단순화)
+const SEOUL_HAN_RIVER: ReadonlyArray<readonly [number, number]> = [
+  [37.536, 126.834], [37.535, 126.875], [37.528, 126.913],
+  [37.522, 126.948], [37.516, 126.990], [37.511, 127.030],
+  [37.513, 127.075], [37.517, 127.115], [37.523, 127.145],
+]
+
+// 핀 반지름 — 컴포넌트 밖 상수로 관리
+const MINI_MAP_PIN_R = 5
+
+// 겹치는 핀 좌표 분산 (force-directed, 최대 20회 반복)
+function resolveOverlaps(
+  pts: Array<{ x: number; y: number }>,
+  minDist: number
+): Array<{ x: number; y: number }> {
+  const res = pts.map((p) => ({ ...p }))
+  for (let iter = 0; iter < 20; iter++) {
+    let moved = false
+    for (let i = 0; i < res.length; i++) {
+      for (let j = i + 1; j < res.length; j++) {
+        const dx = res[j].x - res[i].x
+        const dy = res[j].y - res[i].y
+        const d = Math.hypot(dx, dy)
+        if (d < minDist) {
+          const push = d > 0 ? (minDist - d) / 2 : minDist / 2
+          const nx = d > 0 ? dx / d : 1
+          const ny = d > 0 ? dy / d : 0
+          res[i].x -= nx * push
+          res[i].y -= ny * push
+          res[j].x += nx * push
+          res[j].y += ny * push
+          moved = true
+        }
+      }
+    }
+    if (!moved) break
+  }
+  return res
+}
+
 // ─── CourseMiniMap — 동선 다이어그램 ────────────────────────────
 // stop 의 lat/lng 를 SVG 좌표로 변환 후 번호 핀 + 점선 동선 표시.
-// 배경: #0d0d0f + 격자 + DISTRICT_LABELS 지역 레이블 (아주 연하게).
+// 배경: #0d0d0f + 격자 + 구 경계선 + DISTRICT_LABELS 지역 레이블.
 // 기존 Curation K SVG 지도 동결 영역 미접촉.
 function CourseMiniMap({ days }: { days: CourseDay[] }) {
   const [selectedDay, setSelectedDay] = useState(0)
@@ -3687,23 +3747,31 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
 
     const toX = (lng: number) => ((lng - minLng2) / (maxLng2 - minLng2)) * W
     const toY = (lat: number) => (1 - (lat - minLat2) / (maxLat2 - minLat2)) * H
+    const inView = (lat: number, lng: number) =>
+      lat >= minLat2 && lat <= maxLat2 && lng >= minLng2 && lng <= maxLng2
 
-    const labels = DISTRICT_LABELS.filter(
-      (l) => l.lat >= minLat2 && l.lat <= maxLat2 && l.lng >= minLng2 && l.lng <= maxLng2
+    const labels = DISTRICT_LABELS.filter((l) => inView(l.lat, l.lng))
+    const districtBounds = SEOUL_DISTRICT_BOUNDARIES.filter((poly) =>
+      poly.some(([lat, lng]) => inView(lat, lng))
     )
+    const riverVisible = SEOUL_HAN_RIVER.some(([lat, lng]) => inView(lat, lng))
 
-    return { toX, toY, labels }
+    return { toX, toY, labels, districtBounds, riverVisible }
   }, [dayStops])
 
-  // 모든 day 에 좌표가 없으면 컴포넌트 자체를 숨김
+  // 겹침 해소된 핀 위치
+  const resolvedPins = useMemo(() => {
+    if (!tr || dayStops.length === 0) return []
+    const raw = dayStops.map((s) => ({ x: tr.toX(s.lng), y: tr.toY(s.lat) }))
+    return resolveOverlaps(raw, MINI_MAP_PIN_R * 2 + 4)
+  }, [tr, dayStops])
+
   const hasAnyCoords = days.some((d) =>
     [...d.morning, ...d.afternoon, ...d.evening].some(
       (s) => typeof s.lat === "number" && s.lat !== 0
     )
   )
   if (!hasAnyCoords) return null
-
-  const PIN_R = 10
 
   return (
     <div className="mt-4 pt-4 border-t border-border/20">
@@ -3748,7 +3816,29 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
             <rect width={W} height={H} fill="#0d0d0f" />
             <rect width={W} height={H} fill="url(#cmg)" />
 
-            {/* 지역 배경 레이블 */}
+            {/* 서울 구 경계선 */}
+            {tr && tr.districtBounds.map((poly, idx) => (
+              <polygon
+                key={`db-${idx}`}
+                points={poly.map(([lat, lng]) => `${tr.toX(lng)},${tr.toY(lat)}`).join(" ")}
+                fill="none"
+                stroke="rgba(255,255,255,0.15)"
+                strokeWidth="0.8"
+              />
+            ))}
+
+            {/* 한강 */}
+            {tr && tr.riverVisible && (
+              <polyline
+                points={SEOUL_HAN_RIVER.map(([lat, lng]) => `${tr.toX(lng)},${tr.toY(lat)}`).join(" ")}
+                fill="none"
+                stroke="rgba(100,160,255,0.28)"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            )}
+
+            {/* 지역 배경 레이블 — 폰트 축소 */}
             {tr?.labels.map((l) => (
               <text
                 key={`${l.name}-${l.lat}`}
@@ -3757,17 +3847,17 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
                 textAnchor="middle"
                 dominantBaseline="central"
                 fill="rgba(255,255,255,0.20)"
-                fontSize="11"
+                fontSize="9"
                 fontWeight="500"
               >
                 {l.name}
               </text>
             ))}
 
-            {/* 점선 동선 */}
-            {tr && dayStops.length > 1 && (
+            {/* 점선 동선 (겹침 해소 위치 기준) */}
+            {resolvedPins.length > 1 && (
               <polyline
-                points={dayStops.map((s) => `${tr.toX(s.lng)},${tr.toY(s.lat)}`).join(" ")}
+                points={resolvedPins.map((p) => `${p.x},${p.y}`).join(" ")}
                 fill="none"
                 stroke="#FF4B6E"
                 strokeWidth="1.5"
@@ -3776,28 +3866,24 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
               />
             )}
 
-            {/* 번호 핀 */}
-            {tr && dayStops.map((stop, i) => {
-              const x = tr.toX(stop.lng)
-              const y = tr.toY(stop.lat)
-              return (
-                <g key={`pin-${i}`}>
-                  <circle cx={x} cy={y} r={PIN_R + 4} fill="rgba(255,75,110,0.10)" />
-                  <circle cx={x} cy={y} r={PIN_R} fill="#FF4B6E" />
-                  <text
-                    x={x}
-                    y={y}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fill="white"
-                    fontSize="8"
-                    fontWeight="700"
-                  >
-                    {i + 1}
-                  </text>
-                </g>
-              )
-            })}
+            {/* 번호 핀 — 절반 크기 */}
+            {resolvedPins.map((pos, i) => (
+              <g key={`pin-${i}`}>
+                <circle cx={pos.x} cy={pos.y} r={MINI_MAP_PIN_R + 2} fill="rgba(255,75,110,0.10)" />
+                <circle cx={pos.x} cy={pos.y} r={MINI_MAP_PIN_R} fill="#FF4B6E" />
+                <text
+                  x={pos.x}
+                  y={pos.y}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fill="white"
+                  fontSize="6"
+                  fontWeight="700"
+                >
+                  {i + 1}
+                </text>
+              </g>
+            ))}
           </svg>
         )}
       </div>
@@ -3810,10 +3896,10 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
               <span
                 className="inline-flex items-center justify-center rounded-full text-white flex-shrink-0"
                 style={{
-                  width: 16,
-                  height: 16,
+                  width: 14,
+                  height: 14,
                   backgroundColor: "#FF4B6E",
-                  fontSize: 8,
+                  fontSize: 7,
                   fontWeight: 700,
                 }}
               >
