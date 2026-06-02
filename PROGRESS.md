@@ -4,7 +4,7 @@
 
 ---
 
-## 현재 상태 (2026-06-02 세션 42 기준)
+## 현재 상태 (2026-06-02 세션 43 기준)
 
 ### HallyuCalendar
 - Fan Meet 탭 유저 등록 행사 연동 (migration 0056, contact_email/registration_link)
@@ -92,6 +92,15 @@
 ### 어드민 (세션 42 추가)
 - `app/admin/drama-items/page.tsx`: **전체 일괄 승인** 버튼 추가 (헤더 우측, 미승인 0건 자동 숨김)
   - 클릭 → 확인 모달 (미승인 건수 명시) → Promise.all 병렬 처리
+
+### Curation K (세션 43 추가)
+- **My Hallyu Course 5일/7일 코스 생성 오류 수정** (`app/api/curation-k/course/route.ts`)
+  - `max_tokens` 2048 고정 → 일수별 동적 예산 (1d:2048 / 3d:4096 / 5d:6144 / 7d:8192)
+  - `fetchContext` DB limit: `area_codes * 12` → `area_codes * max(12, days*8)` 확장
+  - Claude context 스팟 수도 `tourContextLimit = max(24, days*8)` 로 확장
+- **My Hallyu Course 저장 버그 수정** (`app/api/curation-k/course/save/route.ts`)
+  - `travel_style` zod enum 구버전(`relaxed/packed`) → 현행(`filming/sightseeing/foodie/cultural/shopping`) 통일
+  - filming·sightseeing·shopping 스타일 코스 저장 불가 상태였음 (foodie·cultural만 저장 가능)
 
 ### Curation K (세션 42 추가)
 - **CourseMiniMap 대규모 개선** (세션 41→42 연속 작업)
