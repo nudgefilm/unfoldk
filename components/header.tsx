@@ -366,7 +366,7 @@ export function Header() {
               <span className="sr-only">Toggle navigation menu</span>
             </Button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="bg-[#1a1a1a] border-t border-[#2a2a2a] text-foreground">
+          <SheetContent side="bottom" className="bg-[#1a1a1a] border-t border-[#2a2a2a] text-foreground max-h-[85vh] overflow-y-auto">
             <SheetHeader>
               <SheetTitle className="text-left text-xl font-semibold text-foreground">Menu</SheetTitle>
             </SheetHeader>
