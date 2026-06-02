@@ -1,11 +1,11 @@
 "use client"
 
 // Chart Attack 탭 — "행동하는" 팬덤 화력 대시보드
-// 섹션: ① Alert Zone | ② Global K-pop Chart | ③ Velocity Tracker
-//        ④ Fan Power Ranking | ⑤ Share to Attack | ⑥ Next Chart Update
+// 섹션: ① Alert Zone | ② Velocity Tracker | ③ Fan Power Ranking
+//        ④ Share to Attack | ⑤ Next Chart Update
 
 import { useCallback, useEffect, useState } from "react"
-import { AlertTriangle, Flame, Zap, Share2, Trophy, Timer, Lock, Music } from "lucide-react"
+import { AlertTriangle, Flame, Zap, Share2, Trophy, Timer, Lock } from "lucide-react"
 import Link from "next/link"
 
 // ─── 숫자 포맷 ─────────────────────────────────────────────
@@ -62,10 +62,9 @@ function velocityGradient(gaugePct: number): string {
   return "linear-gradient(90deg, #22c55e, #16a34a)"
 }
 
-// ─── 카운트다운 훅 — 매일 07:00 UTC (Last.fm 인제스트 cron) ─
+// ─── 카운트다운 훅 — 매일 07:00 UTC ────────────────────────
 function useCountdown() {
   const [time, setTime] = useState({ h: 0, m: 0, s: 0 })
-
   useEffect(() => {
     function calc() {
       const now = new Date()
@@ -79,18 +78,17 @@ function useCountdown() {
     const id = setInterval(calc, 1000)
     return () => clearInterval(id)
   }, [])
-
   return time
 }
 
-// ─── 애니메이션 카운터 ─────────────────────────────────────
+// ─── 애니메이션 카운터 — 1.5초 카운트업 ────────────────────
 function AnimatedCount({ value }: { value: number }) {
   const [display, setDisplay] = useState(0)
   useEffect(() => {
     let start: number | null = null
     const step = (ts: number) => {
       if (!start) start = ts
-      const p = Math.min((ts - start) / 1000, 1)
+      const p = Math.min((ts - start) / 1500, 1)   // 1.5s
       setDisplay(Math.round(value * p))
       if (p < 1) requestAnimationFrame(step)
     }
@@ -130,6 +128,8 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
   const [shareTarget, setShareTarget] = useState<VelocityItem | null>(null)
   const [aiTweetText, setAiTweetText] = useState<string | null>(null)
   const [shareLoading, setShareLoading] = useState(false)
+  // Velocity 게이지 마운트 애니메이션 — 데이터 로드 후 0% → 실제값으로 확장
+  const [gaugeTrigger, setGaugeTrigger] = useState(false)
 
   const countdown = useCountdown()
 
@@ -150,6 +150,15 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
       .finally(() => setVelocityLoading(false))
   }, [])
 
+  // 게이지 바 마운트 트리거 — velocity 로드 완료 후 100ms 지연으로 CSS transition 활성화
+  useEffect(() => {
+    if (!velocityLoading && velocity.length > 0) {
+      setGaugeTrigger(false)
+      const id = setTimeout(() => setGaugeTrigger(true), 100)
+      return () => clearTimeout(id)
+    }
+  }, [velocityLoading, velocity.length])
+
   const loadRankings = useCallback(() => {
     fetch("/api/kpop/chart-attack/votes")
       .then(r => r.ok ? r.json() : { rankings: [] })
@@ -159,8 +168,7 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
 
   useEffect(() => { loadRankings() }, [loadRankings])
 
-  // ─── 차트 계산 ───────────────────────────────────────────
-  const top1Listeners = chart[0]?.lastfm_listeners ?? 0
+  // ─── Alert Zone 계산 ─────────────────────────────────────
   const top10Listeners = chart[9]?.lastfm_listeners ?? 0
   type AlertArtist = LastfmChartItem & { alertType: "almost" | "danger"; gapToTop10: number }
   const alertArtists: AlertArtist[] = chart
@@ -201,23 +209,68 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
     }
   }
 
-  // ─── 투표 ────────────────────────────────────────────────
+  // ─── 투표 — 낙관적 업데이트 ──────────────────────────────
   async function handleVote(artistId: string) {
     if (!isLoggedIn) return
     setVoteAnimate(artistId)
     setTimeout(() => setVoteAnimate(null), 600)
     setVotedIds(prev => new Set(prev).add(artistId))
+
+    // 낙관적 업데이트: 즉시 vote_count +1 반영
+    setRankings(prev => {
+      const existing = prev.find(r => r.artist_id === artistId)
+      let updated: VoteRanking[]
+      if (existing) {
+        updated = prev.map(r =>
+          r.artist_id === artistId ? { ...r, vote_count: r.vote_count + 1 } : r
+        )
+      } else {
+        const artist = velocity.find(v => v.artist_id === artistId)
+        if (!artist) return prev
+        updated = [...prev, {
+          rank: prev.length + 1,
+          artist_id: artistId,
+          name: artist.name,
+          name_ko: artist.name_ko,
+          thumbnail_url: artist.thumbnail_url,
+          vote_count: 1,
+        }]
+      }
+      return updated
+        .sort((a, b) => b.vote_count - a.vote_count)
+        .map((r, i) => ({ ...r, rank: i + 1 }))
+        .slice(0, 5)
+    })
+
     try {
       await fetch("/api/kpop/chart-attack/votes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ artist_id: artistId }),
       })
-      loadRankings()
+      loadRankings()   // 서버 값으로 동기화
     } catch { /* PopCat style — no rollback */ }
   }
 
   return (
+    <>
+      {/* ─── CSS 애니메이션 — 투표 바운스 + 파티클 ─────────── */}
+      <style>{`
+        @keyframes voteBounce {
+          0%   { transform: scale(1); }
+          25%  { transform: scale(1.18); }
+          60%  { transform: scale(0.92); }
+          100% { transform: scale(1); }
+        }
+        @keyframes fireFloat {
+          0%   { transform: translateY(0) scale(1); opacity: 1; }
+          100% { transform: translateY(-38px) scale(0.4); opacity: 0; }
+        }
+        .vote-bounce-anim { animation: voteBounce 0.45s ease-out; }
+        .fire-p1 { animation: fireFloat 0.55s ease-out forwards; margin-left: -6px; }
+        .fire-p2 { animation: fireFloat 0.55s 0.08s ease-out forwards; margin-left: 6px; }
+      `}</style>
+
     <div className="space-y-10">
 
       {/* ─── ① 🚨 Alert Zone ────────────────────────────── */}
@@ -250,7 +303,7 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                 className={`rounded-2xl p-4 flex items-center gap-4 ${
                   item.alertType === "almost"
                     ? "bg-yellow-500/10 border border-yellow-500/30"
-                    : "bg-red-500/10 border border-red-500/40"
+                    : "bg-red-500/10 border border-red-500/40 animate-pulse"
                 }`}
               >
                 <Avatar src={item.thumbnail_url} alt={item.name} size={12} />
@@ -262,16 +315,21 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                     <span className="text-muted-foreground text-xs">#{item.rank}</span>
                   </div>
                   {item.alertType === "almost" ? (
-                    <p className="text-yellow-400 text-sm font-medium mt-0.5">
-                      🟡 ALMOST THERE! {fmt(item.gapToTop10)} listeners away from TOP 10
-                    </p>
+                    <>
+                      <p className="text-yellow-400 text-sm font-medium mt-0.5">
+                        🟡 ALMOST THERE! {fmt(item.gapToTop10)} listeners away from TOP 10
+                      </p>
+                      <p className="text-yellow-400/70 text-xs mt-0.5">One push can change everything — tweet NOW</p>
+                    </>
                   ) : (
-                    <p className="text-red-400 text-sm font-bold mt-0.5 animate-pulse">
-                      🔴 DANGER ZONE! Stream now before they drop out!
-                    </p>
+                    <>
+                      <p className="text-red-400 text-sm font-bold mt-0.5">
+                        🔴 DANGER ZONE! Stream now before they drop out!
+                      </p>
+                      <p className="text-red-400/70 text-xs mt-0.5">Fans needed urgently — act before chart update</p>
+                    </>
                   )}
                 </div>
-                {/* 빠른 트윗 버튼 */}
                 <button
                   onClick={() => {
                     const text = item.alertType === "almost"
@@ -282,7 +340,7 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                   className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-colors"
                   style={{ backgroundColor: item.alertType === "almost" ? "#d97706" : "#ef4444" }}
                 >
-                  Tweet 🐦
+                  🚨 Tweet Now
                 </button>
               </div>
             ))}
@@ -290,146 +348,13 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
         )}
       </section>
 
-      {/* ─── ② Global K-pop Chart ───────────────────────── */}
-      <section>
-        <div className="flex items-center gap-3 mb-4">
-          <Music className="w-6 h-6" style={{ color: "#FF4B6E" }} />
-          <div>
-            <h2 className="text-2xl font-semibold text-white">Global K-pop Chart</h2>
-            <p className="text-muted-foreground text-sm">
-              Top {isPro ? "20" : "10"} monthly listeners
-              <span className="text-muted-foreground/60 ml-2 text-xs">Based on Last.fm global streaming data</span>
-            </p>
-          </div>
-        </div>
-
-        {chartLoading ? (
-          <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl px-6 py-8 text-center text-muted-foreground text-sm">
-            Loading chart...
-          </div>
-        ) : chart.length === 0 ? (
-          <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl px-6 py-8 text-center">
-            <p className="text-foreground font-medium mb-1">No chart data yet</p>
-            <p className="text-muted-foreground text-sm">Stats collected daily — check back tomorrow.</p>
-          </div>
-        ) : (
-          <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden">
-            {/* 공개 행 — Free: 1~10, Pro: 1~20 */}
-            {chart.slice(0, isPro ? 20 : 10).map(item => {
-              const listeners = item.lastfm_listeners ?? 0
-              const gaugePct = top1Listeners > 0 ? Math.round((listeners / top1Listeners) * 100) : 0
-              const gap = top1Listeners - listeners
-              const isFirst = item.rank === 1
-              const isAlmost = item.rank >= 11 && item.rank <= 12
-              const isDanger = item.rank >= 19 && item.rank <= 20
-              return (
-                <div key={item.rank} className="px-5 pt-3 pb-2.5 border-b border-border/20 last:border-b-0 hover:bg-[#232325] transition-colors">
-                  {/* 상단 행: 순위 · 썸네일 · 이름 · 배너 */}
-                  <div className="flex items-center gap-3">
-                    <span className={`w-7 flex-shrink-0 text-sm font-bold text-center ${isFirst ? "text-primary" : "text-muted-foreground"}`}>
-                      #{item.rank}
-                    </span>
-                    <Avatar src={item.thumbnail_url} alt={item.name} size={9} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Link href={`/kpop/${item.artist_id}`} className="text-foreground font-medium hover:text-primary transition-colors truncate">
-                          {item.name}
-                        </Link>
-                        {isAlmost && (
-                          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400">
-                            🟡 ALMOST THERE!
-                          </span>
-                        )}
-                        {isDanger && (
-                          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 animate-pulse">
-                            🔴 DANGER ZONE
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-muted-foreground text-xs mt-0.5">{fmt(listeners)} listeners</p>
-                    </div>
-                  </div>
-                  {/* 게이지 행: 1위 대비 비율 바 + 격차 텍스트 */}
-                  <div className="flex items-center gap-3 mt-2 ml-10">
-                    <div className="flex-1 h-1.5 bg-[#2a2a2c] rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{
-                          width: `${gaugePct}%`,
-                          background: isFirst
-                            ? "linear-gradient(90deg, #FF4B6E, #ff8c00)"
-                            : "linear-gradient(90deg, #3b82f6, #8b5cf6)",
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs flex-shrink-0 w-28 text-right">
-                      {isFirst
-                        ? <span className="text-primary font-semibold">← 기준</span>
-                        : <span className="text-muted-foreground">−{fmt(gap)} behind</span>
-                      }
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
-
-            {/* Free 유저: 11~20위 blur 처리 */}
-            {!isPro && chart.length > 10 && (
-              <div className="relative">
-                <div className="blur-sm pointer-events-none select-none">
-                  {chart.slice(10, 20).map(item => {
-                    const listeners = item.lastfm_listeners ?? 0
-                    const gaugePct = top1Listeners > 0 ? Math.round((listeners / top1Listeners) * 100) : 0
-                    return (
-                      <div key={item.rank} className="px-5 pt-3 pb-2.5 border-b border-border/20 last:border-b-0">
-                        <div className="flex items-center gap-3">
-                          <span className="w-7 flex-shrink-0 text-sm font-bold text-center text-muted-foreground">
-                            #{item.rank}
-                          </span>
-                          <div className="w-9 h-9 rounded-full bg-[#252525] flex-shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-foreground font-medium">{item.name}</p>
-                            <p className="text-muted-foreground text-xs">{fmt(listeners)} listeners</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 mt-2 ml-10">
-                          <div className="flex-1 h-1.5 bg-[#2a2a2c] rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{ width: `${gaugePct}%`, background: "linear-gradient(90deg, #3b82f6, #8b5cf6)" }}
-                            />
-                          </div>
-                          <span className="text-xs text-muted-foreground w-28 text-right">
-                            −{fmt((top1Listeners) - listeners)} behind
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-                {/* 잠금 오버레이 */}
-                <div className="absolute inset-0 flex items-center justify-center rounded-b-2xl" style={{ background: "rgba(13,13,15,0.7)" }}>
-                  <div className="text-center px-4">
-                    <Lock className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-foreground font-medium mb-1">See full TOP 20 with Hallyu Pass</p>
-                    <Link href="/pricing" className="text-primary text-sm hover:underline">
-                      Upgrade →
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      {/* ─── ③ ⚡ Velocity Tracker ────────────────────────── */}
+      {/* ─── ② ⚡ Velocity Tracker ────────────────────────── */}
       <section>
         <div className="flex items-center gap-3 mb-4">
           <Zap className="w-6 h-6 text-yellow-400" />
           <div>
             <h2 className="text-2xl font-semibold text-white">Velocity Tracker</h2>
-            <p className="text-muted-foreground text-sm">Hourly streaming acceleration — who's surging right now</p>
+            <p className="text-muted-foreground text-sm">Hourly streaming acceleration — who&apos;s surging right now</p>
           </div>
         </div>
 
@@ -467,11 +392,15 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                       {item.name_ko && <p className="text-muted-foreground text-xs">{item.name_ko}</p>}
                     </div>
                   </div>
-                  {/* 속도 게이지 — 색상: green → yellow → red */}
+                  {/* 게이지 — 마운트 시 0% → 실제값 1.5초 확장 */}
                   <div className="ml-8 h-1.5 bg-[#2a2a2c] rounded-full overflow-hidden">
                     <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${item.gauge_pct}%`, background: velocityGradient(item.gauge_pct) }}
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${gaugeTrigger ? item.gauge_pct : 0}%`,
+                        background: velocityGradient(item.gauge_pct),
+                        transition: "width 1500ms cubic-bezier(0.4, 0, 0.2, 1)",
+                      }}
                     />
                   </div>
                 </div>
@@ -516,19 +445,27 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                   const isVoted = votedIds.has(item.artist_id)
                   const isAnimating = voteAnimate === item.artist_id
                   return (
-                    <button
-                      key={item.artist_id}
-                      onClick={() => handleVote(item.artist_id)}
-                      className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
-                        isVoted
-                          ? "border-primary/60 bg-primary/10"
-                          : "border-border/30 bg-[#141416] hover:border-primary/30 hover:bg-[#1e1e20]"
-                      } ${isAnimating ? "scale-95" : "scale-100"}`}
-                    >
-                      <Avatar src={item.thumbnail_url} alt={item.name} size={10} />
-                      <span className="text-foreground text-xs font-medium truncate w-full text-center">{item.name}</span>
-                      <span className={`text-xl leading-none ${isAnimating ? "animate-bounce" : ""}`}>🔥</span>
-                    </button>
+                    <div key={item.artist_id} className="relative">
+                      {/* 파티클 — 투표 시 🔥 2개 위로 솟아오름 */}
+                      {isAnimating && (
+                        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 pointer-events-none z-10 flex">
+                          <span className="fire-p1 text-base">🔥</span>
+                          <span className="fire-p2 text-sm">🔥</span>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => handleVote(item.artist_id)}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border w-full ${
+                          isVoted
+                            ? "border-primary/60 bg-primary/10"
+                            : "border-border/30 bg-[#141416] hover:border-primary/30 hover:bg-[#1e1e20]"
+                        } ${isAnimating ? "vote-bounce-anim" : ""}`}
+                      >
+                        <Avatar src={item.thumbnail_url} alt={item.name} size={10} />
+                        <span className="text-foreground text-xs font-medium truncate w-full text-center">{item.name}</span>
+                        <span className="text-xl leading-none">🔥</span>
+                      </button>
+                    </div>
                   )
                 })}
               </div>
@@ -572,9 +509,7 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
           <Share2 className="w-6 h-6 text-[#1d9bf0]" />
           <div>
             <h2 className="text-2xl font-semibold text-white">Share to Attack</h2>
-            <p className="text-muted-foreground text-sm">
-              {isPro ? "UnfoldK generates a custom viral tweet for your artist" : "Tweet now to boost your artist — upgrade for AI-crafted messages"}
-            </p>
+            <p className="text-muted-foreground text-sm">Every stream counts. Your tweet = real chart impact.</p>
           </div>
         </div>
 
@@ -624,13 +559,13 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                         className="flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-colors"
                         style={{ backgroundColor: "#1d9bf0", color: "white" }}
                       >
-                        {isPro ? "✨ Smart Tweet" : "📢 Tweet"}
+                        {isPro ? "🔥 Attack Now" : "📢 Join the Attack"}
                       </button>
                     </div>
 
                     {/* Pro AI 생성 결과 */}
                     {isPro && isSelected && (
-                      <div className="mt-3 ml-13">
+                      <div className="mt-3">
                         {shareLoading ? (
                           <p className="text-muted-foreground text-sm animate-pulse">Crafting the perfect attack message...</p>
                         ) : aiTweetText ? (
@@ -680,5 +615,6 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
       </section>
 
     </div>
+    </>
   )
 }
