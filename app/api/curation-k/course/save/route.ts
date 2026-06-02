@@ -31,7 +31,7 @@ const DaySchema = z.object({
 
 const PostSchema = z.object({
   drama_title: z.string().trim().min(1).max(160),
-  travel_style: z.enum(["relaxed", "packed", "foodie", "cultural"]),
+  travel_style: z.enum(["filming", "sightseeing", "foodie", "cultural", "shopping"]),
   duration_days: z.union([
     z.literal(1),
     z.literal(2),
