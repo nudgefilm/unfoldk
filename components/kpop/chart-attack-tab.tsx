@@ -1,11 +1,11 @@
 "use client"
 
 // Chart Attack 탭 — "행동하는" 팬덤 화력 대시보드
-// 섹션: ① Alert Zone | ② Velocity Tracker | ③ Fan Power Ranking
-//        ④ Share to Attack | ⑤ Next Chart Update
+// 섹션: ① Alert Zone | ② Global K-pop Chart | ③ Velocity Tracker
+//        ④ Fan Power Ranking | ⑤ Share to Attack | ⑥ Next Chart Update
 
 import { useCallback, useEffect, useState } from "react"
-import { AlertTriangle, Flame, Zap, Share2, Trophy, Timer, Lock } from "lucide-react"
+import { AlertTriangle, Flame, Zap, Share2, Trophy, Timer, Lock, Music } from "lucide-react"
 import Link from "next/link"
 
 // ─── 숫자 포맷 ─────────────────────────────────────────────
@@ -109,8 +109,8 @@ function Avatar({ src, alt, size = 10 }: { src: string | null; alt: string; size
 }
 
 // ─── 프리셋 트윗 문구 ──────────────────────────────────────
-function presetTweet(name: string, rank: number): string {
-  return `🚨 STREAMING EMERGENCY! ${name} is #${rank} globally — let's push them higher RIGHT NOW! Stream stream stream! #${name.replace(/\s/g, "")} #KpopAttack #UnfoldK`
+function presetTweet(name: string): string {
+  return `🔥 ${name} is surging on global charts! #${name.replace(/\s/g, "")} #Kpop #StreamingAttack unfoldk.com`
 }
 
 // ─── Props ─────────────────────────────────────────────────
@@ -159,7 +159,8 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
 
   useEffect(() => { loadRankings() }, [loadRankings])
 
-  // ─── Alert Zone 계산 ─────────────────────────────────────
+  // ─── 차트 계산 ───────────────────────────────────────────
+  const top1Listeners = chart[0]?.lastfm_listeners ?? 0
   const top10Listeners = chart[9]?.lastfm_listeners ?? 0
   type AlertArtist = LastfmChartItem & { alertType: "almost" | "danger"; gapToTop10: number }
   const alertArtists: AlertArtist[] = chart
@@ -192,9 +193,9 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
         }),
       })
       const d = await res.json() as { tweet_text?: string }
-      setAiTweetText(d.tweet_text ?? presetTweet(item.name, chartEntry?.rank ?? 1))
+      setAiTweetText(d.tweet_text ?? presetTweet(item.name))
     } catch {
-      setAiTweetText(presetTweet(item.name, chartEntry?.rank ?? 1))
+      setAiTweetText(presetTweet(item.name))
     } finally {
       setShareLoading(false)
     }
@@ -289,7 +290,140 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
         )}
       </section>
 
-      {/* ─── ② ⚡ Velocity Tracker ────────────────────────── */}
+      {/* ─── ② Global K-pop Chart ───────────────────────── */}
+      <section>
+        <div className="flex items-center gap-3 mb-4">
+          <Music className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+          <div>
+            <h2 className="text-2xl font-semibold text-white">Global K-pop Chart</h2>
+            <p className="text-muted-foreground text-sm">
+              Top {isPro ? "20" : "10"} monthly listeners
+              <span className="text-muted-foreground/60 ml-2 text-xs">Based on Last.fm global streaming data</span>
+            </p>
+          </div>
+        </div>
+
+        {chartLoading ? (
+          <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl px-6 py-8 text-center text-muted-foreground text-sm">
+            Loading chart...
+          </div>
+        ) : chart.length === 0 ? (
+          <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl px-6 py-8 text-center">
+            <p className="text-foreground font-medium mb-1">No chart data yet</p>
+            <p className="text-muted-foreground text-sm">Stats collected daily — check back tomorrow.</p>
+          </div>
+        ) : (
+          <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden">
+            {/* 공개 행 — Free: 1~10, Pro: 1~20 */}
+            {chart.slice(0, isPro ? 20 : 10).map(item => {
+              const listeners = item.lastfm_listeners ?? 0
+              const gaugePct = top1Listeners > 0 ? Math.round((listeners / top1Listeners) * 100) : 0
+              const gap = top1Listeners - listeners
+              const isFirst = item.rank === 1
+              const isAlmost = item.rank >= 11 && item.rank <= 12
+              const isDanger = item.rank >= 19 && item.rank <= 20
+              return (
+                <div key={item.rank} className="px-5 pt-3 pb-2.5 border-b border-border/20 last:border-b-0 hover:bg-[#232325] transition-colors">
+                  {/* 상단 행: 순위 · 썸네일 · 이름 · 배너 */}
+                  <div className="flex items-center gap-3">
+                    <span className={`w-7 flex-shrink-0 text-sm font-bold text-center ${isFirst ? "text-primary" : "text-muted-foreground"}`}>
+                      #{item.rank}
+                    </span>
+                    <Avatar src={item.thumbnail_url} alt={item.name} size={9} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link href={`/kpop/${item.artist_id}`} className="text-foreground font-medium hover:text-primary transition-colors truncate">
+                          {item.name}
+                        </Link>
+                        {isAlmost && (
+                          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400">
+                            🟡 ALMOST THERE!
+                          </span>
+                        )}
+                        {isDanger && (
+                          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 animate-pulse">
+                            🔴 DANGER ZONE
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground text-xs mt-0.5">{fmt(listeners)} listeners</p>
+                    </div>
+                  </div>
+                  {/* 게이지 행: 1위 대비 비율 바 + 격차 텍스트 */}
+                  <div className="flex items-center gap-3 mt-2 ml-10">
+                    <div className="flex-1 h-1.5 bg-[#2a2a2c] rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${gaugePct}%`,
+                          background: isFirst
+                            ? "linear-gradient(90deg, #FF4B6E, #ff8c00)"
+                            : "linear-gradient(90deg, #3b82f6, #8b5cf6)",
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs flex-shrink-0 w-28 text-right">
+                      {isFirst
+                        ? <span className="text-primary font-semibold">← 기준</span>
+                        : <span className="text-muted-foreground">−{fmt(gap)} behind</span>
+                      }
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Free 유저: 11~20위 blur 처리 */}
+            {!isPro && chart.length > 10 && (
+              <div className="relative">
+                <div className="blur-sm pointer-events-none select-none">
+                  {chart.slice(10, 20).map(item => {
+                    const listeners = item.lastfm_listeners ?? 0
+                    const gaugePct = top1Listeners > 0 ? Math.round((listeners / top1Listeners) * 100) : 0
+                    return (
+                      <div key={item.rank} className="px-5 pt-3 pb-2.5 border-b border-border/20 last:border-b-0">
+                        <div className="flex items-center gap-3">
+                          <span className="w-7 flex-shrink-0 text-sm font-bold text-center text-muted-foreground">
+                            #{item.rank}
+                          </span>
+                          <div className="w-9 h-9 rounded-full bg-[#252525] flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-foreground font-medium">{item.name}</p>
+                            <p className="text-muted-foreground text-xs">{fmt(listeners)} listeners</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 mt-2 ml-10">
+                          <div className="flex-1 h-1.5 bg-[#2a2a2c] rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: `${gaugePct}%`, background: "linear-gradient(90deg, #3b82f6, #8b5cf6)" }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground w-28 text-right">
+                            −{fmt((top1Listeners) - listeners)} behind
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                {/* 잠금 오버레이 */}
+                <div className="absolute inset-0 flex items-center justify-center rounded-b-2xl" style={{ background: "rgba(13,13,15,0.7)" }}>
+                  <div className="text-center px-4">
+                    <Lock className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-foreground font-medium mb-1">See full TOP 20 with Hallyu Pass</p>
+                    <Link href="/pricing" className="text-primary text-sm hover:underline">
+                      Upgrade →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* ─── ③ ⚡ Velocity Tracker ────────────────────────── */}
       <section>
         <div className="flex items-center gap-3 mb-4">
           <Zap className="w-6 h-6 text-yellow-400" />
@@ -483,14 +617,14 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                           if (isPro) {
                             generateAiShare(item)
                           } else {
-                            const text = presetTweet(item.name, rank ?? 1)
+                            const text = presetTweet(item.name)
                             window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank")
                           }
                         }}
                         className="flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-colors"
                         style={{ backgroundColor: "#1d9bf0", color: "white" }}
                       >
-                        {isPro ? "✨ AI Tweet" : "🐦 Tweet"}
+                        {isPro ? "✨ Smart Tweet" : "📢 Tweet"}
                       </button>
                     </div>
 
