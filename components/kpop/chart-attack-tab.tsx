@@ -441,7 +441,7 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
           <Zap className="w-6 h-6 text-yellow-400" />
           <div>
             <h2 className="text-2xl font-semibold text-white">Velocity Tracker</h2>
-            <p className="text-muted-foreground text-sm">Hourly streaming acceleration — who&apos;s surging right now</p>
+            <p className="text-muted-foreground text-sm">Among this week&apos;s Top 20 — who&apos;s surging fastest right now</p>
           </div>
         </div>
 
