@@ -15,8 +15,10 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ReportButton } from "@/components/common/report-button"
 import { Toaster } from "@/components/ui/toaster"
 import { ArtistComparisonSection } from "@/components/kpop/artist-comparison"
+import { ChartAttackTab } from "@/components/kpop/chart-attack-tab"
 import { AuthGate } from "@/components/auth-gate"
 import { StartModal } from "@/components/start-modal"
+import { hasProAccess } from "@/lib/auth/plan"
 
 // ============================================
 // 숫자 포맷터 — 2_400_000_000 → "2.4B"
@@ -85,8 +87,11 @@ interface ArtistListItem {
   latest_listeners: number | null
 }
 
+type KpopTab = "charts" | "chart-attack"
+
 export default function KpopStatsPage() {
   const router = useRouter()
+  const [activeTab, setActiveTab] = useState<KpopTab>("charts")
   const [kpopStartOpen, setKpopStartOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [chart, setChart] = useState<ChartItem[]>([])
@@ -102,6 +107,7 @@ export default function KpopStatsPage() {
   } | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isPro, setIsPro] = useState(false)
 
   // 검색·More Artists 상태 — /api/kpop/artists 로 DB 기반 데이터 (Top 20 외 아티스트 노출용)
   // searchResults === null → 검색 비활성. null 이외이면 검색 결과 모드.
@@ -109,13 +115,25 @@ export default function KpopStatsPage() {
   const [searchLoading, setSearchLoading] = useState(false)
   const [moreArtists, setMoreArtists] = useState<ArtistListItem[]>([])
 
-  // 인증 체크 — 로그인 여부만 확인 (Artist Comparison 분기 + Spotlight 버튼용)
+  // 인증 체크 — 로그인 여부 + Pro 플랜 확인 (Chart Attack isPro 분기 포함)
   useEffect(() => {
     let cancelled = false
     const supabase = createSupabaseBrowserClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (cancelled) return
-      if (user) setIsLoggedIn(true)
+      if (user) {
+        setIsLoggedIn(true)
+        supabase
+          .from("users")
+          .select("plan_type, is_admin, trial_ends_at")
+          .eq("id", user.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (cancelled) return
+            const row = data as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
+            setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin, trialEndsAt: row?.trial_ends_at }))
+          })
+      }
       setAuthChecked(true)
     })
     return () => {
@@ -342,22 +360,53 @@ export default function KpopStatsPage() {
             Real-time global charts & streaming data
           </p>
 
-          {/* Search Bar */}
-          <div className="max-w-md mx-auto relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search artist..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#1a1a1a] border border-border/30 rounded-full py-3 pl-12 pr-4 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors"
-            />
-          </div>
+          {/* Search Bar — Charts 탭에서만 표시 */}
+          {activeTab === "charts" && (
+            <div className="max-w-md mx-auto relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search artist..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#1a1a1a] border border-border/30 rounded-full py-3 pl-12 pr-4 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors"
+              />
+            </div>
+          )}
         </section>
+
+        {/* 탭 네비게이션 */}
+        <div className="flex gap-2 mb-8 border-b border-border/20 pb-0">
+          <button
+            onClick={() => setActiveTab("charts")}
+            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === "charts"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            📊 Charts
+          </button>
+          <button
+            onClick={() => setActiveTab("chart-attack")}
+            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px flex items-center gap-1.5 ${
+              activeTab === "chart-attack"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            🔥 Chart Attack
+          </button>
+        </div>
+
+        {/* Chart Attack 탭 */}
+        {activeTab === "chart-attack" && (
+          <ChartAttackTab isLoggedIn={isLoggedIn} isPro={isPro} />
+        )}
 
         {/* 검색 모드 — searchResults !== null 일 때 차트/Trending 대신 검색 결과만 노출.
             CLAUDE.md §6 KpopStats 노출 원칙: Top 20 외 아티스트 검색 가능해야 함. */}
-        {searchResults !== null && (
+        {activeTab === "charts" && searchResults !== null && (
           <section className="mb-12">
             <h2 className="text-2xl font-semibold text-white mb-6">
               Search results
@@ -386,7 +435,7 @@ export default function KpopStatsPage() {
         )}
 
         {/* 검색 비활성 — 기본 모드 (Trending / Chart / More Artists / Spotlight / Comparison) */}
-        {searchResults === null && (
+        {activeTab === "charts" && searchResults === null && (
         <>
         {/* UnfoldK 주간 K팝 리포트 */}
         {weeklyReport && (

@@ -21,6 +21,40 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-06-03 Chart Attack 데이터 소스 원칙 확정
+
+- 결정 내용:
+  - **Billboard 크롤링 금지** — 공식 API 없음. 웹 스크래핑은 이용약관 위반 + 법적 리스크.
+  - **Spotify 브랜드명 직접 인용 금지** — 법인 계정 필수, 상표권 민감 영역.
+  - **글로벌 차트 데이터**: Last.fm 기반. 사용자 노출 UI에 **"Powered by Last.fm" 표기 필수**.
+  - **YouTube 조회수**: YouTube Data API (공식) 활용. 기존 GCP 프로젝트 쿼터 관리 유지.
+  - **외부 데이터 인용 시**: 반드시 출처 명시. 무단 재게시 금지.
+  - **기획안 수신 시**: 법적 리스크 / 데이터 출처 / 기술 실현성 검토 후 보고 → 작업 착수.
+- 이유:
+  - 이번 세션에서 Billboard 크롤러를 초기 구현 후 법적 리스크로 폐기한 경험 반영.
+  - 스타트업 단계에서 법적 분쟁 원천 차단.
+- 대안으로 고려했던 것:
+  - Billboard Global 200 `__NEXT_DATA__` 크롤링 → 이용약관·봇 차단 이슈로 폐기.
+  - Spotify Charts API → 법인 계정 필수 + 브랜드 제약으로 폐기.
+- 적용 범위: 이후 모든 Chart Attack 관련 기능 + 신규 외부 데이터 연동 전반.
+
+## 2026-06-03 Chart Attack 탭 구현 (KpopStats)
+
+- 결정 내용:
+  - `/kpop` 페이지에 "🔥 Chart Attack" 탭 신설 (기존 "📊 Charts" 탭과 병렬).
+  - 데이터 소스: 신규 API 수집 없음 — `kpop_stats_daily` 기존 Last.fm/YouTube 데이터 100% 재활용.
+  - 6개 섹션: ① Global K-pop Chart (lastfm_listeners 순위) / ② Velocity Tracker (YouTube delta) /
+    ③ Rival Chase (청취자 격차 레이싱) / ④ AI Milestone (Claude Haiku, Pro) /
+    ⑤ Share to Attack (X 공유) / ⑥ 팬덤 화력 투표 (PopCat 방식).
+  - 신규 테이블: `chart_attack_votes` (migration 0059 — Supabase 수동 실행 필요).
+  - Free/Pro 분기: ③ 전체 레이싱·④ AI Milestone·⑤ AI 문구 = Pro. 나머지 Free.
+  - `isPro` 상태를 `app/kpop/page.tsx` auth useEffect에 추가 (기존 `isLoggedIn`만 있었음).
+- 이유:
+  - 팬덤 인게이지먼트 강화 + Pro 전환 훅 마련.
+  - 기존 수집 데이터 재활용으로 추가 API 비용 0.
+- 대안으로 고려했던 것:
+  - Billboard 크롤링 → 법적 리스크로 폐기 (위 항목 참조).
+
 ## 2026-05-20 KfoodKit Phase 3 — "Find it in Korea" 섹션 rollback
 
 - 결정 내용:

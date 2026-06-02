@@ -122,6 +122,42 @@ Hallyu Pass   $72/년     Pro + 33% 할인 ($6/월)
 - 아티스트 전체 브라우징: `/kpop/artists` (리스너순 정렬, 그룹/솔로 필터, 페이지네이션)
 - `kpop_artists.member_count`: NULL=미분류 / 1=솔로 / 2+=그룹. 어드민에서 backfill.
 
+### Chart Attack 확정 스펙 (2026-06-03)
+
+**위치**: `/kpop` 페이지 상단 탭 "🔥 Chart Attack" (기존 "📊 Charts" 탭과 병렬)
+
+**데이터 소스**: 신규 API 수집 없음 — `kpop_stats_daily` (기존 Last.fm 청취자 데이터) 100% 재활용
+**표기 의무**: ① 차트 섹션 제목 아래 `"Based on Last.fm global streaming data"` 출처 표기 필수 (DECISIONS.md 2026-06-03 원칙)
+
+**섹션 구성**
+| 섹션 | 데이터 소스 | Free | Pro |
+|------|------------|------|-----|
+| ① Global K-pop Chart | kpop_stats_daily (lastfm_listeners 기준 순위) | ✅ | ✅ |
+| ② Velocity Tracker | kpop_stats_daily (youtube_weekly_views delta) | ✅ | ✅ |
+| ③ Rival Chase | Last.fm 청취자 격차 (1위 기준) | 1위 격차만 | 전체 레이싱 게이지 |
+| ④ AI Predictive Milestone | Claude Haiku (순위+청취자 증감→예측) | ❌ | ✅ |
+| ⑤ Share to Attack | twitter.com/intent/tweet | 프리셋 문구 | AI 팬덤 맞춤 문구 |
+| ⑥ 화력 투표 | chart_attack_votes | ✅ (로그인) | ✅ |
+
+**DB 테이블** (migration 0059_chart_attack.sql — Supabase 수동 실행 필요)
+- `chart_attack_votes`: artist_id(PK FK → kpop_artists), vote_count, updated_at
+
+**위기/기회 배너** (K-pop 내부 순위 기반)
+- rank 11~13: 🟡 "TOP 10 턱밑"
+- rank 18~20 + listener_change_pct < -3%: 🔴 "차트 아웃 위기"
+
+**API 라우트**
+- `GET  /api/kpop/chart-attack/lastfm-chart` — K-pop 글로벌 차트 (lastfm_listeners DESC)
+- `GET  /api/kpop/chart-attack/velocity` — YouTube 조회수 시간당 가속 TOP 10
+- `GET  /api/kpop/chart-attack/votes`   — 화력 랭킹 TOP 5
+- `POST /api/kpop/chart-attack/votes`   — 투표 +1 (로그인)
+- `POST /api/kpop/chart-attack/milestone` — AI 청취자 성장 예측 (Pro)
+- `POST /api/kpop/chart-attack/share`   — AI 바이럴 문구 (Pro)
+
+**구현 파일**
+- `components/kpop/chart-attack-tab.tsx` — 탭 전체 UI
+- `app/kpop/page.tsx` — 탭 네비게이션 + `isPro` 상태 추가
+
 ### KpopStats Free/Pro 확정 스펙 (2026-06-01)
 - 메인 페이지 (`/kpop`): 전체 Free 오픈 (비로그인 포함 Top 20)
 - 아티스트 상세 (`/kpop/[id]`): Today's Trending Top 5에 포함된 아티스트만 Free 접근 가능
@@ -556,6 +592,11 @@ Phase 3 — 한국 현지 연계:
 ❌ v0 UI 임의 수정 → 로직·API 연동만
 ❌ 아티스트 이미지 서버 직접 저장 → 저작권. URL 링크만
 ❌ 한 세션 여러 서비스 동시 개발 → 하나씩 완성 후 다음
+
+❌ Billboard 크롤링 / 스크래핑 → 공식 API 없음. 이용약관 위반 + 법적 리스크. 절대 금지.
+❌ Spotify 브랜드명·데이터 직접 인용 → 법인 계정 필수 + 상표권. Last.fm 으로 대체.
+❌ 외부 데이터 무출처 노출 → Last.fm 기반 차트엔 "Powered by Last.fm" 표기 필수.
+❌ 기획안 즉시 구현 → 법적 리스크 / 데이터 출처 / 기술 실현성 먼저 검토 후 보고.
 
 ❌ 새 필드 추가 시 6단계 동기화 누락 → 폼 미추가 시 silent NULL
    ① 마이그레이션 / ② zod(POST+PATCH) / ③ snake→camel / ④ type /
