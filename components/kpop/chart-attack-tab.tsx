@@ -4,7 +4,7 @@
 // 섹션: ① Alert Zone | ② Velocity Tracker | ③ Fan Power Ranking
 //        ④ Share to Attack | ⑤ Next Chart Update
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { AlertTriangle, Flame, Zap, Share2, Trophy, Timer, Lock, Target } from "lucide-react"
 import Link from "next/link"
 
@@ -190,16 +190,18 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
       gapToSafety: Math.max(0, safetyListeners - (item.lastfm_listeners ?? 0)),
     }))
 
-  // ─── Golden Hour — 07:00 UTC를 현지 시간으로 변환 (페이지 로드 1회) ──
-  const localDeadline = useMemo(() => {
+  // ─── Golden Hour — 07:00 UTC를 현지 시간으로 변환 ─────────
+  // useMemo 대신 useEffect+useState: SSR 시 서버 타임존으로 실행되는 것 방지
+  // toLocaleTimeString "en-US" 고정: 브라우저 로케일이 한국어여도 English 출력
+  const [localDeadline, setLocalDeadline] = useState({ timeStr: "", city: "" })
+  useEffect(() => {
     const target = new Date()
     target.setUTCHours(7, 0, 0, 0)
     if (new Date() >= target) target.setUTCDate(target.getUTCDate() + 1)
-    const timeStr = target.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })
+    const timeStr = target.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
     const city = tz.split("/").pop()?.replace(/_/g, " ") ?? tz
-    return { timeStr, city }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    setLocalDeadline({ timeStr, city })
   }, [])
 
   // ─── Chart Insight ───────────────────────────────────────
