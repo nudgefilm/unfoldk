@@ -115,9 +115,10 @@ function presetTweet(name: string): string {
 interface Props {
   isLoggedIn: boolean
   isPro: boolean
+  onSignUp: () => void
 }
 
-export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
+export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
   const [chart, setChart] = useState<LastfmChartItem[]>([])
   const [chartLoading, setChartLoading] = useState(true)
   const [velocity, setVelocity] = useState<VelocityItem[]>([])
@@ -518,13 +519,13 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
             {!isLoggedIn ? (
               <div className="p-8 text-center">
                 <p className="text-muted-foreground text-sm mb-4">Sign up to join the fan power battle</p>
-                <Link
-                  href="/signup"
+                <button
+                  onClick={onSignUp}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold text-white transition-colors"
                   style={{ backgroundColor: "#FF4B6E" }}
                 >
                   🔥 Join the Battle
-                </Link>
+                </button>
               </div>
             ) : chart.length === 0 ? (
               <div className="p-6 text-center text-muted-foreground text-sm">Loading artists...</div>
@@ -653,7 +654,13 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                 <Lock className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
                 <p className="text-foreground font-medium mb-1">Unlock with Hallyu Pass</p>
                 <p className="text-muted-foreground text-sm mb-3">Data-driven chart milestone prediction</p>
-                <Link href="/pricing" className="text-primary text-sm hover:underline">Upgrade →</Link>
+                {!isLoggedIn ? (
+                  <button onClick={onSignUp} className="text-primary text-sm hover:underline">
+                    Sign up free →
+                  </button>
+                ) : (
+                  <Link href="/pricing" className="text-primary text-sm hover:underline">Upgrade →</Link>
+                )}
               </div>
             </div>
           )}

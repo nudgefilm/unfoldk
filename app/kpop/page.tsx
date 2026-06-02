@@ -401,7 +401,7 @@ export default function KpopStatsPage() {
 
         {/* Chart Attack 탭 */}
         {activeTab === "chart-attack" && (
-          <ChartAttackTab isLoggedIn={isLoggedIn} isPro={isPro} />
+          <ChartAttackTab isLoggedIn={isLoggedIn} isPro={isPro} onSignUp={() => setKpopStartOpen(true)} />
         )}
 
         {/* 검색 모드 — searchResults !== null 일 때 차트/Trending 대신 검색 결과만 노출.
