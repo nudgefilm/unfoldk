@@ -151,6 +151,7 @@ async function fetchContext(
   drama_title: string,
   area_codes: number[],     // 출발 + 도착 (중복 제거)
   travel_style: string,
+  duration_days: number,
 ) {
   const safeDrama = drama_title.replace(/[%_]/g, "")
   const contentTypes = STYLE_CONTENT_TYPES[travel_style] ?? [12, 14, 39]
@@ -163,7 +164,9 @@ async function fetchContext(
     .order("confidence", { ascending: false, nullsFirst: false })
     .limit(10)
 
-  // 도착·출발 지역 양쪽 tour_spots — style 에 맞는 content_type 우선 fetch. 각 지역 최대 12건.
+  // 일수가 길수록 더 많은 스팟 필요 — 하루 8건 기준으로 확장
+  const spotsPerRegion = Math.max(12, duration_days * 8)
+  // 도착·출발 지역 양쪽 tour_spots — style 에 맞는 content_type 우선 fetch.
   const tourPromise =
     area_codes.length > 0
       ? supabase
@@ -172,7 +175,7 @@ async function fetchContext(
           .in("area_code", area_codes)
           .in("content_type_id", contentTypes)
           .not("image_url", "is", null)
-          .limit(area_codes.length * 12)
+          .limit(area_codes.length * spotsPerRegion)
       : Promise.resolve({ data: null, error: null })
 
   const [filming, tour] = await Promise.all([filmingPromise, tourPromise])
@@ -247,7 +250,7 @@ export async function POST(request: Request) {
   const sameRegion = departure_region === arrival_region
 
   // 3) 컨텍스트 fetch — 출발+도착 양쪽 spots (style 별 content_type 분기)
-  const context = await fetchContext(supabase, drama_title, areaCodes, travel_style)
+  const context = await fetchContext(supabase, drama_title, areaCodes, travel_style, duration_days)
 
   const formatTourLine = (t: {
     name: string
@@ -263,6 +266,19 @@ export async function POST(request: Request) {
           : ""
     return `- [${t.type}]${regionTag} ${t.name} (${t.address})`
   }
+
+  // 일수별 토큰 예산: 하루 ~6 stops × ~250 토큰 + 구조 오버헤드
+  const MAX_TOKENS_BY_DAYS: Record<number, number> = {
+    1: 2048,
+    2: 3072,
+    3: 4096,
+    5: 6144,
+    7: 8192,
+  }
+  const maxTokens = MAX_TOKENS_BY_DAYS[duration_days] ?? 8192
+
+  // 긴 여행일수일수록 더 많은 context spots 제공
+  const tourContextLimit = Math.max(24, duration_days * 8)
 
   // 4) Claude 호출 — tool_use 강제
   const userPrompt = `Drama: "${drama_title}"
@@ -280,7 +296,7 @@ ${
 Real spots in ${arrival_region}:
 ${
   context.tour.length > 0
-    ? context.tour.slice(0, 24).map((t) => `- [${t.type}] ${t.name} (${t.address})`).join("\n")
+    ? context.tour.slice(0, tourContextLimit).map((t) => `- [${t.type}] ${t.name} (${t.address})`).join("\n")
     : "(no enriched data yet for this area)"
 }
 
@@ -290,7 +306,7 @@ Build the itinerary now. Keep all stops within ${arrival_region}. Vary the neigh
   try {
     response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 2048,
+      max_tokens: maxTokens,
       system: [
         { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
       ],
