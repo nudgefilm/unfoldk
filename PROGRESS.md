@@ -40,6 +40,20 @@
 - Fan Power Ranking / Chart Insight / Share to Attack 모두 동일 velocity 상태 공유 → 자동 반영
 - Chart Attack 탭 전체가 Top 20 중심으로 일관되게 설계됨
 
+**추가 수정 (세션 44 후반)**
+- Fan Power / Chart Insight / Share to Attack → velocity 기준 → chart Top 20 기준으로 전환
+- Golden Hour 버그 수정: useMemo → useEffect+useState (SSR 서버 타임존 고정 방지), en-US 로케일 고정
+
+**미해결 — Velocity "+6/hr 동일" 데이터 이슈**
+- 코드 로직은 정상. youtube_weekly_views 연속 이틀 값이 DB에 동일하게 저장되는 것으로 추정
+- Supabase에서 직접 확인 필요:
+  ```sql
+  SELECT artist_id, date, youtube_weekly_views
+  FROM kpop_stats_daily
+  WHERE date >= now() - interval '3 days'
+  ORDER BY artist_id, date DESC LIMIT 40;
+  ```
+
 **사용자 액션 필요**
 - Supabase SQL Editor: `supabase/migrations/0059_chart_attack.sql` (chart_attack_votes 테이블)
 - Supabase SQL Editor: `supabase/migrations/0060_kpop_milestone_cache.sql` (kpop_milestone_cache 테이블)
