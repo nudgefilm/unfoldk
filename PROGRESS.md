@@ -33,6 +33,13 @@
 - 글로벌 차트: kpop_stats_daily lastfm_listeners 재활용
 - "Based on Last.fm global streaming data" 출처 표기
 
+**Velocity Tracker 기준 확정 (세션 44 후반)**
+- 전체 아티스트 → **Global Chart Top 20 아티스트로 한정**
+- Top 20 = youtube_weekly_views 기준 상위 20명 = Charts 탭과 동일한 모수
+- 이미 YouTube 채널 매핑이 검증된 아티스트만 포함 → 데이터 신뢰도 확보
+- Fan Power Ranking / Chart Insight / Share to Attack 모두 동일 velocity 상태 공유 → 자동 반영
+- Chart Attack 탭 전체가 Top 20 중심으로 일관되게 설계됨
+
 **사용자 액션 필요**
 - Supabase SQL Editor: `supabase/migrations/0059_chart_attack.sql` (chart_attack_votes 테이블)
 - Supabase SQL Editor: `supabase/migrations/0060_kpop_milestone_cache.sql` (kpop_milestone_cache 테이블)
