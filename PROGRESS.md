@@ -4,6 +4,52 @@
 
 ---
 
+## 현재 상태 (2026-06-03 세션 44 기준)
+
+### KpopStats — Chart Attack 탭 신설 (세션 44)
+
+**탭 구조**
+- `/kpop` 페이지 상단 `📊 Charts` / `🔥 Chart Attack` 탭 네비게이션 추가
+- `app/kpop/page.tsx`: `isPro` 상태 추가 (기존 `isLoggedIn`만 있었음)
+
+**Chart Attack 확정 섹션 배열 (① ~ ⑦)**
+① 🚨 Alert Zone — rank 11~12 ALMOST THERE / rank 18~20 DANGER ZONE 자동 추출  
+  - 수치 표시: "Only [X] listeners away from TOP 10" / "[X] behind safety line"  
+  - DANGER ZONE 카드 전체 border `animate-pulse`  
+② ⏱ Golden Hour — 브라우저 타임존 자동 감지, 07:00 UTC 현지 시간 변환 표시  
+  - 3시간 이내: 텍스트 red 강조 / 1시간 이내: 섹션 border pulse + "FINAL PUSH"  
+③ ⚡ Velocity Tracker — YouTube 조회수 시간당 가속 TOP 10  
+  - 마운트 시 0 → 실제값 1.5초 카운트업 + 게이지 확장  
+④ 🔥 Fan Power Ranking — PopCat 투표 + 낙관적 업데이트 + 파티클 애니메이션  
+⑤ 🎯 Chart Insight (Pro 전용) — velocity 상위 10명 드롭다운 → Claude Haiku 예측  
+  - `/api/kpop/milestone-predict` 신규 라우트  
+  - `kpop_milestone_cache` 테이블 캐시 (6h TTL)  
+  - 비Pro: blur + "Unlock with Hallyu Pass" 오버레이  
+⑥ 📢 Share to Attack — Free: 프리셋 트윗 / Pro: AI 맞춤 문구  
+⑦ ⏱ Next Chart Update — 07:00 UTC 카운트다운 타이머  
+
+**데이터 소스 원칙 확정 (DECISIONS.md 기록)**
+- Billboard 크롤링 금지 (법적 리스크)
+- 글로벌 차트: kpop_stats_daily lastfm_listeners 재활용
+- "Based on Last.fm global streaming data" 출처 표기
+
+**사용자 액션 필요**
+- Supabase SQL Editor: `supabase/migrations/0059_chart_attack.sql` (chart_attack_votes 테이블)
+- Supabase SQL Editor: `supabase/migrations/0060_kpop_milestone_cache.sql` (kpop_milestone_cache 테이블)
+
+**신규 파일**
+- `components/kpop/chart-attack-tab.tsx`
+- `app/api/kpop/chart-attack/lastfm-chart/route.ts`
+- `app/api/kpop/chart-attack/velocity/route.ts`
+- `app/api/kpop/chart-attack/votes/route.ts`
+- `app/api/kpop/chart-attack/milestone/route.ts`
+- `app/api/kpop/chart-attack/share/route.ts`
+- `app/api/kpop/milestone-predict/route.ts`
+- `supabase/migrations/0059_chart_attack.sql`
+- `supabase/migrations/0060_kpop_milestone_cache.sql`
+
+---
+
 ## 현재 상태 (2026-06-02 세션 43 기준)
 
 ### HallyuCalendar

@@ -4,8 +4,8 @@
 // 섹션: ① Alert Zone | ② Velocity Tracker | ③ Fan Power Ranking
 //        ④ Share to Attack | ⑤ Next Chart Update
 
-import { useCallback, useEffect, useState } from "react"
-import { AlertTriangle, Flame, Zap, Share2, Trophy, Timer, Lock } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { AlertTriangle, Flame, Zap, Share2, Trophy, Timer, Lock, Target } from "lucide-react"
 import Link from "next/link"
 
 // ─── 숫자 포맷 ─────────────────────────────────────────────
@@ -130,6 +130,10 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
   const [shareLoading, setShareLoading] = useState(false)
   // Velocity 게이지 마운트 애니메이션 — 데이터 로드 후 0% → 실제값으로 확장
   const [gaugeTrigger, setGaugeTrigger] = useState(false)
+  // Chart Insight (Pro) 상태
+  const [insightArtistId, setInsightArtistId] = useState<string>("")
+  const [insightText, setInsightText] = useState<string | null>(null)
+  const [insightLoading, setInsightLoading] = useState(false)
 
   const countdown = useCountdown()
 
@@ -170,7 +174,9 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
 
   // ─── Alert Zone 계산 ─────────────────────────────────────
   const top10Listeners = chart[9]?.lastfm_listeners ?? 0
-  type AlertArtist = LastfmChartItem & { alertType: "almost" | "danger"; gapToTop10: number }
+  // 17위 아티스트 = 안전권 마지노선 (18~20위 = DANGER ZONE)
+  const safetyListeners = chart[16]?.lastfm_listeners ?? 0
+  type AlertArtist = LastfmChartItem & { alertType: "almost" | "danger"; gapToTop10: number; gapToSafety: number }
   const alertArtists: AlertArtist[] = chart
     .filter(item => {
       const isAlmost = item.rank >= 11 && item.rank <= 12
@@ -181,7 +187,40 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
       ...item,
       alertType: (item.rank <= 12 ? "almost" : "danger") as "almost" | "danger",
       gapToTop10: Math.max(0, top10Listeners - (item.lastfm_listeners ?? 0)),
+      gapToSafety: Math.max(0, safetyListeners - (item.lastfm_listeners ?? 0)),
     }))
+
+  // ─── Golden Hour — 07:00 UTC를 현지 시간으로 변환 (페이지 로드 1회) ──
+  const localDeadline = useMemo(() => {
+    const target = new Date()
+    target.setUTCHours(7, 0, 0, 0)
+    if (new Date() >= target) target.setUTCDate(target.getUTCDate() + 1)
+    const timeStr = target.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const city = tz.split("/").pop()?.replace(/_/g, " ") ?? tz
+    return { timeStr, city }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ─── Chart Insight ───────────────────────────────────────
+  async function fetchInsight() {
+    if (!insightArtistId) return
+    setInsightText(null)
+    setInsightLoading(true)
+    try {
+      const res = await fetch("/api/kpop/milestone-predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ artistId: insightArtistId }),
+      })
+      const d = await res.json() as { prediction?: string }
+      setInsightText(d.prediction ?? "Prediction unavailable.")
+    } catch {
+      setInsightText("Error fetching chart insight.")
+    } finally {
+      setInsightLoading(false)
+    }
+  }
 
   // ─── AI Share ────────────────────────────────────────────
   async function generateAiShare(item: VelocityItem) {
@@ -252,6 +291,11 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
     } catch { /* PopCat style — no rollback */ }
   }
 
+  // Golden Hour 상태 — countdown 재활용
+  const goldenHoursLeft = countdown.h + countdown.m / 60
+  const isCritical = goldenHoursLeft <= 3   // 3시간 이내: 강조
+  const isFinalPush = goldenHoursLeft <= 1  // 1시간 이내: border pulse + FINAL PUSH
+
   return (
     <>
       {/* ─── CSS 애니메이션 — 투표 바운스 + 파티클 ─────────── */}
@@ -316,15 +360,17 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                   </div>
                   {item.alertType === "almost" ? (
                     <>
-                      <p className="text-yellow-400 text-sm font-medium mt-0.5">
-                        🟡 ALMOST THERE! {fmt(item.gapToTop10)} listeners away from TOP 10
+                      <p className="text-yellow-400 text-sm font-bold mt-0.5">🟡 ALMOST THERE!</p>
+                      <p className="text-yellow-400 text-sm font-medium">
+                        Only {fmt(item.gapToTop10)} listeners away from TOP 10
                       </p>
                       <p className="text-yellow-400/70 text-xs mt-0.5">One push can change everything — tweet NOW</p>
                     </>
                   ) : (
                     <>
-                      <p className="text-red-400 text-sm font-bold mt-0.5">
-                        🔴 DANGER ZONE! Stream now before they drop out!
+                      <p className="text-red-400 text-sm font-bold mt-0.5">🔴 DANGER ZONE! Stream now before they drop out!</p>
+                      <p className="text-red-400 text-sm font-medium">
+                        {fmt(item.gapToSafety)} behind safety line — danger is real
                       </p>
                       <p className="text-red-400/70 text-xs mt-0.5">Fans needed urgently — act before chart update</p>
                     </>
@@ -348,7 +394,48 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
         )}
       </section>
 
-      {/* ─── ② ⚡ Velocity Tracker ────────────────────────── */}
+      {/* ─── ② ⏱ Golden Hour ────────────────────────────── */}
+      <section>
+        <div className="flex items-center gap-3 mb-4">
+          <Timer className="w-6 h-6" style={{ color: "#FF4B6E" }} />
+          <div>
+            <h2 className="text-2xl font-semibold text-white">Golden Hour</h2>
+            <p className="text-muted-foreground text-sm">Your local deadline for chart impact</p>
+          </div>
+        </div>
+
+        <div className={`rounded-2xl p-5 border ${
+          isFinalPush
+            ? "border-primary/60 bg-primary/5 animate-pulse"
+            : isCritical
+            ? "border-red-500/40 bg-red-500/5"
+            : "border-border/30 bg-[#1a1a1a]"
+        }`}>
+          {isFinalPush && (
+            <p className="text-sm font-bold text-primary mb-3">
+              🚨 FINAL PUSH — Last chance to impact the chart!
+            </p>
+          )}
+          <p className={`text-lg font-semibold mb-1 ${isCritical ? "text-red-400" : "text-foreground"}`}>
+            Your Golden Hour ends at{" "}
+            <span className={`font-bold ${isCritical ? "text-primary" : "text-white"}`}>
+              {localDeadline.timeStr}
+            </span>
+            {" "}({localDeadline.city} time)
+          </p>
+          <p className={`text-sm font-medium ${isCritical ? "text-red-400" : "text-muted-foreground"}`}>
+            {countdown.h > 0
+              ? `${countdown.h}h ${pad(countdown.m)}m left`
+              : `${pad(countdown.m)}m ${pad(countdown.s)}s left`}
+            {isCritical && !isFinalPush && " — Stream now, time is running out!"}
+          </p>
+          <p className="text-muted-foreground text-xs mt-2">
+            Stream now — every play counts toward the next chart update
+          </p>
+        </div>
+      </section>
+
+      {/* ─── ③ ⚡ Velocity Tracker ────────────────────────── */}
       <section>
         <div className="flex items-center gap-3 mb-4">
           <Zap className="w-6 h-6 text-yellow-400" />
@@ -410,7 +497,7 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
         )}
       </section>
 
-      {/* ─── ③ 🔥 Fan Power Ranking ──────────────────────── */}
+      {/* ─── ④ 🔥 Fan Power Ranking ──────────────────────── */}
       <section>
         <div className="flex items-center gap-3 mb-4">
           <Flame className="w-6 h-6" style={{ color: "#FF4B6E" }} />
@@ -503,7 +590,77 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
         </div>
       </section>
 
-      {/* ─── ④ 📢 Share to Attack ────────────────────────── */}
+      {/* ─── ⑤ 🎯 Chart Insight ─────────────────────────── */}
+      <section>
+        <div className="flex items-center gap-3 mb-4">
+          <Target className="w-6 h-6 text-green-400" />
+          <div>
+            <h2 className="text-2xl font-semibold text-white">Chart Insight</h2>
+            <p className="text-muted-foreground text-sm">Data-driven milestone forecast — Hallyu Pass only</p>
+          </div>
+        </div>
+
+        <div className="relative">
+          {/* 콘텐츠 — 비Pro 시 blur */}
+          <div className={!isPro ? "blur-sm pointer-events-none select-none" : ""}>
+            <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-5">
+              <p className="text-sm text-muted-foreground mb-4">
+                Select an artist to generate a data-driven milestone prediction
+              </p>
+              <div className="flex gap-3 mb-4">
+                <select
+                  value={insightArtistId}
+                  onChange={e => { setInsightArtistId(e.target.value); setInsightText(null) }}
+                  className="flex-1 bg-[#252525] border border-border/30 rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 appearance-none"
+                >
+                  <option value="">Select artist...</option>
+                  {velocity.slice(0, 10).map(v => (
+                    <option key={v.artist_id} value={v.artist_id}>{v.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={fetchInsight}
+                  disabled={!insightArtistId || insightLoading}
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: "#FF4B6E" }}
+                >
+                  {insightLoading ? "Analyzing…" : "Analyze"}
+                </button>
+              </div>
+
+              {insightLoading && (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                  Calculating milestone trajectory...
+                </div>
+              )}
+              {insightText && !insightLoading && (
+                <div className="bg-[#141416] border border-green-500/20 rounded-xl p-4">
+                  <p className="text-xs text-green-400 font-medium mb-2">🎯 Chart Prediction</p>
+                  <p className="text-foreground text-sm leading-relaxed">{insightText}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 비Pro 잠금 오버레이 */}
+          {!isPro && (
+            <div
+              className="absolute inset-0 flex items-center justify-center rounded-2xl"
+              style={{ background: "rgba(13,13,15,0.72)" }}
+            >
+              <div className="text-center px-4">
+                <Lock className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-foreground font-medium mb-1">Unlock with Hallyu Pass</p>
+                <p className="text-muted-foreground text-sm mb-3">Data-driven chart milestone prediction</p>
+                <Link href="/pricing" className="text-primary text-sm hover:underline">Upgrade →</Link>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ─── ⑥ 📢 Share to Attack ────────────────────────── */}
       <section>
         <div className="flex items-center gap-3 mb-4">
           <Share2 className="w-6 h-6 text-[#1d9bf0]" />
@@ -591,7 +748,7 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
         )}
       </section>
 
-      {/* ─── ⑤ ⏱ Next Chart Update ──────────────────────── */}
+      {/* ─── ⑦ ⏱ Next Chart Update ──────────────────────── */}
       <section>
         <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl px-6 py-5 flex items-center gap-5">
           <Timer className="w-8 h-8 text-muted-foreground flex-shrink-0" />
