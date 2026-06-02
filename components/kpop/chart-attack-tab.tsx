@@ -125,7 +125,7 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
   const [rankings, setRankings] = useState<VoteRanking[]>([])
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set())
   const [voteAnimate, setVoteAnimate] = useState<string | null>(null)
-  const [shareTarget, setShareTarget] = useState<VelocityItem | null>(null)
+  const [shareTargetId, setShareTargetId] = useState<string | null>(null)
   const [aiTweetText, setAiTweetText] = useState<string | null>(null)
   const [shareLoading, setShareLoading] = useState(false)
   // Velocity 게이지 마운트 애니메이션 — 데이터 로드 후 0% → 실제값으로 확장
@@ -222,21 +222,20 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
     }
   }
 
-  // ─── AI Share ────────────────────────────────────────────
-  async function generateAiShare(item: VelocityItem) {
-    setShareTarget(item)
+  // ─── AI Share — chart 아이템(LastfmChartItem) 기반 ────────
+  async function generateChartShare(item: LastfmChartItem) {
+    setShareTargetId(item.artist_id)
     setAiTweetText(null)
     setShareLoading(true)
-    const chartEntry = chart.find(c => c.artist_id === item.artist_id)
     try {
       const res = await fetch("/api/kpop/chart-attack/share", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           artist_name: item.name,
-          current_rank: chartEntry?.rank ?? 1,
-          rank_change: chartEntry?.rank_change ?? null,
-          listener_change_pct: chartEntry?.listener_change_pct ?? null,
+          current_rank: item.rank,
+          rank_change: item.rank_change,
+          listener_change_pct: item.listener_change_pct,
         }),
       })
       const d = await res.json() as { tweet_text?: string }
@@ -264,7 +263,7 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
           r.artist_id === artistId ? { ...r, vote_count: r.vote_count + 1 } : r
         )
       } else {
-        const artist = velocity.find(v => v.artist_id === artistId)
+        const artist = chart.find(c => c.artist_id === artistId)
         if (!artist) return prev
         updated = [...prev, {
           rank: prev.length + 1,
@@ -507,14 +506,15 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* 투표 버튼 패널 */}
+        <div className="flex flex-col gap-4">
+          {/* Vote Now — 풀 너비, 4열 그리드, Top 20 전원 */}
           <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-border/20">
+            <div className="px-5 py-3 border-b border-border/20 flex items-center justify-between">
               <p className="text-sm font-medium text-foreground">Vote now</p>
+              <p className="text-xs text-muted-foreground">Global Top 20 · {chart.length} artists</p>
             </div>
             {!isLoggedIn ? (
-              <div className="p-6 text-center">
+              <div className="p-8 text-center">
                 <p className="text-muted-foreground text-sm mb-4">Sign up to join the fan power battle</p>
                 <Link
                   href="/signup"
@@ -524,18 +524,17 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                   🔥 Join the Battle
                 </Link>
               </div>
-            ) : velocity.length === 0 ? (
+            ) : chart.length === 0 ? (
               <div className="p-6 text-center text-muted-foreground text-sm">Loading artists...</div>
             ) : (
-              <div className="p-4 grid grid-cols-2 gap-2">
-                {velocity.slice(0, 8).map(item => {
+              <div className="p-5 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                {chart.map(item => {
                   const isVoted = votedIds.has(item.artist_id)
                   const isAnimating = voteAnimate === item.artist_id
                   return (
                     <div key={item.artist_id} className="relative">
-                      {/* 파티클 — 투표 시 🔥 2개 위로 솟아오름 */}
                       {isAnimating && (
-                        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 pointer-events-none z-10 flex">
+                        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 pointer-events-none z-10 flex">
                           <span className="fire-p1 text-base">🔥</span>
                           <span className="fire-p2 text-sm">🔥</span>
                         </div>
@@ -548,8 +547,8 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                             : "border-border/30 bg-[#141416] hover:border-primary/30 hover:bg-[#1e1e20]"
                         } ${isAnimating ? "vote-bounce-anim" : ""}`}
                       >
-                        <Avatar src={item.thumbnail_url} alt={item.name} size={10} />
-                        <span className="text-foreground text-xs font-medium truncate w-full text-center">{item.name}</span>
+                        <Avatar src={item.thumbnail_url} alt={item.name} size={12} />
+                        <span className="text-foreground text-xs font-medium truncate w-full text-center leading-tight">{item.name}</span>
                         <span className="text-xl leading-none">🔥</span>
                       </button>
                     </div>
@@ -559,7 +558,7 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
             )}
           </div>
 
-          {/* 랭킹 TOP 5 */}
+          {/* Power Ranking TOP 5 — 풀 너비 */}
           <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden">
             <div className="px-5 py-3 border-b border-border/20 flex items-center gap-2">
               <Trophy className="w-4 h-4 text-yellow-400" />
@@ -570,18 +569,17 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                 No votes yet — be the first to power up!
               </div>
             ) : (
-              <div className="divide-y divide-border/20">
+              <div className="grid grid-cols-1 sm:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-border/20">
                 {rankings.map((r, i) => (
-                  <div key={r.artist_id} className="flex items-center gap-3 px-5 py-3.5">
-                    <span className="w-5 flex-shrink-0 text-center">
-                      {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : <span className="text-muted-foreground text-xs">#{r.rank}</span>}
+                  <div key={r.artist_id} className="flex sm:flex-col items-center gap-3 sm:gap-2 px-4 py-3 sm:py-4 sm:text-center">
+                    <span className="flex-shrink-0 sm:flex-shrink text-lg">
+                      {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : <span className="text-muted-foreground text-sm">#{r.rank}</span>}
                     </span>
                     <Avatar src={r.thumbnail_url} alt={r.name} size={9} />
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 sm:flex-none">
                       <p className="text-foreground text-sm font-medium truncate">{r.name}</p>
-                      {r.name_ko && <p className="text-muted-foreground text-xs">{r.name_ko}</p>}
                     </div>
-                    <span className="text-primary font-bold">{fmt(r.vote_count)} 🔥</span>
+                    <span className="text-primary font-bold text-sm ml-auto sm:ml-0">{fmt(r.vote_count)} 🔥</span>
                   </div>
                 ))}
               </div>
@@ -614,8 +612,8 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                   className="flex-1 bg-[#252525] border border-border/30 rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 appearance-none"
                 >
                   <option value="">Select artist...</option>
-                  {velocity.slice(0, 10).map(v => (
-                    <option key={v.artist_id} value={v.artist_id}>{v.name}</option>
+                  {chart.map(v => (
+                    <option key={v.artist_id} value={v.artist_id}>{v.name} (#{v.rank})</option>
                   ))}
                 </select>
                 <button
@@ -670,7 +668,7 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
           </div>
         </div>
 
-        {velocity.length === 0 ? (
+        {chart.length === 0 ? (
           <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl px-6 py-8 text-center text-muted-foreground text-sm">
             Loading artists...
           </div>
@@ -686,13 +684,10 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
               )}
             </div>
 
-            {/* 아티스트 목록 */}
+            {/* 아티스트 목록 — Global Top 20 기준 상위 10명 */}
             <div className="divide-y divide-border/20">
-              {velocity.slice(0, 5).map(item => {
-                const chartEntry = chart.find(c => c.artist_id === item.artist_id)
-                const rank = chartEntry?.rank ?? null
-                const isSelected = shareTarget?.artist_id === item.artist_id
-
+              {chart.slice(0, 10).map(item => {
+                const isSelected = shareTargetId === item.artist_id
                 return (
                   <div key={item.artist_id} className="px-5 py-4">
                     <div className="flex items-center gap-3">
@@ -700,14 +695,14 @@ export function ChartAttackTab({ isLoggedIn, isPro }: Props) {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="text-foreground font-medium">{item.name}</span>
-                          {rank && <span className="text-muted-foreground text-xs">#{rank} globally</span>}
+                          <span className="text-muted-foreground text-xs">#{item.rank} globally</span>
                         </div>
-                        <p className="text-yellow-400 text-xs">⚡ +{fmt(item.hourly_velocity)}/hr</p>
+                        <p className="text-muted-foreground text-xs">{fmt(item.lastfm_listeners)} monthly listeners</p>
                       </div>
                       <button
                         onClick={() => {
                           if (isPro) {
-                            generateAiShare(item)
+                            generateChartShare(item)
                           } else {
                             const text = presetTweet(item.name)
                             window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank")
