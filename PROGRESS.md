@@ -4,6 +4,39 @@
 
 ---
 
+## 현재 상태 (2026-06-03 세션 44~45 기준)
+
+### KpopStats — Chart Attack 탭 마무리 (세션 45)
+
+**버그 수정**
+- Golden Hour 한국어 혼입: `useMemo` → `useEffect+useState` 교체 (SSR 서버 타임존 고정 방지)
+  + `toLocaleTimeString("en-US")` 강제 적용 (브라우저 로케일 무관 영문 출력)
+- 비로그인 "🔥 Join the Battle": `<Link href="/signup">` → `onSignUp()` 모달 호출로 교체
+- Chart Insight 잠금 오버레이 분기: 비로그인 → "Sign up free →" 모달 / Free → "Upgrade →" /pricing
+
+**데이터 기준 정비**
+- Fan Power Ranking 투표 버튼: velocity 상위 8 → **chart Top 20 전원** (풀너비 4~5열 그리드)
+- Chart Insight 드롭다운: velocity 상위 10 → **chart 20명** (순위 병기)
+- Share to Attack: velocity 상위 5 → **chart 상위 10명** (리스너 수 표시)
+- Velocity Tracker 기준: **Global Chart Top 20으로 한정** (YouTube 채널 검증된 아티스트만)
+  → Fan Power / Chart Insight / Share to Attack 모두 chart 상태 공유로 자동 반영
+
+**Share to Attack 현행 스펙 (확정)**
+- Free: `📢 Join the Attack` → 프리셋 고정 문구 → X 바로 열림
+- Pro: `🔥 Attack Now` → Claude AI 문구 생성 → 인라인 확인 → Post on X
+
+**미해결 — Velocity "+6/hr 동일" 데이터 이슈**
+- 코드 로직 정상, DB 데이터 문제로 추정
+- Supabase에서 직접 확인 필요:
+  ```sql
+  SELECT artist_id, date, youtube_weekly_views
+  FROM kpop_stats_daily
+  WHERE date >= now() - interval '3 days'
+  ORDER BY artist_id, date DESC LIMIT 40;
+  ```
+
+---
+
 ## 현재 상태 (2026-06-03 세션 44 기준)
 
 ### KpopStats — Chart Attack 탭 신설 (세션 44)
