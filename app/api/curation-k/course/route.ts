@@ -17,7 +17,6 @@ import { hasProAccess } from "@/lib/auth/plan"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-const TRAVEL_STYLE = z.enum(["filming", "sightseeing", "foodie", "cultural", "shopping"])
 const DURATION_DAYS = z.union([
   z.literal(1),
   z.literal(2),
@@ -27,8 +26,6 @@ const DURATION_DAYS = z.union([
 ])
 
 const PostSchema = z.object({
-  drama_title: z.string().trim().min(1).max(160),
-  travel_style: TRAVEL_STYLE,
   duration_days: DURATION_DAYS,
   departure_region: z.string().trim().min(1).max(60),
   arrival_region: z.string().trim().min(1).max(60),
@@ -134,39 +131,37 @@ Rules:
 - For each stop, include lat and lng (WGS84 decimal degrees) when the location is a recognizable landmark, neighborhood, or tourist spot. Omit for small unknown local venues.
 - Output ONLY the tool call. No prose.`
 
-// travel_style → 우선 fetch 할 content_type_id 목록
-// 12: 관광지(Attractions) / 14: 문화시설(Culture) / 15: 축제(Festivals)
+// duration_days → fetch 할 content_type_id 목록
+// 12: 관광지(Sightseeing/Attractions) / 14: 문화시설(Culture) / 15: 축제(Festivals)
 // 32: 숙박(Stays) / 38: 쇼핑(Shopping) / 39: 음식점(Food)
-const STYLE_CONTENT_TYPES: Record<string, number[]> = {
-  filming:     [12, 14, 39],          // 촬영지 중심 + 주변 관광·카페
-  sightseeing: [12, 14],              // 관광지 + 문화시설
-  foodie:      [39, 12],              // 음식점 위주 + 관광지
-  cultural:    [14, 12],              // 문화시설 위주 + 관광지
-  shopping:    [38, 39, 12],          // 쇼핑 + 음식점 + 관광지
+const LENGTH_CONTENT_TYPES: Record<number, number[]> = {
+  1: [12, 14, 15, 38, 39],           // 당일치기 — 숙박 제외
+  2: [12, 14, 15, 38, 39, 32],
+  3: [12, 14, 15, 38, 39, 32],
+  5: [12, 14, 15, 38, 39, 32],
+  7: [12, 14, 15, 38, 39, 32],
 }
 
-// ─── 컨텍스트 fetch — 드라마 촬영지 + 출발 지역 spots ──────────
+// Fisher-Yates 셔플 — 재검색 시 다른 spot 조합 반환용
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// ─── 컨텍스트 fetch — 출발·도착 지역 spots ──────────────────────
 async function fetchContext(
   supabase: ReturnType<typeof createSupabaseServerClient> extends Promise<infer T> ? T : never,
-  drama_title: string,
-  area_codes: number[],     // 출발 + 도착 (중복 제거)
-  travel_style: string,
+  area_codes: number[],
   duration_days: number,
 ) {
-  const safeDrama = drama_title.replace(/[%_]/g, "")
-  const contentTypes = STYLE_CONTENT_TYPES[travel_style] ?? [12, 14, 39]
+  const contentTypes = LENGTH_CONTENT_TYPES[duration_days] ?? [12, 14, 32, 38, 15, 39]
 
-  const filmingPromise = supabase
-    .from("filming_spots")
-    .select("spot_name, address, region")
-    .ilike("drama_title", safeDrama)
-    .neq("spot_name", "__no_spots_found__")
-    .order("confidence", { ascending: false, nullsFirst: false })
-    .limit(10)
-
-  // 일수가 길수록 더 많은 스팟 필요 — 하루 8건 기준으로 확장
-  const spotsPerRegion = Math.max(12, duration_days * 8)
-  // 도착·출발 지역 양쪽 tour_spots — style 에 맞는 content_type 우선 fetch.
+  // 일수가 길수록 더 많은 스팟 필요 — 하루 8건 기준 + 셔플 여유분(×2)
+  const spotsPerRegion = Math.max(24, duration_days * 16)
   const tourPromise =
     area_codes.length > 0
       ? supabase
@@ -178,16 +173,7 @@ async function fetchContext(
           .limit(area_codes.length * spotsPerRegion)
       : Promise.resolve({ data: null, error: null })
 
-  const [filming, tour] = await Promise.all([filmingPromise, tourPromise])
-
-  const filmingList = ((filming.data ?? []) as Array<{
-    spot_name: string
-    address: string | null
-    region: string | null
-  }>).map((r) => ({
-    name: r.spot_name,
-    address: r.address ?? r.region ?? "",
-  }))
+  const tour = await tourPromise
 
   const tourList = ((tour.data ?? []) as Array<{
     eng_title: string | null
@@ -202,10 +188,13 @@ async function fetchContext(
     type: r.content_type_id === 12 ? "attraction"
         : r.content_type_id === 14 ? "culture"
         : r.content_type_id === 38 ? "shopping"
-        : "food",
+        : r.content_type_id === 39 ? "food"
+        : r.content_type_id === 32 ? "stay"
+        : "festival",
   }))
 
-  return { filming: filmingList, tour: tourList }
+  // 재검색 시 다른 spot 조합 반환 — 셔플 후 슬라이스
+  return { tour: shuffleArray(tourList) }
 }
 
 const anthropic = new Anthropic()
@@ -241,7 +230,7 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
-  const { drama_title, travel_style, duration_days, departure_region, arrival_region } = parsed.data
+  const { duration_days, departure_region, arrival_region } = parsed.data
   const departureCode = REGION_LABEL_TO_AREA[departure_region] ?? null
   const arrivalCode = REGION_LABEL_TO_AREA[arrival_region] ?? null
   const areaCodes = Array.from(
@@ -249,8 +238,8 @@ export async function POST(request: Request) {
   )
   const sameRegion = departure_region === arrival_region
 
-  // 3) 컨텍스트 fetch — 출발+도착 양쪽 spots (style 별 content_type 분기)
-  const context = await fetchContext(supabase, drama_title, areaCodes, travel_style, duration_days)
+  // 3) 컨텍스트 fetch — 출발+도착 양쪽 spots (duration 기반 content_type 분기)
+  const context = await fetchContext(supabase, areaCodes, duration_days)
 
   const formatTourLine = (t: {
     name: string
@@ -281,17 +270,10 @@ export async function POST(request: Request) {
   const tourContextLimit = Math.max(24, duration_days * 8)
 
   // 4) Claude 호출 — tool_use 강제
-  const userPrompt = `Drama: "${drama_title}"
-Destination: ${arrival_region}
+  const userPrompt = `Destination: ${arrival_region}
 Trip length: ${duration_days} day(s)
-Style: ${travel_style}
-
-Filming locations from this drama (use these as anchors when relevant):
-${
-  context.filming.length > 0
-    ? context.filming.map((f) => `- ${f.name} (${f.address || "address unknown"})`).join("\n")
-    : "(none in our database — improvise plausibly from your knowledge)"
-}
+Include a balanced mix of attractions, cultural sites, food, shopping, and festivals.
+For trips of 2 days or more, include accommodation recommendations.
 
 Real spots in ${arrival_region}:
 ${
@@ -344,7 +326,7 @@ Build the itinerary now. Keep all stops within ${arrival_region}. Vary the neigh
 
   return NextResponse.json({
     itinerary,
-    meta: { drama_title, travel_style, duration_days, departure_region, arrival_region },
+    meta: { duration_days, departure_region, arrival_region },
   })
 }
 

@@ -30,8 +30,6 @@ const DaySchema = z.object({
 })
 
 const PostSchema = z.object({
-  drama_title: z.string().trim().min(1).max(160),
-  travel_style: z.enum(["filming", "sightseeing", "foodie", "cultural", "shopping"]),
   duration_days: z.union([
     z.literal(1),
     z.literal(2),
@@ -77,7 +75,7 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
-  const { drama_title, travel_style, duration_days, departure_region, arrival_region, itinerary } = parsed.data
+  const { duration_days, departure_region, arrival_region, itinerary } = parsed.data
 
   // 사용자별 저장 cap — 6건 초과 시 가장 오래된 코스 자동 삭제
   const { count: existingCount } = await supabase
@@ -101,10 +99,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // course_data 구조 — Phase 2 spec 의 stops jsonb 확장 (drama_title / style / days 포함)
   const course_data = {
-    drama_title,
-    travel_style,
     duration_days,
     departure_region,
     arrival_region,
@@ -112,8 +107,7 @@ export async function POST(request: Request) {
     generated_at: new Date().toISOString(),
   }
 
-  // title 은 카드 헤더용 — 드라마명 + 스타일
-  const title = `${drama_title} · ${travel_style}`
+  const title = `${arrival_region} · ${duration_days}d`
   // region 은 hallyu_courses.region 컬럼 — 단일 지역만 저장 가능해 도착지 기준
   // (사용자가 가는 곳 = arrival_region 이 의미상 더 정확)
 

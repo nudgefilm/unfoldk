@@ -408,8 +408,6 @@ interface GeneratedItinerary {
 interface GeneratedCourse {
   itinerary: GeneratedItinerary
   meta: {
-    drama_title: string
-    travel_style: TravelStyle
     duration_days: DurationDays
     departure_region: string
     arrival_region: string
@@ -421,11 +419,11 @@ interface SavedCourse {
   title: string
   region: string | null
   course_data: {
-    drama_title: string
-    travel_style: TravelStyle
+    drama_title?: string                   // 과거 저장본 호환용 (옵셔널)
+    travel_style?: TravelStyle             // 과거 저장본 호환용 (옵셔널)
     duration_days: DurationDays
     departure_region: string
-    arrival_region?: string                // 신규 — 과거 저장본은 미존재 가능
+    arrival_region?: string
     itinerary: GeneratedItinerary
     generated_at: string
   }
@@ -685,12 +683,13 @@ export default function CurationKPage() {
   const [courseFrom, setCourseFrom] = useState<string>("")
   const [courseFromCoords, setCourseFromCoords] = useState<{ lat: number; lon: number } | null>(null)
   const [locationDetecting, setLocationDetecting] = useState(false)
-  const [courseTo, setCourseTo] = useState<string>("")
-  const [courseToCoords, setCourseToCoords] = useState<{ lat: number; lon: number } | null>(null)
+  const [courseTo, setCourseTo] = useState<string>("Seoul")
+  const [courseToCoords, setCourseToCoords] = useState<{ lat: number; lon: number } | null>({ lat: 37.5665, lon: 126.978 })
+  const [toInputMode, setToInputMode] = useState<"city" | "keyword">("city")
   const [toSearchResults, setToSearchResults] = useState<Array<{ id: string; eng_title: string; addr1: string; latitude: number; longitude: number }>>([])
   const [toSearchOpen, setToSearchOpen] = useState(false)
   const [distanceKm, setDistanceKm] = useState<number | null>(null)
-  const [courseStyle, setCourseStyle] = useState<TravelStyle>("filming")
+  const [locationDetected, setLocationDetected] = useState<boolean | null>(null)
   const [courseDays, setCourseDays] = useState<DurationDays>(1)
   const [courseGenerating, setCourseGenerating] = useState(false)
   const [courseSaving, setCourseSaving] = useState(false)
@@ -873,21 +872,35 @@ export default function CurationKPage() {
       .catch(() => {})
   }, [isAuthenticated])
 
-  // My Hallyu Course — IP 기반 현재 위치 자동 감지
+  // My Hallyu Course — IP 기반 현재 위치 자동 감지 (3초 타임아웃)
   useEffect(() => {
     setLocationDetecting(true)
-    fetch("http://ip-api.com/json")
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      controller.abort()
+      setLocationDetecting(false)
+      setLocationDetected(false)
+    }, 3000)
+    fetch("http://ip-api.com/json", { signal: controller.signal })
       .then((res) => res.json())
       .then((data: { city?: string; lat?: number; lon?: number }) => {
+        clearTimeout(timer)
         if (data.city) {
           setCourseFrom(data.city)
           if (data.lat != null && data.lon != null) {
             setCourseFromCoords({ lat: data.lat, lon: data.lon })
           }
+          setLocationDetected(true)
+        } else {
+          setLocationDetected(false)
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        clearTimeout(timer)
+        setLocationDetected(false)
+      })
       .finally(() => setLocationDetecting(false))
+    return () => { clearTimeout(timer); controller.abort() }
   }, [])
 
   // My Hallyu Course — TO 키워드 디바운스 검색
@@ -972,7 +985,6 @@ export default function CurationKPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          travel_style: courseStyle,
           duration_days: courseDays,
           departure_region: courseFrom || "Unknown",
           arrival_region: courseTo.trim(),
@@ -1002,8 +1014,6 @@ export default function CurationKPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          drama_title: generatedCourse.meta.drama_title,
-          travel_style: generatedCourse.meta.travel_style,
           duration_days: generatedCourse.meta.duration_days,
           departure_region: generatedCourse.meta.departure_region,
           arrival_region: generatedCourse.meta.arrival_region,
@@ -1985,68 +1995,149 @@ export default function CurationKPage() {
                           setCourseFrom(e.target.value)
                           setCourseFromCoords(null)
                         }}
-                        placeholder="Detecting your location..."
+                        placeholder={locationDetected === false ? "Enter your starting location" : "Detecting your location..."}
                         className="w-full bg-[#0d0d0f] border border-border/40 rounded-full text-sm pl-9 pr-9 py-2 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-[#FF4B6E]/50"
                       />
                     </div>
+                    {locationDetected === true && (
+                      <p className="text-xs text-muted-foreground mt-1.5 pl-1">
+                        📍 Location detected — feel free to change it
+                      </p>
+                    )}
+                    {locationDetected === false && (
+                      <p className="text-xs text-muted-foreground mt-1.5 pl-1">
+                        📍 Could not detect location — please enter manually
+                      </p>
+                    )}
                   </div>
 
-                  {/* TO — 목적지 키워드 검색 */}
+                  {/* TO — City 드롭다운 / Keyword 검색 탭 전환 */}
                   <div>
-                    <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
-                      To
-                    </label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      {courseTo && (
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-muted-foreground text-xs uppercase tracking-wider">
+                        To
+                      </label>
+                      <div className="flex gap-1">
                         <button
                           type="button"
                           onClick={() => {
+                            setToInputMode("city")
+                            const seoul = REGION_CENTROIDS.find((c) => c.label === "Seoul")!
+                            setCourseTo("Seoul")
+                            setCourseToCoords({ lat: seoul.lat, lon: seoul.lng })
+                            setToSearchResults([])
+                            setToSearchOpen(false)
+                          }}
+                          className="px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors"
+                          style={
+                            toInputMode === "city"
+                              ? { backgroundColor: "#FF4B6E", borderColor: "#FF4B6E", color: "#fff" }
+                              : { backgroundColor: "#0d0d0f", borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }
+                          }
+                        >
+                          🏙 City
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setToInputMode("keyword")
                             setCourseTo("")
                             setCourseToCoords(null)
                             setToSearchResults([])
                             setToSearchOpen(false)
                           }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          className="px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors"
+                          style={
+                            toInputMode === "keyword"
+                              ? { backgroundColor: "#FF4B6E", borderColor: "#FF4B6E", color: "#fff" }
+                              : { backgroundColor: "#0d0d0f", borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }
+                          }
                         >
-                          <X className="w-3 h-3" />
+                          🔍 Keyword
                         </button>
-                      )}
-                      <input
-                        type="text"
-                        value={courseTo}
-                        onChange={(e) => {
-                          setCourseTo(e.target.value)
-                          setCourseToCoords(null)
-                        }}
-                        onFocus={() => { if (toSearchResults.length > 0) setToSearchOpen(true) }}
-                        onBlur={() => setTimeout(() => setToSearchOpen(false), 150)}
-                        placeholder="Enter destination or keyword..."
-                        className="w-full bg-[#0d0d0f] border border-border/40 rounded-full text-sm pl-9 pr-9 py-2 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-[#FF4B6E]/50"
-                      />
-                      {/* 연관 검색 드롭다운 */}
-                      {toSearchOpen && toSearchResults.length > 0 && (
-                        <div className="absolute z-50 mt-1 w-full bg-[#1e1e26] border border-border/40 rounded-xl overflow-hidden shadow-xl">
-                          {toSearchResults.map((item) => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onMouseDown={() => {
-                                setCourseTo(item.eng_title)
-                                setCourseToCoords({ lat: item.latitude, lon: item.longitude })
-                                setToSearchOpen(false)
-                              }}
-                              className="w-full text-left px-4 py-2.5 hover:bg-[#2a2a36] transition-colors"
-                            >
-                              <p className="text-sm text-foreground truncate">{item.eng_title}</p>
-                              {item.addr1 && (
-                                <p className="text-xs text-muted-foreground truncate mt-0.5">{item.addr1}</p>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                      </div>
                     </div>
+
+                    {/* City 모드 — 도시 드롭다운 */}
+                    {toInputMode === "city" && (
+                      <Select
+                        value={courseTo}
+                        onValueChange={(val) => {
+                          setCourseTo(val)
+                          const centroid = REGION_CENTROIDS.find((c) => c.label === val)
+                          setCourseToCoords(centroid ? { lat: centroid.lat, lon: centroid.lng } : null)
+                        }}
+                      >
+                        <SelectTrigger
+                          className="w-full bg-[#0d0d0f] border-border/40 rounded-full text-sm"
+                          aria-label="Destination city"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {REGION_OPTIONS.map((r) => (
+                            <SelectItem key={r.code} value={r.label}>
+                              {r.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+
+                    {/* Keyword 모드 — 텍스트 입력 + 연관 검색 */}
+                    {toInputMode === "keyword" && (
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        {courseTo && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCourseTo("")
+                              setCourseToCoords(null)
+                              setToSearchResults([])
+                              setToSearchOpen(false)
+                            }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                        <input
+                          type="text"
+                          value={courseTo}
+                          onChange={(e) => {
+                            setCourseTo(e.target.value)
+                            setCourseToCoords(null)
+                          }}
+                          onFocus={() => { if (toSearchResults.length > 0) setToSearchOpen(true) }}
+                          onBlur={() => setTimeout(() => setToSearchOpen(false), 150)}
+                          placeholder="Enter destination or keyword..."
+                          className="w-full bg-[#0d0d0f] border border-border/40 rounded-full text-sm pl-9 pr-9 py-2 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-[#FF4B6E]/50"
+                        />
+                        {/* 연관 검색 드롭다운 */}
+                        {toSearchOpen && toSearchResults.length > 0 && (
+                          <div className="absolute z-50 mt-1 w-full bg-[#1e1e26] border border-border/40 rounded-xl overflow-hidden shadow-xl">
+                            {toSearchResults.map((item) => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onMouseDown={() => {
+                                  setCourseTo(item.eng_title)
+                                  setCourseToCoords({ lat: item.latitude, lon: item.longitude })
+                                  setToSearchOpen(false)
+                                }}
+                                className="w-full text-left px-4 py-2.5 hover:bg-[#2a2a36] transition-colors"
+                              >
+                                <p className="text-sm text-foreground truncate">{item.eng_title}</p>
+                                {item.addr1 && (
+                                  <p className="text-xs text-muted-foreground truncate mt-0.5">{item.addr1}</p>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -2065,44 +2156,9 @@ export default function CurationKPage() {
                 )}
 
 
-                <div className="mb-4">
-                  <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
-                    Travel style
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {TRAVEL_STYLE_OPTIONS.map((opt) => {
-                      const active = courseStyle === opt.value
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => setCourseStyle(opt.value)}
-                          className="px-4 py-2 rounded-full text-xs font-medium border transition-colors"
-                          style={
-                            active
-                              ? {
-                                  backgroundColor: "#FF4B6E",
-                                  borderColor: "#FF4B6E",
-                                  color: "#fff",
-                                }
-                              : {
-                                  backgroundColor: "#0d0d0f",
-                                  borderColor: "rgba(255,255,255,0.1)",
-                                  color: "rgba(255,255,255,0.7)",
-                                }
-                          }
-                        >
-                          {opt.label}
-                          <span className="ml-1 opacity-60 font-normal">
-                            {opt.count >= 1000
-                              ? `${(opt.count / 1000).toFixed(1).replace(/\.0$/, "")}k`
-                              : opt.count}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Your course includes attractions, cultural sites, food, shopping, and more — curated based on your trip length.
+                </p>
 
                 <div className="mb-5">
                   <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
@@ -2158,6 +2214,10 @@ export default function CurationKPage() {
                   )}
                 </Button>
 
+                <p className="text-xs text-muted-foreground text-center mt-3">
+                  ✨ Every search brings a new course — generate again to explore more!
+                </p>
+
                 {courseError && (
                   <p className="text-[#ef4444] text-xs mt-3">{courseError}</p>
                 )}
@@ -2201,10 +2261,9 @@ export default function CurationKPage() {
                               aria-controls={`course-${c.id}-body`}
                             >
                               <p className="text-foreground font-medium text-sm truncate">
-                                {c.course_data.drama_title}
+                                {c.course_data.arrival_region ?? c.region ?? "Korea"}
                               </p>
                               <p className="text-muted-foreground text-xs mt-1">
-                                {prettyTravelStyle(c.course_data.travel_style)} ·{" "}
                                 {c.course_data.duration_days}d ·{" "}
                                 {c.course_data.arrival_region &&
                                 c.course_data.arrival_region !== c.course_data.departure_region
@@ -2249,8 +2308,6 @@ export default function CurationKPage() {
                               <CourseItineraryView
                                 itinerary={c.course_data.itinerary}
                                 meta={{
-                                  drama_title: c.course_data.drama_title,
-                                  travel_style: c.course_data.travel_style,
                                   duration_days: c.course_data.duration_days,
                                   departure_region: c.course_data.departure_region,
                                   arrival_region:
@@ -4306,8 +4363,7 @@ function CourseItineraryView({
 }: {
   itinerary: GeneratedItinerary
   meta: {
-    drama_title: string
-    travel_style: TravelStyle
+    travel_style?: TravelStyle
     duration_days: DurationDays
     departure_region: string
     arrival_region: string
@@ -4336,10 +4392,10 @@ function CourseItineraryView({
           <div className="flex items-start justify-between gap-2 flex-wrap">
             <div>
               <h3 className="text-foreground font-semibold text-base">
-                {meta.drama_title}
+                {meta.arrival_region} Course
               </h3>
               <p className="text-muted-foreground text-xs mt-1">
-                {prettyTravelStyle(meta.travel_style)} · {meta.duration_days}d · {routeLabel}
+                {meta.duration_days}d · {routeLabel}
               </p>
             </div>
             <div className="flex items-center gap-2">
