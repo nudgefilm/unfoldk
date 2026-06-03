@@ -67,6 +67,7 @@ import {
   Navigation,
   X,
   Building2,
+  AlertTriangle,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -4063,6 +4064,12 @@ function CourseMiniMap({
     )
   }, [days, selectedDay])
 
+  const totalStops = useMemo(() => {
+    const d = days[Math.min(selectedDay, days.length - 1)]
+    if (!d) return 0
+    return d.morning.length + d.afternoon.length + d.evening.length
+  }, [days, selectedDay])
+
   const tr = useMemo(() => {
     if (dayStops.length === 0) return null
 
@@ -4384,6 +4391,15 @@ function CourseMiniMap({
                 }
                 return <p key={i} className="text-xs text-white/40">{line}</p>
               })}
+            </div>
+          )}
+          {/* 핀 불일치 안내 */}
+          {dayStops.length < totalStops && (
+            <div className="flex items-center gap-1.5 mt-2 text-xs text-yellow-500/70">
+              <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+              <span>
+                {totalStops - dayStops.length} of {totalStops} stops could not be mapped due to limited location data.
+              </span>
             </div>
           )}
         </div>
