@@ -107,7 +107,7 @@ export async function POST(request: Request) {
       evening:   await enrichSlot(day.evening),
     }))
   )
-  const enrichedItinerary = { days: enrichedDays }
+  const enrichedItinerary = { travel_info: itinerary.travel_info, days: enrichedDays }
 
   // 사용자별 저장 cap — 6건 초과 시 가장 오래된 코스 자동 삭제
   const { count: existingCount } = await supabase
