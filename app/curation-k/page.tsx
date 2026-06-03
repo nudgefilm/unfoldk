@@ -4574,15 +4574,14 @@ function StopNearbyBox({ lat, lng }: { lat: number; lng: number }) {
       <p className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
         <MapPin className="w-3 h-3" />Nearby
       </p>
-      <div className="space-y-1">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
         {spots.map((s, i) => (
-          <div key={i} className="flex items-baseline gap-1.5 text-xs text-muted-foreground/80">
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-white/5 border border-white/10 flex-shrink-0">
+          <div key={i} className="flex items-baseline gap-1 text-xs text-muted-foreground/80 min-w-0">
+            <span className="px-1 py-0.5 rounded text-[9px] bg-white/5 border border-white/10 flex-shrink-0 leading-none">
               {s.type}
             </span>
             <span className="truncate">{s.name}</span>
-            <span className="flex-shrink-0 opacity-50">·</span>
-            <span className="flex-shrink-0">
+            <span className="flex-shrink-0 text-muted-foreground/40 text-[10px]">
               {s.distance_m < 1000
                 ? `${s.distance_m}m`
                 : `${(s.distance_m / 1000).toFixed(1)}km`}
