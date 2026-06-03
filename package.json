@@ -53,6 +53,7 @@
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
     "fast-xml-parser": "^5.8.0",
+    "flag-icons": "^7.5.0",
     "framer-motion": "latest",
     "googleapis": "^171.4.0",
     "gray-matter": "^4.0.3",

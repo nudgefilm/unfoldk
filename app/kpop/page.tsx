@@ -263,15 +263,33 @@ export default function KpopStatsPage() {
       .catch(() => setCountryCharts([]))
   }, [])
 
-  // 국기 이모지 — ISO 3166-1 alpha-2 코드에서 계산
-  function flagEmoji(cc: string): string {
-    return [...cc.toUpperCase()].map((c) => String.fromCodePoint(c.charCodeAt(0) + 0x1f1a5)).join("")
-  }
-
+  // 국가 풀네임 매핑 — ISO 3166-1 alpha-2 → 표시명
   const COUNTRY_NAMES: Record<string, string> = {
-    US: "United States", GB: "United Kingdom", PH: "Philippines",
-    TH: "Thailand", ID: "Indonesia", BR: "Brazil",
-    FR: "France", DE: "Germany", AU: "Australia", CA: "Canada",
+    US: "United States",
+    GB: "United Kingdom",
+    PH: "Philippines",
+    TH: "Thailand",
+    ID: "Indonesia",
+    BR: "Brazil",
+    FR: "France",
+    DE: "Germany",
+    AU: "Australia",
+    CA: "Canada",
+    JP: "Japan",
+    KR: "South Korea",
+    MX: "Mexico",
+    AR: "Argentina",
+    VN: "Vietnam",
+    MY: "Malaysia",
+    SG: "Singapore",
+    TW: "Taiwan",
+    IT: "Italy",
+    ES: "Spain",
+    NL: "Netherlands",
+    PL: "Poland",
+    TR: "Turkey",
+    SA: "Saudi Arabia",
+    AE: "UAE",
   }
 
   // 차트 노출 행 — 전면 무료 개방. API 가 already Top 20 반환. 검색 활성 시 차트 섹션 hide.
@@ -861,10 +879,13 @@ export default function KpopStatsPage() {
                   className="bg-[#1a1a1a] border border-border/30 rounded-xl p-4"
                 >
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xl leading-none">
-                      {flagEmoji(country.country_code)}
-                    </span>
-                    <span className="text-sm font-medium text-foreground truncate">
+                    {/* flag-icons CSS 라이브러리 — fi fi-xx 패턴 (ISO alpha-2 소문자) */}
+                    <span
+                      className={`fi fi-${country.country_code.toLowerCase()} flex-shrink-0`}
+                      style={{ width: "1.33em", height: "1em", fontSize: "1.25rem" }}
+                      aria-label={COUNTRY_NAMES[country.country_code] ?? country.country_code}
+                    />
+                    <span className="text-sm font-medium text-foreground leading-tight">
                       {COUNTRY_NAMES[country.country_code] ?? country.country_code}
                     </span>
                   </div>

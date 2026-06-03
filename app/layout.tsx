@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import Script from 'next/script'
 import { Header } from '@/components/header'
 import './globals.css'
+import 'flag-icons/css/flag-icons.min.css'
 
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID
 
