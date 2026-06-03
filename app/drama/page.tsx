@@ -20,6 +20,8 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
+import { Toaster } from "@/components/ui/toaster"
+import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import {
   Pagination,
@@ -879,7 +881,7 @@ function DramaDetailModal({
                   <p className="text-muted-foreground text-xs uppercase tracking-wider mb-3">
                     Cast
                   </p>
-                  <div className="grid grid-cols-5 gap-3">
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                     {drama.castMembers.slice(0, 5).map((c, idx) => (
                       <div key={`${c.name}-${idx}`} className="text-center">
                         <div className="w-full aspect-square rounded-full bg-[#252525] overflow-hidden mb-1.5">
@@ -1160,6 +1162,7 @@ function KdramaMatchPageInner() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const { toast } = useToast()
 
   const [selectedGenres, setSelectedGenres] = useState<string[]>([])
   const [selectedMoods, setSelectedMoods] = useState<string[]>([])
@@ -1480,11 +1483,13 @@ function KdramaMatchPageInner() {
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         setSavedDramaIds((prev) => new Set([...prev, dramaId]))
+        toast({ title: "Added to watchlist" })
       } catch (err) {
         console.error("[drama] watchlist add 실패:", err)
+        toast({ title: "Something went wrong. Please try again." })
       }
     },
-    [isAuthenticated, router]
+    [isAuthenticated, router, toast]
   )
 
   // 북마크 토글 — want_to_watch 추가 / watchlist 삭제
@@ -1505,12 +1510,14 @@ function KdramaMatchPageInner() {
       try {
         if (isSaved) {
           await fetch(`/api/dramas/watchlist?drama_id=${dramaId}`, { method: "DELETE" })
+          toast({ title: "Removed from watchlist" })
         } else {
           await fetch("/api/dramas/watchlist", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ drama_id: dramaId, status: "want_to_watch" }),
           })
+          toast({ title: "Added to watchlist" })
         }
       } catch (err) {
         // rollback
@@ -1521,9 +1528,10 @@ function KdramaMatchPageInner() {
           return next
         })
         console.error("[drama] 북마크 toggle 실패:", err)
+        toast({ title: "Something went wrong. Please try again." })
       }
     },
-    [isAuthenticated, router, savedDramaIds]
+    [isAuthenticated, router, savedDramaIds, toast]
   )
 
   return (
@@ -2033,6 +2041,7 @@ function KdramaMatchPageInner() {
       </main>
 
       <FooterSection />
+      <Toaster />
 
       {/* 2026 드라마 Pro 게이트 모달 */}
       {proGateOpen && (

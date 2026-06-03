@@ -768,8 +768,8 @@ export default function KfoodKitPage() {
           )}
         </section>
 
-        {/* This Week's K-Food Picks — Free 전체 개방 (2026-06-01 변경) */}
-        <WeeklyPicksSection isPro={true} isLoggedIn={isLoggedIn} onRecipeClick={(id) => { if (isLoggedIn) setActiveRecipeId(id) }} />
+        {/* This Week's K-Food Picks */}
+        <WeeklyPicksSection isPro={isPro} isLoggedIn={isLoggedIn} onRecipeClick={(id) => { if (isLoggedIn) setActiveRecipeId(id) }} />
 
         {/* ── Local Ingredient Matcher ────────────────────────────────
             h2 제목은 blur 밖 → 항상 보임. 콘텐츠 박스만 blur + overlay. */}
@@ -924,16 +924,14 @@ export default function KfoodKitPage() {
                   <p className="text-muted-foreground text-xs mb-4">
                     Find local substitutes for Korean ingredients and manage your shopping list.
                   </p>
-                  <AuthGate isLoggedIn={isLoggedIn}>
-                  <Link href="/signup">
+                  <Link href={isLoggedIn ? "/pricing" : "/signup"}>
                     <Button
                       className="rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
                     >
-                      Notify me at launch
+                      {isLoggedIn ? "Upgrade to Hallyu Pass" : "Notify me at launch"}
                     </Button>
                   </Link>
-                  </AuthGate>
                 </div>
               </div>
             )}
@@ -1038,16 +1036,14 @@ export default function KfoodKitPage() {
                   <p className="text-muted-foreground text-xs mb-4">
                     Add ingredients to your personal shopping list.
                   </p>
-                  <AuthGate isLoggedIn={isLoggedIn}>
-                  <Link href="/signup">
+                  <Link href={isLoggedIn ? "/pricing" : "/signup"}>
                     <Button
                       className="rounded-full font-medium text-white"
                       style={{ backgroundColor: "#FF4B6E" }}
                     >
-                      Notify me at launch
+                      {isLoggedIn ? "Upgrade to Hallyu Pass" : "Notify me at launch"}
                     </Button>
                   </Link>
-                  </AuthGate>
                 </div>
               </div>
             )}

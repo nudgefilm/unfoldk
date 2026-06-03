@@ -185,7 +185,7 @@ function SettingsBody() {
                 <p className="text-muted-foreground/70 text-xs mt-1">
                   Email is managed by your sign-in provider and can&apos;t be changed here. Contact{" "}
                   <a
-                    href="/contact"
+                    href="mailto:support@unfoldk.com"
                     className="hover:underline"
                     style={{ color: "#FF4B6E" }}
                   >

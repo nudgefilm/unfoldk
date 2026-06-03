@@ -149,6 +149,7 @@ export function KoreanContent() {
 
   // 4. 퀴즈
   const [quiz, setQuiz] = useState<QuizApi | null>(null)
+  const [quizError, setQuizError] = useState(false)
   const [selectedAnswer, setSelectedAnswer] = useState<"A" | "B" | "C" | "D" | null>(null)
   const [quizResult, setQuizResult] = useState<"correct" | "wrong" | null>(null)
   const [quizSubmitting, setQuizSubmitting] = useState(false)
@@ -323,7 +324,7 @@ export function KoreanContent() {
       )
       .catch((err) => {
         console.error("[korean] phrase fetch 실패:", err)
-        setPhraseError("오늘의 표현을 불러오지 못했어요.")
+        setPhraseError("Failed to load today's phrase.")
       })
       .finally(() => setPhraseLoading(false))
   }, [searchParams])
@@ -420,6 +421,7 @@ export function KoreanContent() {
   useEffect(() => {
     if (!phrase) return
     setQuiz(null)
+    setQuizError(false)
     setSelectedAnswer(null)
     setQuizResult(null)
     const url = `/api/korean/quiz?phrase_id=${encodeURIComponent(phrase.id)}`
@@ -429,6 +431,7 @@ export function KoreanContent() {
       .catch((err) => {
         console.error("[korean] quiz fetch 실패:", err)
         setQuiz(null)
+        setQuizError(true)
       })
   }, [phrase])
 
@@ -576,7 +579,7 @@ export function KoreanContent() {
             description: "You've seen every expression. Cycling through again.",
           })
         } else {
-          setPhraseError("표현을 더 가져오지 못했어요.")
+          setPhraseError("Failed to load more phrases.")
         }
         return
       }
@@ -588,7 +591,7 @@ export function KoreanContent() {
       }
     } catch (err) {
       console.error("[korean] advanceToNext 실패:", err)
-      setPhraseError("다음 표현을 불러오지 못했어요.")
+      setPhraseError("Failed to load the next phrase.")
     } finally {
       setPhraseLoading(false)
     }
@@ -763,7 +766,7 @@ export function KoreanContent() {
                   </span>
                   {phraseAlsoIn.length > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      📺 이 표현은 {phraseAlsoIn.join(", ")}에서도 등장해요
+                      📺 Also featured in {phraseAlsoIn.join(", ")}
                     </p>
                   )}
                 </div>
@@ -1154,7 +1157,9 @@ export function KoreanContent() {
           <div className="max-w-[640px] mx-auto bg-[#1a1a1a] border border-border/30 rounded-2xl p-8">
             <h2 className="text-xl font-semibold text-foreground mb-6 text-center">Quiz Mode</h2>
 
-            {!quiz ? (
+            {quizError ? (
+              <p className="text-center text-muted-foreground py-6">Failed to load quiz. Please try again.</p>
+            ) : !quiz ? (
               <p className="text-center text-muted-foreground py-6">Loading quiz...</p>
             ) : (
               <>

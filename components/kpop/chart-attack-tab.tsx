@@ -86,13 +86,15 @@ function AnimatedCount({ value }: { value: number }) {
   const [display, setDisplay] = useState(0)
   useEffect(() => {
     let start: number | null = null
+    let rafId: number
     const step = (ts: number) => {
       if (!start) start = ts
       const p = Math.min((ts - start) / 1500, 1)   // 1.5s
       setDisplay(Math.round(value * p))
-      if (p < 1) requestAnimationFrame(step)
+      if (p < 1) rafId = requestAnimationFrame(step)
     }
-    requestAnimationFrame(step)
+    rafId = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(rafId)
   }, [value])
   return <span>{fmt(display)}</span>
 }

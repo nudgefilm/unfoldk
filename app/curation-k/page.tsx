@@ -18,6 +18,7 @@
 // 지도 인프라 (TopoJSON + projection + 도시·도서 마커) 는 기존 패턴 보존.
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { feature } from "topojson-client"
 import { FooterSection } from "@/components/footer-section"
@@ -616,6 +617,7 @@ function shuffleArray<T>(arr: T[]): T[] {
 const RANDOM_START_TABS: readonly TabKey[] = ["filming"]
 
 export default function CurationKPage() {
+  const router = useRouter()
   const [koreaPath, setKoreaPath] = useState<string | null>(null)
 
   // 인증·플랜 (My Hallyu Course Pro 가드용)
@@ -845,7 +847,7 @@ export default function CurationKPage() {
   // 스팟 저장 토글 — SpotsTabPanel 카드의 북마크 클릭
   async function handleSpotSaveToggle(item: SpotItem) {
     if (!isAuthenticated) {
-      window.location.href = "/login?redirect=/curation-k"
+      router.push("/login?redirect=/curation-k")
       return
     }
     const itemType = activeTab === "filming" ? "filming" : "tour"

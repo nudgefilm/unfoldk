@@ -518,24 +518,24 @@ export default function KpopStatsPage() {
           )}
         </section>
 
-        {/* 이번 주 급상승 아티스트 TOP 3 — rank_change 상위 3명 자동 선정 */}
+        {/* This Week's Top Movers — rank_change 상위 3명 자동 선정 */}
         {!chartLoading && topMovers.length > 0 && (
         <section className="mb-12">
           <div className="mb-5">
             <h2 className="text-2xl font-semibold text-white flex items-center gap-2">
               <TrendingUp className="w-6 h-6 text-green-500" />
-              이번 주 급상승 아티스트
+              This Week&apos;s Top Movers
             </h2>
             <p className="text-muted-foreground text-sm mt-1">
-              지난주 대비 순위 상승폭 기준 TOP 3
+              Ranked by biggest rank gain vs. last week
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {topMovers.map((item) => {
               const isRocket = (item.rank_change ?? 0) >= 10
               const insight = isRocket
-                ? `↑${item.rank_change} 지난주 대비 급상승`
-                : `↑${item.rank_change} 지난주 대비 상승`
+                ? `↑${item.rank_change} Surging this week`
+                : `↑${item.rank_change} Rising this week`
               return (
                 <AuthGate key={item.artist_id} isLoggedIn={isLoggedIn}>
                 <Link
@@ -603,9 +603,9 @@ export default function KpopStatsPage() {
             </div>
           )}
 
-          <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden">
+          <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden overflow-x-auto">
             {/* Table Header */}
-            <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-border/30 text-sm text-muted-foreground font-medium">
+            <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-border/30 text-sm text-muted-foreground font-medium min-w-[640px]">
               <div className="col-span-1">Rank</div>
               <div className="col-span-6">Artist</div>
               <div className="col-span-3 text-right">Last.fm Listeners</div>
@@ -626,7 +626,7 @@ export default function KpopStatsPage() {
                 <AuthGate key={item.artist_id} isLoggedIn={isLoggedIn} tooltipInside className="w-full border-b border-border/20 last:border-b-0">
                 <Link
                   href={`/kpop/${item.artist_id}`}
-                  className="w-full grid grid-cols-12 gap-4 px-6 py-4 cursor-pointer hover:bg-[#2a2a2c] transition-colors text-left"
+                  className="w-full grid grid-cols-12 gap-4 px-6 py-4 cursor-pointer hover:bg-[#2a2a2c] transition-colors text-left min-w-[640px]"
                 >
                   {/* Rank Badge */}
                   <div className="col-span-1 flex items-center">
@@ -674,13 +674,13 @@ export default function KpopStatsPage() {
                     {item.rank_change === null ? (
                       <span className="text-xs font-semibold bg-green-500/15 text-green-400 px-2 py-0.5 rounded-full">NEW</span>
                     ) : item.rank_change >= 10 ? (
-                      <span className="text-green-400 font-medium text-sm">↑{item.rank_change} 급상승</span>
+                      <span className="text-green-400 font-medium text-sm">↑{item.rank_change} Surging</span>
                     ) : item.rank_change > 0 ? (
-                      <span className="text-green-400 font-medium text-sm">↑{item.rank_change} 상승</span>
+                      <span className="text-green-400 font-medium text-sm">↑{item.rank_change} Rising</span>
                     ) : item.rank_change <= -10 ? (
-                      <span className="text-red-400 font-medium text-sm">↓{Math.abs(item.rank_change)} 급하락</span>
+                      <span className="text-red-400 font-medium text-sm">↓{Math.abs(item.rank_change)} Falling fast</span>
                     ) : item.rank_change < 0 ? (
-                      <span className="text-red-400 font-medium text-sm">↓{Math.abs(item.rank_change)} 하락</span>
+                      <span className="text-red-400 font-medium text-sm">↓{Math.abs(item.rank_change)} Falling</span>
                     ) : null}
                   </div>
                 </Link>

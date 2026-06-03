@@ -498,14 +498,16 @@ function EventDetailModal({
 }
 
 // Upgrade Modal Component
-function UpgradeModal({ 
-  isOpen, 
+function UpgradeModal({
+  isOpen,
   onClose,
-  lockedFeature
-}: { 
+  lockedFeature,
+  isLoggedIn = false,
+}: {
   isOpen: boolean
   onClose: () => void
   lockedFeature: string | null
+  isLoggedIn?: boolean
 }) {
   if (!isOpen) return null
 
@@ -573,12 +575,12 @@ function UpgradeModal({
 
         {/* Action Buttons */}
         <div className="space-y-3">
-          <Link href="/signup" className="block">
-            <Button 
+          <Link href={isLoggedIn ? "/pricing" : "/signup"} className="block">
+            <Button
               className="w-full py-3 rounded-xl font-medium text-white"
               style={{ backgroundColor: "#FF4B6E" }}
             >
-              Notify me when Hallyu Pass launches
+              {isLoggedIn ? "Upgrade to Hallyu Pass" : "Notify me when Hallyu Pass launches"}
             </Button>
           </Link>
           <button
@@ -875,6 +877,8 @@ export default function HallyuCalendarPage() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [lockedFeature, setLockedFeature] = useState<string | null>(null)
   const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [eventsLoading, setEventsLoading] = useState(true)
+  const [icalCopied, setIcalCopied] = useState(false)
   const [isPro, setIsPro] = useState(false)                      // monthly/annual/admin 통합 판별
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isAuthReady, setIsAuthReady] = useState(false)
@@ -1004,6 +1008,7 @@ export default function HallyuCalendarPage() {
   // RLS 가 is_premium 게이팅 자동 처리. AbortController 로 빠른 연속 클릭 시 stale 응답 방지.
   useEffect(() => {
     const ctrl = new AbortController()
+    setEventsLoading(true)
     fetch(`/api/calendar/events?month=${monthQuery}`, { signal: ctrl.signal })
       .then(async (res) => {
         if (!res.ok) {
@@ -1024,6 +1029,7 @@ export default function HallyuCalendarPage() {
         )
         setEvents([])
       })
+      .finally(() => setEventsLoading(false))
     return () => ctrl.abort()
   }, [monthQuery])
 
@@ -1154,10 +1160,11 @@ export default function HallyuCalendarPage() {
       />
       
       {/* Upgrade Modal */}
-      <UpgradeModal 
-        isOpen={showUpgradeModal} 
-        onClose={() => setShowUpgradeModal(false)} 
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
         lockedFeature={lockedFeature}
+        isLoggedIn={isLoggedIn}
       />
       
       <main className="max-w-[1320px] mx-auto px-6 pt-28 pb-12">
@@ -1179,21 +1186,32 @@ export default function HallyuCalendarPage() {
               Subscribe to Google Calendar
             </Button>
             <Button
-              onClick={() => isLoggedIn ? router.push("/mypage/calendar") : setSubscribeStartOpen(true)}
+              onClick={async () => {
+                const icalUrl = "https://www.unfoldk.com/api/calendar/ical"
+                try {
+                  await navigator.clipboard.writeText(icalUrl)
+                  setIcalCopied(true)
+                  setTimeout(() => setIcalCopied(false), 1500)
+                } catch {
+                  // clipboard API 미지원 시 mypage로 fallback
+                  if (isLoggedIn) router.push("/mypage/calendar")
+                  else setSubscribeStartOpen(true)
+                }
+              }}
               variant="outline"
               className="px-6 py-3 rounded-full font-medium border-border/50 hover:bg-secondary/50"
             >
-              Copy iCal Link
+              {icalCopied ? "Copied!" : "Copy iCal Link"}
             </Button>
           </div>
         </section>
 
-        {/* 이번 주 놓치면 안 될 한류 일정 TOP 3 */}
+        {/* This Week's Must-See Hallyu Events TOP 3 */}
         {thisWeekTop3.length > 0 && (
           <section className="mb-10">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-bold text-foreground">이번 주 놓치면 안 될 한류 일정</h2>
+                <h2 className="text-lg font-bold text-foreground">This Week&apos;s Must-See Hallyu Events</h2>
                 <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                   <RefreshCw className="w-3 h-3" />
                   Updated every Monday
@@ -1356,7 +1374,12 @@ export default function HallyuCalendarPage() {
 
         {/* Main Calendar Grid */}
         <section className="mb-12">
-          <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-4 md:p-6 overflow-x-auto">
+          <div className="relative bg-[#1a1a1a] border border-border/30 rounded-2xl p-4 md:p-6 overflow-x-auto">
+            {eventsLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-[#1a1a1a]/70">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
             {/* Day Headers */}
             <div className="grid grid-cols-7 gap-1 mb-2 min-w-[600px]">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
@@ -1549,6 +1572,11 @@ export default function HallyuCalendarPage() {
               : `Events in ${viewDate.toLocaleString("en-US", { month: "long" })}`}
           </h2>
           <div className="space-y-4">
+            {!eventsLoading && upcomingEvents.length === 0 && (
+              <div className="bg-[#1a1a1a] border border-border/30 rounded-xl px-6 py-10 text-center text-muted-foreground text-sm">
+                No upcoming events this month.
+              </div>
+            )}
             {upcomingEvents.map((event, index) => (
               <AuthGate key={event.id} isLoggedIn={isLoggedIn} className="w-full">
                 <UpcomingAccordionItem

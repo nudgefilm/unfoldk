@@ -73,6 +73,8 @@ export default function MyPage() {
   const [userInitial, setUserInitial] = useState<string>("")
   const [userAvatar, setUserAvatar] = useState<string | null>(null)
   const [userPlan, setUserPlan] = useState<string>("Free")
+  const [rawPlanType, setRawPlanType] = useState<string | null>(null)
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null)
   // 4 stat — null = 로딩 / MyStats = 채워짐. 실패 시 모두 0 으로.
   const [stats, setStats] = useState<MyStats | null>(null)
   // 다가오는 이벤트 + 다음 학습 표현
@@ -133,15 +135,19 @@ export default function MyPage() {
       setUserInitial(initial)
       setUserAvatar(meta.avatar_url ?? null)
 
-      // public.users 의 plan_type 조회 (실패 시 Free 유지)
+      // public.users 의 plan_type + trial_ends_at 조회 (실패 시 Free 유지)
       const { data: profile } = await supabase
         .from("users")
-        .select("plan_type")
+        .select("plan_type, trial_ends_at")
         .eq("id", user.id)
         .single()
 
       if (!cancelled) {
-        setUserPlan(planLabel(profile?.plan_type))
+        const pt = (profile as { plan_type?: string | null; trial_ends_at?: string | null } | null)?.plan_type ?? null
+        const ta = (profile as { plan_type?: string | null; trial_ends_at?: string | null } | null)?.trial_ends_at ?? null
+        setRawPlanType(pt)
+        setTrialEndsAt(ta)
+        setUserPlan(planLabel(pt))
       }
 
       // 4 stat 통합 fetch — /api/mypage/stats
@@ -231,7 +237,7 @@ export default function MyPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0d0d0f" }}>
-      <div className="flex-1 flex max-w-7xl mx-auto w-full px-4 md:px-6 py-8 gap-8">
+      <div className="flex-1 flex max-w-7xl mx-auto w-full px-4 md:px-6 py-8 pb-24 md:pb-8 gap-8">
         {/* Left Sidebar */}
         <aside className="hidden md:flex flex-col w-[240px] flex-shrink-0">
           {/* User Profile */}
@@ -448,32 +454,90 @@ export default function MyPage() {
             <div className="bg-[#1a1a1a] border border-border/30 rounded-xl p-6">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-foreground font-semibold text-lg">Hallyu Pass</span>
-                    <span 
-                      className="text-xs font-medium px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: "rgba(34, 197, 94, 0.15)", color: "#22c55e" }}
-                    >
-                      Active
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground text-sm">
-                    Next billing: <span className="text-foreground">June 7, 2026</span> · <span className="text-foreground">$9.00</span>
-                  </p>
+                  {rawPlanType === "monthly" || rawPlanType === "annual" ? (
+                    <>
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-foreground font-semibold text-lg">Hallyu Pass</span>
+                        <span
+                          className="text-xs font-medium px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: "rgba(34, 197, 94, 0.15)", color: "#22c55e" }}
+                        >
+                          Active
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground text-sm">
+                        {rawPlanType === "annual" ? "Annual plan · $6/month" : "Monthly plan · $9/month"}
+                      </p>
+                    </>
+                  ) : trialEndsAt && new Date(trialEndsAt) > new Date() ? (
+                    <>
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-foreground font-semibold text-lg">Free Trial</span>
+                        <span
+                          className="text-xs font-medium px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: "rgba(251, 191, 36, 0.15)", color: "#fbbf24" }}
+                        >
+                          Trial
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground text-sm">
+                        Expires{" "}
+                        <span className="text-foreground">
+                          {new Date(trialEndsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </span>
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-foreground font-semibold text-lg">Free Plan</span>
+                      </div>
+                      <p className="text-muted-foreground text-sm">
+                        Upgrade to unlock all 6 services.
+                      </p>
+                    </>
+                  )}
                 </div>
-                
-                <Link 
+
+                <Link
                   href="/mypage/subscription"
                   className="text-sm font-medium hover:underline"
                   style={{ color: "#FF4B6E" }}
                 >
-                  Manage subscription
+                  {rawPlanType === "monthly" || rawPlanType === "annual" ? "Manage subscription" : "Upgrade to Hallyu Pass"}
                 </Link>
               </div>
             </div>
           </section>
         </main>
       </div>
+
+      {/* 모바일 하단 탭 내비게이션 — md 이상에서 hidden */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0d0d0f] border-t border-border/30 flex items-center justify-around px-2 py-2">
+        {sidebarLinks.slice(0, 5).map((link) => {
+          const Icon = link.icon
+          const isActive = link.href === "/mypage"
+          return (
+            <Link
+              key={link.label}
+              href={link.href}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors ${
+                isActive ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              <Icon className="w-5 h-5" />
+              <span className="text-[10px] font-medium leading-tight">{link.label.split(" ")[0]}</span>
+            </Link>
+          )
+        })}
+        <Link
+          href="/mypage/subscription"
+          className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors text-muted-foreground"
+        >
+          <CreditCard className="w-5 h-5" />
+          <span className="text-[10px] font-medium leading-tight">Plan</span>
+        </Link>
+      </nav>
 
       <FooterSection />
     </div>

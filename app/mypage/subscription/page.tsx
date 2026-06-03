@@ -190,8 +190,12 @@ export default function SubscriptionPage() {
         <main className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-foreground mb-8">Subscription</h1>
 
-          {/* 데이터 로드 전엔 본문 영역만 비워두기 (전체 깜빡임 방지) */}
-          {!isLoaded ? null : !isPaid ? (
+          {/* 데이터 로드 전 스피너 */}
+          {!isLoaded ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : !isPaid ? (
             // ============================================
             // Free 유저 화면
             // ============================================
