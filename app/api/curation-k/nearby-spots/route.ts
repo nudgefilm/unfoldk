@@ -259,3 +259,68 @@ export async function GET(request: Request) {
     headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800" },
   })
 }
+
+// POST { lat, lng, radius_km? } — stop 카드 주변 정보 박스용 (코스 생성 결과)
+const COURSE_TYPE_LABEL: Record<number, string> = {
+  12: "Attraction",
+  14: "Culture",
+  32: "Stay",
+  38: "Shopping",
+  39: "Food",
+}
+const COURSE_TYPE_IDS = [12, 14, 32, 38, 39] as const
+
+export async function POST(request: Request) {
+  let lat: number, lng: number, radius_km: number
+  try {
+    const body = await request.json()
+    lat = Number(body.lat)
+    lng = Number(body.lng)
+    radius_km = Number(body.radius_km ?? 2)
+    if (Number.isNaN(lat) || Number.isNaN(lng)) throw new Error()
+  } catch {
+    return NextResponse.json({ error: "invalid_body" }, { status: 400 })
+  }
+
+  const supabase = await createSupabaseServerClient()
+
+  // bounding box 1차 가지치기 (2km 기준)
+  const dLat = radius_km / 111
+  const dLng = radius_km / (111 * Math.cos((lat * Math.PI) / 180))
+
+  const { data, error } = await supabase
+    .from("tour_spots")
+    .select("eng_title, title, addr1, latitude, longitude, content_type_id")
+    .in("content_type_id", COURSE_TYPE_IDS as unknown as number[])
+    .not("latitude", "is", null)
+    .not("longitude", "is", null)
+    .gte("latitude", lat - dLat)
+    .lte("latitude", lat + dLat)
+    .gte("longitude", lng - dLng)
+    .lte("longitude", lng + dLng)
+    .limit(200)
+
+  if (error) return NextResponse.json({ spots: [] })
+
+  type Row = { eng_title: string | null; title: string; addr1: string | null; latitude: number; longitude: number; content_type_id: number }
+
+  const spots = ((data ?? []) as Row[])
+    .map((r) => {
+      const tLat = Number(r.latitude)
+      const tLng = Number(r.longitude)
+      if (Number.isNaN(tLat) || Number.isNaN(tLng)) return null
+      const distKm = haversineKm(lat, lng, tLat, tLng)
+      if (distKm > radius_km) return null
+      return {
+        name: (r.eng_title?.trim() || r.title).trim(),
+        address: r.addr1 ?? "",
+        distance_m: Math.round(distKm * 1000),
+        type: COURSE_TYPE_LABEL[r.content_type_id] ?? "Spot",
+      }
+    })
+    .filter((s): s is NonNullable<typeof s> => s !== null)
+    .sort((a, b) => a.distance_m - b.distance_m)
+    .slice(0, 10)
+
+  return NextResponse.json({ spots })
+}

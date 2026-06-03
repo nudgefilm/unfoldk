@@ -4034,7 +4034,13 @@ function smoothPath(pts: Array<{ x: number; y: number }>): string {
 // stop 의 lat/lng 를 SVG 좌표로 변환 후 번호 핀 + 점선 동선 표시.
 // 배경: #0d0d0f + 격자 + 구 경계선 + DISTRICT_LABELS 지역 레이블.
 // 기존 Curation K SVG 지도 동결 영역 미접촉.
-function CourseMiniMap({ days }: { days: CourseDay[] }) {
+function CourseMiniMap({
+  days,
+  meta,
+}: {
+  days: CourseDay[]
+  meta?: { departure_region: string; arrival_region: string }
+}) {
   const [selectedDay, setSelectedDay] = useState(0)
 
   const W = 560
@@ -4106,6 +4112,20 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
     const raw = dayStops.map((s) => ({ x: tr.toX(s.lng), y: tr.toY(s.lat) }))
     return resolveOverlaps(raw, MINI_MAP_PIN_R * 2 + 4)
   }, [tr, dayStops])
+
+  // 출발지→목적지 거리 박스 — Day 1 지도에만 표시
+  const routeDistInfo = useMemo(() => {
+    if (!meta || meta.departure_region === meta.arrival_region) return null
+    const dep = REGION_CENTROIDS.find((c) => c.label === meta.departure_region)
+    const arr = REGION_CENTROIDS.find((c) => c.label === meta.arrival_region)
+    if (!dep || !arr) return null
+    const distKm = Math.round(haversineKm(dep.lat, dep.lng, arr.lat, arr.lng))
+    const totalMin = Math.round((distKm / 80) * 60)
+    const h = Math.floor(totalMin / 60)
+    const m = totalMin % 60
+    const timeStr = h > 0 ? (m > 0 ? `~${h}h ${m}m` : `~${h}h`) : `~${m}m`
+    return { dep: meta.departure_region, arr: meta.arrival_region, distKm, timeStr }
+  }, [meta])
 
   const hasAnyCoords = days.some((d) =>
     [...d.morning, ...d.afternoon, ...d.evening].some(
@@ -4291,6 +4311,31 @@ function CourseMiniMap({ days }: { days: CourseDay[] }) {
                 </g>
               )
             })}
+            {/* 거리/소요시간 박스 — Day 1, departure≠arrival 일 때만 */}
+            {routeDistInfo && selectedDay === 0 && (
+              <g>
+                <rect
+                  x={W - 172} y={8} width={164} height={38} rx={6} ry={6}
+                  fill="white" fillOpacity={0.05}
+                  stroke="white" strokeOpacity={0.15} strokeWidth={0.8}
+                />
+                <text
+                  x={W - 164} y={22}
+                  fill="white" fillOpacity={0.7}
+                  fontSize={9} fontWeight={500}
+                >
+                  {routeDistInfo.dep} → {routeDistInfo.arr}
+                </text>
+                <text
+                  x={W - 164} y={36}
+                  fill="white" fillOpacity={0.5}
+                  fontSize={9}
+                >
+                  {routeDistInfo.distKm.toLocaleString()}km · {routeDistInfo.timeStr} by car
+                </text>
+              </g>
+            )}
+
             {/* 나침반 방향 — 네 모서리 */}
             {[
               { d: "N", x: W / 2, y: 10,    a: "middle" },
@@ -4455,7 +4500,7 @@ function CourseItineraryView({
         ))}
       </div>
 
-      <CourseMiniMap days={itinerary.days} />
+      <CourseMiniMap days={itinerary.days} meta={meta} />
     </div>
   )
 }
@@ -4500,9 +4545,64 @@ function CourseDaySlot({
                 {stop.reason}
               </p>
             )}
+            {stop.lat && stop.lng && (
+              <StopNearbyBox lat={stop.lat} lng={stop.lng} />
+            )}
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+// stop 카드 하단 주변 정보 박스
+function StopNearbyBox({ lat, lng }: { lat: number; lng: number }) {
+  const [loading, setLoading] = useState(true)
+  const [spots, setSpots] = useState<Array<{ name: string; address: string; distance_m: number; type: string }>>([])
+
+  useEffect(() => {
+    fetch("/api/curation-k/nearby-spots", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lat, lng, radius_km: 2 }),
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: { spots: typeof spots }) => setSpots(data.spots ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [lat, lng])
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground/60">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        <span>Nearby…</span>
+      </div>
+    )
+  }
+  if (spots.length === 0) return null
+
+  return (
+    <div className="border border-white/10 rounded-lg p-3 mt-2">
+      <p className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+        <MapPin className="w-3 h-3" />Nearby
+      </p>
+      <div className="space-y-1">
+        {spots.map((s, i) => (
+          <div key={i} className="flex items-baseline gap-1.5 text-xs text-muted-foreground/80">
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-white/5 border border-white/10 flex-shrink-0">
+              {s.type}
+            </span>
+            <span className="truncate">{s.name}</span>
+            <span className="flex-shrink-0 opacity-50">·</span>
+            <span className="flex-shrink-0">
+              {s.distance_m < 1000
+                ? `${s.distance_m}m`
+                : `${(s.distance_m / 1000).toFixed(1)}km`}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
