@@ -238,6 +238,7 @@ export default function KpopStatsPage() {
   const [countryCharts, setCountryCharts] = useState<
     Array<{
       country_code: string
+      total_listeners: number
       artists: Array<{ artist_id: string | null; artist_name: string; rank: number; listeners: number | null }>
     }>
   >([])
@@ -263,8 +264,21 @@ export default function KpopStatsPage() {
       .catch(() => setCountryCharts([]))
   }, [])
 
-  // 국가 풀네임 매핑 — ISO 3166-1 alpha-2 → 표시명 (20개국 수집 대상 + 기타)
+  // 국가 풀네임 매핑 — ISO 3166-1 alpha-2 → 표시명 (40개 후보국 + 기타 전체 커버)
   const COUNTRY_NAMES: Record<string, string> = {
+    // 아시아
+    KR: "South Korea",
+    JP: "Japan",
+    TW: "Taiwan",
+    PH: "Philippines",
+    TH: "Thailand",
+    ID: "Indonesia",
+    MY: "Malaysia",
+    SG: "Singapore",
+    VN: "Vietnam",
+    IN: "India",
+    HK: "Hong Kong",
+    MN: "Mongolia",
     // 북미
     US: "United States",
     CA: "Canada",
@@ -273,20 +287,8 @@ export default function KpopStatsPage() {
     BR: "Brazil",
     AR: "Argentina",
     CL: "Chile",
+    CO: "Colombia",
     PE: "Peru",
-    // 동남아시아
-    PH: "Philippines",
-    ID: "Indonesia",
-    TH: "Thailand",
-    MY: "Malaysia",
-    VN: "Vietnam",
-    SG: "Singapore",
-    // 남아시아
-    IN: "India",
-    // 동아시아
-    JP: "Japan",
-    KR: "South Korea",
-    TW: "Taiwan",
     // 유럽
     GB: "United Kingdom",
     FR: "France",
@@ -294,14 +296,24 @@ export default function KpopStatsPage() {
     IT: "Italy",
     ES: "Spain",
     NL: "Netherlands",
-    PL: "Poland",
     SE: "Sweden",
-    TR: "Turkey",
-    // 중동
-    SA: "Saudi Arabia",
-    AE: "UAE",
+    NO: "Norway",
+    PL: "Poland",
+    PT: "Portugal",
+    FI: "Finland",
+    RU: "Russia",
+    CZ: "Czech Republic",
+    HU: "Hungary",
+    RO: "Romania",
     // 오세아니아
     AU: "Australia",
+    NZ: "New Zealand",
+    // 중동
+    TR: "Turkey",
+    SA: "Saudi Arabia",
+    AE: "UAE",
+    // 기타
+    ZA: "South Africa",
   }
 
   // 차트 노출 행 — 전면 무료 개방. API 가 already Top 20 반환. 검색 활성 시 차트 섹션 hide.
@@ -880,10 +892,13 @@ export default function KpopStatsPage() {
           </section>
         )}
 
-        {/* K-pop Around the World — 20개국 고정 카드 (매칭 0건 국가: "No data yet") */}
+        {/* K-pop Around the World — K팝 청취자 합산 상위 20개국 자동 선정, 내림차순 정렬 */}
         {countryCharts.length > 0 && (
           <section className="mb-12">
-            <h2 className="text-2xl font-semibold text-white mb-6">K-pop Around the World</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-semibold text-white">K-pop Around the World</h2>
+              <span className="text-xs text-muted-foreground">Top 20 countries by K-pop listeners</span>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {countryCharts.map((country) => (
                 <div
@@ -902,16 +917,12 @@ export default function KpopStatsPage() {
                     </span>
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    {country.artists.length > 0 ? (
-                      country.artists.map((a) => (
-                        <p key={a.rank} className="text-xs text-muted-foreground truncate">
-                          <span className="text-foreground font-medium">{a.rank}.</span>{" "}
-                          {a.artist_name}
-                        </p>
-                      ))
-                    ) : (
-                      <p className="text-xs text-muted-foreground/60 italic">No data yet</p>
-                    )}
+                    {country.artists.map((a) => (
+                      <p key={a.rank} className="text-xs text-muted-foreground truncate">
+                        <span className="text-foreground font-medium">{a.rank}.</span>{" "}
+                        {a.artist_name}
+                      </p>
+                    ))}
                   </div>
                 </div>
               ))}

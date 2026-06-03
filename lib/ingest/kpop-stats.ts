@@ -31,28 +31,58 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { getChannelStats, searchChannelByName } from "@/lib/api/youtube"
 import { getArtistInfo, getTopKpopArtists, getGeoTopArtists } from "@/lib/api/lastfm"
 
-// 한류 주요 소비국 20개국 — ISO alpha-2 + Last.fm 영문명
+// K팝 청취자 후보 40개국 — 아시아·북미·유럽·남미·오세아니아·중동 주요국
+// 이 중 실제 K팝 청취자 합산 상위 20개국이 동적으로 선정됨
 const GEO_COUNTRIES = [
+  // 아시아
+  { code: "KR", name: "South Korea" },
+  { code: "JP", name: "Japan" },
+  { code: "TW", name: "Taiwan" },
+  { code: "PH", name: "Philippines" },
+  { code: "TH", name: "Thailand" },
+  { code: "ID", name: "Indonesia" },
+  { code: "MY", name: "Malaysia" },
+  { code: "SG", name: "Singapore" },
+  { code: "VN", name: "Vietnam" },
+  { code: "IN", name: "India" },
+  { code: "HK", name: "Hong Kong" },
+  { code: "MN", name: "Mongolia" },
+  // 북미
   { code: "US", name: "United States" },
   { code: "CA", name: "Canada" },
   { code: "MX", name: "Mexico" },
+  // 남미
   { code: "BR", name: "Brazil" },
   { code: "AR", name: "Argentina" },
   { code: "CL", name: "Chile" },
+  { code: "CO", name: "Colombia" },
   { code: "PE", name: "Peru" },
-  { code: "PH", name: "Philippines" },
-  { code: "ID", name: "Indonesia" },
-  { code: "TH", name: "Thailand" },
-  { code: "MY", name: "Malaysia" },
-  { code: "VN", name: "Vietnam" },
-  { code: "SG", name: "Singapore" },
-  { code: "IN", name: "India" },
-  { code: "JP", name: "Japan" },
+  // 유럽
   { code: "GB", name: "United Kingdom" },
   { code: "FR", name: "France" },
   { code: "DE", name: "Germany" },
-  { code: "TR", name: "Turkey" },
+  { code: "IT", name: "Italy" },
+  { code: "ES", name: "Spain" },
+  { code: "NL", name: "Netherlands" },
+  { code: "SE", name: "Sweden" },
+  { code: "NO", name: "Norway" },
+  { code: "PL", name: "Poland" },
+  { code: "PT", name: "Portugal" },
+  { code: "FI", name: "Finland" },
+  { code: "RU", name: "Russia" },
+  { code: "CZ", name: "Czech Republic" },
+  { code: "HU", name: "Hungary" },
+  { code: "RO", name: "Romania" },
+  // 오세아니아
   { code: "AU", name: "Australia" },
+  { code: "NZ", name: "New Zealand" },
+  // 중동
+  { code: "TR", name: "Turkey" },
+  { code: "SA", name: "Saudi Arabia" },
+  // 아프리카·기타
+  { code: "ZA", name: "South Africa" },
+] as const
+  { code: "TR", name: "Turkey" },
 ] as const
 
 // 주간 K-pop 차트 fetch 시 받아올 최대 인원수. Last.fm tag.getTopArtists
@@ -515,9 +545,12 @@ export async function runKpopStatsIngest(
     errors.push(`upsert 실패: ${upsertErr.message}`)
   }
 
-  // ── Step 6: 국가별 K팝 차트 수집 (20개국 고정) ──────────────
-  // 데이터 수집 날짜를 week_start로 사용. API는 최신 week_start 기준으로 읽음.
-  // 매칭 0건 국가는 upsert 생략 → API에서 FIXED_COUNTRIES 기준 빈 배열로 채워 반환.
+  // ── Step 6: 국가별 K팝 차트 수집 ────────────────────────────
+  // 로직:
+  //   1. 40개 후보 국가 × geo.getTopArtists(limit=1000) 순차 호출 (200ms delay)
+  //   2. 각 국가에서 kpop_artists 교차 매칭 → K팝 아티스트만 필터
+  //   3. 국가별 K팝 청취자 합산 → 상위 20개국 자동 선정
+  //   4. 오늘 기존 데이터 삭제 후 선정된 20개국 Top 10 신규 저장
   let countryChartsCollected = 0
 
   // nameToId 맵 — 이미 로드된 artists 재사용
@@ -527,41 +560,73 @@ export async function runKpopStatsIngest(
     if (a.lastfm_name) geoNameToId.set(a.lastfm_name.toLowerCase(), a.id)
   }
 
+  type CountryKpopResult = {
+    code: string
+    kpopArtists: Array<{ artistId: string; artistName: string; listeners: number }>
+    totalListeners: number
+  }
+  const countryResults: CountryKpopResult[] = []
+
   for (let ci = 0; ci < GEO_COUNTRIES.length; ci++) {
     const country = GEO_COUNTRIES[ci]
     // Last.fm rate limit 준수: 5 req/초 → 200ms delay (첫 호출 제외)
     if (ci > 0) await new Promise((r) => setTimeout(r, 200))
     try {
-      // limit 500 — 대형 시장(US/UK 등)에서도 K팝 아티스트 포착 가능하도록 확대
-      const geoArtists = await getGeoTopArtists(country.name, 500)
-      const kpopFiltered = geoArtists
-        .filter((a) => geoNameToId.has(a.name.toLowerCase()))
-        .slice(0, 10)
+      // limit=1000: 대형 시장(US·UK 등)에서 하위 순위 K팝 아티스트도 포착
+      const geoArtists = await getGeoTopArtists(country.name, 1000)
 
-      for (let i = 0; i < kpopFiltered.length; i++) {
-        const a = kpopFiltered[i]
-        const artistId = geoNameToId.get(a.name.toLowerCase()) ?? null
-        const { error: geoErr } = await supabase
-          .from("kpop_country_charts")
-          .upsert(
-            {
-              week_start: todayStr,
-              country_code: country.code,
-              artist_id: artistId,
-              artist_name: a.name,
-              rank: i + 1,
-              listeners: a.listeners,
-            },
-            { onConflict: "week_start,country_code,rank" }
-          )
-        if (geoErr) {
-          errors.push(`geo ${country.code} rank${i + 1}: ${geoErr.message}`)
-        }
+      // K팝 아티스트 교차 매칭 + 청취자 수 수집
+      const kpopArtists: Array<{ artistId: string; artistName: string; listeners: number }> = []
+      for (const a of geoArtists) {
+        const artistId = geoNameToId.get(a.name.toLowerCase())
+        if (!artistId) continue
+        kpopArtists.push({ artistId, artistName: a.name, listeners: a.listeners ?? 0 })
       }
-      if (kpopFiltered.length > 0) countryChartsCollected++
+
+      if (kpopArtists.length === 0) continue
+
+      // 청취자 수 기준 내림차순 정렬
+      kpopArtists.sort((x, y) => y.listeners - x.listeners)
+
+      const totalListeners = kpopArtists.reduce((sum, x) => sum + x.listeners, 0)
+      countryResults.push({ code: country.code, kpopArtists, totalListeners })
     } catch (err) {
       errors.push(`geo ${country.code}: ${String(err)}`)
     }
+  }
+
+  // 국가별 K팝 총 청취자 합산 기준 상위 20개국 선정
+  countryResults.sort((a, b) => b.totalListeners - a.totalListeners)
+  const top20Countries = countryResults.slice(0, 20)
+
+  // 오늘 기존 데이터 삭제 (멱등성 — 재실행 시 중복 방지)
+  const { error: delErr } = await supabase
+    .from("kpop_country_charts")
+    .delete()
+    .eq("week_start", todayStr)
+  if (delErr) {
+    errors.push(`geo delete old: ${delErr.message}`)
+  }
+
+  // 상위 20개국 Top 10 저장
+  for (const country of top20Countries) {
+    const top10 = country.kpopArtists.slice(0, 10)
+    for (let i = 0; i < top10.length; i++) {
+      const { error: insErr } = await supabase
+        .from("kpop_country_charts")
+        .insert({
+          week_start: todayStr,
+          country_code: country.code,
+          artist_id: top10[i].artistId,
+          artist_name: top10[i].artistName,
+          rank: i + 1,
+          listeners: top10[i].listeners,
+        })
+      if (insErr) {
+        errors.push(`geo insert ${country.code} rank${i + 1}: ${insErr.message}`)
+      }
+    }
+    countryChartsCollected++
   }
 
   return {
