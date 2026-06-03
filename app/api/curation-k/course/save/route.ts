@@ -42,6 +42,7 @@ const PostSchema = z.object({
   departure_region: z.string().trim().min(1).max(60),
   arrival_region: z.string().trim().min(1).max(60),
   itinerary: z.object({
+    travel_info: z.string().optional(),
     days: z.array(DaySchema).min(1).max(7),
   }),
 })

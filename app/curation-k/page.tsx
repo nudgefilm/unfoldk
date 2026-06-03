@@ -404,6 +404,7 @@ interface CourseDay {
 }
 
 interface GeneratedItinerary {
+  travel_info?: string
   days: CourseDay[]
 }
 
@@ -4034,9 +4035,11 @@ function smoothPath(pts: Array<{ x: number; y: number }>): string {
 function CourseMiniMap({
   days,
   meta,
+  travel_info,
 }: {
   days: CourseDay[]
   meta?: { departure_region: string; arrival_region: string }
+  travel_info?: string
 }) {
   const [selectedDay, setSelectedDay] = useState(0)
 
@@ -4338,9 +4341,10 @@ function CourseMiniMap({
         )}
       </div>
 
-      {/* 범례 */}
+      {/* 범례 + travel_info */}
       {dayStops.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+        <div className="mt-2">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
           {dayStops.map((stop, i) => (
             <div key={`leg-${i}`} className="flex items-center gap-1.5 min-w-0">
               <span
@@ -4360,6 +4364,13 @@ function CourseMiniMap({
               </span>
             </div>
           ))}
+          </div>
+          {/* travel_info — Day 1에만 표시 */}
+          {travel_info && selectedDay === 0 && (
+            <div className="border-t border-white/10 mt-2 pt-2">
+              <p className="text-xs text-muted-foreground">{travel_info}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -4478,7 +4489,7 @@ function CourseItineraryView({
         ))}
       </div>
 
-      <CourseMiniMap days={itinerary.days} meta={meta} />
+      <CourseMiniMap days={itinerary.days} meta={meta} travel_info={itinerary.travel_info} />
     </div>
   )
 }

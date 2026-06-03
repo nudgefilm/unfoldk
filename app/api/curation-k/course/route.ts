@@ -91,6 +91,14 @@ const ITINERARY_TOOL: Anthropic.Tool = {
   input_schema: {
     type: "object",
     properties: {
+      travel_info: {
+        type: "string",
+        description:
+          "Travel information from departure to arrival region. Include distance, duration, and recommended transport. " +
+          "Format: '{departure} → {arrival} | ~Xkm | ~Xh by [transport]' " +
+          "Example: 'Seoul → Jeju | ~465km | ~1h by flight or ~5h by ferry'. " +
+          "If departure and arrival are the same region, omit this field.",
+      },
       days: {
         type: "array",
         maxItems: 7,
@@ -389,7 +397,11 @@ ${
     : "(no enriched data yet for this area)"
 }
 
-Build the itinerary now. Keep all stops within ${arrival_region}. Vary the neighborhoods and districts each day.`
+Build the itinerary now. Keep all stops within ${arrival_region}. Vary the neighborhoods and districts each day.${
+  !sameRegion
+    ? `\nDeparture region: ${departure_region}. Include travel_info with realistic transport options (flight/train/bus/ferry) and approximate duration from ${departure_region} to ${arrival_region}.`
+    : ""
+}`
 
   let response: Anthropic.Message
   try {
