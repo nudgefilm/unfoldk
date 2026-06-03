@@ -65,6 +65,7 @@ import {
   Search,
   Navigation,
   X,
+  Building2,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -2035,7 +2036,7 @@ export default function CurationKPage() {
                               : { backgroundColor: "#0d0d0f", borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }
                           }
                         >
-                          🏙 City
+                          <Building2 className="w-3 h-3 inline-block mr-1" />City
                         </button>
                         <button
                           type="button"
@@ -2053,7 +2054,7 @@ export default function CurationKPage() {
                               : { backgroundColor: "#0d0d0f", borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }
                           }
                         >
-                          🔍 Keyword
+                          <Search className="w-3 h-3 inline-block mr-1" />Keyword
                         </button>
                       </div>
                     </div>
