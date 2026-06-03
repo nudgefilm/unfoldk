@@ -5,7 +5,7 @@
 // 메인 차트 전면 무료 개방 (비로그인 포함 Top 20 전체 열람)
 // Artist Comparison — 로그인 유저 전체 개방 (결제 연동 전 임시)
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
@@ -92,6 +92,15 @@ type KpopTab = "charts" | "chart-attack"
 export default function KpopStatsPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<KpopTab>("charts")
+  const tabBarRef = useRef<HTMLDivElement>(null)
+
+  const handleTabChange = (tab: KpopTab) => {
+    setActiveTab(tab)
+    if (tabBarRef.current) {
+      const top = tabBarRef.current.getBoundingClientRect().top + window.scrollY - 72
+      window.scrollTo({ top, behavior: "smooth" })
+    }
+  }
   const [kpopStartOpen, setKpopStartOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [chart, setChart] = useState<ChartItem[]>([])
@@ -424,9 +433,9 @@ export default function KpopStatsPage() {
         </section>
 
         {/* 탭 네비게이션 */}
-        <div className="flex gap-2 mb-8 sticky top-[72px] z-10 bg-[#0d0d0f] py-3">
+        <div ref={tabBarRef} className="flex gap-2 mb-8 sticky top-[72px] z-10 bg-[#0d0d0f] py-3">
           <button
-            onClick={() => setActiveTab("charts")}
+            onClick={() => handleTabChange("charts")}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium border transition-colors"
             style={
               activeTab === "charts"
@@ -438,7 +447,7 @@ export default function KpopStatsPage() {
             Charts
           </button>
           <button
-            onClick={() => setActiveTab("chart-attack")}
+            onClick={() => handleTabChange("chart-attack")}
             className="relative inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium border transition-colors"
             style={
               activeTab === "chart-attack"
