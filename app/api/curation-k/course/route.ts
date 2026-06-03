@@ -95,7 +95,7 @@ const ITINERARY_TOOL: Anthropic.Tool = {
         type: "string",
         description:
           "Comprehensive travel information from departure to arrival region.\n" +
-          "If departure_region equals arrival_region, omit this field.\n" +
+          "If departure_region equals arrival_region, set this to empty string \"\".\n" +
           "Otherwise generate in this exact format:\n\n" +
           "{departure} → {arrival}\n\n" +
           "✈️ Flight   ~Xh    [departure airport] → [arrival airport]    ~₩XX,000~XX,000\n" +
@@ -128,7 +128,7 @@ const ITINERARY_TOOL: Anthropic.Tool = {
         },
       },
     },
-    required: ["days"],
+    required: ["travel_info", "days"],
     definitions: {
       stop: {
         type: "object",
@@ -381,13 +381,13 @@ export async function POST(request: Request) {
     return `- [${t.type}]${regionTag} ${t.name} (${t.address})`
   }
 
-  // 일수별 토큰 예산: 하루 ~6 stops × ~250 토큰 + 구조 오버헤드
+  // 일수별 토큰 예산: 하루 ~6 stops × ~250 토큰 + travel_info ~400 토큰 + 구조 오버헤드
   const MAX_TOKENS_BY_DAYS: Record<number, number> = {
-    1: 2048,
-    2: 3072,
-    3: 4096,
+    1: 3072,
+    2: 4096,
+    3: 5120,
     5: 6144,
-    7: 8192,
+    7: 7168,
   }
   const maxTokens = MAX_TOKENS_BY_DAYS[duration_days] ?? 8192
 
@@ -407,10 +407,11 @@ ${
     : "(no enriched data yet for this area)"
 }
 
-Build the itinerary now. Keep all stops within ${arrival_region}. Vary the neighborhoods and districts each day.${
-  !sameRegion
-    ? `\nDeparture region: ${departure_region}. Include travel_info with realistic transport options (flight/train/bus/ferry) and approximate duration from ${departure_region} to ${arrival_region}.`
-    : ""
+Build the itinerary now. Keep all stops within ${arrival_region}. Vary the neighborhoods and districts each day.
+${
+  sameRegion
+    ? `Departure and arrival are both ${arrival_region}. Set travel_info to empty string "".`
+    : `Departure region: ${departure_region}. Fill travel_info with realistic transport options (flight/train/bus/ferry) and approximate duration from ${departure_region} to ${arrival_region}.`
 }`
 
   let response: Anthropic.Message
