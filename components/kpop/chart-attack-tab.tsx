@@ -471,7 +471,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
                   <div className="flex items-center gap-3 mb-2">
                     <span className="w-5 flex-shrink-0 text-center">
                       {isTop3
-                        ? <span className="text-base leading-none">🔥</span>
+                        ? <Flame className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />
                         : <span className="text-muted-foreground text-xs">#{i + 1}</span>
                       }
                     </span>
@@ -512,7 +512,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
           <Flame className="w-6 h-6" style={{ color: "#FF4B6E" }} />
           <div>
             <h2 className="text-2xl font-semibold text-white">Fan Power Ranking</h2>
-            <p className="text-muted-foreground text-sm">Vote for your artist — every 🔥 counts</p>
+            <p className="text-muted-foreground text-sm flex items-center gap-1">Vote for your artist — every <Flame className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} /> counts</p>
           </div>
         </div>
 
@@ -531,7 +531,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold text-white transition-colors"
                   style={{ backgroundColor: "#FF4B6E" }}
                 >
-                  🔥 Join the Battle
+                  <Flame className="w-4 h-4" /> Join the Battle
                 </button>
               </div>
             ) : chart.length === 0 ? (
@@ -545,8 +545,8 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
                     <div key={item.artist_id} className="relative">
                       {isAnimating && (
                         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 pointer-events-none z-10 flex">
-                          <span className="fire-p1 text-base">🔥</span>
-                          <span className="fire-p2 text-sm">🔥</span>
+                          <Flame className="fire-p1 w-4 h-4" style={{ color: "#FF4B6E" }} />
+                          <Flame className="fire-p2 w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
                         </div>
                       )}
                       <button
@@ -559,7 +559,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
                       >
                         <Avatar src={item.thumbnail_url} alt={item.name} size={12} />
                         <span className="text-foreground text-xs font-medium truncate w-full text-center leading-tight">{item.name}</span>
-                        <span className="text-xl leading-none">🔥</span>
+                        <Flame className="w-5 h-5" style={{ color: "#FF4B6E" }} />
                       </button>
                     </div>
                   )
@@ -589,7 +589,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
                     <div className="min-w-0 flex-1 sm:flex-none">
                       <p className="text-foreground text-sm font-medium truncate">{r.name}</p>
                     </div>
-                    <span className="text-primary font-bold text-sm ml-auto sm:ml-0">{fmt(r.vote_count)} 🔥</span>
+                    <span className="text-primary font-bold text-sm ml-auto sm:ml-0 inline-flex items-center gap-1">{fmt(r.vote_count)} <Flame className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} /></span>
                   </div>
                 ))}
               </div>
@@ -727,7 +727,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
                         className="flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-colors"
                         style={{ backgroundColor: "#1d9bf0", color: "white" }}
                       >
-                        {isPro ? "🔥 Attack Now" : "📢 Join the Attack"}
+                        {isPro ? <><Flame className="w-4 h-4" /> Attack Now</> : "📢 Join the Attack"}
                       </button>
                     </div>
 
