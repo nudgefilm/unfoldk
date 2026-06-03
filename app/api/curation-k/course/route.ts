@@ -94,10 +94,20 @@ const ITINERARY_TOOL: Anthropic.Tool = {
       travel_info: {
         type: "string",
         description:
-          "Travel information from departure to arrival region. Include distance, duration, and recommended transport. " +
-          "Format: '{departure} → {arrival} | ~Xkm | ~Xh by [transport]' " +
-          "Example: 'Seoul → Jeju | ~465km | ~1h by flight or ~5h by ferry'. " +
-          "If departure and arrival are the same region, omit this field.",
+          "Comprehensive travel information from departure to arrival region.\n" +
+          "If departure_region equals arrival_region, omit this field.\n" +
+          "Otherwise generate in this exact format:\n\n" +
+          "{departure} → {arrival}\n\n" +
+          "✈️ Flight   ~Xh    [departure airport] → [arrival airport]    ~₩XX,000~XX,000\n" +
+          "⛴️ Ferry    ~Xh    [departure port] → [arrival port]          ~₩XX,000~XX,000\n" +
+          "🚂 Train    ~Xh    [route info]                               ~₩XX,000~XX,000\n" +
+          "🚌 Bus      ~Xh    [route info]                               ~₩XX,000~XX,000\n\n" +
+          "(Only include transport modes that are actually available for this route. Remove unavailable modes.)\n\n" +
+          "💡 Tip: [Most useful local transport tip — rental car, subway, etc.]\n" +
+          "🌤️ Best time: [Optimal travel season with reason]\n" +
+          "💳 [Payment/currency tip if relevant]\n" +
+          "🗣️ [Language tip if relevant]\n\n" +
+          "Use Korean Won (₩) for prices. Be specific with terminal/station names. Keep each line concise.",
       },
       days: {
         type: "array",

@@ -4367,8 +4367,23 @@ function CourseMiniMap({
           </div>
           {/* travel_info — Day 1에만 표시 */}
           {travel_info && selectedDay === 0 && (
-            <div className="border-t border-white/10 mt-2 pt-2">
-              <p className="text-xs text-muted-foreground">{travel_info}</p>
+            <div className="border-t border-white/10 mt-3 pt-3 px-2 space-y-0.5">
+              {travel_info.split("\n").map((line, i) => {
+                if (line.trim() === "") return <div key={i} className="h-1.5" />
+                const isTitle = i === 0
+                const isTransport = /^[✈️⛴️🚂🚌]/.test(line)
+                const isTip = /^[💡🌤️💳🗣️]/.test(line)
+                if (isTitle) {
+                  return <p key={i} className="text-sm font-medium text-white/70">{line}</p>
+                }
+                if (isTransport) {
+                  return <p key={i} className="text-xs text-white/60 font-mono whitespace-pre">{line}</p>
+                }
+                if (isTip) {
+                  return <p key={i} className="text-xs text-white/50">{line}</p>
+                }
+                return <p key={i} className="text-xs text-white/40">{line}</p>
+              })}
             </div>
           )}
         </div>
