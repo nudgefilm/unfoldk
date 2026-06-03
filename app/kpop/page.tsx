@@ -427,23 +427,27 @@ export default function KpopStatsPage() {
         <div className="flex gap-2 mb-8 sticky top-[72px] z-10 bg-[#0d0d0f] py-3">
           <button
             onClick={() => setActiveTab("charts")}
-            className={`px-5 py-2.5 text-sm font-medium rounded-full transition-colors ${
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium border transition-colors"
+            style={
               activeTab === "charts"
-                ? "bg-[#FF4B6E] text-white"
-                : "border border-gray-600 text-muted-foreground hover:border-gray-400 hover:text-foreground"
-            }`}
+                ? { backgroundColor: "#FF4B6E", borderColor: "#FF4B6E", color: "#fff" }
+                : { backgroundColor: "#1a1a1a", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }
+            }
           >
-            📊 Charts
+            <span>📊</span>
+            Charts
           </button>
           <button
             onClick={() => setActiveTab("chart-attack")}
-            className={`relative px-5 py-2.5 text-sm font-medium rounded-full transition-colors flex items-center gap-1.5 ${
+            className="relative inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium border transition-colors"
+            style={
               activeTab === "chart-attack"
-                ? "bg-[#FF4B6E] text-white"
-                : "border border-gray-600 text-muted-foreground hover:border-gray-400 hover:text-foreground"
-            }`}
+                ? { backgroundColor: "#FF4B6E", borderColor: "#FF4B6E", color: "#fff" }
+                : { backgroundColor: "#1a1a1a", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }
+            }
           >
-            🔥 Chart Attack
+            <span>🔥</span>
+            Chart Attack
             {activeTab !== "chart-attack" && (
               <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             )}
