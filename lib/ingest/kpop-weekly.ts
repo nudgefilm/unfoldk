@@ -1,10 +1,9 @@
 // KpopStats 주간 인제스트 — 매주 월요일 04:00 UTC
 // 1. 청취자 급증 Top 3 아티스트 Claude 인사이트 생성 + DB 저장
 // 2. 주간 K팝 트렌드 리포트 생성 + DB 저장
-// 3. 국가별 Top 3 K팝 아티스트 Last.fm 수집 + DB 저장
+// ※ 국가별 차트 수집은 daily ingest (lib/ingest/kpop-stats.ts) 로 이관
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
-import { getGeoTopArtists } from "@/lib/api/lastfm"
 import {
   generateArtistInsight,
   generateWeeklyKpopReport,
@@ -18,39 +17,6 @@ function getWeekStart(now = new Date()): string {
   d.setUTCDate(d.getUTCDate() - diff)
   return d.toISOString().slice(0, 10)
 }
-
-// 한류 주요 소비국 20개국 고정 리스트 — ISO 3166-1 alpha-2 + Last.fm 영문 국가명
-// 순서: 북미 → 남미 → 동남아 → 남아시아 → 동아시아 → 유럽·중동 → 오세아니아
-const COUNTRY_CONFIG = [
-  // 북미
-  { code: "US", name: "United States" },
-  { code: "CA", name: "Canada" },
-  { code: "MX", name: "Mexico" },
-  // 남미
-  { code: "BR", name: "Brazil" },
-  { code: "AR", name: "Argentina" },
-  { code: "CL", name: "Chile" },
-  { code: "PE", name: "Peru" },
-  // 동남아시아
-  { code: "PH", name: "Philippines" },
-  { code: "ID", name: "Indonesia" },
-  { code: "TH", name: "Thailand" },
-  { code: "MY", name: "Malaysia" },
-  { code: "VN", name: "Vietnam" },
-  { code: "SG", name: "Singapore" },
-  // 남아시아
-  { code: "IN", name: "India" },
-  // 동아시아
-  { code: "JP", name: "Japan" },
-  // 유럽
-  { code: "GB", name: "United Kingdom" },
-  { code: "FR", name: "France" },
-  { code: "DE", name: "Germany" },
-  // 중동
-  { code: "TR", name: "Turkey" },
-  // 오세아니아
-  { code: "AU", name: "Australia" },
-] as const
 
 export interface KpopWeeklyIngestResult {
   source: "kpop-weekly"
@@ -211,63 +177,8 @@ export async function runKpopWeeklyIngest(): Promise<KpopWeeklyIngestResult> {
     }
   }
 
-  // ── Step 4: 국가별 차트 수집 ────────────────────────────────
-  // kpop_artists 이름 목록 — Last.fm 결과와 매칭용
-  const { data: kpopArtistsRows } = await admin
-    .from("kpop_artists")
-    .select("id, name, lastfm_name")
-    .eq("is_active", true)
-
-  type KpopArtistRow = { id: string; name: string; lastfm_name: string | null }
-  const kpopArtists = (kpopArtistsRows ?? []) as KpopArtistRow[]
-
-  // 이름 → id 빠른 조회 맵 (소문자 정규화)
-  const nameToId = new Map<string, string>()
-  for (const a of kpopArtists) {
-    nameToId.set(a.name.toLowerCase(), a.id)
-    if (a.lastfm_name) nameToId.set(a.lastfm_name.toLowerCase(), a.id)
-  }
-
-  let countryChartsCollected = 0
-
-  for (let ci = 0; ci < COUNTRY_CONFIG.length; ci++) {
-    const country = COUNTRY_CONFIG[ci]
-    // Last.fm rate limit 준수: 5 req/초 → 200ms delay (첫 번째 제외)
-    if (ci > 0) await new Promise((r) => setTimeout(r, 200))
-    try {
-      const geoArtists = await getGeoTopArtists(country.name, 100)
-
-      // K팝 아티스트만 필터 (Top 10 — Artist Comparison 커버리지 확대)
-      const kpopFiltered = geoArtists
-        .filter((a) => nameToId.has(a.name.toLowerCase()))
-        .slice(0, 10)
-
-      if (kpopFiltered.length === 0) continue
-
-      for (let i = 0; i < kpopFiltered.length; i++) {
-        const a = kpopFiltered[i]
-        const artistId = nameToId.get(a.name.toLowerCase()) ?? null
-
-        const { error } = await admin.from("kpop_country_charts").upsert(
-          {
-            week_start: weekStart,
-            country_code: country.code,
-            artist_id: artistId,
-            artist_name: a.name,
-            rank: i + 1,
-            listeners: a.listeners,
-          },
-          { onConflict: "week_start,country_code,rank" }
-        )
-        if (error) {
-          errors.push(`country chart ${country.code} rank${i + 1}: ${error.message}`)
-        }
-      }
-      countryChartsCollected++
-    } catch (err) {
-      errors.push(`country chart fetch ${country.code}: ${String(err)}`)
-    }
-  }
+  // 국가별 차트 수집은 daily ingest(lib/ingest/kpop-stats.ts)로 이관.
+  // weekly는 insights + report 생성만 담당.
 
   return {
     source: "kpop-weekly",
@@ -275,7 +186,7 @@ export async function runKpopWeeklyIngest(): Promise<KpopWeeklyIngestResult> {
     skipped: false,
     insightsGenerated,
     reportGenerated,
-    countryChartsCollected,
+    countryChartsCollected: 0,
     errors,
   }
 }

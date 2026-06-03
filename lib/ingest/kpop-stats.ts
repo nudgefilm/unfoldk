@@ -29,7 +29,31 @@ const MAX_CHANNEL_MAPPING_PER_RUN = 50
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { getChannelStats, searchChannelByName } from "@/lib/api/youtube"
-import { getArtistInfo, getTopKpopArtists } from "@/lib/api/lastfm"
+import { getArtistInfo, getTopKpopArtists, getGeoTopArtists } from "@/lib/api/lastfm"
+
+// 한류 주요 소비국 20개국 — ISO alpha-2 + Last.fm 영문명
+const GEO_COUNTRIES = [
+  { code: "US", name: "United States" },
+  { code: "CA", name: "Canada" },
+  { code: "MX", name: "Mexico" },
+  { code: "BR", name: "Brazil" },
+  { code: "AR", name: "Argentina" },
+  { code: "CL", name: "Chile" },
+  { code: "PE", name: "Peru" },
+  { code: "PH", name: "Philippines" },
+  { code: "ID", name: "Indonesia" },
+  { code: "TH", name: "Thailand" },
+  { code: "MY", name: "Malaysia" },
+  { code: "VN", name: "Vietnam" },
+  { code: "SG", name: "Singapore" },
+  { code: "IN", name: "India" },
+  { code: "JP", name: "Japan" },
+  { code: "GB", name: "United Kingdom" },
+  { code: "FR", name: "France" },
+  { code: "DE", name: "Germany" },
+  { code: "TR", name: "Turkey" },
+  { code: "AU", name: "Australia" },
+] as const
 
 // 주간 K-pop 차트 fetch 시 받아올 최대 인원수. Last.fm tag.getTopArtists
 // 한 콜로 가져옴 — 시드 25명 + 신규 시드 (255명) 모두 커버하려면 200 정도.
@@ -71,6 +95,7 @@ export interface KpopStatsIngestResult {
   }>
   ranksFetched: number             // tag.getTopArtists 로 매핑된 아티스트 수
   upserted: number
+  countryChartsCollected: number   // 매칭 아티스트 1명 이상 수집된 국가 수
   errors: string[]
   note?: string
 }
@@ -118,6 +143,7 @@ export async function runKpopStatsIngest(
       thumbnailDebug: [],
       ranksFetched: 0,
       upserted: 0,
+      countryChartsCollected: 0,
       errors: [`artists fetch 실패: ${artistsErr.message}`],
     }
   }
@@ -139,6 +165,7 @@ export async function runKpopStatsIngest(
       thumbnailDebug: [],
       ranksFetched: 0,
       upserted: 0,
+      countryChartsCollected: 0,
       errors: [],
       note: "대상 아티스트 없음",
     }
@@ -488,6 +515,55 @@ export async function runKpopStatsIngest(
     errors.push(`upsert 실패: ${upsertErr.message}`)
   }
 
+  // ── Step 6: 국가별 K팝 차트 수집 (20개국 고정) ──────────────
+  // 데이터 수집 날짜를 week_start로 사용. API는 최신 week_start 기준으로 읽음.
+  // 매칭 0건 국가는 upsert 생략 → API에서 FIXED_COUNTRIES 기준 빈 배열로 채워 반환.
+  let countryChartsCollected = 0
+
+  // nameToId 맵 — 이미 로드된 artists 재사용
+  const geoNameToId = new Map<string, string>()
+  for (const a of artists) {
+    geoNameToId.set(a.name.toLowerCase(), a.id)
+    if (a.lastfm_name) geoNameToId.set(a.lastfm_name.toLowerCase(), a.id)
+  }
+
+  for (let ci = 0; ci < GEO_COUNTRIES.length; ci++) {
+    const country = GEO_COUNTRIES[ci]
+    // Last.fm rate limit 준수: 5 req/초 → 200ms delay (첫 호출 제외)
+    if (ci > 0) await new Promise((r) => setTimeout(r, 200))
+    try {
+      // limit 500 — 대형 시장(US/UK 등)에서도 K팝 아티스트 포착 가능하도록 확대
+      const geoArtists = await getGeoTopArtists(country.name, 500)
+      const kpopFiltered = geoArtists
+        .filter((a) => geoNameToId.has(a.name.toLowerCase()))
+        .slice(0, 10)
+
+      for (let i = 0; i < kpopFiltered.length; i++) {
+        const a = kpopFiltered[i]
+        const artistId = geoNameToId.get(a.name.toLowerCase()) ?? null
+        const { error: geoErr } = await supabase
+          .from("kpop_country_charts")
+          .upsert(
+            {
+              week_start: todayStr,
+              country_code: country.code,
+              artist_id: artistId,
+              artist_name: a.name,
+              rank: i + 1,
+              listeners: a.listeners,
+            },
+            { onConflict: "week_start,country_code,rank" }
+          )
+        if (geoErr) {
+          errors.push(`geo ${country.code} rank${i + 1}: ${geoErr.message}`)
+        }
+      }
+      if (kpopFiltered.length > 0) countryChartsCollected++
+    } catch (err) {
+      errors.push(`geo ${country.code}: ${String(err)}`)
+    }
+  }
+
   return {
     source: "kpop-stats",
     artistsScanned: artists.length,
@@ -503,6 +579,7 @@ export async function runKpopStatsIngest(
     thumbnailDebug,
     ranksFetched,
     upserted: upsertData?.length ?? 0,
+    countryChartsCollected,
     errors,
   }
 }

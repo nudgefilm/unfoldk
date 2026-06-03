@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
-// GET /api/kpop/country-charts — 국가별 Top 3 K팝 아티스트 (최신 주)
+// GET /api/kpop/country-charts — 국가별 Top 3 K팝 아티스트 (최신 수집일 기준)
+// 20개국 고정 반환. DB 데이터 없는 국가는 artists: [] 로 채워 카드 표시.
 export const dynamic = "force-dynamic"
 export const revalidate = 3600
+
+// 프론트와 동기화된 20개국 고정 리스트
+const FIXED_COUNTRIES = [
+  "US", "CA", "MX", "BR", "AR", "CL", "PE",
+  "PH", "ID", "TH", "MY", "VN", "SG", "IN",
+  "JP", "GB", "FR", "DE", "TR", "AU",
+] as const
 
 export interface CountryChartEntry {
   country_code: string
@@ -21,7 +29,11 @@ export async function GET() {
     .limit(1)
     .maybeSingle()
 
-  if (!latest) return NextResponse.json({ charts: [] })
+  if (!latest) {
+    // DB 데이터 없음 — 20개국 전체를 빈 아티스트로 반환
+    const emptyCharts = FIXED_COUNTRIES.map((code) => ({ country_code: code, artists: [] }))
+    return NextResponse.json({ charts: emptyCharts })
+  }
 
   const { data, error } = await admin
     .from("kpop_country_charts")
@@ -56,9 +68,11 @@ export async function GET() {
     })
   }
 
-  // K팝 아티스트 수 내림차순 정렬 — 매칭 많은 국가가 앞에 노출
-  const charts = Array.from(grouped.values())
-    .filter((c) => c.artists.length > 0)
-    .sort((a, b) => b.artists.length - a.artists.length)
+  // 20개국 전체 반환 — DB 데이터 없는 국가는 artists:[] (프론트에서 "No data yet" 표시)
+  // 아티스트 수 내림차순 정렬 (데이터 있는 국가 우선, 없는 국가는 뒤로)
+  const charts = FIXED_COUNTRIES.map((code) =>
+    grouped.get(code) ?? { country_code: code, artists: [] }
+  ).sort((a, b) => b.artists.length - a.artists.length)
+
   return NextResponse.json({ charts, week_start: latest.week_start })
 }

@@ -880,7 +880,7 @@ export default function KpopStatsPage() {
           </section>
         )}
 
-        {/* K-pop Around the World — 국가별 Top 3 */}
+        {/* K-pop Around the World — 20개국 고정 카드 (매칭 0건 국가: "No data yet") */}
         {countryCharts.length > 0 && (
           <section className="mb-12">
             <h2 className="text-2xl font-semibold text-white mb-6">K-pop Around the World</h2>
@@ -902,12 +902,16 @@ export default function KpopStatsPage() {
                     </span>
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    {country.artists.map((a) => (
-                      <p key={a.rank} className="text-xs text-muted-foreground truncate">
-                        <span className="text-foreground font-medium">{a.rank}.</span>{" "}
-                        {a.artist_name}
-                      </p>
-                    ))}
+                    {country.artists.length > 0 ? (
+                      country.artists.map((a) => (
+                        <p key={a.rank} className="text-xs text-muted-foreground truncate">
+                          <span className="text-foreground font-medium">{a.rank}.</span>{" "}
+                          {a.artist_name}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground/60 italic">No data yet</p>
+                    )}
                   </div>
                 </div>
               ))}
