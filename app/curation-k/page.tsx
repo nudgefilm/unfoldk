@@ -61,6 +61,10 @@ import {
   Film,
   Calendar,
   TrendingUp,
+  Loader2,
+  Search,
+  Navigation,
+  X,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -78,6 +82,17 @@ function proj(lng: number, lat: number): [number, number] {
   const x = ((lng - LNG_MIN) / (LNG_MAX - LNG_MIN)) * SVG_W
   const y = ((LAT_MAX - lat) / (LAT_MAX - LAT_MIN)) * SVG_H
   return [x, y]
+}
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 function ringToPath(ring: number[][]): string {
@@ -667,10 +682,16 @@ export default function CurationKPage() {
   const [hoveredRegion, setHoveredRegion] = useState<number | null>(null)
 
   // ── My Hallyu Course (Pro) ────────────────────────────────
-  const [courseDrama, setCourseDrama] = useState<string>("")
+  const [courseFrom, setCourseFrom] = useState<string>("")
+  const [courseFromCoords, setCourseFromCoords] = useState<{ lat: number; lon: number } | null>(null)
+  const [locationDetecting, setLocationDetecting] = useState(false)
+  const [courseTo, setCourseTo] = useState<string>("")
+  const [courseToCoords, setCourseToCoords] = useState<{ lat: number; lon: number } | null>(null)
+  const [toSearchResults, setToSearchResults] = useState<Array<{ id: string; eng_title: string; addr1: string; latitude: number; longitude: number }>>([])
+  const [toSearchOpen, setToSearchOpen] = useState(false)
+  const [distanceKm, setDistanceKm] = useState<number | null>(null)
   const [courseStyle, setCourseStyle] = useState<TravelStyle>("filming")
   const [courseDays, setCourseDays] = useState<DurationDays>(1)
-  const [courseArrival, setCourseArrival] = useState<string>("Seoul")
   const [courseGenerating, setCourseGenerating] = useState(false)
   const [courseSaving, setCourseSaving] = useState(false)
   const [courseError, setCourseError] = useState<string | null>(null)
@@ -852,12 +873,50 @@ export default function CurationKPage() {
       .catch(() => {})
   }, [isAuthenticated])
 
-  // 드라마 옵션이 늦게 도착하면 첫 번째 드라마로 자동 set
+  // My Hallyu Course — IP 기반 현재 위치 자동 감지
   useEffect(() => {
-    if (!courseDrama && dramaOptions.length > 0) {
-      setCourseDrama(dramaOptions[0].drama_title)
+    setLocationDetecting(true)
+    fetch("http://ip-api.com/json")
+      .then((res) => res.json())
+      .then((data: { city?: string; lat?: number; lon?: number }) => {
+        if (data.city) {
+          setCourseFrom(data.city)
+          if (data.lat != null && data.lon != null) {
+            setCourseFromCoords({ lat: data.lat, lon: data.lon })
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLocationDetecting(false))
+  }, [])
+
+  // My Hallyu Course — TO 키워드 디바운스 검색
+  useEffect(() => {
+    if (courseTo.length < 2) {
+      setToSearchResults([])
+      setToSearchOpen(false)
+      return
     }
-  }, [dramaOptions, courseDrama])
+    const timer = setTimeout(() => {
+      fetch(`/api/curation-k/spot-search?q=${encodeURIComponent(courseTo)}`)
+        .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+        .then((body: { items: Array<{ id: string; eng_title: string; addr1: string; latitude: number; longitude: number }> }) => {
+          setToSearchResults(body.items ?? [])
+          setToSearchOpen(body.items.length > 0)
+        })
+        .catch(() => {})
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [courseTo])
+
+  // My Hallyu Course — 직선거리 계산
+  useEffect(() => {
+    if (courseFromCoords && courseToCoords) {
+      setDistanceKm(haversineKm(courseFromCoords.lat, courseFromCoords.lon, courseToCoords.lat, courseToCoords.lon))
+    } else {
+      setDistanceKm(null)
+    }
+  }, [courseFromCoords, courseToCoords])
 
   // 스팟 저장 토글 — SpotsTabPanel 카드의 북마크 클릭
   async function handleSpotSaveToggle(item: SpotItem) {
@@ -902,8 +961,8 @@ export default function CurationKPage() {
   async function handleGenerateCourse() {
     setCourseError(null)
     setGeneratedSaved(false)
-    if (!courseDrama) {
-      setCourseError("Pick a drama first.")
+    if (!courseTo.trim()) {
+      setCourseError("Enter a destination first.")
       return
     }
     setCourseGenerating(true)
@@ -913,11 +972,10 @@ export default function CurationKPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          drama_title: courseDrama,
           travel_style: courseStyle,
           duration_days: courseDays,
-          departure_region: courseArrival,
-          arrival_region: courseArrival,
+          departure_region: courseFrom || "Unknown",
+          arrival_region: courseTo.trim(),
         }),
       })
       const json = await res.json().catch(() => ({}))
@@ -1838,11 +1896,11 @@ export default function CurationKPage() {
                 <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">Drama</p>
+                      <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">From</p>
                       <div className="h-10 bg-[#0d0d0f] border border-border/40 rounded-full" />
                     </div>
                     <div>
-                      <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">Destination</p>
+                      <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">To</p>
                       <div className="h-10 bg-[#0d0d0f] border border-border/40 rounded-full" />
                     </div>
                   </div>
@@ -1908,54 +1966,104 @@ export default function CurationKPage() {
             <div className="space-y-6">
               {/* 입력 폼 */}
               <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                {/* FROM / TO 입력창 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                  {/* FROM — IP 감지 현재 위치 */}
                   <div>
                     <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
-                      Drama
+                      From
                     </label>
-                    <Select value={courseDrama} onValueChange={setCourseDrama}>
-                      <SelectTrigger
-                        className="w-full bg-[#0d0d0f] border-border/40 rounded-full text-sm"
-                        aria-label="Pick a drama"
-                      >
-                        <SelectValue placeholder="Pick a drama" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {dramaOptions.length === 0 && (
-                          <SelectItem value="__loading__" disabled>
-                            Loading…
-                          </SelectItem>
-                        )}
-                        {dramaOptions.map((d) => (
-                          <SelectItem key={d.drama_title} value={d.drama_title}>
-                            {d.drama_title} ({d.spot_count})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="relative">
+                      <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      {locationDetecting && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground animate-spin" />
+                      )}
+                      <input
+                        type="text"
+                        value={courseFrom}
+                        onChange={(e) => {
+                          setCourseFrom(e.target.value)
+                          setCourseFromCoords(null)
+                        }}
+                        placeholder="Detecting your location..."
+                        className="w-full bg-[#0d0d0f] border border-border/40 rounded-full text-sm pl-9 pr-9 py-2 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-[#FF4B6E]/50"
+                      />
+                    </div>
                   </div>
 
+                  {/* TO — 목적지 키워드 검색 */}
                   <div>
                     <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
-                      Destination
+                      To
                     </label>
-                    <Select value={courseArrival} onValueChange={setCourseArrival}>
-                      <SelectTrigger
-                        className="w-full bg-[#0d0d0f] border-border/40 rounded-full text-sm"
-                        aria-label="Destination region"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {REGION_OPTIONS.map((r) => (
-                          <SelectItem key={r.code} value={r.label}>
-                            {r.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      {courseTo && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCourseTo("")
+                            setCourseToCoords(null)
+                            setToSearchResults([])
+                            setToSearchOpen(false)
+                          }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                      <input
+                        type="text"
+                        value={courseTo}
+                        onChange={(e) => {
+                          setCourseTo(e.target.value)
+                          setCourseToCoords(null)
+                        }}
+                        onFocus={() => { if (toSearchResults.length > 0) setToSearchOpen(true) }}
+                        onBlur={() => setTimeout(() => setToSearchOpen(false), 150)}
+                        placeholder="Enter destination or keyword..."
+                        className="w-full bg-[#0d0d0f] border border-border/40 rounded-full text-sm pl-9 pr-9 py-2 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-[#FF4B6E]/50"
+                      />
+                      {/* 연관 검색 드롭다운 */}
+                      {toSearchOpen && toSearchResults.length > 0 && (
+                        <div className="absolute z-50 mt-1 w-full bg-[#1e1e26] border border-border/40 rounded-xl overflow-hidden shadow-xl">
+                          {toSearchResults.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onMouseDown={() => {
+                                setCourseTo(item.eng_title)
+                                setCourseToCoords({ lat: item.latitude, lon: item.longitude })
+                                setToSearchOpen(false)
+                              }}
+                              className="w-full text-left px-4 py-2.5 hover:bg-[#2a2a36] transition-colors"
+                            >
+                              <p className="text-sm text-foreground truncate">{item.eng_title}</p>
+                              {item.addr1 && (
+                                <p className="text-xs text-muted-foreground truncate mt-0.5">{item.addr1}</p>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                {/* 직선거리 배지 */}
+                {distanceKm !== null && courseFrom && courseTo && (
+                  <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-[#0d0d0f] border border-border/30 w-fit text-xs text-muted-foreground">
+                    <MapPin className="w-3.5 h-3.5 text-[#FF4B6E]" />
+                    <span>{courseFrom}</span>
+                    <span className="opacity-40">→</span>
+                    <span>{courseTo}</span>
+                    <span className="ml-1 font-medium text-foreground">
+                      약 {Math.round(distanceKm).toLocaleString()}km
+                    </span>
+                    <span className="opacity-40">(직선거리 기준)</span>
+                  </div>
+                )}
+
 
                 <div className="mb-4">
                   <label className="text-muted-foreground text-xs uppercase tracking-wider block mb-2">
@@ -2033,7 +2141,7 @@ export default function CurationKPage() {
                 <Button
                   type="button"
                   onClick={handleGenerateCourse}
-                  disabled={courseGenerating || !courseDrama || dramaOptions.length === 0}
+                  disabled={courseGenerating || !courseTo.trim()}
                   className="rounded-full text-white"
                   style={{ backgroundColor: "#FF4B6E" }}
                 >

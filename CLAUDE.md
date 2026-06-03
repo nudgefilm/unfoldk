@@ -681,4 +681,49 @@ Phase 3 — 한국 현지 연계:
 
 서비스 전체 기획 방향은 SERVICE_ARCHITECTURE.md 참조
 
+---
+
+## 변경 금지 기능 목록 (DO NOT MODIFY)
+
+> 아래 기능들은 이미 확정된 동작 방식입니다.
+> 최적화·리팩토링·버그 수정 명목으로도 동작 방식을 임의로 변경하지 말 것.
+> 변경이 필요하면 반드시 사용자에게 먼저 확인 후 진행.
+
+### HangeulGo — Grammar Explanation
+- 표현 로드 시 자동으로 grammar 분석 표시
+- 버튼 클릭 방식으로 변경 금지
+- DB 캐시(`korean_grammar_cache`) 우선 조회 후 캐시 미스 시에만 Claude Haiku 호출
+- 자동 호출 → 수동 호출로 임의 변경 금지
+- 구현: `app/korean/korean-content.tsx` (useEffect), `app/api/korean/grammar/route.ts`
+
+### HangeulGo — 표현 자동 로드
+- 페이지 진입 시 오늘의 표현 자동 표시
+- 유저가 버튼을 눌러야 표현이 나오는 방식으로 변경 금지
+
+### KpopStats — Chart Attack 섹션 구성
+- 확정 섹션 순서: Alert Zone → Golden Hour → Velocity Tracker → Fan Power Ranking → Chart Insight → Share to Attack → Next Chart Update
+- 섹션 제거·순서 변경·병합 금지
+
+### KfoodKit — 레시피 랜덤 노출
+- 페이지 진입마다 랜덤 순서로 레시피 노출
+- 고정 순서(`created_at` 등)로 되돌리지 말 것
+- `cache: 'no-store'`, `dynamic: 'force-dynamic'` 유지
+
+### 전체 공통
+- 기존 구현된 기능의 동작 방식을 사용자 확인 없이 임의로 변경하지 말 것
+- "최적화", "리팩토링", "마이너 개선" 명목으로도 유저가 체감하는 동작이 바뀌는 변경은 금지
+- 변경 필요 시 반드시 사용자에게 먼저 확인 후 진행
+
+---
+
+## 작업 예정
+
+### KfoodKit 레시피 모달 맛집 연동
+- 국내 위치 유저(IP 감지 기준)가 레시피 모달 열 때 해당 도시 맛집 tour_spots 데이터 모달 하단에 표시
+- content_type_id 맛집 카테고리 확인 필요 (tour_spots 테이블 content_type_id 값 확인 후 적용)
+- 맛집 데이터 없는 도시는 미표시
+- 해외 유저는 미표시
+- IP 감지 로직은 `app/curation-k/page.tsx` My Hallyu Course 개편 시 구현한 방식 재활용
+  (`fetch('http://ip-api.com/json')` → `city`, `lat`, `lon`, `countryCode` 추출)
+
 *UNFOLD LAB | unfoldk.com | 2026-05 | v3.3*
