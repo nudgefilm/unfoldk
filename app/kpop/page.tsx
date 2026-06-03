@@ -263,33 +263,45 @@ export default function KpopStatsPage() {
       .catch(() => setCountryCharts([]))
   }, [])
 
-  // 국가 풀네임 매핑 — ISO 3166-1 alpha-2 → 표시명
+  // 국가 풀네임 매핑 — ISO 3166-1 alpha-2 → 표시명 (20개국 수집 대상 + 기타)
   const COUNTRY_NAMES: Record<string, string> = {
+    // 북미
     US: "United States",
-    GB: "United Kingdom",
-    PH: "Philippines",
-    TH: "Thailand",
-    ID: "Indonesia",
-    BR: "Brazil",
-    FR: "France",
-    DE: "Germany",
-    AU: "Australia",
     CA: "Canada",
+    MX: "Mexico",
+    // 남미
+    BR: "Brazil",
+    AR: "Argentina",
+    CL: "Chile",
+    PE: "Peru",
+    // 동남아시아
+    PH: "Philippines",
+    ID: "Indonesia",
+    TH: "Thailand",
+    MY: "Malaysia",
+    VN: "Vietnam",
+    SG: "Singapore",
+    // 남아시아
+    IN: "India",
+    // 동아시아
     JP: "Japan",
     KR: "South Korea",
-    MX: "Mexico",
-    AR: "Argentina",
-    VN: "Vietnam",
-    MY: "Malaysia",
-    SG: "Singapore",
     TW: "Taiwan",
+    // 유럽
+    GB: "United Kingdom",
+    FR: "France",
+    DE: "Germany",
     IT: "Italy",
     ES: "Spain",
     NL: "Netherlands",
     PL: "Poland",
+    SE: "Sweden",
     TR: "Turkey",
+    // 중동
     SA: "Saudi Arabia",
     AE: "UAE",
+    // 오세아니아
+    AU: "Australia",
   }
 
   // 차트 노출 행 — 전면 무료 개방. API 가 already Top 20 반환. 검색 활성 시 차트 섹션 hide.

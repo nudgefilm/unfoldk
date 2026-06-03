@@ -27,7 +27,6 @@ export async function GET() {
     .from("kpop_country_charts")
     .select("country_code, artist_id, artist_name, rank, listeners")
     .eq("week_start", latest.week_start)
-    .order("country_code", { ascending: true })
     .order("rank", { ascending: true })
 
   if (error) {
@@ -57,6 +56,9 @@ export async function GET() {
     })
   }
 
+  // K팝 아티스트 수 내림차순 정렬 — 매칭 많은 국가가 앞에 노출
   const charts = Array.from(grouped.values())
+    .filter((c) => c.artists.length > 0)
+    .sort((a, b) => b.artists.length - a.artists.length)
   return NextResponse.json({ charts, week_start: latest.week_start })
 }

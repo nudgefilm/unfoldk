@@ -19,8 +19,8 @@ function getWeekStart(now = new Date()): string {
   return d.toISOString().slice(0, 10)
 }
 
-// 국가 코드 → Last.fm geo.getTopArtists 에 사용하는 국가명 (ISO 영문 표기)
-// 25개 주요 한류 시장 — KR 제외 (2026-06-01 확대)
+// 한류 주요 소비국 20개국 고정 리스트 — ISO 3166-1 alpha-2 + Last.fm 영문 국가명
+// 순서: 북미 → 남미 → 동남아 → 남아시아 → 동아시아 → 유럽·중동 → 오세아니아
 const COUNTRY_CONFIG = [
   // 북미
   { code: "US", name: "United States" },
@@ -30,28 +30,23 @@ const COUNTRY_CONFIG = [
   { code: "BR", name: "Brazil" },
   { code: "AR", name: "Argentina" },
   { code: "CL", name: "Chile" },
-  // 동아시아
-  { code: "JP", name: "Japan" },
-  { code: "TW", name: "Taiwan" },
+  { code: "PE", name: "Peru" },
   // 동남아시아
-  { code: "TH", name: "Thailand" },
   { code: "PH", name: "Philippines" },
   { code: "ID", name: "Indonesia" },
+  { code: "TH", name: "Thailand" },
   { code: "MY", name: "Malaysia" },
-  { code: "SG", name: "Singapore" },
   { code: "VN", name: "Vietnam" },
+  { code: "SG", name: "Singapore" },
   // 남아시아
   { code: "IN", name: "India" },
-  // 서유럽
+  // 동아시아
+  { code: "JP", name: "Japan" },
+  // 유럽
   { code: "GB", name: "United Kingdom" },
   { code: "FR", name: "France" },
   { code: "DE", name: "Germany" },
-  { code: "IT", name: "Italy" },
-  { code: "ES", name: "Spain" },
-  { code: "NL", name: "Netherlands" },
-  { code: "SE", name: "Sweden" },
-  // 동유럽·중동
-  { code: "PL", name: "Poland" },
+  // 중동
   { code: "TR", name: "Turkey" },
   // 오세아니아
   { code: "AU", name: "Australia" },
@@ -235,7 +230,10 @@ export async function runKpopWeeklyIngest(): Promise<KpopWeeklyIngestResult> {
 
   let countryChartsCollected = 0
 
-  for (const country of COUNTRY_CONFIG) {
+  for (let ci = 0; ci < COUNTRY_CONFIG.length; ci++) {
+    const country = COUNTRY_CONFIG[ci]
+    // Last.fm rate limit 준수: 5 req/초 → 200ms delay (첫 번째 제외)
+    if (ci > 0) await new Promise((r) => setTimeout(r, 200))
     try {
       const geoArtists = await getGeoTopArtists(country.name, 100)
 
