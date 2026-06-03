@@ -688,7 +688,7 @@ export default function CurationKPage() {
   const [courseTo, setCourseTo] = useState<string>("Seoul")
   const [courseToCoords, setCourseToCoords] = useState<{ lat: number; lon: number } | null>({ lat: 37.5665, lon: 126.978 })
   const [toInputMode, setToInputMode] = useState<"city" | "keyword">("city")
-  const [toSearchResults, setToSearchResults] = useState<Array<{ id: string; eng_title: string; addr1: string; latitude: number; longitude: number }>>([])
+  const [toSearchResults, setToSearchResults] = useState<Array<{ id: string; eng_title: string; addr1: string; latitude: number | null; longitude: number | null }>>([])
   const [toSearchOpen, setToSearchOpen] = useState(false)
   const [distanceKm, setDistanceKm] = useState<number | null>(null)
   const [locationDetected, setLocationDetected] = useState<boolean | null>(null)
@@ -2118,7 +2118,11 @@ export default function CurationKPage() {
                                 type="button"
                                 onMouseDown={() => {
                                   setCourseTo(item.eng_title)
-                                  setCourseToCoords({ lat: item.latitude, lon: item.longitude })
+                                  setCourseToCoords(
+                                    item.latitude != null && item.longitude != null
+                                      ? { lat: item.latitude, lon: item.longitude }
+                                      : null
+                                  )
                                   setToSearchOpen(false)
                                 }}
                                 className="w-full text-left px-4 py-2.5 hover:bg-[#2a2a36] transition-colors"

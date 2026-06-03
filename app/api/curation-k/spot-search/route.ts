@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? ""
+  console.log("[spot-search] q:", q)
   if (q.length < 2) return NextResponse.json({ items: [] })
 
   const supabase = await createSupabaseServerClient()
@@ -16,19 +17,23 @@ export async function GET(req: NextRequest) {
     .from("tour_spots")
     .select("id, eng_title, title, addr1, latitude, longitude")
     .or(`eng_title.ilike.${pattern},addr1.ilike.${pattern}`)
-    .not("latitude", "is", null)
-    .not("longitude", "is", null)
     .limit(8)
+
+  console.log("[spot-search] error:", error)
+  console.log("[spot-search] data count:", data?.length ?? 0)
+  console.log("[spot-search] data sample:", JSON.stringify(data?.slice(0, 2)))
 
   if (error) return NextResponse.json({ items: [] })
 
+  type Row = { id: string; eng_title: string | null; title: string; addr1: string | null; latitude: number | null; longitude: number | null }
+
   return NextResponse.json({
-    items: (data ?? []).map((r: { id: string; eng_title: string | null; title: string; addr1: string | null; latitude: number; longitude: number }) => ({
+    items: (data ?? []).map((r: Row) => ({
       id: r.id,
       eng_title: r.eng_title || r.title,
       addr1: r.addr1 ?? "",
-      latitude: Number(r.latitude),
-      longitude: Number(r.longitude),
+      latitude: r.latitude != null ? Number(r.latitude) : null,
+      longitude: r.longitude != null ? Number(r.longitude) : null,
     })),
   })
 }
