@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase
     .from("tour_spots")
     .select("id, eng_title, title, addr1, latitude, longitude")
-    .or(`eng_title.ilike.${pattern},addr1.ilike.${pattern}`)
+    .or(`eng_title.ilike.${pattern},addr1.ilike.${pattern},title.ilike.${pattern}`)
     .limit(8)
 
   console.log("[spot-search] error:", error)

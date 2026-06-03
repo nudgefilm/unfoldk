@@ -2106,7 +2106,7 @@ export default function CurationKPage() {
                           }}
                           onFocus={() => { if (toSearchResults.length > 0) setToSearchOpen(true) }}
                           onBlur={() => setTimeout(() => setToSearchOpen(false), 150)}
-                          placeholder="Enter destination or keyword..."
+                          placeholder="e.g. Haeundae Beach, 경복궁..."
                           className="w-full bg-[#0d0d0f] border border-border/40 rounded-full text-sm pl-9 pr-9 py-2 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-[#FF4B6E]/50"
                         />
                         {/* 연관 검색 드롭다운 */}
@@ -2241,7 +2241,7 @@ export default function CurationKPage() {
                   <h3 className="text-foreground font-semibold text-sm uppercase tracking-wider mb-3">
                     My Saved Courses
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3">
                     {savedCourses.slice(0, 6).map((c) => {
                       const expanded = expandedCourseId === c.id
                       return (
@@ -4308,26 +4308,13 @@ function CourseMiniMap({
                 </g>
               )
             })}
-            {/* 거리/소요시간 박스 — Day 1, departure≠arrival 일 때만 */}
+            {/* 거리/소요시간 — Day 1, departure≠arrival 일 때만, 텍스트만 흐리게 */}
             {routeDistInfo && selectedDay === 0 && (
-              <g>
-                <rect
-                  x={W - 172} y={8} width={164} height={38} rx={6} ry={6}
-                  fill="white" fillOpacity={0.05}
-                  stroke="white" strokeOpacity={0.15} strokeWidth={0.8}
-                />
-                <text
-                  x={W - 164} y={22}
-                  fill="white" fillOpacity={0.7}
-                  fontSize={9} fontWeight={500}
-                >
+              <g fill="white" opacity={0.4} fontSize={10} textAnchor="end">
+                <text x={W * 0.9} y={H * 0.15}>
                   {routeDistInfo.dep} → {routeDistInfo.arr}
                 </text>
-                <text
-                  x={W - 164} y={36}
-                  fill="white" fillOpacity={0.5}
-                  fontSize={9}
-                >
+                <text x={W * 0.9} y={H * 0.15 + 14}>
                   {routeDistInfo.distKm.toLocaleString()}km · {routeDistInfo.timeStr} by car
                 </text>
               </g>
