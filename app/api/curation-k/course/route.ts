@@ -439,7 +439,15 @@ Build the itinerary now. Keep all stops within ${arrival_region}. Vary the neigh
     return NextResponse.json({ error: "no_tool_output" }, { status: 500 })
   }
 
+  // [DEBUG] Claude 응답 raw 확인
+  console.log("[course] sameRegion:", sameRegion, "| departure:", departure_region, "→ arrival:", arrival_region)
+  console.log("[course] toolBlock.input keys:", Object.keys(toolBlock.input as object))
+  console.log("[course] travel_info exists:", "travel_info" in (toolBlock.input as object))
+  console.log("[course] travel_info value:", (toolBlock.input as Record<string, unknown>).travel_info ?? "(없음)")
+  console.log("[course] usage:", response.usage)
+
   const itinerary = toolBlock.input as {
+    travel_info?: string
     days?: Array<{
       day?: number
       title?: string
