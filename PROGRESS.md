@@ -4,6 +4,59 @@
 
 ---
 
+## 현재 상태 (2026-06-03 세션 48 기준)
+
+### UI 개선 — KpopStats 탭 / KfoodKit 레시피 랜덤
+
+**KpopStats 탭 개선**
+- 탭 스타일 Curation K 기준으로 통일: `inline-flex gap-1.5 px-4 py-2 rounded-full text-xs font-medium border` + inline style 색상 분기
+- 활성: `#FF4B6E` 배경+테두리+흰 텍스트 / 비활성: `#1a1a1a` 배경+`rgba(255,255,255,0.1)` 테두리+`rgba(255,255,255,0.7)` 텍스트
+- Sticky 고정 `top-[72px]` (body `pt-[72px]` 기준, 기존 `top-16` 버그 수정)
+- 탭 클릭 시 `window.scrollTo({ top: 0, behavior: "smooth" })` — sticky 상태에서 `getBoundingClientRect` 오작동 버그 수정
+- 이모지 span → lucide 아이콘: Charts `BarChart2`, Chart Attack `Flame` (`w-3.5 h-3.5`)
+- Chart Attack 비활성 시 `animate-pulse` 빨간 점 진입 유도
+
+**Chart Attack 탭 이모지 전체 교체**
+- JSX 내 🔥 7곳 → `<Flame />` 교체 (Velocity top3 뱃지 / vote 애니메이션 fire-p1·p2 / vote 버튼 / "every 🔥 counts" / "Join the Battle" / 투표수 / "Attack Now")
+- JS 템플릿 문자열·코드 주석은 React 렌더링 불가 → 유지
+
+**KfoodKit 레시피 랜덤 노출**
+- `app/api/food/recipes/route.ts`: `.order(created_at)` + `.range()` 제거 → 전체 fetch 후 Fisher-Yates shuffle + JS 페이지네이션
+- `revalidate = 0` + `force-dynamic` → 캐시 비활성화, 매 요청 다른 순서 보장
+- `MAX_POOL = 1000` 상한으로 네트워크 비용 제어
+
+**코딩 원칙 추가**
+- `CLAUDE.md §6` 10번: UI 아이콘 lucide-react 기본 채택 (이모지 대신), JS 문자열·주석 예외 명시
+
+---
+
+## 현재 상태 (2026-06-03 세션 47 기준)
+
+### KpopStats — K-pop Around the World 기능 완성
+
+**수집 방식 전면 개편**
+- 기존 `lib/ingest/kpop-weekly.ts` (주간 cron) → `lib/ingest/kpop-stats.ts` daily ingest로 통합 이관
+- 고정 국가 목록 제거 → Last.fm `geo.getTopArtists` 기반 **동적 상위 20개국** 자동 선정
+- 국가 후보풀 46개국으로 확장 → 매일 청취자 수 집계 후 상위 20개 확정
+
+**KR 매칭 로직 개선**
+- `kpop_stats_daily.country_code` KR 누락 문제 수정
+- 진단 라우트 `app/api/kpop/debug-geo/route.ts` 추가 (KR 포함 여부 확인)
+
+**UI 개선**
+- 국기 이모지 → `flag-icons` CSS 패키지 교체 (`app/layout.tsx` CDN 추가, `package.json` 등록)
+- 국가명 풀네임 표시 (ISO 코드 → 국가명 매핑)
+- 20개국 전체 카드 표시 (기존 일부만 표시)
+
+**어드민**
+- `app/api/admin/kpop-geo-refresh/route.ts` 신규: 국가 데이터 수동 새로고침 엔드포인트
+
+**신규 파일**
+- `app/api/kpop/debug-geo/route.ts`
+- `app/api/admin/kpop-geo-refresh/route.ts`
+
+---
+
 ## 현재 상태 (2026-06-03 세션 46 기준)
 
 ### 전체 사이트 코드 검수 — 즉시·개선·마이너 항목 처리
