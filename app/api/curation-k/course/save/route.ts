@@ -80,23 +80,50 @@ export async function POST(request: Request) {
   }
   const { duration_days, departure_region, arrival_region, itinerary } = parsed.data
 
-  // lat/lng 없는 stop 보완 — tour_spots eng_title ILIKE 매칭 (전체 병렬)
+  // lat/lng 없는 stop 보완 — 순차 매칭 (전체 병렬)
   type StopData = z.infer<typeof StopSchema>
+
+  // 괄호 안 내용 추출: "낙타트레킹 (Camel Trekking)" → "Camel Trekking"
+  const extractParenContent = (name: string): string | null => {
+    const m = name.match(/\(([^)]+)\)/)
+    return m ? m[1].trim() : null
+  }
+
+  // tour_spots 단일 키워드 조회
+  const queryCoords = async (column: "eng_title" | "title", keyword: string) => {
+    const { data } = await supabase
+      .from("tour_spots")
+      .select("latitude, longitude")
+      .ilike(column, `%${keyword}%`)
+      .not("latitude", "is", null)
+      .not("longitude", "is", null)
+      .limit(1)
+      .maybeSingle()
+    return data?.latitude != null && data?.longitude != null
+      ? { lat: Number(data.latitude), lng: Number(data.longitude) }
+      : null
+  }
+
   const enrichSlot = async (stops: StopData[]): Promise<StopData[]> =>
     Promise.all(stops.map(async (s) => {
       if (s.lat != null && s.lng != null) return s
-      const { data } = await supabase
-        .from("tour_spots")
-        .select("latitude, longitude")
-        .ilike("eng_title", `%${s.name}%`)
-        .not("latitude", "is", null)
-        .not("longitude", "is", null)
-        .limit(1)
-        .maybeSingle()
-      if (data?.latitude != null && data?.longitude != null) {
-        return { ...s, lat: Number(data.latitude), lng: Number(data.longitude) }
+
+      // 1차: eng_title ILIKE %name%
+      let coords = await queryCoords("eng_title", s.name)
+
+      // 2차: title ILIKE %name%
+      if (!coords) coords = await queryCoords("title", s.name)
+
+      // 3차: 괄호 안 내용 추출 후 재시도
+      if (!coords) {
+        const paren = extractParenContent(s.name)
+        if (paren) {
+          coords = await queryCoords("eng_title", paren)
+          if (!coords) coords = await queryCoords("title", paren)
+        }
       }
-      return s
+
+      return coords ? { ...s, ...coords } : s
     }))
 
   const enrichedDays = await Promise.all(
