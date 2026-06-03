@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
-import { Search, TrendingUp, TrendingDown, Minus, Flame } from "lucide-react"
+import { Search, TrendingUp, TrendingDown, Minus, Flame, BarChart2 } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ReportButton } from "@/components/common/report-button"
@@ -443,7 +443,7 @@ export default function KpopStatsPage() {
                 : { backgroundColor: "#1a1a1a", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }
             }
           >
-            <span>📊</span>
+            <BarChart2 className="w-3.5 h-3.5" />
             Charts
           </button>
           <button
@@ -455,7 +455,7 @@ export default function KpopStatsPage() {
                 : { backgroundColor: "#1a1a1a", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }
             }
           >
-            <span>🔥</span>
+            <Flame className="w-3.5 h-3.5" />
             Chart Attack
             {activeTab !== "chart-attack" && (
               <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
