@@ -82,8 +82,6 @@ const GEO_COUNTRIES = [
   // 아프리카·기타
   { code: "ZA", name: "South Africa" },
 ] as const
-  { code: "TR", name: "Turkey" },
-] as const
 
 // 주간 K-pop 차트 fetch 시 받아올 최대 인원수. Last.fm tag.getTopArtists
 // 한 콜로 가져옴 — 시드 25명 + 신규 시드 (255명) 모두 커버하려면 200 정도.
