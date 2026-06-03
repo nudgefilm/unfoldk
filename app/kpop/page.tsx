@@ -96,10 +96,7 @@ export default function KpopStatsPage() {
 
   const handleTabChange = (tab: KpopTab) => {
     setActiveTab(tab)
-    if (tabBarRef.current) {
-      const top = tabBarRef.current.getBoundingClientRect().top + window.scrollY - 72
-      window.scrollTo({ top, behavior: "smooth" })
-    }
+    window.scrollTo({ top: 0, behavior: "smooth" })
   }
   const [kpopStartOpen, setKpopStartOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
