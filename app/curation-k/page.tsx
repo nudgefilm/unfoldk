@@ -46,6 +46,7 @@ import {
   Hotel,
   ShoppingBag,
   ChevronRight,
+  ChevronDown,
   Globe,
   Landmark,
   Palette,
@@ -2288,20 +2289,12 @@ export default function CurationKPage() {
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setExpandedCourseId(expanded ? null : c.id)
+                              <div className="w-7 h-7 rounded-full inline-flex items-center justify-center text-muted-foreground">
+                                {expanded
+                                  ? <ChevronDown className="w-4 h-4" />
+                                  : <ChevronRight className="w-4 h-4" />
                                 }
-                                aria-label={expanded ? "Collapse" : "Expand"}
-                                className="w-7 h-7 rounded-full inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-[#0d0d0f] focus:outline-none focus:ring-2 focus:ring-white/20 transition-colors"
-                              >
-                                <ChevronRight
-                                  className={`w-4 h-4 transition-transform ${
-                                    expanded ? "rotate-90" : ""
-                                  }`}
-                                />
-                              </button>
+                              </div>
                             </div>
                           </div>
                           {expanded && (
@@ -2315,7 +2308,6 @@ export default function CurationKPage() {
                                     c.course_data.arrival_region ??
                                     c.course_data.departure_region,
                                 }}
-                                compact
                               />
                             </div>
                           )}

@@ -53,6 +53,36 @@ const REGION_LABEL_TO_AREA: Record<string, number> = {
   Jeju: 39,
 }
 
+// 목적지 중심 좌표 — 반경 필터링용 (page.tsx REGION_CENTROIDS 와 동기)
+const ARRIVAL_CENTROIDS: Record<string, { lat: number; lng: number }> = {
+  Seoul:           { lat: 37.5665, lng: 126.978  },
+  Incheon:         { lat: 37.4563, lng: 126.7052 },
+  Daejeon:         { lat: 36.3504, lng: 127.3845 },
+  Daegu:           { lat: 35.8714, lng: 128.6014 },
+  Gwangju:         { lat: 35.1595, lng: 126.8526 },
+  Busan:           { lat: 35.1796, lng: 129.0756 },
+  Ulsan:           { lat: 35.5384, lng: 129.3114 },
+  Sejong:          { lat: 36.4801, lng: 127.2891 },
+  Gyeonggi:        { lat: 37.27,   lng: 127.0    },
+  Gangwon:         { lat: 37.8228, lng: 128.1555 },
+  Chungcheongbuk:  { lat: 36.8,    lng: 127.7298 },
+  Chungcheongnam:  { lat: 36.6,    lng: 126.65   },
+  Gyeongsangbuk:   { lat: 36.4919, lng: 128.7427 },
+  Gyeongsangnam:   { lat: 35.25,   lng: 128.2132 },
+  Jeollabuk:       { lat: 35.7175, lng: 127.15   },
+  Jeollanam:       { lat: 34.8161, lng: 126.99   },
+  Jeju:            { lat: 33.4996, lng: 126.5312 },
+}
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
 // ─── Claude tool — 일정 구조 강제 ───────────────────────────
 const ITINERARY_TOOL: Anthropic.Tool = {
   name: "report_itinerary",
@@ -113,22 +143,18 @@ const ITINERARY_TOOL: Anthropic.Tool = {
   },
 }
 
-const SYSTEM_PROMPT = `You are UnfoldK's Hallyu trip planner, building day-trip itineraries for global K-drama and K-pop fans visiting Korea.
+const SYSTEM_PROMPT = `You are UnfoldK's Hallyu trip planner, building itineraries for global K-drama and K-pop fans visiting Korea.
 
 Rules:
 - Generate exactly the requested number of days.
-- Each day MUST have at least one stop in morning / afternoon / evening (3–4 stops per day is standard; filming and cultural styles may have fewer but richer stops).
-- Use real Korean place names from the context list when relevant. When citing the drama, anchor the visit to the actual filming spot or themed café provided.
-- Match the traveler's style precisely:
-  · filming → drama filming locations are the primary anchors; visit the exact spots shown on screen, then explore the surrounding neighborhood
-  · sightseeing → major landmarks and must-see tourist attractions fill the day; mix iconic spots with hidden gems
-  · foodie → restaurants, street food stalls, and traditional markets dominate; tie food choices to local specialties and drama-featured dishes
-  · cultural → museums, palaces, temples, galleries, and historical districts; prioritize [culture] and [attraction] spots from the context list
-  · shopping → shopping districts, local markets, and specialty stores; mix with nearby cafés for breaks
-- The entire itinerary stays within the destination region. Explore different neighborhoods and districts each day to give a full experience of the area. On the last day, loop back toward the starting district.
+- Each day MUST have stops in morning, afternoon, and evening slots.
+- Maximum 5 stops per day. Morning: 1-2 stops, Afternoon: 1-2 stops, Evening: 1 stop. Keep all stops within walkable or short taxi distance of each other.
+- Include a balanced mix of attractions, cultural sites, food, shopping, and festivals across the itinerary.
+- Use real Korean place names from the context list when relevant.
+- The entire itinerary stays within the destination region. Explore different neighborhoods and districts each day. On the last day, loop back toward the starting district.
 - Be honest about transport: Seoul metro, taxi for short hops. Mention realistic duration_minutes (5–60 for in-city hops).
 - Reasons are concise — 1–2 sentences, no marketing fluff.
-- For each stop, include lat and lng (WGS84 decimal degrees) when the location is a recognizable landmark, neighborhood, or tourist spot. Omit for small unknown local venues.
+- For each stop, include lat and lng (WGS84 decimal degrees) when the location is a recognizable landmark or tourist spot. Omit for small unknown local venues.
 - Output ONLY the tool call. No prose.`
 
 // duration_days → fetch 할 content_type_id 목록
@@ -152,21 +178,89 @@ function shuffleArray<T>(arr: T[]): T[] {
   return a
 }
 
+// 카테고리별 선택 개수 산출
+function computeAllocations(duration_days: number): Record<number, number> {
+  if (duration_days === 1) {
+    return { 12: 6, 14: 5, 39: 6, 38: 4, 15: 3 } // 합계 24
+  }
+  const total = Math.max(24, duration_days * 8)
+  const ratios: Record<number, number> = { 12: 0.30, 14: 0.20, 39: 0.25, 38: 0.10, 32: 0.10, 15: 0.05 }
+  const alloc: Record<number, number> = {}
+  let sum = 0
+  for (const [k, r] of Object.entries(ratios)) {
+    alloc[Number(k)] = Math.floor(total * r)
+    sum += alloc[Number(k)]
+  }
+  // 반올림 오차 보정 — 비율 큰 순서로 1씩 추가
+  const fillOrder = [12, 39, 14, 38, 32, 15]
+  let rem = total - sum
+  for (const k of fillOrder) {
+    if (rem <= 0) break
+    alloc[k]++
+    rem--
+  }
+  return alloc
+}
+
+type SpotItem = {
+  name: string
+  address: string
+  area_code: number | null
+  content_type_id: number
+  type: string
+  lat: number | null
+  lng: number | null
+}
+
+// 카테고리별 균등 배분 — 부족한 카테고리는 잉여로 보충
+function selectByCategory(spots: SpotItem[], duration_days: number): SpotItem[] {
+  const alloc = computeAllocations(duration_days)
+  const byType = new Map<number, SpotItem[]>()
+  for (const s of spots) {
+    const arr = byType.get(s.content_type_id) ?? []
+    arr.push(s)
+    byType.set(s.content_type_id, arr)
+  }
+  for (const [k, v] of byType) byType.set(k, shuffleArray(v))
+
+  const selected: SpotItem[] = []
+  const surplus: SpotItem[] = []
+  let deficit = 0
+
+  for (const [typeIdStr, count] of Object.entries(alloc)) {
+    const typeId = Number(typeIdStr)
+    const pool = byType.get(typeId) ?? []
+    selected.push(...pool.slice(0, count))
+    surplus.push(...pool.slice(count))
+    deficit += Math.max(0, count - pool.length)
+  }
+  // 부족분 보충 — 잉여 스팟 셔플 후 슬라이스
+  if (deficit > 0 && surplus.length > 0) {
+    selected.push(...shuffleArray(surplus).slice(0, deficit))
+  }
+  return shuffleArray(selected)
+}
+
 // ─── 컨텍스트 fetch — 출발·도착 지역 spots ──────────────────────
 async function fetchContext(
   supabase: ReturnType<typeof createSupabaseServerClient> extends Promise<infer T> ? T : never,
   area_codes: number[],
   duration_days: number,
+  arrival_region: string,
 ) {
-  const contentTypes = LENGTH_CONTENT_TYPES[duration_days] ?? [12, 14, 32, 38, 15, 39]
+  const contentTypes = LENGTH_CONTENT_TYPES[duration_days] ?? [12, 14, 15, 38, 39]
 
-  // 일수가 길수록 더 많은 스팟 필요 — 하루 8건 기준 + 셔플 여유분(×2)
-  const spotsPerRegion = Math.max(24, duration_days * 16)
+  // 반경 필터 기준 (km): 1d=10km / 2d=20km / 3d+=30km
+  // 반경 필터 후 충분한 pool 확보 위해 fetch 여유분 확대
+  const radiusKm = duration_days <= 1 ? 10 : duration_days <= 2 ? 20 : 30
+  const centroid = ARRIVAL_CENTROIDS[arrival_region] ?? null
+
+  const spotsPerRegion = Math.max(48, duration_days * 32)
   const tourPromise =
     area_codes.length > 0
       ? supabase
           .from("tour_spots")
-          .select("eng_title, title, addr1, area_code, content_type_id")
+          .select("eng_title, title, addr1, area_code, content_type_id, latitude, longitude")
           .in("area_code", area_codes)
           .in("content_type_id", contentTypes)
           .not("image_url", "is", null)
@@ -175,26 +269,39 @@ async function fetchContext(
 
   const tour = await tourPromise
 
-  const tourList = ((tour.data ?? []) as Array<{
+  const rawList: SpotItem[] = ((tour.data ?? []) as Array<{
     eng_title: string | null
     title: string
     addr1: string | null
     area_code: number | null
     content_type_id: number
+    latitude: number | null
+    longitude: number | null
   }>).map((r) => ({
     name: (r.eng_title ?? r.title).trim(),
     address: r.addr1 ?? "",
     area_code: r.area_code,
+    content_type_id: r.content_type_id,
     type: r.content_type_id === 12 ? "attraction"
         : r.content_type_id === 14 ? "culture"
         : r.content_type_id === 38 ? "shopping"
         : r.content_type_id === 39 ? "food"
         : r.content_type_id === 32 ? "stay"
         : "festival",
+    lat: r.latitude != null ? Number(r.latitude) : null,
+    lng: r.longitude != null ? Number(r.longitude) : null,
   }))
 
-  // 재검색 시 다른 spot 조합 반환 — 셔플 후 슬라이스
-  return { tour: shuffleArray(tourList) }
+  // 반경 필터 — lat/lng 없는 spot은 통과
+  const filtered = centroid
+    ? rawList.filter((s) => {
+        if (s.lat == null || s.lng == null) return true
+        return haversineKm(centroid.lat, centroid.lng, s.lat, s.lng) <= radiusKm
+      })
+    : rawList
+
+  // 카테고리별 균등 배분 선택
+  return { tour: selectByCategory(filtered, duration_days) }
 }
 
 const anthropic = new Anthropic()
@@ -239,7 +346,7 @@ export async function POST(request: Request) {
   const sameRegion = departure_region === arrival_region
 
   // 3) 컨텍스트 fetch — 출발+도착 양쪽 spots (duration 기반 content_type 분기)
-  const context = await fetchContext(supabase, areaCodes, duration_days)
+  const context = await fetchContext(supabase, areaCodes, duration_days, arrival_region)
 
   const formatTourLine = (t: {
     name: string
