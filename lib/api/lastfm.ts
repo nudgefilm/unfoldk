@@ -99,7 +99,8 @@ interface LastfmGeoTopArtistsResponse {
 // K팝 한정 필터는 API 측에 없음 — 호출자가 결과를 kpop_artists 와 join 해 K팝만 추리는 패턴.
 export async function getGeoTopArtists(
   country: string,
-  limit = 50
+  limit = 50,
+  opts?: { noCache?: boolean }
 ): Promise<LastfmGeoArtist[]> {
   const params = new URLSearchParams({
     method: "geo.gettopartists",
@@ -109,9 +110,9 @@ export async function getGeoTopArtists(
     limit: String(Math.min(1000, Math.max(1, limit))),
   })
 
-  const res = await fetch(`${LASTFM_BASE}?${params}`, {
-    next: { revalidate: 86400 }, // 24h
-  })
+  const res = await fetch(`${LASTFM_BASE}?${params}`,
+    opts?.noCache ? { cache: "no-store" } : { next: { revalidate: 86400 } }
+  )
   if (!res.ok) {
     console.warn(`[lastfm] geo.gettopartists "${country}" ${res.status}`)
     return []

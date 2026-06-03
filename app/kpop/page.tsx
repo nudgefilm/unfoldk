@@ -314,6 +314,12 @@ export default function KpopStatsPage() {
     AE: "UAE",
     // 기타
     ZA: "South Africa",
+    UA: "Ukraine",
+    KZ: "Kazakhstan",
+    BE: "Belgium",
+    AT: "Austria",
+    DK: "Denmark",
+    IE: "Ireland",
   }
 
   // 차트 노출 행 — 전면 무료 개방. API 가 already Top 20 반환. 검색 활성 시 차트 섹션 hide.

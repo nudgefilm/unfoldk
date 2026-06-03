@@ -81,6 +81,13 @@ const GEO_COUNTRIES = [
   { code: "SA", name: "Saudi Arabia" },
   // 아프리카·기타
   { code: "ZA", name: "South Africa" },
+  // 추가 후보 — 기존 40개 중 19개만 매칭되어 확장
+  { code: "UA", name: "Ukraine" },
+  { code: "KZ", name: "Kazakhstan" },
+  { code: "BE", name: "Belgium" },
+  { code: "AT", name: "Austria" },
+  { code: "DK", name: "Denmark" },
+  { code: "IE", name: "Ireland" },
 ] as const
 
 // 주간 K-pop 차트 fetch 시 받아올 최대 인원수. Last.fm tag.getTopArtists
@@ -595,8 +602,8 @@ export async function runKpopStatsIngest(
     // Last.fm rate limit 준수: 5 req/초 → 200ms delay (첫 호출 제외)
     if (ci > 0) await new Promise((r) => setTimeout(r, 200))
     try {
-      // limit=1000: 대형 시장(US·UK 등)에서 하위 순위 K팝 아티스트도 포착
-      const geoArtists = await getGeoTopArtists(country.name, 1000)
+      // limit=1000, noCache: 매일 실데이터 수집 (24h Next.js 캐시 우회)
+      const geoArtists = await getGeoTopArtists(country.name, 1000, { noCache: true })
 
       // K팝 아티스트 교차 매칭 + 청취자 수 수집
       const kpopArtists: Array<{ artistId: string; artistName: string; listeners: number }> = []
