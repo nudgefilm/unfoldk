@@ -4,6 +4,59 @@
 
 ---
 
+## 현재 상태 (2026-06-03 세션 46 기준)
+
+### 전체 사이트 코드 검수 — 즉시·개선·마이너 항목 처리
+
+전체 10개 페이지 코드 레벨 검수 후 즉시 수정 6건 + 개선 권장 13건 + 마이너 8건 = **총 27개 항목 수정** (2 커밋).
+
+**즉시 수정 (커밋 c763373)**
+
+| 항목 | 파일 | 내용 |
+|------|------|------|
+| Pro 게이트 우회 버그 | `app/food/page.tsx` | `WeeklyPicksSection isPro={true}` → `isPro={isPro}` |
+| Mock 구독 데이터 | `app/mypage/page.tsx` | 하드코딩 "Hallyu Pass Active" 제거, `plan_type`/`trial_ends_at` 실데이터 분기 |
+| 한국어 UI 노출 | `app/kpop/page.tsx` | 차트 Change 열·Top Movers 헤딩 전체 영문 교체 |
+| 한국어 UI 노출 | `app/calendar/page.tsx` | "이번 주 놓치면 안 될 한류 일정" → 영문 |
+| 한국어 UI 노출 | `app/korean/korean-content.tsx` | 에러 메시지·also-in 문구 영문 교체 |
+| 지원 링크 오류 | `app/mypage/settings/page.tsx` | `href="/contact"` → `mailto:support@unfoldk.com` |
+
+**개선 권장 (커밋 c763373)**
+
+| 항목 | 파일 | 내용 |
+|------|------|------|
+| 모바일 레이아웃 | `app/kpop/page.tsx` | Chart 테이블 `overflow-x-auto` + `min-w-[640px]` |
+| rAF 메모리 릭 | `components/kpop/chart-attack-tab.tsx` | `AnimatedCount` cleanup `cancelAnimationFrame` 추가 |
+| 캘린더 로딩 | `app/calendar/page.tsx` | `eventsLoading` 상태 + 그리드 스피너, Upcoming Empty State, Copy iCal 클립보드 복사 |
+| 모달 반응형 | `app/drama/page.tsx` | Cast `grid-cols-5` → `grid-cols-3 sm:grid-cols-5` |
+| watchlist 피드백 | `app/drama/page.tsx` | 추가/삭제/실패 toast 추가 |
+| 라우터 교체 | `app/curation-k/page.tsx` | `window.location.href` → `router.push` |
+| 모바일 내비 | `app/mypage/page.tsx` | 하단 고정 탭 바 추가 (`md:hidden`) |
+| 로딩 스피너 | `app/mypage/subscription/page.tsx` | `!isLoaded ? null` → 스피너 |
+| Pro CTA 분기 | `app/food/page.tsx`, `app/calendar/page.tsx` | 비로그인 → `/signup`, 로그인 Free → `/pricing` |
+| Quiz 에러 상태 | `app/korean/korean-content.tsx` | fetch 실패 시 "Failed to load quiz." 표시 |
+| pricing 라우트 | `app/pricing/page.tsx` *(신규)* | `/pricing` 독립 페이지 생성 |
+
+**마이너 (커밋 8090df1)**
+
+| 항목 | 파일 | 내용 |
+|------|------|------|
+| 중복 클래스 | `app/kpop/page.tsx` | Link 요소 `block` 제거, `flex`만 유지 |
+| 초기 깜빡임 | `chart-attack-tab.tsx` | Golden Hour 초기값 `""` → `"--:--"` |
+| pulse 분리 | `chart-attack-tab.tsx` | DANGER 카드 `animate-pulse` → border overlay 레이어로 분리 (버튼 제외) |
+| useCallback | `chart-attack-tab.tsx` | `fetchInsight` useCallback 감싸기 |
+| Grammar 수동화 | `app/korean/korean-content.tsx` | 자동 호출 제거 → "Analyze Grammar" 버튼 + phraseId 캐시 |
+| useMemo 안정화 | `app/calendar/page.tsx` | `visibleRegions` useMemo화 |
+| 버튼 분기 | `app/kpop/page.tsx` | Track this artist: 비로그인/Free/Pro 3단계 분기 |
+| fetch 우선순위 | `app/curation-k/page.tsx` | mount fetch 6개 → 1·2·3순위 순차 Promise.all |
+| pathname active | `app/mypage/page.tsx` | `usePathname` 동적 active, hardcoded `active` 프로퍼티 제거 |
+
+**확인 사항**
+- `app/privacy/page.tsx`, `app/terms/page.tsx`, `app/gdpr/page.tsx` 모두 존재 확인 → 수정 불필요
+- `drama/page.tsx` cast `profile_path` CDN prefix: ingest 단계(`tmdbProfileUrl()`)에서 이미 full URL 변환됨 → 수정 불필요
+
+---
+
 ## 현재 상태 (2026-06-03 세션 44~45 기준)
 
 ### KpopStats — Chart Attack 탭 마무리 (세션 45)
