@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { FooterSection } from "@/components/footer-section"
 import { Button } from "@/components/ui/button"
@@ -23,17 +24,17 @@ import {
 } from "lucide-react"
 
 const sidebarLinks = [
-  { icon: Home, label: "Dashboard", href: "/mypage", active: true },
-  { icon: Calendar, label: "My Calendar", href: "/mypage/calendar", active: false },
-  { icon: Music, label: "My Artists", href: "/mypage/artists", active: false },
-  { icon: Film, label: "My Dramas", href: "/mypage/dramas", active: false },
-  { icon: Languages, label: "Learning Progress", href: "/mypage/learning-progress", active: false },
-  { icon: UtensilsCrossed, label: "Saved Recipes", href: "/mypage/recipes", active: false },
-  { icon: MapPin, label: "My Curation", href: "/mypage/curation", active: false },
-  { icon: PartyPopper, label: "My Fan Events", href: "/mypage/fan-events", active: false },
-  { icon: Newspaper, label: "Weekly Reports", href: "/mypage/reports", active: false },
-  { icon: CreditCard, label: "Subscription", href: "/mypage/subscription", active: false },
-  { icon: Settings, label: "Settings", href: "/mypage/settings", active: false },
+  { icon: Home, label: "Dashboard", href: "/mypage" },
+  { icon: Calendar, label: "My Calendar", href: "/mypage/calendar" },
+  { icon: Music, label: "My Artists", href: "/mypage/artists" },
+  { icon: Film, label: "My Dramas", href: "/mypage/dramas" },
+  { icon: Languages, label: "Learning Progress", href: "/mypage/learning-progress" },
+  { icon: UtensilsCrossed, label: "Saved Recipes", href: "/mypage/recipes" },
+  { icon: MapPin, label: "My Curation", href: "/mypage/curation" },
+  { icon: PartyPopper, label: "My Fan Events", href: "/mypage/fan-events" },
+  { icon: Newspaper, label: "Weekly Reports", href: "/mypage/reports" },
+  { icon: CreditCard, label: "Subscription", href: "/mypage/subscription" },
+  { icon: Settings, label: "Settings", href: "/mypage/settings" },
 ]
 
 // 대시보드 4 stat — 모두 실데이터 (`/api/mypage/stats` 1 round-trip)
@@ -68,7 +69,10 @@ function planLabel(planType: string | null | undefined): string {
 }
 
 export default function MyPage() {
-  const [activeLink, setActiveLink] = useState("Dashboard")
+  const pathname = usePathname()
+  // pathname 기반 active 판별 — "/mypage" 는 완전 일치, 하위 경로는 startsWith
+  const isLinkActive = (href: string) =>
+    href === "/mypage" ? pathname === href : pathname.startsWith(href)
   const [userName, setUserName] = useState<string>("")
   const [userInitial, setUserInitial] = useState<string>("")
   const [userAvatar, setUserAvatar] = useState<string | null>(null)
@@ -274,15 +278,14 @@ export default function MyPage() {
           {/* Navigation Links */}
           <nav className="flex flex-col gap-1">
             {sidebarLinks.map((link) => {
-              const isActive = link.label === activeLink
+              const isActive = isLinkActive(link.href)
               return (
                 <Link
                   key={link.label}
                   href={link.href}
-                  onClick={() => setActiveLink(link.label)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative ${
-                    isActive 
-                      ? "bg-[#1a1a1a] text-foreground" 
+                    isActive
+                      ? "bg-[#1a1a1a] text-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-[#1a1a1a]/50"
                   }`}
                 >
@@ -516,7 +519,7 @@ export default function MyPage() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0d0d0f] border-t border-border/30 flex items-center justify-around px-2 py-2">
         {sidebarLinks.slice(0, 5).map((link) => {
           const Icon = link.icon
-          const isActive = link.href === "/mypage"
+          const isActive = isLinkActive(link.href)
           return (
             <Link
               key={link.label}
@@ -532,7 +535,9 @@ export default function MyPage() {
         })}
         <Link
           href="/mypage/subscription"
-          className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors text-muted-foreground"
+          className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors ${
+            pathname.startsWith("/mypage/subscription") ? "text-primary" : "text-muted-foreground"
+          }`}
         >
           <CreditCard className="w-5 h-5" />
           <span className="text-[10px] font-medium leading-tight">Plan</span>

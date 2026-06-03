@@ -1074,11 +1074,14 @@ export default function HallyuCalendarPage() {
     (e) => activeTab === "All" || e.type === activeTab
   )
 
-  // 권역별 0건 칩 미노출 — 빈 필터 클릭 후 결과 0건 UX 방지.
+  // 권역별 0건 칩 미노출 — useMemo 로 stable reference 유지 (매 렌더 새 배열 방지).
   //   ALL 은 항상 노출 (이벤트 0건이어도 reset 진입점).
   //   그 외는 현재 type 탭 기준 1건이라도 있을 때만 노출.
-  const visibleRegions = REGION_FILTERS.filter(
-    (r) => r.code === "ALL" || eventsByTypeOnly.some((e) => eventMatchesRegion(e, r.code))
+  const visibleRegions = useMemo(
+    () => REGION_FILTERS.filter(
+      (r) => r.code === "ALL" || eventsByTypeOnly.some((e) => eventMatchesRegion(e, r.code))
+    ),
+    [eventsByTypeOnly]
   )
 
   // 사용자가 선택한 권역이 탭 전환 등으로 0건이 되면 ALL 로 자동 복귀 — 빈 결과 화면 방지.

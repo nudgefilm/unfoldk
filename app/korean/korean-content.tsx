@@ -154,9 +154,10 @@ export function KoreanContent() {
   const [quizResult, setQuizResult] = useState<"correct" | "wrong" | null>(null)
   const [quizSubmitting, setQuizSubmitting] = useState(false)
 
-  // 5. AI Grammar (Pro)
+  // 5. AI Grammar (Pro) — 수동 버튼 트리거, phraseId 기준 캐시
   const [grammar, setGrammar] = useState<string | null>(null)
   const [grammarLoading, setGrammarLoading] = useState(false)
+  const grammarCache = useRef<Map<string, string>>(new Map())
 
   // 6. Drama Pack 모달 — 카드 클릭 시 해당 드라마의 표현 목록 노출
   const [packModalDramaId, setPackModalDramaId] = useState<string | null>(null)
@@ -478,20 +479,27 @@ export function KoreanContent() {
     }
   }, [packModalDramaId])
 
-  // ─── AI Grammar fetch (Pro 유저 + phrase 준비 시)
+  // ─── AI Grammar — 표현 변경 시 캐시 확인 후 결과 복원 (자동 API 호출 없음)
   useEffect(() => {
+    if (!isPro || !phrase) { setGrammar(null); return }
+    const cached = grammarCache.current.get(phrase.id)
+    setGrammar(cached ?? null)
+  }, [isPro, phrase])
+
+  // ─── AI Grammar 수동 fetch — "Analyze Grammar" 버튼 클릭 시만 실행
+  const fetchGrammarForPhrase = useCallback(async () => {
     if (!isPro || !phrase) return
-    // sentinel id 는 grammar API 가 422 (fallback_phrase) 반환 — 호출 자체 skip 으로 로그 절약.
     if (phrase.id.startsWith("fallback-")) {
-      console.warn(
-        `[korean] grammar skip — phrase 가 fallback (id=${phrase.id}). 실제 phrase 생성 후 재시도.`
-      )
-      setGrammar(null)
+      console.warn(`[korean] grammar skip — fallback phrase (id=${phrase.id})`)
+      return
+    }
+    // 캐시 히트 — 재호출 불필요
+    if (grammarCache.current.has(phrase.id)) {
+      setGrammar(grammarCache.current.get(phrase.id) ?? null)
       return
     }
     setGrammar(null)
     setGrammarLoading(true)
-    console.log(`[korean] grammar fetch 시작 phraseId=${phrase.id}`)
     fetch("/api/korean/grammar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -499,24 +507,15 @@ export function KoreanContent() {
     })
       .then(async (res) => {
         const body = await res.json().catch(() => ({}))
-        if (!res.ok) {
-          // 실패 응답을 그대로 reject 에 실어 보냄 — catch 에서 reason/detail 확인 가능
-          return Promise.reject({ status: res.status, body })
-        }
+        if (!res.ok) return Promise.reject({ status: res.status, body })
         return body
       })
       .then((body: { explanation: string; cached?: boolean }) => {
-        console.log(`[korean] grammar loaded cached=${body.cached}`)
+        grammarCache.current.set(phrase.id, body.explanation)
         setGrammar(body.explanation)
       })
       .catch((err) => {
-        console.error(
-          "[korean] grammar fetch 실패:",
-          `status=${err?.status ?? "?"}`,
-          `error=${err?.body?.error ?? "?"}`,
-          `reason=${err?.body?.reason ?? "?"}`,
-          `detail=${err?.body?.detail ?? "?"}`
-        )
+        console.error("[korean] grammar fetch 실패:", err?.status, err?.body?.error)
         setGrammar(null)
       })
       .finally(() => setGrammarLoading(false))
@@ -1334,9 +1333,19 @@ export function KoreanContent() {
                     )}
                   </>
                 ) : (
-                  <p className="text-muted-foreground text-sm">
-                    Grammar explanation unavailable for this phrase.
-                  </p>
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground text-sm mb-4">
+                      Get a detailed grammar breakdown for this expression.
+                    </p>
+                    <Button
+                      onClick={fetchGrammarForPhrase}
+                      disabled={!phrase || phrase.id.startsWith("fallback-")}
+                      className="rounded-full font-medium text-white px-6"
+                      style={{ backgroundColor: "#FF4B6E" }}
+                    >
+                      Analyze Grammar
+                    </Button>
+                  </div>
                 )
               ) : (
                 // 비-Pro placeholder (실제 보이지 않지만 레이아웃 공간 확보)

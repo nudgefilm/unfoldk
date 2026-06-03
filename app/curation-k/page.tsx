@@ -770,21 +770,54 @@ export default function CurationKPage() {
     })
   }, [])
 
-  // ─── 3. 지도 핀 — filming spots (confirmed only, GPS 보유) ───
-  // SVG 내부에 그리지 않고, sibling absolute overlay 레이어에 HTML 핀으로 렌더 (CLAUDE.md §6).
+  // ─── 3–6. 마운트 fetch 우선순위 순차 실행 ─────────────────
+  // 1순위(즉시): 핵심 UI — 지도 핀 + 지도 통계
+  // 2순위(1순위 후): 카드 섹션 — K팝 성지 + Food 오버레이 핀 + 드라마 옵션
+  // 3순위(2순위 후): 보조 콘텐츠 — Stays 오버레이 핀
   useEffect(() => {
-    fetch("/api/curation-k/map")
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { pins: MapFilmingPin[] }) => {
-        // /map 응답은 filming + kpop 양쪽 포함 — 본 페이지는 filming 만 사용. kpop 은 /kpop-spots 에서.
-        const filming = (body.pins ?? []).filter((p) => p.category === "filming")
-        setFilmingMapPins(filming)
-      })
-      .catch((err) => {
-        console.warn("[curation-k] map filming pins fetch 실패:", err)
-        setFilmingMapPins([])
-      })
-  }, [])
+    // 1순위 — 즉시 병렬
+    Promise.all([
+      fetch("/api/curation-k/map")
+        .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+        .then((body: { pins: MapFilmingPin[] }) => {
+          const filming = (body.pins ?? []).filter((p) => p.category === "filming")
+          setFilmingMapPins(filming)
+        })
+        .catch((err) => { console.warn("[curation-k] map filming pins fetch 실패:", err); setFilmingMapPins([]) }),
+      fetch("/api/curation-k/stats")
+        .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+        .then((body: CurationStats) => setStats(body))
+        .catch((err) => console.warn("[curation-k] stats fetch 실패:", err)),
+    ])
+    .then(() =>
+      // 2순위 — 1순위 완료 후 병렬
+      Promise.all([
+        (() => {
+          setKpopLoading(true)
+          return fetch("/api/curation-k/kpop-spots?limit=12")
+            .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+            .then((body: { items: KpopSpotItem[] }) => setKpopSpots(shuffleArray(body.items ?? [])))
+            .catch((err) => console.warn("[curation-k] kpop fetch 실패:", err))
+            .finally(() => setKpopLoading(false))
+        })(),
+        fetch(`/api/curation-k/food?area=${foodArea}&limit=8`)
+          .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+          .then((body: { items: TourSpotItem[] }) => setFoodItems(body.items ?? []))
+          .catch((err) => console.warn("[curation-k] food fetch 실패:", err)),
+        fetch("/api/curation-k/dramas")
+          .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+          .then((body: { items: DramaTitleOption[] }) => setDramaOptions(body.items ?? []))
+          .catch((err) => console.warn("[curation-k] dramas fetch 실패:", err)),
+      ])
+    )
+    .then(() =>
+      // 3순위 — 2순위 완료 후
+      fetch(`/api/curation-k/stays?area=${stayArea}&limit=8`)
+        .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+        .then((body: { items: TourSpotItem[] }) => setStayItems(body.items ?? []))
+        .catch((err) => console.warn("[curation-k] stays fetch 실패:", err))
+    )
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── 4. 통합 탭 그리드 fetch ───────────────────────────────
   // 탭·필터 변경 시 page 1 로 리셋 (별도 effect)
@@ -798,24 +831,6 @@ export default function CurationKPage() {
       setFilterDrama("all")
     }
   }, [activeTab, filterDrama])
-
-  // 드라마 옵션 — mount 시 1회 fetch
-  useEffect(() => {
-    fetch("/api/curation-k/dramas")
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { items: DramaTitleOption[] }) =>
-        setDramaOptions(body.items ?? [])
-      )
-      .catch((err) => console.warn("[curation-k] dramas fetch 실패:", err))
-  }, [])
-
-  // 지도 통계 — mount 시 1회 fetch
-  useEffect(() => {
-    fetch("/api/curation-k/stats")
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: CurationStats) => setStats(body))
-      .catch((err) => console.warn("[curation-k] stats fetch 실패:", err))
-  }, [])
 
   // My Hallyu Course — Pro 진입 시 저장 코스 목록 fetch
   useEffect(() => {
@@ -1084,32 +1099,7 @@ export default function CurationKPage() {
     }
   }, [activeTab, spotsPage, filterArea, filterDrama])
 
-  // ─── 5. K팝 성지 카드 ──────────────────────────────────────
-  useEffect(() => {
-    setKpopLoading(true)
-    fetch("/api/curation-k/kpop-spots?limit=12")
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { items: KpopSpotItem[] }) => setKpopSpots(shuffleArray(body.items ?? [])))
-      .catch((err) => console.warn("[curation-k] kpop fetch 실패:", err))
-      .finally(() => setKpopLoading(false))
-  }, [])
-
-  // ─── 6. Food / Stays — hero 오버레이 핀 전용 (Seoul 고정, mount 시 1회) ──
-  useEffect(() => {
-    fetch(`/api/curation-k/food?area=${foodArea}&limit=8`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { items: TourSpotItem[] }) => setFoodItems(body.items ?? []))
-      .catch((err) => console.warn("[curation-k] food fetch 실패:", err))
-  }, [])
-
-  useEffect(() => {
-    fetch(`/api/curation-k/stays?area=${stayArea}&limit=8`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((body: { items: TourSpotItem[] }) => setStayItems(body.items ?? []))
-      .catch((err) => console.warn("[curation-k] stays fetch 실패:", err))
-  }, [])
-
-  // ─── 7. Geo widget ────────────────────────────────────────
+  // ─── 5. Geo widget ────────────────────────────────────────
   useEffect(() => {
     setGeoLoading(true)
     fetch(`/api/curation-k/geo-artists?country=${encodeURIComponent(geoCountry)}&limit=8`)

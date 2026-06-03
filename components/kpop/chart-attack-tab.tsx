@@ -196,7 +196,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
   // ─── Golden Hour — 07:00 UTC를 현지 시간으로 변환 ─────────
   // useMemo 대신 useEffect+useState: SSR 시 서버 타임존으로 실행되는 것 방지
   // toLocaleTimeString "en-US" 고정: 브라우저 로케일이 한국어여도 English 출력
-  const [localDeadline, setLocalDeadline] = useState({ timeStr: "", city: "" })
+  const [localDeadline, setLocalDeadline] = useState({ timeStr: "--:--", city: "" })
   useEffect(() => {
     const target = new Date()
     target.setUTCHours(7, 0, 0, 0)
@@ -208,7 +208,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
   }, [])
 
   // ─── Chart Insight ───────────────────────────────────────
-  async function fetchInsight() {
+  const fetchInsight = useCallback(async () => {
     if (!insightArtistId) return
     setInsightText(null)
     setInsightLoading(true)
@@ -225,7 +225,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
     } finally {
       setInsightLoading(false)
     }
-  }
+  }, [insightArtistId])
 
   // ─── AI Share — chart 아이템(LastfmChartItem) 기반 ────────
   async function generateChartShare(item: LastfmChartItem) {
@@ -346,12 +346,16 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
         ) : (
           <div className="flex flex-col gap-3">
             {alertArtists.map(item => (
+              <div key={item.artist_id} className="relative">
+                {/* DANGER 카드만 border 레이어에 animate-pulse — 버튼은 pulse 대상 제외 */}
+                {item.alertType === "danger" && (
+                  <span className="absolute inset-0 rounded-2xl border border-red-500/40 animate-pulse pointer-events-none" />
+                )}
               <div
-                key={item.artist_id}
                 className={`rounded-2xl p-4 flex items-center gap-4 ${
                   item.alertType === "almost"
                     ? "bg-yellow-500/10 border border-yellow-500/30"
-                    : "bg-red-500/10 border border-red-500/40 animate-pulse"
+                    : "bg-red-500/10 border border-red-500/40"
                 }`}
               >
                 <Avatar src={item.thumbnail_url} alt={item.name} size={12} />
@@ -392,6 +396,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
                 >
                   🚨 Tweet Now
                 </button>
+              </div>
               </div>
             ))}
           </div>

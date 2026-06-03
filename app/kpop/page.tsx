@@ -472,7 +472,7 @@ export default function KpopStatsPage() {
                 <AuthGate key={item.artist_id} isLoggedIn={isLoggedIn}>
                 <Link
                   href={`/kpop/${item.artist_id}`}
-                  className="block bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex flex-col items-center text-center cursor-pointer hover:bg-[#2a2a2c] hover:border-primary/40 transition-colors"
+                  className="flex flex-col items-center text-center bg-[#1a1a1a] border border-border/30 rounded-xl p-4 cursor-pointer hover:bg-[#2a2a2c] hover:border-primary/40 transition-colors"
                 >
                   {/* Rank badge — 좌상단 absolute 대신 상단 inline */}
                   <span
@@ -540,7 +540,7 @@ export default function KpopStatsPage() {
                 <AuthGate key={item.artist_id} isLoggedIn={isLoggedIn}>
                 <Link
                   href={`/kpop/${item.artist_id}`}
-                  className="block bg-[#1a1a1a] border border-border/30 rounded-xl p-4 flex items-center gap-4 hover:bg-[#2a2a2c] hover:border-green-500/40 transition-colors"
+                  className="flex items-center gap-4 bg-[#1a1a1a] border border-border/30 rounded-xl p-4 hover:bg-[#2a2a2c] hover:border-green-500/40 transition-colors"
                 >
                   {/* 상승폭 배지 */}
                   <div className="flex-shrink-0 w-14 h-14 rounded-xl bg-green-500/10 flex flex-col items-center justify-center gap-0.5">
@@ -756,7 +756,7 @@ export default function KpopStatsPage() {
                     </div>
                   </div>
                 </div>
-                {!isLoggedIn && (
+                {!isLoggedIn ? (
                   <Button
                     onClick={() => setKpopStartOpen(true)}
                     className="flex-shrink-0 px-6 py-2 rounded-full font-medium text-white whitespace-nowrap"
@@ -764,7 +764,15 @@ export default function KpopStatsPage() {
                   >
                     Track this artist
                   </Button>
-                )}
+                ) : !isPro ? (
+                  <Link
+                    href="/pricing"
+                    className="flex-shrink-0 px-6 py-2 rounded-full font-medium text-white whitespace-nowrap text-sm"
+                    style={{ backgroundColor: "#FF4B6E" }}
+                  >
+                    Get notified with Hallyu Pass
+                  </Link>
+                ) : null}
               </div>
 
               {/* Stats Boxes */}
