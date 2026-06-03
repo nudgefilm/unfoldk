@@ -19,6 +19,8 @@ const StopSchema = z.object({
   reason: z.string().max(800).optional().default(""),
   transport: z.string().max(160).optional().default(""),
   duration_minutes: z.number().int().min(0).max(720).optional().default(0),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
 })
 
 const DaySchema = z.object({
@@ -77,6 +79,35 @@ export async function POST(request: Request) {
   }
   const { duration_days, departure_region, arrival_region, itinerary } = parsed.data
 
+  // lat/lng 없는 stop 보완 — tour_spots eng_title ILIKE 매칭 (전체 병렬)
+  type StopData = z.infer<typeof StopSchema>
+  const enrichSlot = async (stops: StopData[]): Promise<StopData[]> =>
+    Promise.all(stops.map(async (s) => {
+      if (s.lat != null && s.lng != null) return s
+      const { data } = await supabase
+        .from("tour_spots")
+        .select("latitude, longitude")
+        .ilike("eng_title", `%${s.name}%`)
+        .not("latitude", "is", null)
+        .not("longitude", "is", null)
+        .limit(1)
+        .maybeSingle()
+      if (data?.latitude != null && data?.longitude != null) {
+        return { ...s, lat: Number(data.latitude), lng: Number(data.longitude) }
+      }
+      return s
+    }))
+
+  const enrichedDays = await Promise.all(
+    itinerary.days.map(async (day) => ({
+      ...day,
+      morning:   await enrichSlot(day.morning),
+      afternoon: await enrichSlot(day.afternoon),
+      evening:   await enrichSlot(day.evening),
+    }))
+  )
+  const enrichedItinerary = { days: enrichedDays }
+
   // 사용자별 저장 cap — 6건 초과 시 가장 오래된 코스 자동 삭제
   const { count: existingCount } = await supabase
     .from("hallyu_courses")
@@ -103,7 +134,7 @@ export async function POST(request: Request) {
     duration_days,
     departure_region,
     arrival_region,
-    itinerary,
+    itinerary: enrichedItinerary,
     generated_at: new Date().toISOString(),
   }
 
