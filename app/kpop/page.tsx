@@ -424,26 +424,29 @@ export default function KpopStatsPage() {
         </section>
 
         {/* 탭 네비게이션 */}
-        <div className="flex gap-2 mb-8 border-b border-border/20 pb-0">
+        <div className="flex gap-2 mb-8 sticky top-[72px] z-10 bg-[#0d0d0f] py-3">
           <button
             onClick={() => setActiveTab("charts")}
-            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${
+            className={`px-5 py-2.5 text-sm font-medium rounded-full transition-colors ${
               activeTab === "charts"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                ? "bg-[#FF4B6E] text-white"
+                : "border border-gray-600 text-muted-foreground hover:border-gray-400 hover:text-foreground"
             }`}
           >
             📊 Charts
           </button>
           <button
             onClick={() => setActiveTab("chart-attack")}
-            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px flex items-center gap-1.5 ${
+            className={`relative px-5 py-2.5 text-sm font-medium rounded-full transition-colors flex items-center gap-1.5 ${
               activeTab === "chart-attack"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                ? "bg-[#FF4B6E] text-white"
+                : "border border-gray-600 text-muted-foreground hover:border-gray-400 hover:text-foreground"
             }`}
           >
             🔥 Chart Attack
+            {activeTab !== "chart-attack" && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            )}
           </button>
         </div>
 
