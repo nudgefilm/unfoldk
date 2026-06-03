@@ -131,9 +131,16 @@ export interface KpopStatsIngestResult {
 interface KpopArtistRow {
   id: string
   name: string
+  name_ko: string | null
   youtube_channel_id: string | null
   lastfm_name: string | null
   thumbnail_url: string | null
+}
+
+// 유니코드 normalize — 문자·숫자만 유지, 소문자화 (한글 포함)
+// "LE SSERAFIM" → "lesserafim", "방탄소년단" → "방탄소년단"
+function normalizeArtistName(s: string): string {
+  return s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "")
 }
 
 // 단일 또는 다수 아티스트 통계 갱신
@@ -147,7 +154,7 @@ export async function runKpopStatsIngest(
   // 1. 대상 아티스트 조회
   let query = supabase
     .from("kpop_artists")
-    .select("id, name, youtube_channel_id, lastfm_name, thumbnail_url")
+    .select("id, name, name_ko, youtube_channel_id, lastfm_name, thumbnail_url")
     .eq("is_active", true)
 
   if (artistIds && artistIds.length > 0) {
@@ -551,11 +558,29 @@ export async function runKpopStatsIngest(
   //   4. 오늘 기존 데이터 삭제 후 선정된 20개국 Top 10 신규 저장
   let countryChartsCollected = 0
 
-  // nameToId 맵 — 이미 로드된 artists 재사용
+  // K팝 아티스트 매칭 맵 — 3단계 키 (lowercase, normalize, name_ko normalize)
+  // 예: "BTS" → lowercase "bts"  /  "LE SSERAFIM" → normalized "lesserafim"
+  //     "방탄소년단" → normalized "방탄소년단" (Last.fm KR 응답에 한글명 포함 대비)
   const geoNameToId = new Map<string, string>()
   for (const a of artists) {
     geoNameToId.set(a.name.toLowerCase(), a.id)
-    if (a.lastfm_name) geoNameToId.set(a.lastfm_name.toLowerCase(), a.id)
+    geoNameToId.set(normalizeArtistName(a.name), a.id)
+    if (a.lastfm_name) {
+      geoNameToId.set(a.lastfm_name.toLowerCase(), a.id)
+      geoNameToId.set(normalizeArtistName(a.lastfm_name), a.id)
+    }
+    if (a.name_ko) {
+      geoNameToId.set(a.name_ko.toLowerCase(), a.id)
+      geoNameToId.set(normalizeArtistName(a.name_ko), a.id)
+    }
+  }
+
+  // geo 매칭 헬퍼 — 3단계 순서로 시도
+  function matchGeoArtist(geoName: string): string | undefined {
+    return (
+      geoNameToId.get(geoName.toLowerCase()) ??
+      geoNameToId.get(normalizeArtistName(geoName))
+    )
   }
 
   type CountryKpopResult = {
@@ -575,11 +600,19 @@ export async function runKpopStatsIngest(
 
       // K팝 아티스트 교차 매칭 + 청취자 수 수집
       const kpopArtists: Array<{ artistId: string; artistName: string; listeners: number }> = []
+      const matchedIds = new Set<string>() // 중복 방지 (같은 artist가 여러 키로 매칭될 수 있음)
       for (const a of geoArtists) {
-        const artistId = geoNameToId.get(a.name.toLowerCase())
-        if (!artistId) continue
+        const artistId = matchGeoArtist(a.name)
+        if (!artistId || matchedIds.has(artistId)) continue
+        matchedIds.add(artistId)
         kpopArtists.push({ artistId, artistName: a.name, listeners: a.listeners ?? 0 })
       }
+
+      // 매칭 결과 로그 (디버깅용 — 운영 안정 후 제거 가능)
+      console.log(
+        `[geo] ${country.code}: ${geoArtists.length} total → ${kpopArtists.length} K-pop matched` +
+        (kpopArtists.length > 0 ? ` (${kpopArtists.slice(0, 3).map((x) => x.artistName).join(", ")}...)` : " ← 0건")
+      )
 
       if (kpopArtists.length === 0) continue
 
