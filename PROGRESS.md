@@ -6,6 +6,20 @@
 
 ## 현재 상태 (2026-06-04 세션 49 기준)
 
+### Curation K — My Hallyu Course 추가 개선 (세션 49 후속)
+
+**stop 좌표 보완 4단계 순차 매칭** (`save/route.ts`)
+- 1차: `eng_title ILIKE %name%`
+- 2차: `title ILIKE %name%`
+- 3차: 괄호 내용 추출 후 eng_title / title 재시도 (`"낙타트레킹 (Camel Trekking)"` → `"Camel Trekking"`)
+- 4차: 모두 실패 시 lat/lng null 유지
+
+**CourseMiniMap 핀 불일치 안내**
+- `totalStops` useMemo: 선택된 day 전체 stop 수
+- `dayStops.length < totalStops` 시 `AlertTriangle` + "{n} of {total} stops could not be mapped" 표시
+
+---
+
 ### Curation K — My Hallyu Course 전면 개편 (세션 49)
 
 **My Hallyu Course 입력 UI 개편**
