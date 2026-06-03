@@ -4336,26 +4336,20 @@ function CourseMiniMap({
               </g>
             )}
 
-            {/* 나침반 방향 — 네 모서리 */}
-            {[
-              { d: "N", x: W / 2, y: 10,    a: "middle" },
-              { d: "S", x: W / 2, y: H - 6, a: "middle" },
-              { d: "W", x: 8,     y: H / 2, a: "start"  },
-              { d: "E", x: W - 8, y: H / 2, a: "end"    },
-            ].map(({ d, x, y, a }) => (
-              <text
-                key={d}
-                x={x}
-                y={y}
-                textAnchor={a as "start" | "middle" | "end"}
-                dominantBaseline="central"
-                fill="rgba(255,255,255,0.40)"
-                fontSize="8"
-                fontWeight="600"
-              >
-                {d}
-              </text>
-            ))}
+            {/* 나침반 — 좌상단 컴팩트, 북쪽 화살 pulse */}
+            <g transform="translate(13,13)">
+              {/* 십자선 */}
+              <line x1="7" y1="1" x2="7" y2="13" stroke="rgba(255,255,255,0.20)" strokeWidth={0.8} />
+              <line x1="1" y1="7" x2="13" y2="7" stroke="rgba(255,255,255,0.20)" strokeWidth={0.8} />
+              {/* 남쪽 (고정, 흐림) */}
+              <polygon points="7,14 5.5,8 8.5,8" fill="rgba(255,255,255,0.18)" />
+              {/* 북쪽 화살 + N 라벨 — pulse */}
+              <g>
+                <animate attributeName="opacity" values="1;0.35;1" dur="2.5s" repeatCount="indefinite" />
+                <polygon points="7,0 5.5,6 8.5,6" fill="rgba(255,255,255,0.80)" />
+                <text x="7" y="-3" textAnchor="middle" fill="rgba(255,255,255,0.85)" fontSize="6" fontWeight="700">N</text>
+              </g>
+            </g>
           </svg>
         )}
       </div>
