@@ -193,16 +193,17 @@ function BuyerRegistrationForm() {
     setShowLoginLink(false)
 
     try {
-      const supabase = createSupabaseBrowserClient()
-
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { email_confirm: false } },
+      // 1. 서버사이드 API로 계정 생성 (확인 이메일 미발송)
+      const signupRes = await fetch("/api/kbeauty/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       })
-      if (authError) {
-        const msg = authError.message || ""
-        if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("already exists")) {
+      const signupData = await signupRes.json()
+
+      if (!signupRes.ok) {
+        const msg = signupData.error || ""
+        if (msg === "already_registered" || msg.toLowerCase().includes("already registered")) {
           setSubmitError("This email is already registered. Please log in.")
           setShowLoginLink(true)
         } else if (msg.toLowerCase().includes("password") || msg.includes("6 characters")) {
@@ -210,29 +211,28 @@ function BuyerRegistrationForm() {
         } else if (msg.toLowerCase().includes("network") || msg.toLowerCase().includes("fetch")) {
           setSubmitError("Please check your network connection.")
         } else {
-          setSubmitError(`An error occurred. (Error code: ${(authError as { status?: number }).status ?? msg}) Please contact support.`)
+          setSubmitError("An error occurred. Please contact support.")
         }
-        setIsSubmitting(false)
         return
       }
 
-      // signUp 직후 세션이 없는 경우(이메일 확인 대기) 강제 로그인으로 세션 확보
-      // 미들웨어가 beauty_buyers 레코드 조회 전에 user=null로 보고 /kbeauty로 튕기는 것을 방지
-      if (!authData.session) {
-        const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
-        if (signInErr) {
-          setSubmitError("Account created but login failed. Please log in from the login page.")
-          setShowLoginLink(true)
-          return
-        }
+      const supabase = createSupabaseBrowserClient()
+
+      // 2. 계정 생성 직후 로그인으로 세션 확보 (미들웨어 통과)
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+      if (signInErr) {
+        setSubmitError("Account created but login failed. Please log in from the login page.")
+        setShowLoginLink(true)
+        return
       }
 
+      // 3. beauty_buyers 레코드 삽입
       const websiteUrl = website
         ? /^https?:\/\//i.test(website) ? website : `https://${website}`
         : null
 
       const { error } = await supabase.from("beauty_buyers").insert({
-        user_id: authData.user?.id ?? null,
+        user_id: signupData.userId,
         company_name: companyName,
         business_email: email,
         website: websiteUrl,
