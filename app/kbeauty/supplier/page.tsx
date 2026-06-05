@@ -224,6 +224,9 @@ function SupplierForm() {
 
     try {
       const supabase = createSupabaseBrowserClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      console.log("session:", session)
+
       const { data: { user } } = await supabase.auth.getUser()
 
       const { error } = await supabase.from("beauty_suppliers").insert({
@@ -243,7 +246,7 @@ function SupplierForm() {
       })
 
       if (error) {
-        console.error("[supplier-submit]", error)
+        console.log("insert error:", JSON.stringify(error))
         setSubmitError("저장에 실패했습니다. 잠시 후 다시 시도해주세요.")
         return
       }
