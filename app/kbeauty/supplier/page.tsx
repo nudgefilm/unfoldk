@@ -169,6 +169,8 @@ function SupplierForm() {
   const [website, setWebsite] = useState("")
   const [fdaStatus, setFdaStatus] = useState("")
   const [categories, setCategories] = useState<string[]>([])
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
 
   const categoryOptions = [
     "스킨케어",
@@ -218,19 +220,29 @@ function SupplierForm() {
       setSubmitError("필수 항목을 모두 입력해주세요.")
       return
     }
+    if (!password || password.length < 8) {
+      setSubmitError("비밀번호는 8자 이상이어야 합니다.")
+      return
+    }
+    if (password !== confirmPassword) {
+      setSubmitError("비밀번호가 일치하지 않습니다.")
+      return
+    }
 
     setIsSubmitting(true)
     setSubmitError("")
 
     try {
       const supabase = createSupabaseBrowserClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      console.log("session:", session)
 
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
+      if (authError) {
+        setSubmitError(authError.message || "회원가입에 실패했습니다.")
+        return
+      }
 
       const { error } = await supabase.from("beauty_suppliers").insert({
-        user_id: user?.id ?? null,
+        user_id: authData.user?.id ?? null,
         business_registration_number: businessNumber.replace(/-/g, ""),
         business_registration_verified: true,
         company_name_ko: companyNameKo,
@@ -380,6 +392,36 @@ function SupplierForm() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="010-0000-0000"
+            className={inputBaseClass}
+          />
+        </div>
+
+        <div className="border-t border-[#E8E2DA] my-7" />
+
+        {/* Password */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+            비밀번호 <span className="text-[#1A3A5C]">*</span>
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="8자 이상 입력"
+            className={inputBaseClass}
+          />
+        </div>
+
+        {/* Confirm Password */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+            비밀번호 확인 <span className="text-[#1A3A5C]">*</span>
+          </label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="비밀번호를 다시 입력해주세요"
             className={inputBaseClass}
           />
         </div>

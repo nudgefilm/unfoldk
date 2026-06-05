@@ -113,6 +113,8 @@ function BuyerRegistrationForm() {
   const [handlingKorean, setHandlingKorean] = useState("")
   const [linkedinUrl, setLinkedinUrl] = useState("")
   const [knownSuppliers, setKnownSuppliers] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
 
   const countries = [
     "United States",
@@ -176,19 +178,34 @@ function BuyerRegistrationForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!password || password.length < 8) {
+      setSubmitError("Password must be at least 8 characters.")
+      return
+    }
+    if (password !== confirmPassword) {
+      setSubmitError("Passwords do not match.")
+      return
+    }
+
     setIsSubmitting(true)
     setSubmitError("")
 
     try {
       const supabase = createSupabaseBrowserClient()
-      const { data: { user } } = await supabase.auth.getUser()
+
+      const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
+      if (authError) {
+        setSubmitError(authError.message || "Sign up failed. Please try again.")
+        setIsSubmitting(false)
+        return
+      }
 
       const websiteUrl = website
         ? /^https?:\/\//i.test(website) ? website : `https://${website}`
         : null
 
       const { error } = await supabase.from("beauty_buyers").insert({
-        user_id: user?.id ?? null,
+        user_id: authData.user?.id ?? null,
         company_name: companyName,
         business_email: email,
         website: websiteUrl,
@@ -508,6 +525,36 @@ function BuyerRegistrationForm() {
             value={knownSuppliers}
             onChange={(e) => setKnownSuppliers(e.target.value)}
             placeholder="List any Korean suppliers you've worked with"
+            className={inputBaseClass}
+          />
+        </div>
+
+        <div className="border-t border-[#E8E2DA] my-7" />
+
+        {/* Password */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+            Password <span className="text-[#1A3A5C]">*</span>
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="At least 8 characters"
+            className={inputBaseClass}
+          />
+        </div>
+
+        {/* Confirm Password */}
+        <div className="mb-8">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+            Confirm Password <span className="text-[#1A3A5C]">*</span>
+          </label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Re-enter your password"
             className={inputBaseClass}
           />
         </div>
