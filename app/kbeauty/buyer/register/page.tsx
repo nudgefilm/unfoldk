@@ -106,7 +106,7 @@ function BuyerRegistrationForm() {
   const [country, setCountry] = useState("")
   const [state, setState] = useState("")
   const [einVat, setEinVat] = useState("")
-  const [businessType, setBusinessType] = useState("")
+  const [businessType, setBusinessType] = useState<string[]>([])
   const [categories, setCategories] = useState<string[]>([])
   const [importVolume, setImportVolume] = useState("")
   const [handlingKorean, setHandlingKorean] = useState("")
@@ -165,6 +165,14 @@ function BuyerRegistrationForm() {
     )
   }
 
+  const handleBusinessTypeToggle = (type: string) => {
+    setBusinessType((prev) =>
+      prev.includes(type)
+        ? prev.filter((t) => t !== type)
+        : [...prev, type]
+    )
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -186,7 +194,7 @@ function BuyerRegistrationForm() {
         country,
         state: state || null,
         ein_number: einVat || null,
-        business_type: businessType || null,
+        business_type: businessType.length > 0 ? businessType.join(",") : null,
         categories,
         annual_import_volume: importVolume || null,
         handling_korean_products: handlingKorean === "Yes" ? true : handlingKorean === "No" ? false : null,
@@ -399,21 +407,24 @@ function BuyerRegistrationForm() {
 
         {/* Business Type */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-[#0F0F0F] mb-3">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-1">
             Business Type <span className="text-[#1A3A5C]">*</span>
           </label>
+          <span className="text-[13px] text-[#6B6B6B] block mb-3">Select all that apply</span>
           <div className="grid grid-cols-2 gap-3">
             {businessTypes.map((type) => (
               <label key={type} className="flex items-center gap-3 cursor-pointer">
                 <div
-                  onClick={() => setBusinessType(type)}
+                  onClick={() => handleBusinessTypeToggle(type)}
                   className={cn(
-                    "w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer",
-                    businessType === type ? "border-[#1A3A5C]" : "border-[#E8E2DA]"
+                    "w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer",
+                    businessType.includes(type)
+                      ? "bg-[#1A3A5C] border-[#1A3A5C]"
+                      : "bg-white border-[1.5px] border-[#E8E2DA]"
                   )}
                 >
-                  {businessType === type && (
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />
+                  {businessType.includes(type) && (
+                    <Check className="w-3 h-3 text-white" />
                   )}
                 </div>
                 <span className="text-sm text-[#0F0F0F]">{type}</span>
