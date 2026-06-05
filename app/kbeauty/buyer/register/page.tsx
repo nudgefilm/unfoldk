@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Menu, Check, ChevronDown, Instagram, Linkedin } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -97,6 +98,7 @@ function HeroHeader() {
 
 // Form Component
 function BuyerRegistrationForm() {
+  const router = useRouter()
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState("")
@@ -200,8 +202,8 @@ function BuyerRegistrationForm() {
         handling_korean_products: handlingKorean === "Yes" ? true : handlingKorean === "No" ? false : null,
         linkedin_url: linkedinUrl || null,
         known_suppliers: knownSuppliers || null,
-        stage1_approved: false,
-        status: "pending",
+        stage1_approved: true,
+        status: "active",
         source: "direct_signup",
       })
 
@@ -211,7 +213,7 @@ function BuyerRegistrationForm() {
         return
       }
 
-      setIsSubmitted(true)
+      router.push("/kbeauty/dashboard/buyer")
     } catch (err) {
       console.error("[buyer-register]", err)
       setSubmitError("A server error occurred. Please try again.")
