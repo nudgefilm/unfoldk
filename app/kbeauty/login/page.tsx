@@ -62,12 +62,12 @@ export default function KBeautyLoginPage() {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
       if (authError) {
-        setError("이메일 또는 비밀번호가 올바르지 않습니다.")
+        setError("Incorrect email or password.")
         return
       }
 
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setError("로그인에 실패했습니다."); return }
+      if (!user) { setError("Login failed. Please try again."); return }
 
       const { data: supplier } = await supabase
         .from("beauty_suppliers")
@@ -87,7 +87,7 @@ export default function KBeautyLoginPage() {
 
       setNoAccount(true)
     } catch {
-      setError("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+      setError("Server error. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
@@ -127,23 +127,25 @@ export default function KBeautyLoginPage() {
           className="text-[#0F0F0F] mb-2 text-center"
           style={{ fontFamily: '"Cormorant Garamond", Georgia, serif', fontSize: 28, fontWeight: 600 }}
         >
-          로그인 / Login
+          Login
         </h1>
-        <p className="text-sm text-[#6B6B6B] text-center mb-6">공급사 · 바이어 공통 로그인</p>
+        <p className="text-sm text-[#6B6B6B] text-center mb-6">
+          공급사 · 바이어 공통 로그인 / Supplier &amp; Buyer Login
+        </p>
 
         {/* 계정 없음 안내 */}
         {noAccount && (
           <div className="mb-5 p-4 border border-[#E8E2DA] text-center" style={{ borderRadius: 10, background: "#F8F7F5" }}>
             <p className="text-sm text-[#0F0F0F] mb-3">
-              kbeauty 계정이 없습니다.
-              <br />공급사 또는 바이어로 가입해주세요.
+              No kbeauty account found.<br />
+              공급사 또는 바이어로 가입해주세요.
             </p>
             <div className="flex gap-2">
               <Link href="/kbeauty/supplier" className="flex-1 text-center text-xs font-semibold py-2.5 rounded-lg hover:bg-[#153249] transition-colors" style={{ background: "#1A3A5C", color: "#fff" }}>
                 공급사 파트너 신청
               </Link>
               <Link href="/kbeauty/buyer/register" className="flex-1 text-center text-xs font-semibold py-2.5 rounded-lg hover:opacity-80 transition-opacity" style={{ background: "#C8A882", color: "#0F0F0F" }}>
-                바이어 가입
+                Buyer Sign Up
               </Link>
             </div>
           </div>
@@ -157,24 +159,24 @@ export default function KBeautyLoginPage() {
           className="w-full flex items-center justify-center gap-2.5 border border-[#E8E2DA] bg-white py-3 rounded-lg text-sm font-medium text-[#0F0F0F] hover:bg-[#F8F7F5] transition-colors disabled:opacity-60"
         >
           {GOOGLE_SVG}
-          {isGoogleLoading ? "연결 중..." : "Google로 계속하기"}
+          {isGoogleLoading ? "Connecting..." : "Continue with Google"}
         </button>
 
         {/* 구분선 */}
         <div className="flex items-center gap-3 my-5">
           <div className="flex-1 h-px bg-[#E8E2DA]" />
-          <span className="text-xs text-[#6B6B6B]">또는</span>
+          <span className="text-xs text-[#6B6B6B]">or</span>
           <div className="flex-1 h-px bg-[#E8E2DA]" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-[#0F0F0F] mb-2">이메일 / Email</label>
+            <label className="block text-sm font-medium text-[#0F0F0F] mb-2">Email</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="contact@company.com" required className={inputBase} />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#0F0F0F] mb-2">비밀번호 / Password</label>
+            <label className="block text-sm font-medium text-[#0F0F0F] mb-2">Password</label>
 
             <div className="relative">
               <input
@@ -198,7 +200,7 @@ export default function KBeautyLoginPage() {
             disabled={isSubmitting}
             className={cn("w-full bg-[#1A3A5C] text-white font-semibold py-3.5 rounded-lg text-[15px] transition-colors", isSubmitting ? "opacity-60 cursor-not-allowed" : "hover:bg-[#153249]")}
           >
-            {isSubmitting ? "로그인 중..." : "로그인 / Log in"}
+            {isSubmitting ? "Signing in..." : "Log in"}
           </button>
         </form>
 
@@ -207,10 +209,10 @@ export default function KBeautyLoginPage() {
           {showResetForm ? (
             <div className="p-4 bg-[#F8F7F5] border border-[#E8E2DA] rounded-lg">
               {resetSent ? (
-                <p className="text-sm text-green-600 text-center">비밀번호 재설정 이메일을 발송했습니다.</p>
+                <p className="text-sm text-green-600 text-center">Password reset email has been sent.</p>
               ) : (
                 <>
-                  <p className="text-sm text-[#0F0F0F] mb-3">이메일을 입력하면 재설정 링크를 보내드립니다.</p>
+                  <p className="text-sm text-[#0F0F0F] mb-3">Enter your email to receive a reset link.</p>
                   <input
                     type="email"
                     value={resetEmail}
@@ -225,13 +227,13 @@ export default function KBeautyLoginPage() {
                       disabled={isResetting || !resetEmail.trim()}
                       className="flex-1 bg-[#1A3A5C] text-white text-sm font-medium py-2.5 rounded-lg hover:bg-[#153249] transition-colors disabled:opacity-60"
                     >
-                      {isResetting ? "발송 중..." : "재설정 링크 보내기"}
+                      {isResetting ? "Sending..." : "Send Reset Link"}
                     </button>
                     <button
                       onClick={() => { setShowResetForm(false); setResetSent(false); setResetError("") }}
                       className="px-4 text-sm text-[#6B6B6B] hover:text-[#0F0F0F] border border-[#E8E2DA] rounded-lg transition-colors"
                     >
-                      취소
+                      Cancel
                     </button>
                   </div>
                 </>
@@ -243,19 +245,19 @@ export default function KBeautyLoginPage() {
               onClick={() => { setShowResetForm(true); setResetEmail(email) }}
               className="w-full text-center text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors"
             >
-              비밀번호를 잊으셨나요? / Forgot password?
+              Forgot password?
             </button>
           )}
         </div>
 
         <div className="mt-5 text-center text-sm text-[#6B6B6B]">
-          <p className="mb-2">처음이신가요? / New here?</p>
+          <p className="mb-2">New here?</p>
           <div className="flex gap-2 justify-center">
             <Link href="/kbeauty/supplier" className="text-xs font-medium px-3 py-1.5 border border-[#1A3A5C] text-[#1A3A5C] rounded-md hover:bg-[#1A3A5C]/5 transition-colors">
-              공급사 가입 / Supplier Sign Up
+              공급사 가입
             </Link>
             <Link href="/kbeauty/buyer/register" className="text-xs font-medium px-3 py-1.5 border border-[#C8A882] text-[#8B6F47] rounded-md hover:bg-[#C8A882]/10 transition-colors">
-              바이어 가입 / Buyer Sign Up
+              Buyer Sign Up
             </Link>
           </div>
         </div>

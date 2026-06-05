@@ -27,7 +27,7 @@ export default function KBeautyAuthPage() {
           lineHeight: 1.2,
         }}
       >
-        어떤 분이신가요?
+        어떤 분이신가요? / Who are you?
       </h1>
 
       {/* 카드 2개 */}
