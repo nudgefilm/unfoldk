@@ -239,7 +239,9 @@ function SupplierForm() {
         contact_email: email,
         contact_phone: phone,
         categories,
-        website: website || null,
+        website: website
+          ? /^https?:\/\//i.test(website) ? website : `https://${website}`
+          : null,
         fda_status: fdaStatus || null,
         status: "active",
         source: "direct_signup",
@@ -422,13 +424,18 @@ function SupplierForm() {
           <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
             웹사이트 <span className="text-xs text-[#6B6B6B] font-normal">(선택)</span>
           </label>
-          <input
-            type="url"
-            value={website}
-            onChange={(e) => setWebsite(e.target.value)}
-            placeholder="https://yourcompany.com"
-            className={inputBaseClass}
-          />
+          <div className="flex items-center border border-[#E8E2DA] rounded-lg overflow-hidden hover:border-[#1A3A5C]/40 focus-within:border-[#1A3A5C] transition-colors duration-200">
+            <span className="px-3 py-3 text-sm text-[#6B6B6B] bg-[#F8F7F5] border-r border-[#E8E2DA] whitespace-nowrap select-none">
+              https://
+            </span>
+            <input
+              type="text"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              placeholder="yourcompany.com"
+              className="flex-1 px-3 py-3 text-sm text-[#0F0F0F] placeholder:text-[#6B6B6B]/50 focus:outline-none bg-white"
+            />
+          </div>
         </div>
 
         {/* FDA Status */}
