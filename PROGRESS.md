@@ -4,6 +4,45 @@
 
 ---
 
+## 현재 상태 (2026-06-05 세션 50 기준)
+
+### UnfoldK Beauty (kbeauty) — MVP 1차 개발
+
+**완료 항목**
+- KBEAUTY.md v4.1 기준 파일 확정 (beauty_ 프리픽스 테이블명 반영)
+- P01 B2B 랜딩 / P02 공급사 신청 / P05 바이어 랜딩 / P06 바이어 가입 페이지 배포
+- `app/kbeauty/layout.tsx`: Cormorant Garamond 폰트 + `-mt-[72px]` (UnfoldK header offset)
+- `components/header.tsx`: `HIDE_HEADER_PREFIXES`에 `/kbeauty` 추가
+
+**Supabase 마이그레이션**
+- `0061`: `beauty_suppliers` / `beauty_buyers` / `beauty_products` / `beauty_matches` / `beauty_trade_analytics` / `beauty_post_matching_services` 6개 테이블 (beauty_ 프리픽스 통일)
+- `0062`: `beauty_suppliers` 연락처 필드 추가 (`contact_name` / `contact_email` / `contact_phone` / `website` / `fda_status`)
+- `0063`: `beauty_suppliers` anon INSERT 정책 (공급사 신청 공개 페이지)
+- `0064`: `beauty_buyers` 추가 필드 (`state` / `handling_korean_products` / `linkedin_url` / `known_suppliers`) + status CHECK에 `pending` 추가 + anon INSERT 정책
+
+**미들웨어 role 가드** (`middleware.ts`)
+- `/kbeauty/dashboard/supplier/*` → `beauty_suppliers` 레코드 필요
+- `/kbeauty/dashboard/buyer/*` → `beauty_buyers` 레코드 필요
+- `/kbeauty/admin` → `is_admin` RPC
+- 미인증·불일치 → `/kbeauty` 리다이렉트
+
+**국세청 API 공급사 1단계 인증** (`app/api/kbeauty/verify-business/route.ts`)
+- `nts-businessman/v1/status` POST 연동
+- `b_stt_cd === "01"` (계속사업자) → `{ verified: true }`
+- 10초 타임아웃, 휴업·폐업 422 처리
+- `.env.local` `NTSAPI_KEY` 추가
+
+**공급사 폼 저장** (`app/kbeauty/supplier/page.tsx`)
+- 인증 성공 후 `beauty_suppliers` INSERT → `/kbeauty/dashboard/supplier` 리다이렉트
+- 웹사이트 인풋 `https://` prefix UI
+
+**바이어 폼 저장** (`app/kbeauty/buyer/register/page.tsx`)
+- `beauty_buyers` INSERT (`status: 'active'`, `stage1_approved: true`) → `/kbeauty/dashboard/buyer` 리다이렉트
+- Business Type 라디오 → 체크박스 복수선택으로 변경
+- 웹사이트 인풋 `https://` prefix UI
+
+---
+
 ## 현재 상태 (2026-06-04 세션 49 기준)
 
 ### Curation K — My Hallyu Course 추가 개선 (세션 49 후속)
