@@ -195,7 +195,11 @@ function BuyerRegistrationForm() {
     try {
       const supabase = createSupabaseBrowserClient()
 
-      const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { email_confirm: false } },
+      })
       if (authError) {
         const msg = authError.message || ""
         if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("already exists")) {
