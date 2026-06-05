@@ -101,6 +101,7 @@ function BuyerRegistrationForm() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState("")
+  const [showLoginLink, setShowLoginLink] = useState(false)
   const [companyName, setCompanyName] = useState("")
   const [email, setEmail] = useState("")
   const [website, setWebsite] = useState("")
@@ -178,8 +179,8 @@ function BuyerRegistrationForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!password || password.length < 8) {
-      setSubmitError("Password must be at least 8 characters.")
+    if (!password || password.length < 6) {
+      setSubmitError("Password must be at least 6 characters.")
       return
     }
     if (password !== confirmPassword) {
@@ -189,13 +190,24 @@ function BuyerRegistrationForm() {
 
     setIsSubmitting(true)
     setSubmitError("")
+    setShowLoginLink(false)
 
     try {
       const supabase = createSupabaseBrowserClient()
 
       const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
       if (authError) {
-        setSubmitError(authError.message || "Sign up failed. Please try again.")
+        const msg = authError.message || ""
+        if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("already exists")) {
+          setSubmitError("This email is already registered. Please log in.")
+          setShowLoginLink(true)
+        } else if (msg.toLowerCase().includes("password") || msg.includes("6 characters")) {
+          setSubmitError("Password must be at least 6 characters.")
+        } else if (msg.toLowerCase().includes("network") || msg.toLowerCase().includes("fetch")) {
+          setSubmitError("Please check your network connection.")
+        } else {
+          setSubmitError(`An error occurred. (Error code: ${(authError as { status?: number }).status ?? msg}) Please contact support.`)
+        }
         setIsSubmitting(false)
         return
       }
@@ -224,15 +236,23 @@ function BuyerRegistrationForm() {
       })
 
       if (error) {
-        console.log("insert error:", JSON.stringify(error))
-        setSubmitError("Submission failed. Please try again.")
+        if (error.code === "23505") {
+          setSubmitError("This company is already registered. Please log in.")
+          setShowLoginLink(true)
+        } else {
+          setSubmitError(`An error occurred. (Error code: ${error.code ?? "unknown"}) Please contact support.`)
+        }
         return
       }
 
       router.push("/kbeauty/dashboard/buyer")
     } catch (err) {
-      console.error("[buyer-register]", err)
-      setSubmitError("A server error occurred. Please try again.")
+      const msg = err instanceof Error ? err.message : ""
+      if (msg.toLowerCase().includes("network") || msg.toLowerCase().includes("fetch")) {
+        setSubmitError("Please check your network connection.")
+      } else {
+        setSubmitError("A server error occurred. Please try again.")
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -561,7 +581,14 @@ function BuyerRegistrationForm() {
 
         {/* Submit Error */}
         {submitError && (
-          <p className="text-[13px] text-red-500 mb-4">{submitError}</p>
+          <div className="mb-4">
+            <p className="text-[13px] text-red-500">{submitError}</p>
+            {showLoginLink && (
+              <Link href="/kbeauty/login" className="mt-1.5 inline-block text-sm font-medium text-[#1A3A5C] hover:underline">
+                Log in →
+              </Link>
+            )}
+          </div>
         )}
 
         {/* Submit Button */}

@@ -161,6 +161,7 @@ function SupplierForm() {
   const [verifyError, setVerifyError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState("")
+  const [showLoginLink, setShowLoginLink] = useState(false)
   const [representativeName, setRepresentativeName] = useState("")
   const [companyNameKo, setCompanyNameKo] = useState("")
   const [companyNameEn, setCompanyNameEn] = useState("")
@@ -220,8 +221,8 @@ function SupplierForm() {
       setSubmitError("필수 항목을 모두 입력해주세요.")
       return
     }
-    if (!password || password.length < 8) {
-      setSubmitError("비밀번호는 8자 이상이어야 합니다.")
+    if (!password || password.length < 6) {
+      setSubmitError("비밀번호는 6자리 이상이어야 합니다.")
       return
     }
     if (password !== confirmPassword) {
@@ -231,13 +232,24 @@ function SupplierForm() {
 
     setIsSubmitting(true)
     setSubmitError("")
+    setShowLoginLink(false)
 
     try {
       const supabase = createSupabaseBrowserClient()
 
       const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
       if (authError) {
-        setSubmitError(authError.message || "회원가입에 실패했습니다.")
+        const msg = authError.message || ""
+        if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("already exists")) {
+          setSubmitError("이미 가입된 이메일입니다. 로그인해주세요.")
+          setShowLoginLink(true)
+        } else if (msg.toLowerCase().includes("password") || msg.includes("6 characters")) {
+          setSubmitError("비밀번호는 6자리 이상이어야 합니다.")
+        } else if (msg.toLowerCase().includes("network") || msg.toLowerCase().includes("fetch")) {
+          setSubmitError("네트워크 연결을 확인해주세요.")
+        } else {
+          setSubmitError(`오류가 발생했습니다. (오류코드: ${(authError as { status?: number }).status ?? msg}) 고객센터에 문의해주세요.`)
+        }
         return
       }
 
@@ -260,15 +272,23 @@ function SupplierForm() {
       })
 
       if (error) {
-        console.log("insert error:", JSON.stringify(error))
-        setSubmitError("저장에 실패했습니다. 잠시 후 다시 시도해주세요.")
+        if (error.code === "23505") {
+          setSubmitError("이미 등록된 사업자번호입니다. 로그인해주세요.")
+          setShowLoginLink(true)
+        } else {
+          setSubmitError(`오류가 발생했습니다. (오류코드: ${error.code ?? "unknown"}) 고객센터에 문의해주세요.`)
+        }
         return
       }
 
       router.push("/kbeauty/dashboard/supplier")
     } catch (err) {
-      console.error("[supplier-submit]", err)
-      setSubmitError("서버 오류가 발생했습니다.")
+      const msg = err instanceof Error ? err.message : ""
+      if (msg.toLowerCase().includes("network") || msg.toLowerCase().includes("fetch")) {
+        setSubmitError("네트워크 연결을 확인해주세요.")
+      } else {
+        setSubmitError("서버 오류가 발생했습니다.")
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -512,7 +532,14 @@ function SupplierForm() {
 
         {/* Submit Error */}
         {submitError && (
-          <p className="text-[13px] text-red-500 mb-4">{submitError}</p>
+          <div className="mb-4">
+            <p className="text-[13px] text-red-500">{submitError}</p>
+            {showLoginLink && (
+              <Link href="/kbeauty/login" className="mt-1.5 inline-block text-sm font-medium text-[#1A3A5C] hover:underline">
+                로그인하기 →
+              </Link>
+            )}
+          </div>
         )}
 
         {/* Submit Button */}
