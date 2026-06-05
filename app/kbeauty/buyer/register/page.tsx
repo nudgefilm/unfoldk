@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Menu, Check, ChevronDown, Instagram, Linkedin } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 // Navbar Component (Light variant - same as main landing)
 function BeautyNavbar() {
@@ -97,6 +98,8 @@ function HeroHeader() {
 // Form Component
 function BuyerRegistrationForm() {
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState("")
   const [companyName, setCompanyName] = useState("")
   const [email, setEmail] = useState("")
   const [website, setWebsite] = useState("")
@@ -162,9 +165,47 @@ function BuyerRegistrationForm() {
     )
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitted(true)
+    setIsSubmitting(true)
+    setSubmitError("")
+
+    try {
+      const supabase = createSupabaseBrowserClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const { error } = await supabase.from("beauty_buyers").insert({
+        user_id: user?.id ?? null,
+        company_name: companyName,
+        business_email: email,
+        website,
+        country,
+        state: state || null,
+        ein_number: einVat || null,
+        business_type: businessType || null,
+        categories,
+        annual_import_volume: importVolume || null,
+        handling_korean_products: handlingKorean === "Yes" ? true : handlingKorean === "No" ? false : null,
+        linkedin_url: linkedinUrl || null,
+        known_suppliers: knownSuppliers || null,
+        stage1_approved: false,
+        status: "pending",
+        source: "direct_signup",
+      })
+
+      if (error) {
+        console.log("insert error:", JSON.stringify(error))
+        setSubmitError("Submission failed. Please try again.")
+        return
+      }
+
+      setIsSubmitted(true)
+    } catch (err) {
+      console.error("[buyer-register]", err)
+      setSubmitError("A server error occurred. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const inputBaseClass =
@@ -484,13 +525,22 @@ function BuyerRegistrationForm() {
           />
         </div>
 
+        {/* Submit Error */}
+        {submitError && (
+          <p className="text-[13px] text-red-500 mb-4">{submitError}</p>
+        )}
+
         {/* Submit Button */}
         <button
           type="submit"
-          className="w-full bg-[#1A3A5C] text-white font-semibold py-3.5 rounded-lg text-[15px] hover:bg-[#153249] transition-colors inline-flex items-center justify-center gap-2"
+          disabled={isSubmitting}
+          className={cn(
+            "w-full bg-[#1A3A5C] text-white font-semibold py-3.5 rounded-lg text-[15px] transition-colors inline-flex items-center justify-center gap-2",
+            isSubmitting ? "opacity-60 cursor-not-allowed" : "hover:bg-[#153249]"
+          )}
         >
-          Request Buyer Access
-          <span className="text-lg">&#8594;</span>
+          {isSubmitting ? "Submitting..." : "Request Buyer Access"}
+          {!isSubmitting && <span className="text-lg">&#8594;</span>}
         </button>
       </form>
     </div>
