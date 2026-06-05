@@ -2,9 +2,11 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Menu, Check, Shield, Instagram, Linkedin } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 // Navbar Component
 function BeautyNavbar() {
@@ -152,10 +154,13 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
 
 // Form Card Component
 function SupplierForm() {
+  const router = useRouter()
   const [businessNumber, setBusinessNumber] = useState("")
   const [isVerified, setIsVerified] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [verifyError, setVerifyError] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState("")
   const [representativeName, setRepresentativeName] = useState("")
   const [companyNameKo, setCompanyNameKo] = useState("")
   const [companyNameEn, setCompanyNameEn] = useState("")
@@ -189,7 +194,6 @@ function SupplierForm() {
         return
       }
       setIsVerified(true)
-      if (data.companyName) setCompanyNameKo(data.companyName)
     } catch {
       setVerifyError("네트워크 오류가 발생했습니다. 잠시 후 다시 시도하세요.")
     } finally {
@@ -203,6 +207,54 @@ function SupplierForm() {
         ? prev.filter((c) => c !== category)
         : [...prev, category]
     )
+  }
+
+  const handleSubmit = async () => {
+    if (!isVerified) {
+      setSubmitError("사업자번호 인증을 먼저 완료해주세요.")
+      return
+    }
+    if (!companyNameKo || !companyNameEn || !representativeName || !email || !phone) {
+      setSubmitError("필수 항목을 모두 입력해주세요.")
+      return
+    }
+
+    setIsSubmitting(true)
+    setSubmitError("")
+
+    try {
+      const supabase = createSupabaseBrowserClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const { error } = await supabase.from("beauty_suppliers").insert({
+        user_id: user?.id ?? null,
+        business_registration_number: businessNumber.replace(/-/g, ""),
+        business_registration_verified: true,
+        company_name_ko: companyNameKo,
+        company_name_en: companyNameEn,
+        contact_name: representativeName,
+        contact_email: email,
+        contact_phone: phone,
+        categories,
+        website: website || null,
+        fda_status: fdaStatus || null,
+        status: "active",
+        source: "direct_signup",
+      })
+
+      if (error) {
+        console.error("[supplier-submit]", error)
+        setSubmitError("저장에 실패했습니다. 잠시 후 다시 시도해주세요.")
+        return
+      }
+
+      router.push("/kbeauty/dashboard/supplier")
+    } catch (err) {
+      console.error("[supplier-submit]", err)
+      setSubmitError("서버 오류가 발생했습니다.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const inputBaseClass =
@@ -281,9 +333,8 @@ function SupplierForm() {
               type="text"
               value={companyNameKo}
               onChange={(e) => setCompanyNameKo(e.target.value)}
-              placeholder="(주)회사명"
-              disabled={isVerified}
-              className={cn(inputBaseClass, isVerified && "bg-[#F8F7F5] cursor-not-allowed")}
+              placeholder="회사명을 입력해주세요"
+              className={inputBaseClass}
             />
           </div>
           <div>
@@ -407,10 +458,22 @@ function SupplierForm() {
           </div>
         </div>
 
+        {/* Submit Error */}
+        {submitError && (
+          <p className="text-[13px] text-red-500 mb-4">{submitError}</p>
+        )}
+
         {/* Submit Button */}
-        <button className="w-full bg-[#1A3A5C] text-white font-semibold py-3.5 rounded-lg text-[15px] hover:bg-[#153249] transition-colors inline-flex items-center justify-center gap-2">
-          대시보드 시작하기
-          <span className="text-lg">&#8594;</span>
+        <button
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+          className={cn(
+            "w-full bg-[#1A3A5C] text-white font-semibold py-3.5 rounded-lg text-[15px] transition-colors inline-flex items-center justify-center gap-2",
+            isSubmitting ? "opacity-60 cursor-not-allowed" : "hover:bg-[#153249]"
+          )}
+        >
+          {isSubmitting ? "저장 중..." : "대시보드 시작하기"}
+          {!isSubmitting && <span className="text-lg">&#8594;</span>}
         </button>
       </div>
 

@@ -69,11 +69,7 @@ export async function POST(request: NextRequest) {
 
     if (result.b_stt_cd === ACTIVE_CODE) {
       // 계속사업자 — 인증 성공
-      return NextResponse.json({
-        verified: true,
-        status: result.b_stt,
-        companyName: result.b_nm ?? "",
-      })
+      return NextResponse.json({ verified: true })
     }
 
     // 휴업자·폐업자·기타
