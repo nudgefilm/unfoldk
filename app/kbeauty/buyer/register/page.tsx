@@ -89,7 +89,7 @@ function HeroHeader() {
         <p className="text-base text-[#6B6B6B] leading-[1.7]">
           Fill in your business details.
           <br />
-          We&apos;ll review and approve within 1 business day.
+          Fill in your business details to get started.
         </p>
       </div>
     </section>
@@ -99,7 +99,6 @@ function HeroHeader() {
 // Form Component
 function BuyerRegistrationForm() {
   const router = useRouter()
-  const [isSubmitted, setIsSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState("")
   const [companyName, setCompanyName] = useState("")
@@ -228,40 +227,6 @@ function BuyerRegistrationForm() {
   const selectBaseClass =
     "w-full px-4 py-3 border border-[#E8E2DA] rounded-lg text-sm text-[#0F0F0F] hover:border-[#1A3A5C]/40 focus:border-[#1A3A5C] focus:outline-none transition-colors duration-200 appearance-none bg-white cursor-pointer"
 
-  // Success State
-  if (isSubmitted) {
-    return (
-      <div className="max-w-[600px] mx-auto px-6 mb-6">
-        <div className="bg-white border border-[#E8E2DA] rounded-xl p-10 shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-center">
-          {/* Success Icon */}
-          <div className="w-12 h-12 rounded-full bg-[#1A3A5C]/10 flex items-center justify-center mx-auto mb-5">
-            <Check className="w-6 h-6 text-[#1A3A5C]" />
-          </div>
-
-          {/* Title */}
-          <h2 className="font-serif text-[32px] text-[#0F0F0F] mb-3">
-            Application Submitted
-          </h2>
-
-          {/* Message */}
-          <p className="text-[15px] text-[#6B6B6B] mb-8">
-            We&apos;ll review your details and send approval to
-            <br />
-            <span className="font-medium text-[#0F0F0F]">{email}</span> within 1 business day.
-          </p>
-
-          {/* Browse Button */}
-          <Link
-            href="/kbeauty"
-            className="inline-flex items-center justify-center gap-2 border-[1.5px] border-[#E8E2DA] text-[#6B6B6B] px-7 py-3 rounded-lg hover:border-[#1A3A5C] hover:text-[#1A3A5C] transition-colors"
-          >
-            Browse Suppliers
-            <span className="text-lg">&#8594;</span>
-          </Link>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="max-w-[600px] mx-auto px-6 mb-6">
