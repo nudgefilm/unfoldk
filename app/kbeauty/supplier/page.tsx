@@ -253,6 +253,17 @@ function SupplierForm() {
         return
       }
 
+      // signUp 직후 세션이 없는 경우(이메일 확인 대기) 강제 로그인으로 세션 확보
+      // 미들웨어가 beauty_suppliers 레코드 조회 전에 user=null로 보고 /kbeauty로 튕기는 것을 방지
+      if (!authData.session) {
+        const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+        if (signInErr) {
+          setSubmitError("계정 생성 후 로그인에 실패했습니다. 로그인 페이지에서 다시 시도해주세요.")
+          setShowLoginLink(true)
+          return
+        }
+      }
+
       const { error } = await supabase.from("beauty_suppliers").insert({
         user_id: authData.user?.id ?? null,
         business_registration_number: businessNumber.replace(/-/g, ""),

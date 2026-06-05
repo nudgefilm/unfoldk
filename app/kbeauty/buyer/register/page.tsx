@@ -212,6 +212,17 @@ function BuyerRegistrationForm() {
         return
       }
 
+      // signUp 직후 세션이 없는 경우(이메일 확인 대기) 강제 로그인으로 세션 확보
+      // 미들웨어가 beauty_buyers 레코드 조회 전에 user=null로 보고 /kbeauty로 튕기는 것을 방지
+      if (!authData.session) {
+        const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+        if (signInErr) {
+          setSubmitError("Account created but login failed. Please log in from the login page.")
+          setShowLoginLink(true)
+          return
+        }
+      }
+
       const websiteUrl = website
         ? /^https?:\/\//i.test(website) ? website : `https://${website}`
         : null
