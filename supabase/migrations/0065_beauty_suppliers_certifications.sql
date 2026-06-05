@@ -20,14 +20,14 @@ VALUES ('kbeauty-documents', 'kbeauty-documents', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- 스토리지 RLS: 공급사 본인만 업로드·조회 가능
-CREATE POLICY IF NOT EXISTS "kbeauty_documents_supplier_insert"
+CREATE POLICY "kbeauty_documents_supplier_insert"
   ON storage.objects FOR INSERT
   WITH CHECK (
     bucket_id = 'kbeauty-documents'
     AND auth.uid() IS NOT NULL
   );
 
-CREATE POLICY IF NOT EXISTS "kbeauty_documents_supplier_select"
+CREATE POLICY "kbeauty_documents_supplier_select"
   ON storage.objects FOR SELECT
   USING (
     bucket_id = 'kbeauty-documents'
