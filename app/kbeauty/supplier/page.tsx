@@ -416,7 +416,7 @@ function SupplierForm() {
 
       {/* Trust Note */}
       <p className="text-xs text-[#6B6B6B] text-center mt-4">
-        사업자번호는 국세청 API로만 검증되며 별도 저장되지 않습니다.
+        인증된 사업자만 검증된 바이어 DB에 접근할 수 있습니다.
       </p>
     </div>
   )
