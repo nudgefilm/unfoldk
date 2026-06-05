@@ -24,6 +24,13 @@ interface Supplier {
   cosmetic_license_verified: boolean
   buyer_db_access: boolean
   status: string
+  fda_status: string | null
+  fda_registration_number: string | null
+  iso_22716: boolean
+  vegan_certified: boolean
+  cruelty_free_certified: boolean
+  export_experience: string | null
+  export_countries: string | null
 }
 
 interface Match {
@@ -172,7 +179,7 @@ export default function SupplierDashboardPage() {
       // 공급사 정보
       const { data: supplierData } = await supabase
         .from("beauty_suppliers")
-        .select("id, company_name_ko, cosmetic_license_verified, buyer_db_access, status")
+        .select("id, company_name_ko, cosmetic_license_verified, buyer_db_access, status, fda_status, fda_registration_number, iso_22716, vegan_certified, cruelty_free_certified, export_experience, export_countries")
         .eq("user_id", user.id)
         .single()
 
@@ -269,6 +276,139 @@ export default function SupplierDashboardPage() {
             >
               Pro 업그레이드
             </button>
+          </div>
+
+          {/* 북미 수출 준비 가이드 */}
+          <div className="bg-white border border-[#E8E2DA] mb-6" style={{ borderRadius: 12, padding: 24 }}>
+            <h2 className="text-[#0F0F0F] mb-5" style={{ fontSize: 16, fontWeight: 700 }}>
+              📦 북미 수출 준비 가이드
+            </h2>
+
+            {/* 필수 서류 */}
+            <p className="text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider mb-3">필수 서류</p>
+            <div className="space-y-3 mb-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-[#0F0F0F]">화장품 제조·책임판매업 등록필증</p>
+                  <p className="text-xs text-[#6B6B6B] mt-0.5">식약처 발급 — 국내 합법 화장품 업체 증명</p>
+                </div>
+                {supplier?.cosmetic_license_verified ? (
+                  <span className="text-xs font-medium text-[#1A3A5C] whitespace-nowrap">✅ 등록 완료</span>
+                ) : (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-xs font-medium text-amber-600 whitespace-nowrap">⚠️ 미등록</span>
+                    <Link
+                      href="/kbeauty/dashboard/supplier/settings"
+                      className="text-xs font-medium text-white px-2.5 py-1 rounded-md"
+                      style={{ background: "#1A3A5C" }}
+                    >
+                      업로드
+                    </Link>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-[#E8E2DA] mb-4" />
+
+            {/* 권장 서류 */}
+            <p className="text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider mb-3">권장 서류 (배지 부여)</p>
+            <div className="space-y-4">
+
+              {/* FDA MoCRA */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[#0F0F0F]">FDA MoCRA 등록</p>
+                  <p className="text-xs text-[#6B6B6B] mt-0.5">미국 수출 법적 의무 요건 (2023년 시행)</p>
+                  <a
+                    href="https://www.fda.gov/cosmetics/registration-listing-cosmetic-product-facilities-and-products"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#1A3A5C] hover:underline mt-0.5 inline-block"
+                  >
+                    등록 방법 안내 →
+                  </a>
+                </div>
+                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0">
+                  {supplier?.fda_status === "등록 완료" ? "✅ 등록 완료"
+                    : supplier?.fda_status === "진행 중" ? "🔄 진행 중"
+                    : "➖ 미등록"}
+                </span>
+              </div>
+
+              {/* ISO 22716 */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[#0F0F0F]">ISO 22716 인증</p>
+                  <p className="text-xs text-[#6B6B6B] mt-0.5">화장품 GMP 국제표준 — 대형 바이어 필수 요구</p>
+                  <a
+                    href="https://www.knqa.go.kr"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#1A3A5C] hover:underline mt-0.5 inline-block"
+                  >
+                    인증 기관 안내 →
+                  </a>
+                </div>
+                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0">
+                  {supplier?.iso_22716 ? "✅ 보유" : "➖ 미보유"}
+                </span>
+              </div>
+
+              {/* 비건 인증 */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[#0F0F0F]">비건 인증</p>
+                  <p className="text-xs text-[#6B6B6B] mt-0.5">북미 MZ 세대 타깃 핵심 요건 — 매칭 우선순위 상승</p>
+                  <a
+                    href="https://www.vegankorea.org"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#1A3A5C] hover:underline mt-0.5 inline-block"
+                  >
+                    인증 기관 안내 →
+                  </a>
+                </div>
+                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0">
+                  {supplier?.vegan_certified ? "✅ 보유" : "➖ 미보유"}
+                </span>
+              </div>
+
+              {/* 크루얼티프리 */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[#0F0F0F]">크루얼티프리 인증</p>
+                  <p className="text-xs text-[#6B6B6B] mt-0.5">동물실험 미실시 인증 — 북미 시장 차별화</p>
+                  <a
+                    href="https://www.leapingbunny.org"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#1A3A5C] hover:underline mt-0.5 inline-block"
+                  >
+                    인증 기관 안내 →
+                  </a>
+                </div>
+                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0">
+                  {supplier?.cruelty_free_certified ? "✅ 보유" : "➖ 미보유"}
+                </span>
+              </div>
+
+              {/* 수출 경험 */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[#0F0F0F]">수출 경험</p>
+                  {supplier?.export_experience === "수출 경험 있음" && supplier.export_countries && (
+                    <p className="text-xs text-[#6B6B6B] mt-0.5">{supplier.export_countries}</p>
+                  )}
+                </div>
+                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0">
+                  {supplier?.export_experience === "수출 경험 있음" ? "✅ 수출 경험 있음"
+                    : supplier?.export_experience === "수출 준비 중" ? "🔄 수출 준비 중"
+                    : "➖ 미입력"}
+                </span>
+              </div>
+
+            </div>
           </div>
 
           {/* 화장품 등록필증 업로드 안내 */}

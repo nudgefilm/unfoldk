@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Menu, Check, Shield, Instagram, Linkedin } from "lucide-react"
+import { Menu, Check, Shield, Instagram, Linkedin, Upload, X } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -169,9 +169,24 @@ function SupplierForm() {
   const [phone, setPhone] = useState("")
   const [website, setWebsite] = useState("")
   const [fdaStatus, setFdaStatus] = useState("")
+  const [fdaRegNumber, setFdaRegNumber] = useState("")
   const [categories, setCategories] = useState<string[]>([])
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+
+  // 인증 및 서류
+  const [cosmeticLicenseType, setCosmeticLicenseType] = useState("")
+  const [cosmeticLicenseFile, setCosmeticLicenseFile] = useState<File | null>(null)
+  const [iso22716, setIso22716] = useState("")
+  const [iso22716File, setIso22716File] = useState<File | null>(null)
+  const [veganCertified, setVeganCertified] = useState("")
+  const [veganCertOrg, setVeganCertOrg] = useState("")
+  const [veganCertFile, setVeganCertFile] = useState<File | null>(null)
+  const [crueltyFree, setCrueltyFree] = useState("")
+  const [crueltyFreeCertOrg, setCrueltyFreeCertOrg] = useState("")
+  const [crueltyFreeCertFile, setCrueltyFreeCertFile] = useState<File | null>(null)
+  const [exportExperience, setExportExperience] = useState("")
+  const [exportCountries, setExportCountries] = useState("")
 
   const categoryOptions = [
     "스킨케어",
@@ -229,6 +244,14 @@ function SupplierForm() {
       setSubmitError("비밀번호가 일치하지 않습니다.")
       return
     }
+    if (!cosmeticLicenseType) {
+      setSubmitError("화장품 등록필증 종류를 선택해주세요.")
+      return
+    }
+    if (!cosmeticLicenseFile) {
+      setSubmitError("화장품 등록필증 파일을 업로드해주세요.")
+      return
+    }
 
     setIsSubmitting(true)
     setSubmitError("")
@@ -268,6 +291,21 @@ function SupplierForm() {
         return
       }
 
+      // 파일 업로드 헬퍼 (signIn 세션 확보 후 RLS 통과)
+      const uploadDoc = async (file: File): Promise<string | null> => {
+        const safeName = `${Date.now()}_${file.name.replace(/\s+/g, "_")}`
+        const path = `suppliers/${signupData.userId}/${safeName}`
+        const { error: upErr } = await supabase.storage
+          .from("kbeauty-documents")
+          .upload(path, file, { upsert: true })
+        return upErr ? null : path
+      }
+
+      const cosmeticLicenseUrl = cosmeticLicenseFile ? await uploadDoc(cosmeticLicenseFile) : null
+      const iso22716Url = iso22716 === "보유" && iso22716File ? await uploadDoc(iso22716File) : null
+      const veganCertUrl = veganCertified === "보유" && veganCertFile ? await uploadDoc(veganCertFile) : null
+      const crueltyFreeCertUrl = crueltyFree === "보유" && crueltyFreeCertFile ? await uploadDoc(crueltyFreeCertFile) : null
+
       // 3. beauty_suppliers 레코드 삽입
       const { error } = await supabase.from("beauty_suppliers").insert({
         user_id: signupData.userId,
@@ -283,6 +321,19 @@ function SupplierForm() {
           ? /^https?:\/\//i.test(website) ? website : `https://${website}`
           : null,
         fda_status: fdaStatus || null,
+        cosmetic_license_type: cosmeticLicenseType || null,
+        cosmetic_license_url: cosmeticLicenseUrl,
+        fda_registration_number: fdaStatus === "등록 완료" ? fdaRegNumber || null : null,
+        iso_22716: iso22716 === "보유",
+        iso_22716_url: iso22716Url,
+        vegan_certified: veganCertified === "보유",
+        vegan_cert_org: veganCertified === "보유" ? veganCertOrg || null : null,
+        vegan_cert_url: veganCertUrl,
+        cruelty_free_certified: crueltyFree === "보유",
+        cruelty_free_cert_org: crueltyFree === "보유" ? crueltyFreeCertOrg || null : null,
+        cruelty_free_cert_url: crueltyFreeCertUrl,
+        export_experience: exportExperience || null,
+        export_countries: exportExperience === "수출 경험 있음" ? exportCountries || null : null,
         status: "active",
         source: "direct_signup",
       })
@@ -516,33 +567,244 @@ function SupplierForm() {
           </div>
         </div>
 
-        {/* FDA Status */}
+        {/* 인증 및 서류 */}
+        <div className="border-t border-[#E8E2DA] my-7" />
         <div className="mb-8">
-          <label className="block text-sm font-medium text-[#0F0F0F] mb-3">
-            FDA 등록 여부
-          </label>
-          <div className="flex flex-wrap gap-6">
-            {["등록 완료", "진행 중", "미등록"].map((option) => (
-              <label
-                key={option}
-                className="flex items-center gap-2.5 cursor-pointer"
-              >
-                <div
-                  onClick={() => setFdaStatus(option)}
-                  className={cn(
-                    "w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer",
-                    fdaStatus === option
-                      ? "border-[#1A3A5C]"
-                      : "border-[#E8E2DA]"
-                  )}
-                >
-                  {fdaStatus === option && (
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />
+          <h3 className="text-sm font-semibold text-[#0F0F0F] mb-5">인증 및 서류</h3>
+
+          {/* 화장품 등록필증 (필수) */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+              화장품 등록필증 <span className="text-[#1A3A5C]">*</span>
+            </label>
+            <div className="flex flex-wrap gap-6 mb-3">
+              {["제조업 등록필증", "책임판매업 등록필증"].map((type) => (
+                <label key={type} className="flex items-center gap-2.5 cursor-pointer">
+                  <div
+                    onClick={() => setCosmeticLicenseType(type)}
+                    className={cn(
+                      "w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer",
+                      cosmeticLicenseType === type ? "border-[#1A3A5C]" : "border-[#E8E2DA]"
+                    )}
+                  >
+                    {cosmeticLicenseType === type && <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />}
+                  </div>
+                  <span className="text-sm text-[#0F0F0F]">{type}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 px-4 py-2.5 border border-[#1A3A5C] text-[#1A3A5C] text-sm font-medium rounded-lg cursor-pointer hover:bg-[#1A3A5C]/5 transition-colors">
+                <Upload className="w-4 h-4" />
+                파일 선택
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={(e) => setCosmeticLicenseFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              {cosmeticLicenseFile ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[#0F0F0F] truncate max-w-[200px]">{cosmeticLicenseFile.name}</span>
+                  <button type="button" onClick={() => setCosmeticLicenseFile(null)} className="text-[#6B6B6B] hover:text-red-500 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <span className="text-sm text-[#6B6B6B]/60">파일을 선택해주세요</span>
+              )}
+            </div>
+          </div>
+
+          {/* FDA MoCRA 등록 */}
+          <div className="mb-5">
+            <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+              FDA MoCRA 등록 <span className="text-xs text-[#6B6B6B] font-normal">(선택 — 등록 시 배지 부여)</span>
+            </label>
+            <div className="flex flex-wrap gap-6 mb-2">
+              {["등록 완료", "진행 중", "미등록"].map((option) => (
+                <label key={option} className="flex items-center gap-2.5 cursor-pointer">
+                  <div
+                    onClick={() => setFdaStatus(option)}
+                    className={cn(
+                      "w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer",
+                      fdaStatus === option ? "border-[#1A3A5C]" : "border-[#E8E2DA]"
+                    )}
+                  >
+                    {fdaStatus === option && <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />}
+                  </div>
+                  <span className="text-sm text-[#0F0F0F]">{option}</span>
+                </label>
+              ))}
+            </div>
+            {fdaStatus === "등록 완료" && (
+              <input
+                type="text"
+                value={fdaRegNumber}
+                onChange={(e) => setFdaRegNumber(e.target.value)}
+                placeholder="FDA Registration Number"
+                className={cn(inputBaseClass, "mt-2")}
+              />
+            )}
+          </div>
+
+          {/* ISO 22716 인증 */}
+          <div className="mb-5">
+            <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+              ISO 22716 인증 <span className="text-xs text-[#6B6B6B] font-normal">(선택 — 보유 시 배지 부여)</span>
+            </label>
+            <div className="flex flex-wrap gap-6 mb-2">
+              {["보유", "미보유"].map((option) => (
+                <label key={option} className="flex items-center gap-2.5 cursor-pointer">
+                  <div
+                    onClick={() => setIso22716(option)}
+                    className={cn(
+                      "w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer",
+                      iso22716 === option ? "border-[#1A3A5C]" : "border-[#E8E2DA]"
+                    )}
+                  >
+                    {iso22716 === option && <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />}
+                  </div>
+                  <span className="text-sm text-[#0F0F0F]">{option}</span>
+                </label>
+              ))}
+            </div>
+            {iso22716 === "보유" && (
+              <div className="flex items-center gap-3 mt-2">
+                <label className="flex items-center gap-2 px-4 py-2.5 border border-[#E8E2DA] text-[#0F0F0F] text-sm font-medium rounded-lg cursor-pointer hover:border-[#1A3A5C]/40 transition-colors">
+                  <Upload className="w-4 h-4" />
+                  인증서 업로드
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => setIso22716File(e.target.files?.[0] ?? null)} />
+                </label>
+                {iso22716File ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-[#0F0F0F] truncate max-w-[200px]">{iso22716File.name}</span>
+                    <button type="button" onClick={() => setIso22716File(null)} className="text-[#6B6B6B] hover:text-red-500 transition-colors"><X className="w-4 h-4" /></button>
+                  </div>
+                ) : (
+                  <span className="text-sm text-[#6B6B6B]/60">파일을 선택해주세요</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 비건 인증 */}
+          <div className="mb-5">
+            <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+              비건 인증 <span className="text-xs text-[#6B6B6B] font-normal">(선택 — 보유 시 배지 부여)</span>
+            </label>
+            <div className="flex flex-wrap gap-6 mb-2">
+              {["보유", "미보유"].map((option) => (
+                <label key={option} className="flex items-center gap-2.5 cursor-pointer">
+                  <div
+                    onClick={() => setVeganCertified(option)}
+                    className={cn(
+                      "w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer",
+                      veganCertified === option ? "border-[#1A3A5C]" : "border-[#E8E2DA]"
+                    )}
+                  >
+                    {veganCertified === option && <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />}
+                  </div>
+                  <span className="text-sm text-[#0F0F0F]">{option}</span>
+                </label>
+              ))}
+            </div>
+            {veganCertified === "보유" && (
+              <div className="mt-2 space-y-2">
+                <input type="text" value={veganCertOrg} onChange={(e) => setVeganCertOrg(e.target.value)} placeholder="인증기관명" className={inputBaseClass} />
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-4 py-2.5 border border-[#E8E2DA] text-[#0F0F0F] text-sm font-medium rounded-lg cursor-pointer hover:border-[#1A3A5C]/40 transition-colors">
+                    <Upload className="w-4 h-4" />
+                    인증서 업로드
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => setVeganCertFile(e.target.files?.[0] ?? null)} />
+                  </label>
+                  {veganCertFile ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-[#0F0F0F] truncate max-w-[200px]">{veganCertFile.name}</span>
+                      <button type="button" onClick={() => setVeganCertFile(null)} className="text-[#6B6B6B] hover:text-red-500 transition-colors"><X className="w-4 h-4" /></button>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-[#6B6B6B]/60">파일을 선택해주세요</span>
                   )}
                 </div>
-                <span className="text-sm text-[#0F0F0F]">{option}</span>
-              </label>
-            ))}
+              </div>
+            )}
+          </div>
+
+          {/* 크루얼티프리 인증 */}
+          <div className="mb-5">
+            <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+              크루얼티프리 인증 <span className="text-xs text-[#6B6B6B] font-normal">(선택 — 보유 시 배지 부여)</span>
+            </label>
+            <div className="flex flex-wrap gap-6 mb-2">
+              {["보유", "미보유"].map((option) => (
+                <label key={option} className="flex items-center gap-2.5 cursor-pointer">
+                  <div
+                    onClick={() => setCrueltyFree(option)}
+                    className={cn(
+                      "w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer",
+                      crueltyFree === option ? "border-[#1A3A5C]" : "border-[#E8E2DA]"
+                    )}
+                  >
+                    {crueltyFree === option && <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />}
+                  </div>
+                  <span className="text-sm text-[#0F0F0F]">{option}</span>
+                </label>
+              ))}
+            </div>
+            {crueltyFree === "보유" && (
+              <div className="mt-2 space-y-2">
+                <input type="text" value={crueltyFreeCertOrg} onChange={(e) => setCrueltyFreeCertOrg(e.target.value)} placeholder="인증기관명" className={inputBaseClass} />
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-4 py-2.5 border border-[#E8E2DA] text-[#0F0F0F] text-sm font-medium rounded-lg cursor-pointer hover:border-[#1A3A5C]/40 transition-colors">
+                    <Upload className="w-4 h-4" />
+                    인증서 업로드
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => setCrueltyFreeCertFile(e.target.files?.[0] ?? null)} />
+                  </label>
+                  {crueltyFreeCertFile ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-[#0F0F0F] truncate max-w-[200px]">{crueltyFreeCertFile.name}</span>
+                      <button type="button" onClick={() => setCrueltyFreeCertFile(null)} className="text-[#6B6B6B] hover:text-red-500 transition-colors"><X className="w-4 h-4" /></button>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-[#6B6B6B]/60">파일을 선택해주세요</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 수출 경험 */}
+          <div className="mb-2">
+            <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+              수출 경험 <span className="text-xs text-[#6B6B6B] font-normal">(선택)</span>
+            </label>
+            <div className="flex flex-wrap gap-6 mb-2">
+              {["수출 경험 있음", "수출 준비 중"].map((option) => (
+                <label key={option} className="flex items-center gap-2.5 cursor-pointer">
+                  <div
+                    onClick={() => setExportExperience(option)}
+                    className={cn(
+                      "w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer",
+                      exportExperience === option ? "border-[#1A3A5C]" : "border-[#E8E2DA]"
+                    )}
+                  >
+                    {exportExperience === option && <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />}
+                  </div>
+                  <span className="text-sm text-[#0F0F0F]">{option}</span>
+                </label>
+              ))}
+            </div>
+            {exportExperience === "수출 경험 있음" && (
+              <input
+                type="text"
+                value={exportCountries}
+                onChange={(e) => setExportCountries(e.target.value)}
+                placeholder="예: 미국, 일본, 싱가포르"
+                className={cn(inputBaseClass, "mt-2")}
+              />
+            )}
           </div>
         </div>
 
@@ -561,10 +823,10 @@ function SupplierForm() {
         {/* Submit Button */}
         <button
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !cosmeticLicenseFile}
           className={cn(
             "w-full bg-[#1A3A5C] text-white font-semibold py-3.5 rounded-lg text-[15px] transition-colors inline-flex items-center justify-center gap-2",
-            isSubmitting ? "opacity-60 cursor-not-allowed" : "hover:bg-[#153249]"
+            isSubmitting || !cosmeticLicenseFile ? "opacity-60 cursor-not-allowed" : "hover:bg-[#153249]"
           )}
         >
           {isSubmitting ? "저장 중..." : "대시보드 시작하기"}
