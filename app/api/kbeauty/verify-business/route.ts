@@ -54,7 +54,11 @@ export async function POST(request: NextRequest) {
     }
 
     const ntsData = await ntsRes.json()
+    // 국세청 API 전체 응답 확인용 — 필드 구조 파악 후 제거 가능
+    console.log("[verify-business] 국세청 응답 전체:", JSON.stringify(ntsData, null, 2))
+
     const result = ntsData?.data?.[0]
+    console.log("[verify-business] result 필드:", result)
 
     if (!result) {
       return NextResponse.json(
