@@ -23,6 +23,7 @@ const HIDE_HEADER_PREFIXES = [
   "/forgot-password",
   "/verify-email",
   "/payment",          // /payment/success, /payment/fail
+  "/kbeauty",          // B2B 전용 레이아웃 — 자체 Navbar 사용
 ]
 
 // status: 'live' = 출시됨 (뱃지 없음) / 'soon' = 출시 예정 (Coming Soon 뱃지).
