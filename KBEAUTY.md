@@ -266,9 +266,21 @@ status TEXT DEFAULT 'pre_registered'
 
 ## 11. Supabase 핵심 테이블
 
+> ⚠️ 실제 생성된 테이블명 — 기존 UnfoldK와 구분을 위해 beauty_ 프리픽스 적용
+> 코드에서 테이블 참조 시 반드시 아래 이름 사용
+
+| KBEAUTY.md 원래 이름 | 실제 생성 테이블명 |
+|---------------------|-------------------|
+| suppliers | beauty_suppliers |
+| buyers | beauty_buyers |
+| beauty_products | beauty_products (동일) |
+| matches | beauty_matches |
+| trade_analytics | beauty_trade_analytics |
+| post_matching_services | beauty_post_matching_services |
+
 ```sql
 -- 공급사
-CREATE TABLE suppliers (
+CREATE TABLE beauty_suppliers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id),
   company_name_ko TEXT NOT NULL,
@@ -292,7 +304,7 @@ CREATE TABLE suppliers (
 );
 
 -- 바이어
-CREATE TABLE buyers (
+CREATE TABLE beauty_buyers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id),
   company_name TEXT NOT NULL,
@@ -317,7 +329,7 @@ CREATE TABLE buyers (
 -- 제품
 CREATE TABLE beauty_products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  supplier_id UUID REFERENCES suppliers(id),
+  supplier_id UUID REFERENCES beauty_suppliers(id),
   product_name_ko TEXT NOT NULL,
   product_name_en TEXT NOT NULL,
   brand_name TEXT NOT NULL,
@@ -335,10 +347,10 @@ CREATE TABLE beauty_products (
 );
 
 -- 매칭
-CREATE TABLE matches (
+CREATE TABLE beauty_matches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  supplier_id UUID REFERENCES suppliers(id),
-  buyer_id UUID REFERENCES buyers(id),
+  supplier_id UUID REFERENCES beauty_suppliers(id),
+  buyer_id UUID REFERENCES beauty_buyers(id),
   product_id UUID REFERENCES beauty_products(id),
   message TEXT,
   status TEXT DEFAULT 'requested',
@@ -348,7 +360,7 @@ CREATE TABLE matches (
 );
 
 -- Trade Analytics Engine 결과
-CREATE TABLE trade_analytics (
+CREATE TABLE beauty_trade_analytics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   report_type TEXT NOT NULL,
   -- trend_velocity | spec_filter | hallyu_correlation | monthly_summary
@@ -361,9 +373,9 @@ CREATE TABLE trade_analytics (
 );
 
 -- Post-Matching 서비스
-CREATE TABLE post_matching_services (
+CREATE TABLE beauty_post_matching_services (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  match_id UUID REFERENCES matches(id),
+  match_id UUID REFERENCES beauty_matches(id),
   service_type TEXT NOT NULL,
   -- contract_template_download | logistics_referral | insight_report
   status TEXT DEFAULT 'completed',
@@ -450,7 +462,7 @@ buyers 테이블 (status: pre_registered)
 ### In Scope (1차)
 - [ ] v0 코드 4개 파일 붙여넣기 (P01·P02·P05·P06)
 - [ ] npx shadcn@latest add sheet label radio-group
-- [ ] Supabase 테이블 마이그레이션 (위 6개 테이블)
+- [x] Supabase 테이블 마이그레이션 (6개 테이블 — migration 0061)
 - [ ] 국세청 API 공급사 1단계 인증
 - [ ] 화장품 등록필증 업로드 + 수동 승인 (2단계)
 - [ ] 바이어 1단계 가입 + 수동 승인

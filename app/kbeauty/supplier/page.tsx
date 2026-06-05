@@ -154,7 +154,8 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
 function SupplierForm() {
   const [businessNumber, setBusinessNumber] = useState("")
   const [isVerified, setIsVerified] = useState(false)
-  const [verifiedCompanyName, setVerifiedCompanyName] = useState("")
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [verifyError, setVerifyError] = useState("")
   const [representativeName, setRepresentativeName] = useState("")
   const [companyNameKo, setCompanyNameKo] = useState("")
   const [companyNameEn, setCompanyNameEn] = useState("")
@@ -172,11 +173,27 @@ function SupplierForm() {
     "더마·기능성",
   ]
 
-  const handleVerify = () => {
-    if (businessNumber.trim()) {
+  const handleVerify = async () => {
+    if (!businessNumber.trim()) return
+    setIsVerifying(true)
+    setVerifyError("")
+    try {
+      const res = await fetch("/api/kbeauty/verify-business", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessNumber }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setVerifyError(data.error ?? "인증에 실패했습니다.")
+        return
+      }
       setIsVerified(true)
-      setVerifiedCompanyName("언폴드랩 주식회사")
-      setCompanyNameKo("언폴드랩 주식회사")
+      if (data.companyName) setCompanyNameKo(data.companyName)
+    } catch {
+      setVerifyError("네트워크 오류가 발생했습니다. 잠시 후 다시 시도하세요.")
+    } finally {
+      setIsVerifying(false)
     }
   }
 
@@ -214,26 +231,27 @@ function SupplierForm() {
             />
             <button
               onClick={handleVerify}
-              disabled={!businessNumber.trim() || isVerified}
+              disabled={!businessNumber.trim() || isVerified || isVerifying}
               className={cn(
                 "px-5 py-3 rounded-lg font-semibold text-sm whitespace-nowrap transition-colors",
                 isVerified
                   ? "bg-[#E8E2DA] text-[#6B6B6B] cursor-not-allowed"
-                  : businessNumber.trim()
+                  : businessNumber.trim() && !isVerifying
                   ? "bg-[#1A3A5C] text-white hover:bg-[#153249]"
                   : "bg-[#1A3A5C]/50 text-white/70 cursor-not-allowed"
               )}
             >
-              {isVerified ? "인증완료" : "인증하기"}
+              {isVerified ? "인증완료" : isVerifying ? "확인 중..." : "인증하기"}
             </button>
           </div>
           {isVerified && (
             <div className="flex items-center gap-1.5 mt-2">
               <Check className="w-4 h-4 text-[#1A3A5C]" />
-              <span className="text-[13px] text-[#1A3A5C]">
-                {verifiedCompanyName} 인증됨
-              </span>
+              <span className="text-[13px] text-[#1A3A5C]">사업자번호 인증됨</span>
             </div>
+          )}
+          {verifyError && (
+            <p className="text-[13px] text-red-500 mt-2">{verifyError}</p>
           )}
         </div>
 
@@ -263,12 +281,9 @@ function SupplierForm() {
               type="text"
               value={companyNameKo}
               onChange={(e) => setCompanyNameKo(e.target.value)}
-              placeholder="인증 후 자동 입력"
+              placeholder="(주)회사명"
               disabled={isVerified}
-              className={cn(
-                inputBaseClass,
-                isVerified && "bg-[#F8F7F5] cursor-not-allowed"
-              )}
+              className={cn(inputBaseClass, isVerified && "bg-[#F8F7F5] cursor-not-allowed")}
             />
           </div>
           <div>

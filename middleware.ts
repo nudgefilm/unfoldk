@@ -125,6 +125,53 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // ────────────────────────────────────────────────────────────
+  // UnfoldK Beauty B2B 라우트 가드 (기존 UnfoldK 로직과 독립)
+  // KBEAUTY.md §4 기준
+  //   /kbeauty/dashboard/supplier/* → beauty_suppliers 레코드 필요
+  //   /kbeauty/dashboard/buyer/*    → beauty_buyers 레코드 필요
+  //   /kbeauty/admin                → is_admin RPC (기존 UnfoldK admin 재활용)
+  //   미인증 or role 불일치 → /kbeauty 리다이렉트
+  // ────────────────────────────────────────────────────────────
+  const isKbeautySupplierDash = path.startsWith("/kbeauty/dashboard/supplier")
+  const isKbeautyBuyerDash    = path.startsWith("/kbeauty/dashboard/buyer")
+  const isKbeautyAdmin        = path.startsWith("/kbeauty/admin")
+
+  if (isKbeautySupplierDash || isKbeautyBuyerDash || isKbeautyAdmin) {
+    const kbeautyRedirect = () => {
+      const url = request.nextUrl.clone()
+      url.pathname = "/kbeauty"
+      url.search = ""
+      return redirectWithCookies(url, supabaseResponse)
+    }
+
+    // 미로그인 → /kbeauty
+    if (!user) return kbeautyRedirect()
+
+    if (isKbeautySupplierDash) {
+      const { data: supplier } = await supabase
+        .from("beauty_suppliers")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle()
+      if (!supplier) return kbeautyRedirect()
+    }
+
+    if (isKbeautyBuyerDash) {
+      const { data: buyer } = await supabase
+        .from("beauty_buyers")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle()
+      if (!buyer) return kbeautyRedirect()
+    }
+
+    if (isKbeautyAdmin) {
+      const { data: isAdminUser } = await supabase.rpc("is_admin", { uid: user.id })
+      if (!isAdminUser) return kbeautyRedirect()
+    }
+  }
+
   // ⚠️ 공식 가이드: supabaseResponse 객체를 그대로 반환해야 쿠키 동기화가 보장됨.
   //    새 응답을 만들어야 한다면 NextResponse.next({ request }) 로 만들고
   //    supabaseResponse.cookies.getAll() 을 명시 복사할 것 (위 redirectWithCookies 참조).
