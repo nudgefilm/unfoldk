@@ -479,25 +479,13 @@ export function KoreanContent() {
     }
   }, [packModalDramaId])
 
-  // ─── AI Grammar — 표현 변경 시 캐시 확인 후 결과 복원 (자동 API 호출 없음)
+  // ─── AI Grammar — 표현 로드 시 자동 호출 (Pro 전용, DB 캐시 우선)
+  // ⚠️ 수동 버튼 방식으로 변경 금지 (CLAUDE.md §6 변경 금지 기능 목록)
   useEffect(() => {
     if (!isPro || !phrase) { setGrammar(null); return }
-    const cached = grammarCache.current.get(phrase.id)
-    setGrammar(cached ?? null)
-  }, [isPro, phrase])
-
-  // ─── AI Grammar 수동 fetch — "Analyze Grammar" 버튼 클릭 시만 실행
-  const fetchGrammarForPhrase = useCallback(async () => {
-    if (!isPro || !phrase) return
-    if (phrase.id.startsWith("fallback-")) {
-      console.warn(`[korean] grammar skip — fallback phrase (id=${phrase.id})`)
-      return
-    }
-    // 캐시 히트 — 재호출 불필요
-    if (grammarCache.current.has(phrase.id)) {
-      setGrammar(grammarCache.current.get(phrase.id) ?? null)
-      return
-    }
+    if (phrase.id.startsWith("fallback-")) { setGrammar(null); return }
+    const inMemory = grammarCache.current.get(phrase.id)
+    if (inMemory) { setGrammar(inMemory); return }
     setGrammar(null)
     setGrammarLoading(true)
     fetch("/api/korean/grammar", {
@@ -515,11 +503,11 @@ export function KoreanContent() {
         setGrammar(body.explanation)
       })
       .catch((err) => {
-        console.error("[korean] grammar fetch 실패:", err?.status, err?.body?.error)
+        console.error("[korean] grammar auto-fetch 실패:", err?.status, err?.body?.error)
         setGrammar(null)
       })
       .finally(() => setGrammarLoading(false))
-  }, [isPro, phrase])
+  }, [isPro, phrase?.id])
 
   // ─── 액션: 특정 표현 로드 — Explore 클릭 시 Today's Lesson에 해당 표현 표시
   const loadPhraseById = useCallback(async (phraseId: string) => {
@@ -1332,21 +1320,7 @@ export function KoreanContent() {
                       </>
                     )}
                   </>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-muted-foreground text-sm mb-4">
-                      Get a detailed grammar breakdown for this expression.
-                    </p>
-                    <Button
-                      onClick={fetchGrammarForPhrase}
-                      disabled={!phrase || phrase.id.startsWith("fallback-")}
-                      className="rounded-full font-medium text-white px-6"
-                      style={{ backgroundColor: "#FF4B6E" }}
-                    >
-                      Analyze Grammar
-                    </Button>
-                  </div>
-                )
+                ) : null
               ) : (
                 // 비-Pro placeholder (실제 보이지 않지만 레이아웃 공간 확보)
                 <div className="space-y-4">

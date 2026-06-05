@@ -11,8 +11,8 @@ import { generateGrammarExplanation } from "@/lib/claude/korean-phrase"
 // 동작:
 //   1. 로그인 + Pro 검증
 //   2. sentinel id 면 즉시 422 (fallback phrase 는 DB 에 없거나 임시 row — 문법 분석 의미 없음)
-//   3. grammar_explanations 캐시 hit → 즉시 반환
-//   4. miss → korean_phrases 조회 → Claude Haiku 생성 → DB 저장
+//   3. korean_grammar_cache 조회 → hit 시 즉시 반환 (캐시 만료 없음)
+//   4. miss → korean_phrases 조회 → Claude Haiku 생성 → korean_grammar_cache 저장 후 반환
 // 응답:
 //   - { explanation: string, cached: boolean }
 //   - 403: not_pro / 404: phrase_not_found / 422: generation_failed(+ reason, detail)
@@ -71,15 +71,15 @@ export async function POST(request: Request) {
     )
   }
 
-  // 1. 캐시 hit (Pro RLS 통과)
+  // 1. DB 캐시 hit (korean_grammar_cache — 영구 캐시, 만료 없음)
   const { data: cached } = await supabase
-    .from("grammar_explanations")
-    .select("explanation")
+    .from("korean_grammar_cache")
+    .select("grammar_text")
     .eq("phrase_id", phraseId)
     .maybeSingle()
   if (cached) {
     return NextResponse.json({
-      explanation: (cached as { explanation: string }).explanation,
+      explanation: (cached as { grammar_text: string }).grammar_text,
       cached: true,
     })
   }
@@ -126,12 +126,12 @@ export async function POST(request: Request) {
     )
   }
 
-  // 4. 캐시 저장 — admin client
+  // 4. korean_grammar_cache 저장 — admin client (RLS 우회)
   const admin = createSupabaseAdminClient()
   const { error: insErr } = await admin
-    .from("grammar_explanations")
+    .from("korean_grammar_cache")
     .upsert(
-      { phrase_id: phraseId, explanation: result.text, model: MODEL },
+      { phrase_id: phraseId, grammar_text: result.text },
       { onConflict: "phrase_id" }
     )
   if (insErr) {
