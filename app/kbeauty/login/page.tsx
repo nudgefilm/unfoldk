@@ -156,7 +156,7 @@ export default function KBeautyLoginPage() {
           type="button"
           onClick={handleGoogleLogin}
           disabled={isGoogleLoading}
-          className="w-full flex items-center justify-center gap-2.5 border border-[#E8E2DA] bg-white py-3 rounded-lg text-sm font-medium text-[#0F0F0F] hover:bg-[#F8F7F5] transition-colors disabled:opacity-60"
+          className="w-full flex items-center justify-center gap-2.5 border border-[#E8E2DA] bg-white py-3.5 rounded-lg text-[15px] font-medium text-[#0F0F0F] hover:bg-[#F8F7F5] transition-colors disabled:opacity-60"
         >
           {GOOGLE_SVG}
           {isGoogleLoading ? "Connecting..." : "Continue with Google"}
