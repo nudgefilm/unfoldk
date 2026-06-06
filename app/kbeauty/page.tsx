@@ -34,6 +34,9 @@ function BeautyNavbar({
           <a href="#buyers" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             For Buyers
           </a>
+          <Link href="/kbeauty/seller" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+            For Sellers
+          </Link>
           <a href="#how-it-works" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             How It Works
           </a>
@@ -68,6 +71,7 @@ function BeautyNavbar({
             <nav className="flex flex-col gap-4 mt-6">
               <a href="#suppliers" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Suppliers</a>
               <a href="#buyers" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Buyers</a>
+              <Link href="/kbeauty/seller" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Sellers</Link>
               <a href="#how-it-works" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">How It Works</a>
               <a href="#data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Data Sources</a>
               <div className="border-t border-[#E8E2DA] my-2" />
@@ -206,12 +210,12 @@ function EntryCardsSection({
 }) {
   return (
     <section id="suppliers" className="bg-[#F8F7F5] py-20 px-6">
-      <div className="max-w-[880px] mx-auto">
+      <div className="max-w-[1120px] mx-auto">
         <h2 className="text-2xl md:text-[28px] font-bold text-[#0F0F0F] text-center mb-12">
           Are you in the business?
         </h2>
 
-        <div className="grid md:grid-cols-2 gap-6" id="buyers">
+        <div className="grid md:grid-cols-3 gap-6" id="buyers">
           {/* 공급사 카드 */}
           <div className="bg-white border border-[#E8E2DA] rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
             <span className="inline-block bg-[#1A3A5C]/10 text-[#1A3A5C] text-xs font-medium px-4 py-1.5 rounded-full mb-4">
@@ -272,6 +276,37 @@ function EntryCardsSection({
               Get Buyer Access
               <span className="text-lg">&#8594;</span>
             </button>
+          </div>
+
+          {/* 셀러 카드 */}
+          <div className="bg-white border border-[#E8E2DA] rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+            <span className="inline-block bg-[#1A3A5C]/10 text-[#1A3A5C] text-xs font-medium px-4 py-1.5 rounded-full mb-4">
+              셀러
+            </span>
+            <h3 className="text-[22px] font-bold text-[#0F0F0F] mb-1">K-뷰티 셀러</h3>
+            <p className="text-sm text-[#6B6B6B] mb-6">글로벌 마켓플레이스 판매자라면</p>
+            <div className="border-t border-[#E8E2DA] my-6" />
+            <ul className="space-y-3 mb-8">
+              <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
+                <Check className="w-4 h-4 text-[#1A3A5C] mt-0.5 flex-shrink-0" />
+                검증된 K-뷰티 공급사 소싱
+              </li>
+              <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
+                <Check className="w-4 h-4 text-[#1A3A5C] mt-0.5 flex-shrink-0" />
+                북미·유럽 판매 채널 연결
+              </li>
+              <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
+                <Check className="w-4 h-4 text-[#1A3A5C] mt-0.5 flex-shrink-0" />
+                마진 분석 및 트렌드 리포트
+              </li>
+            </ul>
+            <Link
+              href="/kbeauty/seller"
+              className="w-full bg-[#1A3A5C] text-white font-semibold py-3.5 rounded-md hover:bg-[#153249] transition-colors inline-flex items-center justify-center gap-2"
+            >
+              셀러 신청
+              <span className="text-lg">&#8594;</span>
+            </Link>
           </div>
         </div>
       </div>
