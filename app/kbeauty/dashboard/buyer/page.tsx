@@ -546,6 +546,17 @@ export default function BuyerDashboardPage() {
                 })}
               </div>
             )}
+
+            {/* View All 링크 */}
+            <div className="mt-4 pt-4 border-t border-[#E8E2DA] flex justify-end">
+              <Link
+                href="/kbeauty/dashboard/buyer/suppliers"
+                className="text-xs font-medium text-[#1A3A5C] hover:underline inline-flex items-center gap-1"
+              >
+                View All Suppliers
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </section>
 
           {/* ④ Matching Status */}
