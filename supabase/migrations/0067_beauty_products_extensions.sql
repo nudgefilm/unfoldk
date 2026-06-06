@@ -41,18 +41,21 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- 7. Storage RLS 정책
-CREATE POLICY IF NOT EXISTS "kbeauty_products_upload"
+-- 7. Storage RLS 정책 (CREATE POLICY IF NOT EXISTS 미지원 → DROP 후 CREATE)
+DROP POLICY IF EXISTS "kbeauty_products_upload" ON storage.objects;
+CREATE POLICY "kbeauty_products_upload"
   ON storage.objects FOR INSERT
   TO authenticated
   WITH CHECK (bucket_id = 'kbeauty-products');
 
-CREATE POLICY IF NOT EXISTS "kbeauty_products_read"
+DROP POLICY IF EXISTS "kbeauty_products_read" ON storage.objects;
+CREATE POLICY "kbeauty_products_read"
   ON storage.objects FOR SELECT
   TO authenticated
   USING (bucket_id = 'kbeauty-products');
 
-CREATE POLICY IF NOT EXISTS "kbeauty_products_update"
+DROP POLICY IF EXISTS "kbeauty_products_update" ON storage.objects;
+CREATE POLICY "kbeauty_products_update"
   ON storage.objects FOR UPDATE
   TO authenticated
   USING (bucket_id = 'kbeauty-products');
