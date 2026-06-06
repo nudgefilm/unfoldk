@@ -386,7 +386,7 @@ function FooterSection() {
         </div>
         <div className="border-t border-white/10 my-6" />
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <p className="text-sm text-white/40">&copy; 2026 UnfoldK Beauty by Unfold Lab.</p>
+          <a href="/kbeauty/admin" className="text-sm text-white/40" style={{ textDecoration: "none" }}>&copy; 2026 UnfoldK Beauty by Unfold Lab.</a>
           <div className="flex items-center gap-4">
             <a href="#" className="text-white/60 hover:text-white transition-colors">
               <Instagram className="w-5 h-5" />

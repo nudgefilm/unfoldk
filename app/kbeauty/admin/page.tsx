@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   Loader2, CheckCircle2, XCircle, Package,
   Users, Store, ShoppingBag, Handshake, FlaskConical,
-  ToggleLeft, ToggleRight, ExternalLink,
+  ToggleLeft, ToggleRight, ExternalLink, Mail, X, Eye,
 } from "lucide-react"
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -16,16 +16,72 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 const NAVY = "#1A3A5C"
 const GOLD = "#C8A882"
 
-type Tab = "suppliers" | "buyers" | "sellers" | "products" | "matches" | "services"
+type Tab = "suppliers" | "buyers" | "sellers" | "products" | "matches" | "services" | "emails"
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
-  { key: "suppliers", label: "공급사", icon: Package },
-  { key: "buyers",    label: "바이어",  icon: Users },
-  { key: "sellers",   label: "셀러",    icon: Store },
-  { key: "products",  label: "상품",    icon: ShoppingBag },
-  { key: "matches",   label: "매칭",    icon: Handshake },
+  { key: "suppliers", label: "공급사",    icon: Package },
+  { key: "buyers",    label: "바이어",    icon: Users },
+  { key: "sellers",   label: "셀러",      icon: Store },
+  { key: "products",  label: "상품",      icon: ShoppingBag },
+  { key: "matches",   label: "매칭",      icon: Handshake },
   { key: "services",  label: "샘플·소싱", icon: FlaskConical },
+  { key: "emails",    label: "이메일 발송", icon: Mail },
 ]
+
+// ─── 이메일 템플릿 ─────────────────────────────────────────────────────────
+
+const EMAIL_GROUPS = [
+  { value: "all_suppliers",     label: "전체 공급사" },
+  { value: "pending_suppliers", label: "승인 대기 공급사 (DB접근 미부여)" },
+  { value: "all_buyers",        label: "전체 바이어" },
+  { value: "pending_buyers",    label: "미승인 바이어 (1차 미승인)" },
+  { value: "all_sellers",       label: "전체 셀러" },
+  { value: "all",               label: "전체 (공급사+바이어+셀러)" },
+]
+
+const EMAIL_TEMPLATES: Record<string, { subject: string; body: string }> = {
+  new_match: {
+    subject: "New match available on UnfoldK Beauty",
+    body: `Dear {{company_name}},
+
+A new match has been found for you on {{platform_name}}.
+
+Log in to your dashboard to view the match details and take action.
+
+Best regards,
+UnfoldK Beauty Team`,
+  },
+  profile_completion: {
+    subject: "Complete your profile on UnfoldK Beauty",
+    body: `Dear {{company_name}},
+
+Your profile on {{platform_name}} is incomplete. Completing it will improve your match quality and visibility to partners.
+
+Log in now to complete your profile.
+
+Best regards,
+UnfoldK Beauty Team`,
+  },
+  weekly_report: {
+    subject: "Your weekly activity report — UnfoldK Beauty",
+    body: `Dear {{company_name}},
+
+Here is your weekly activity summary on {{platform_name}}:
+
+- New matches this week
+- Pending responses
+- Profile views
+
+Log in to see full details.
+
+Best regards,
+UnfoldK Beauty Team`,
+  },
+  custom: {
+    subject: "",
+    body: "",
+  },
+}
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 
@@ -183,6 +239,14 @@ export default function KBeautyAdminPage() {
   // 매칭 상태 필터
   const [matchFilter, setMatchFilter] = useState<string>("all")
 
+  // 이메일 발송 탭 상태
+  const [emailGroup,    setEmailGroup]    = useState("all_suppliers")
+  const [emailTemplate, setEmailTemplate] = useState("new_match")
+  const [emailSubject,  setEmailSubject]  = useState(EMAIL_TEMPLATES.new_match.subject)
+  const [emailBody,     setEmailBody]     = useState(EMAIL_TEMPLATES.new_match.body)
+  const [showPreview,   setShowPreview]   = useState(false)
+  const [isSending,     setIsSending]     = useState(false)
+
   // ─── 초기화 ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -328,6 +392,43 @@ export default function KBeautyAdminPage() {
     }
     toast.success(!current ? "승인됨" : "승인 취소됨")
     setToggling(null)
+  }
+
+  function handleTemplateChange(tpl: string) {
+    setEmailTemplate(tpl)
+    if (tpl !== "custom") {
+      setEmailSubject(EMAIL_TEMPLATES[tpl].subject)
+      setEmailBody(EMAIL_TEMPLATES[tpl].body)
+    }
+  }
+
+  async function handleSendEmail() {
+    if (!emailSubject.trim() || !emailBody.trim()) {
+      toast.error("제목과 본문을 입력해주세요.")
+      return
+    }
+    setIsSending(true)
+    try {
+      const res = await fetch("/api/kbeauty/admin/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ group: emailGroup, subject: emailSubject, body: emailBody }),
+      })
+      const result = await res.json() as { success?: number; failed?: number; message?: string; error?: string }
+      if (!res.ok) {
+        toast.error(result.error ?? "발송 실패")
+        return
+      }
+      if (result.message) {
+        toast.info(result.message)
+      } else {
+        toast.success(`발송 완료 — 성공 ${result.success ?? 0}건 / 실패 ${result.failed ?? 0}건`)
+      }
+    } catch {
+      toast.error("발송 중 오류가 발생했습니다.")
+    } finally {
+      setIsSending(false)
+    }
   }
 
   async function updateProductStatus(id: string, newStatus: "active" | "inactive") {
@@ -817,9 +918,155 @@ export default function KBeautyAdminPage() {
               </div>
             )}
 
+            {/* ── ⑦ 이메일 발송 ──────────────────────────────────────── */}
+            {activeTab === "emails" && (
+              <div className="p-6 max-w-2xl">
+                <h2 className="text-base font-bold text-[#0F0F0F] mb-6">이메일 발송</h2>
+
+                {/* 대상 그룹 */}
+                <div className="mb-5">
+                  <p className="text-sm font-semibold text-[#0F0F0F] mb-3">대상 그룹</p>
+                  <div className="flex flex-col gap-2.5">
+                    {EMAIL_GROUPS.map(g => (
+                      <label key={g.value} className="flex items-center gap-2.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="emailGroup"
+                          value={g.value}
+                          checked={emailGroup === g.value}
+                          onChange={() => setEmailGroup(g.value)}
+                          className="w-4 h-4"
+                          style={{ accentColor: NAVY }}
+                        />
+                        <span className="text-sm text-[#0F0F0F]">{g.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border-t border-[#E8E2DA] my-5" />
+
+                {/* 템플릿 선택 */}
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-[#0F0F0F] mb-2">템플릿</label>
+                  <select
+                    value={emailTemplate}
+                    onChange={e => handleTemplateChange(e.target.value)}
+                    className="w-full text-sm border border-[#E8E2DA] rounded-lg px-4 py-2.5 bg-white focus:outline-none focus:border-[#1A3A5C] transition-colors"
+                  >
+                    <option value="new_match">신규 매칭 알림</option>
+                    <option value="profile_completion">프로필 완성 독려</option>
+                    <option value="weekly_report">주간 활동 리포트</option>
+                    <option value="custom">직접 작성</option>
+                  </select>
+                </div>
+
+                {/* 제목 */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-[#0F0F0F] mb-2">제목</label>
+                  <input
+                    type="text"
+                    value={emailSubject}
+                    onChange={e => setEmailSubject(e.target.value)}
+                    placeholder="이메일 제목"
+                    className="w-full text-sm border border-[#E8E2DA] rounded-lg px-4 py-2.5 bg-white focus:outline-none focus:border-[#1A3A5C] transition-colors"
+                  />
+                </div>
+
+                {/* 본문 */}
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-semibold text-[#0F0F0F]">본문</label>
+                    <span className="text-[11px] text-[#6B6B6B]">변수: {"{{company_name}}"}, {"{{platform_name}}"}</span>
+                  </div>
+                  <textarea
+                    value={emailBody}
+                    onChange={e => setEmailBody(e.target.value)}
+                    rows={12}
+                    placeholder="이메일 본문을 입력하세요..."
+                    className="w-full text-sm border border-[#E8E2DA] rounded-lg px-4 py-3 bg-white focus:outline-none focus:border-[#1A3A5C] transition-colors resize-none font-mono"
+                  />
+                </div>
+
+                {/* 액션 버튼 */}
+                <div className="flex gap-3 mt-5">
+                  <button
+                    onClick={() => setShowPreview(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border border-[#E8E2DA] rounded-lg text-[#0F0F0F] hover:bg-[#F8F7F5] transition-colors"
+                  >
+                    <Eye className="w-4 h-4" />
+                    미리보기
+                  </button>
+                  <button
+                    onClick={handleSendEmail}
+                    disabled={isSending || !emailSubject.trim() || !emailBody.trim()}
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-40"
+                    style={{ background: NAVY }}
+                  >
+                    {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                    {isSending ? "발송 중..." : "발송"}
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       </main>
+
+      {/* ── 미리보기 모달 ─────────────────────────────────────────── */}
+      {showPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setShowPreview(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E2DA]">
+              <h3 className="text-sm font-bold text-[#0F0F0F]">이메일 미리보기</h3>
+              <button onClick={() => setShowPreview(false)} className="text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-6 py-5 max-h-[70vh] overflow-y-auto">
+              <p className="text-xs text-[#6B6B6B] mb-1">발신: UnfoldK Beauty &lt;support@unfoldk.com&gt;</p>
+              <p className="text-xs text-[#6B6B6B] mb-4">
+                대상: {EMAIL_GROUPS.find(g => g.value === emailGroup)?.label}
+              </p>
+              <div className="border border-[#E8E2DA] rounded-lg overflow-hidden">
+                <div className="bg-[#F8F7F5] px-5 py-3 border-b border-[#E8E2DA]">
+                  <p className="text-xs text-[#6B6B6B]">제목</p>
+                  <p className="text-sm font-semibold text-[#0F0F0F] mt-0.5">
+                    {emailSubject
+                      .replace(/\{\{company_name\}\}/g, "(회사명)")
+                      .replace(/\{\{platform_name\}\}/g, "UnfoldK Beauty")}
+                  </p>
+                </div>
+                <div className="px-5 py-4">
+                  <pre
+                    className="text-sm text-[#0F0F0F] whitespace-pre-wrap font-sans leading-relaxed"
+                    style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, sans-serif' }}
+                  >
+                    {emailBody
+                      .replace(/\{\{company_name\}\}/g, "(회사명)")
+                      .replace(/\{\{platform_name\}\}/g, "UnfoldK Beauty")}
+                  </pre>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-[#E8E2DA] flex justify-end">
+              <button
+                onClick={() => setShowPreview(false)}
+                className="text-sm font-medium px-4 py-2 border border-[#E8E2DA] rounded-lg text-[#6B6B6B] hover:bg-[#F8F7F5] transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
