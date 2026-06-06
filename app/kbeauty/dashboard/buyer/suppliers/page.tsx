@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils"
 interface Buyer {
   id: string
   company_name: string
-  stage1_approved: boolean
+  buyer_db_access: boolean
 }
 
 interface Product {
@@ -149,7 +149,7 @@ export default function BuyerSuppliersPage() {
 
       const { data: buyerData } = await supabase
         .from("beauty_buyers")
-        .select("id, company_name, stage1_approved")
+        .select("id, company_name, buyer_db_access")
         .eq("user_id", user.id)
         .maybeSingle()
 
@@ -227,7 +227,7 @@ export default function BuyerSuppliersPage() {
 
   const handleRequestMatch = async (product: Product) => {
     if (!buyer) return
-    if (!buyer.stage1_approved) {
+    if (!buyer.buyer_db_access) {
       toast.error("Your account is pending approval. Matching requests unlock after approval.")
       return
     }
@@ -268,7 +268,7 @@ export default function BuyerSuppliersPage() {
     )
   }
 
-  const isNotApproved = !buyer?.stage1_approved
+  const isNotApproved = !buyer?.buyer_db_access
 
   return (
     <div
@@ -276,7 +276,7 @@ export default function BuyerSuppliersPage() {
       style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
     >
       <Toaster position="top-right" richColors />
-      <Sidebar companyName={buyer?.company_name ?? ""} approved={buyer?.stage1_approved ?? false} />
+      <Sidebar companyName={buyer?.company_name ?? ""} approved={buyer?.buyer_db_access ?? false} />
 
       <main className="min-h-screen" style={{ marginLeft: 240 }}>
         <div className="max-w-4xl mx-auto px-8 py-10">
