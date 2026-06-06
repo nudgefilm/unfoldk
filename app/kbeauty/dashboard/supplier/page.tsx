@@ -8,6 +8,7 @@ import {
   Package,
   Handshake,
   Settings,
+  UserCircle,
   ChevronRight,
   Upload,
   CheckCircle2,
@@ -97,6 +98,7 @@ const NAV_ITEMS = [
   { label: "대시보드", icon: LayoutDashboard, href: "/kbeauty/dashboard/supplier" },
   { label: "제품 관리", icon: Package, href: "/kbeauty/dashboard/supplier/products/new" },
   { label: "매칭 관리", icon: Handshake, href: "/kbeauty/dashboard/supplier/matches" },
+  { label: "프로필 관리", icon: UserCircle, href: "/kbeauty/dashboard/supplier/profile" },
   { label: "계정 설정", icon: Settings, href: "/kbeauty/dashboard/supplier/settings" },
 ]
 

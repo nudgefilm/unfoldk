@@ -4,6 +4,62 @@
 
 ---
 
+## 현재 상태 (2026-06-07 세션 53 기준)
+
+### UnfoldK Beauty (kbeauty) — 공급사 프로필 관리 페이지
+
+**완료 항목**
+
+- **공급사 프로필 관리 페이지 신규 생성** (`app/kbeauty/dashboard/supplier/profile/page.tsx`)
+  - ① 헤더: 뒤로가기 브레드크럼 (대시보드 / 프로필 관리)
+  - ② 기본 정보: 회사명(ko/en), 웹사이트, 담당자 이름·이메일·전화 — 편집 가능
+  - ③ 인증 정보: 사업자등록번호·인증 상태, 화장품 허가 유형·인증, FDA 상태·등록번호 — 읽기 전용
+  - ④ 취급 카테고리: 스킨케어 등 7개 토글 버튼
+  - ⑤ 인증 보유 현황: ISO 22716 / 비건 / 크루얼티프리 — 토글 ON 시 URL·기관 입력 노출
+  - ⑥ 수출 정보: 경험 textarea + 국가 태그 입력 (Enter/쉼표로 추가, × 제거)
+  - `beauty_suppliers` UPDATE (인증 필드 제외), `export_countries` TEXT[]/TEXT 양방향 대응
+  - 미로그인 시 `/kbeauty/supplier/login` 리다이렉트
+- **공급사 대시보드 사이드바 "프로필 관리 →" 항목 추가** (`app/kbeauty/dashboard/supplier/page.tsx`)
+  - NAV_ITEMS에 `{ label: "프로필 관리", icon: UserCircle, href: ".../profile" }` 추가
+  - `UserCircle` lucide-react 아이콘 import 추가
+
+**다음 세션**
+- Migration 0074 (paddle_columns), 0075 (beauty_ratings) Supabase 수동 실행 확인
+- Paddle 웹훅 실제 엔드포인트 등록 및 테스트
+
+---
+
+## 현재 상태 (2026-06-06 세션 52 기준)
+
+### UnfoldK Beauty (kbeauty) — 공급사 평점 시스템 + 결제 연동 + 환불 정책
+
+**완료 항목**
+
+- **Paddle 결제 연동 (세션 51 연속)**
+  - `@paddle/paddle-js` 설치, `lib/paddle/constants.ts` (Price ID 4개)
+  - `components/PaddleProvider.tsx` + `app/layout.tsx` 전역 래핑
+  - `components/pricing-section.tsx`: Hallyu Pass Overlay 체크아웃 (customerEmail + userId customData)
+  - `app/kbeauty/sourcing-sniper/page.tsx`: `sourcing_sniper_active` 게이팅 + 월 $29 / 평생 $79 결제 버튼
+  - `app/api/paddle/webhook/route.ts`: HMAC-SHA256 서명 검증 + subscription.activated / transaction.completed / subscription.canceled / subscription.paused 핸들러
+  - `supabase/migrations/0074_paddle_columns.sql`: users.paddle_customer_id / paddle_subscription_id, beauty_sellers.sourcing_sniper_active
+
+- **공급사 평점 시스템**
+  - `supabase/migrations/0075_beauty_ratings.sql`: `beauty_ratings` 테이블 (response_speed / product_quality / communication / overall_rating GENERATED, RLS, unique constraint)
+  - `components/kbeauty/RatingModal.tsx`: 별점 3항목 + 선택 코멘트, INSERT 후 "Thank you for your review!" toast, 중복 방지
+  - `supplier/page.tsx`: 헤더에 평균 평점 (★ X.X / 5.0, N reviews / "No ratings yet") + 매칭·샘플 승인 시 바이어에게 "Rate your experience" 알림 추가 발송
+  - `buyer/page.tsx`: Matching Status approved 행에 "Rate Supplier" 버튼 / 이미 평점 시 "Rated ✓"
+  - `seller/page.tsx`: "My Sourcing Requests" 섹션 신규 (approved/completed 행에 Rate Supplier) + Discover 카드 공급사 평점 배지
+  - `buyer/suppliers/page.tsx`: 제품 카드 공급사 평균 평점 배지 (products 변경 시 batch 로드)
+
+- **환불 정책 페이지**
+  - `app/refund/page.tsx`: UnfoldK 메인 환불 정책 (terms 다크 테마, 영어)
+    - 월간 구독: 당월 잔여 환불 없음 / 연간: 14일 이내 전액 / Sourcing Sniper: 7일+미사용 조건
+  - `app/kbeauty/refund/page.tsx`: kbeauty 환불 정책 (네이비 #1A3A5C / 골드 #C8A882 테마, 동일 내용)
+  - `components/footer-section.tsx` Legal 섹션에 Refund Policy 링크 추가
+  - `app/kbeauty/page.tsx` kbeauty 푸터에 Refund Policy 링크 추가
+
+---
+
 ## 현재 상태 (2026-06-06 세션 51 기준)
 
 ### UnfoldK Beauty (kbeauty) — 공급사 가입·대시보드 개선
@@ -181,6 +237,10 @@
 
 ## 사용자 액션 필요
 
+**migration 0075** (`supabase/migrations/0075_beauty_ratings.sql`) Supabase SQL Editor 실행 → beauty_ratings 테이블 생성
+
+**migration 0074** (`supabase/migrations/0074_paddle_columns.sql`) Supabase SQL Editor 실행 → users.paddle_customer_id/paddle_subscription_id, beauty_sellers.sourcing_sniper_active
+
 **migration 0058** (`supabase/migrations/0058_drama_items.sql`) Supabase SQL Editor 실행 → drama_items 테이블 생성
 
 **migration 0059** (`supabase/migrations/0059_chart_attack.sql`) → chart_attack_votes 테이블
@@ -239,6 +299,6 @@ CREATE POLICY "kpop_albums_select_all" ON public.kpop_albums FOR SELECT TO anon,
 
 ## 블로커
 
-- Lemon Squeezy 재심사 결과 대기
+- Paddle 실제 결제 테스트 필요 (샌드박스 환경변수 설정 완료, 웹훅 실서버 연결 확인 필요)
 - top.gg 심사 대기
 - r/Korean 포스팅 승인 대기
