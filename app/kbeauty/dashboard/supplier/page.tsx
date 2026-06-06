@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { ExchangeRateBadge } from "@/components/kbeauty/ExchangeRateBadge"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 
@@ -423,25 +424,35 @@ export default function SupplierDashboardPage() {
       <main className="min-h-screen" style={{ marginLeft: 240 }}>
         <div className="max-w-4xl mx-auto px-8 py-10">
 
-          {/* 환영 메시지 */}
-          <h1
-            className="text-[#0F0F0F] mb-8"
-            style={{
-              fontFamily: '"Cormorant Garamond", Georgia, serif',
-              fontSize: 28,
-              fontWeight: 600,
-              lineHeight: 1.2,
-            }}
-          >
-            안녕하세요, {supplier?.company_name_ko ?? ""}님
-          </h1>
+          {/* 헤더 — 환영 메시지 + 환율 배지 */}
+          <div className="flex items-start justify-between mb-8">
+            <h1
+              className="text-[#0F0F0F]"
+              style={{
+                fontFamily: '"Cormorant Garamond", Georgia, serif',
+                fontSize: 28,
+                fontWeight: 600,
+                lineHeight: 1.2,
+              }}
+            >
+              안녕하세요, {supplier?.company_name_ko ?? ""}님
+            </h1>
+            <ExchangeRateBadge />
+          </div>
 
-          {/* 요약 카드 */}
-          <div className="flex gap-4 mb-8">
+          {/* 요약 카드 + 제품 등록 버튼 */}
+          <div className="flex gap-4 mb-8 items-stretch">
             <SummaryCard label="받은 매칭 요청" value={totalMatchCount} />
             <SummaryCard label="승인한 매칭" value={approvedCount} />
             <SummaryCard label="등록 제품" value={productCount} />
             <SummaryCard label="조회수" value={0} />
+            <Link
+              href="/kbeauty/dashboard/supplier/products/new"
+              className="flex flex-col items-center justify-center gap-1 min-w-[120px] px-5 py-4 border-[1.5px] border-dashed border-[#1A3A5C]/30 rounded-xl text-[#1A3A5C] hover:bg-[#1A3A5C]/[0.04] hover:border-[#1A3A5C]/60 transition-colors"
+            >
+              <Package className="w-5 h-5" />
+              <span className="text-xs font-medium whitespace-nowrap">제품 등록</span>
+            </Link>
           </div>
 
           {/* Pro 플랜 업그레이드 배너 */}

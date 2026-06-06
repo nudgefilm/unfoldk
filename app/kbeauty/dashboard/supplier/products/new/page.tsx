@@ -36,6 +36,7 @@ const CATEGORIES: { ko: string; value: string }[] = [
   { ko: "메이크업", value: "makeup" },
   { ko: "헤어", value: "haircare" },
   { ko: "바디", value: "body" },
+  { ko: "더마", value: "derma" },
 ]
 
 const CERT_OPTIONS = ["CPNP", "FDA", "ISO22716", "KFDA", "기타"]
@@ -146,6 +147,10 @@ export default function ProductNewPage() {
   const [descriptionKo, setDescriptionKo] = useState("")
   const [descriptionEn, setDescriptionEn] = useState("")
 
+  // 환율 + 가격 경고
+  const [exchangeRate, setExchangeRate] = useState(1400)
+  const [priceWarning, setPriceWarning] = useState(false)
+
   // 제출
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState("")
@@ -173,6 +178,28 @@ export default function ProductNewPage() {
     loadSupplier()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ─── 환율 fetch ────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    fetch("/api/kbeauty/exchange-rate")
+      .then((r) => r.json())
+      .then((json: { rate: number }) => setExchangeRate(json.rate))
+      .catch(() => {})
+  }, [])
+
+  // ─── 가격 경고 (소프트) ────────────────────────────────────────────────
+
+  useEffect(() => {
+    const max = Number(priceRangeMax)
+    const consumer = Number(consumerPriceKrw)
+    if (max > 0 && consumer > 0) {
+      // 수출 최대가(USD→KRW 환산) > 소비자가 × 50% 이면 경고
+      setPriceWarning(max * exchangeRate > consumer * 0.5)
+    } else {
+      setPriceWarning(false)
+    }
+  }, [priceRangeMax, consumerPriceKrw, exchangeRate])
 
   // ─── 이미지 선택 ────────────────────────────────────────────────────────
 
@@ -546,6 +573,13 @@ export default function ProductNewPage() {
                   </div>
                 </div>
               </div>
+
+              {/* 소프트 경고 */}
+              {priceWarning && (
+                <p className="mt-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+                  ⚠️ 공급가가 소비자가의 50%를 초과합니다. 바이어 유치가 어렵습니다.
+                </p>
+              )}
             </section>
 
             {/* ── 생산 정보 ────────────────────────────────────────────── */}
