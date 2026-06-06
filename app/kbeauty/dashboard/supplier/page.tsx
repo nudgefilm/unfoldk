@@ -18,6 +18,7 @@ import {
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ExchangeRateBadge } from "@/components/kbeauty/ExchangeRateBadge"
+import { NotificationBell } from "@/components/kbeauty/NotificationBell"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 
@@ -48,12 +49,13 @@ interface Match {
   buyer_id: string
   status: string
   requested_at: string
-  beauty_buyers?: { company_name: string }
+  beauty_buyers?: { company_name: string; user_id: string | null }
 }
 
 interface SampleRequest {
   id: string
   product_id: string | null
+  buyer_id: string | null
   buyer_email: string | null
   quantity: number
   message: string | null
@@ -247,6 +249,7 @@ export default function SupplierDashboardPage() {
   const [productCount, setProductCount] = useState(0)
   const [sampleRequests, setSampleRequests] = useState<SampleRequest[]>([])
   const [sampleUpdatingId, setSampleUpdatingId] = useState<string | null>(null)
+  const [matchUpdatingId, setMatchUpdatingId] = useState<string | null>(null)
   const [totalMatchCountFull, setTotalMatchCountFull] = useState(0)
   const [approvedMatchCountFull, setApprovedMatchCountFull] = useState(0)
   const [sampleCountFull, setSampleCountFull] = useState(0)
@@ -309,12 +312,12 @@ export default function SupplierDashboardPage() {
       // 매칭 요청 (최신 5건)
       const { data: matchData } = await supabase
         .from("beauty_matches")
-        .select("id, buyer_id, status, requested_at, beauty_buyers(company_name)")
+        .select("id, buyer_id, status, requested_at, beauty_buyers(company_name, user_id)")
         .eq("supplier_id", supplierData.id)
         .order("requested_at", { ascending: false })
         .limit(5)
 
-      setMatches((matchData as Match[]) ?? [])
+      setMatches((matchData as unknown as Match[]) ?? [])
 
       // 제품 수
       const { count } = await supabase
@@ -327,13 +330,13 @@ export default function SupplierDashboardPage() {
       // 샘플 요청 현황
       const { data: sampleData } = await supabase
         .from("beauty_post_matching_services")
-        .select("id, product_id, buyer_email, quantity, message, status, created_at, beauty_products(product_name_en, brand_name)")
+        .select("id, product_id, buyer_id, buyer_email, quantity, message, status, created_at, beauty_products(product_name_en, brand_name)")
         .eq("supplier_id", supplierData.id)
         .eq("service_type", "sample")
         .order("created_at", { ascending: false })
         .limit(30)
 
-      setSampleRequests((sampleData as SampleRequest[]) ?? [])
+      setSampleRequests((sampleData as unknown as SampleRequest[]) ?? [])
 
       // 전체 매칭 수 / 승인 수 / 샘플 수 (정확한 카운트)
       const { count: totalCount } = await supabase
@@ -515,9 +518,40 @@ export default function SupplierDashboardPage() {
     setSaving(false)
   }
 
+  // ─── 매칭 요청 승인/거절 ─────────────────────────────────────────────────
+  async function handleMatchStatus(id: string, newStatus: "approved" | "rejected", buyerUserId: string | null) {
+    setMatchUpdatingId(id)
+    const { error } = await supabase
+      .from("beauty_matches")
+      .update({ status: newStatus })
+      .eq("id", id)
+    if (error) {
+      toast.error("오류가 발생했습니다.")
+    } else {
+      setMatches((prev) => prev.map((m) => (m.id === id ? { ...m, status: newStatus } : m)))
+      if (newStatus === "approved") setApprovedMatchCountFull((c) => c + 1)
+      toast.success(newStatus === "approved" ? "매칭을 승인했습니다." : "매칭을 거절했습니다.")
+
+      // 바이어에게 알림 발송
+      if (buyerUserId) {
+        await supabase.from("beauty_notifications").insert({
+          user_id: buyerUserId,
+          type: newStatus === "approved" ? "match_approved" : "match_rejected",
+          title: newStatus === "approved" ? "Match Request Approved" : "Match Request Rejected",
+          message: newStatus === "approved"
+            ? `${supplier?.company_name_ko ?? "The supplier"} has approved your matching request.`
+            : `${supplier?.company_name_ko ?? "The supplier"} has declined your matching request.`,
+          link: "/kbeauty/dashboard/buyer",
+        })
+      }
+    }
+    setMatchUpdatingId(null)
+  }
+
   // ─── 샘플 요청 승인/거절 ─────────────────────────────────────────────────
   async function handleSampleStatus(id: string, newStatus: "approved" | "rejected") {
     setSampleUpdatingId(id)
+    const req = sampleRequests.find((r) => r.id === id)
     const { error } = await supabase
       .from("beauty_post_matching_services")
       .update({ status: newStatus })
@@ -529,6 +563,20 @@ export default function SupplierDashboardPage() {
         prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
       )
       toast.success(newStatus === "approved" ? "샘플 요청을 승인했습니다." : "샘플 요청을 거절했습니다.")
+
+      // 바이어에게 알림 발송 (buyer_id = auth.users.id)
+      if (req?.buyer_id) {
+        const productName = req.beauty_products?.product_name_en ?? "the product"
+        await supabase.from("beauty_notifications").insert({
+          user_id: req.buyer_id,
+          type: newStatus === "approved" ? "sample_approved" : "sample_rejected",
+          title: newStatus === "approved" ? "Sample Request Approved" : "Sample Request Rejected",
+          message: newStatus === "approved"
+            ? `Your sample request for ${productName} has been approved.`
+            : `Your sample request for ${productName} has been declined.`,
+          link: "/kbeauty/dashboard/buyer",
+        })
+      }
     }
     setSampleUpdatingId(null)
   }
@@ -606,7 +654,10 @@ export default function SupplierDashboardPage() {
             >
               안녕하세요, {supplier?.company_name_ko ?? ""}님
             </h1>
-            <ExchangeRateBadge />
+            <div className="flex items-center gap-2">
+              {userId && <NotificationBell userId={userId} theme="navy" />}
+              <ExchangeRateBadge />
+            </div>
           </div>
 
           {/* 요약 카드 + 제품 등록 버튼 */}
@@ -893,7 +944,28 @@ export default function SupplierDashboardPage() {
                         })}
                       </p>
                     </div>
-                    <StatusBadge status={match.status} />
+                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                      <StatusBadge status={match.status} />
+                      {match.status === "requested" && (
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => handleMatchStatus(match.id, "rejected", match.beauty_buyers?.user_id ?? null)}
+                            disabled={matchUpdatingId === match.id}
+                            className="text-xs font-medium px-2.5 py-1 rounded-lg border border-[#E8E2DA] text-[#6B6B6B] hover:bg-[#F8F7F5] transition-colors disabled:opacity-50"
+                          >
+                            {matchUpdatingId === match.id ? "..." : "거절"}
+                          </button>
+                          <button
+                            onClick={() => handleMatchStatus(match.id, "approved", match.beauty_buyers?.user_id ?? null)}
+                            disabled={matchUpdatingId === match.id}
+                            className="text-xs font-semibold px-2.5 py-1 rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                            style={{ background: "#1A3A5C" }}
+                          >
+                            {matchUpdatingId === match.id ? "..." : "승인"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

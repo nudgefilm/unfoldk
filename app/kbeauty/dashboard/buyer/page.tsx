@@ -19,6 +19,7 @@ import {
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ExchangeRateBadge } from "@/components/kbeauty/ExchangeRateBadge"
+import { NotificationBell } from "@/components/kbeauty/NotificationBell"
 import { cn } from "@/lib/utils"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -201,6 +202,7 @@ export default function BuyerDashboardPage() {
   const supabase = createSupabaseBrowserClient()
 
   const [buyer, setBuyer] = useState<Buyer | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   // 요약 카운트
@@ -231,6 +233,7 @@ export default function BuyerDashboardPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push("/kbeauty/buyer/login"); return }
+      setUserId(user.id)
 
       const { data: buyerData } = await supabase
         .from("beauty_buyers")
@@ -433,7 +436,10 @@ export default function BuyerDashboardPage() {
                 </p>
               )}
             </div>
-            <ExchangeRateBadge />
+            <div className="flex items-center gap-2">
+              {userId && <NotificationBell userId={userId} theme="gold" />}
+              <ExchangeRateBadge />
+            </div>
           </div>
 
           {/* 프로필 미완성 배너 */}

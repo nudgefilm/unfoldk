@@ -23,6 +23,7 @@ import {
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ExchangeRateBadge } from "@/components/kbeauty/ExchangeRateBadge"
+import { NotificationBell } from "@/components/kbeauty/NotificationBell"
 import { cn } from "@/lib/utils"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -209,6 +210,7 @@ export default function SellerDashboardPage() {
   const supabase = createSupabaseBrowserClient()
 
   const [seller, setSeller] = useState<Seller | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   // 요약 카운트
@@ -251,6 +253,7 @@ export default function SellerDashboardPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push("/kbeauty/seller/login"); return }
+      setUserId(user.id)
 
       const { data: sellerData } = await supabase
         .from("beauty_sellers")
@@ -362,6 +365,22 @@ export default function SellerDashboardPage() {
       setRequestedSourcingProductIds((prev) => new Set([...prev, product.id]))
       setSourcingCount((c) => c + 1)
       toast.success("Sourcing request sent.")
+
+      // 공급사에게 알림 발송
+      const { data: suppUser } = await supabase
+        .from("beauty_suppliers")
+        .select("user_id")
+        .eq("id", product.supplier_id)
+        .maybeSingle()
+      if (suppUser?.user_id) {
+        await supabase.from("beauty_notifications").insert({
+          user_id: suppUser.user_id,
+          type: "sourcing_request",
+          title: "새로운 소싱 요청",
+          message: `${seller.company_name}에서 소싱 요청을 보냈습니다.`,
+          link: "/kbeauty/dashboard/supplier",
+        })
+      }
     }
     setSubmittingId(null)
   }
@@ -462,7 +481,10 @@ export default function SellerDashboardPage() {
               </h1>
               <p className="text-xs text-[#6B6B6B] mt-1">K-Beauty Seller Dashboard</p>
             </div>
-            <ExchangeRateBadge />
+            <div className="flex items-center gap-2">
+              {userId && <NotificationBell userId={userId} theme="gold" />}
+              <ExchangeRateBadge />
+            </div>
           </div>
 
           {/* ⑥ 판매 채널 등록 유도 배너 */}

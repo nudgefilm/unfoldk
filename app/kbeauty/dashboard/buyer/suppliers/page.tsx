@@ -218,7 +218,7 @@ export default function BuyerSuppliersPage() {
     }
 
     query.then(({ data }) => {
-      setProducts((data as Product[]) ?? [])
+      setProducts((data as unknown as Product[]) ?? [])
       setLoadingProducts(false)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -274,6 +274,22 @@ export default function BuyerSuppliersPage() {
     } else {
       setRequestedSupplierIds((prev) => new Set([...prev, product.supplier_id]))
       toast.success("Matching request sent successfully")
+
+      // 공급사에게 알림 발송
+      const { data: suppUser } = await supabase
+        .from("beauty_suppliers")
+        .select("user_id")
+        .eq("id", product.supplier_id)
+        .maybeSingle()
+      if (suppUser?.user_id) {
+        await supabase.from("beauty_notifications").insert({
+          user_id: suppUser.user_id,
+          type: "match_request",
+          title: "새로운 매칭 요청",
+          message: `${buyer.company_name}에서 매칭 요청을 보냈습니다.`,
+          link: "/kbeauty/dashboard/supplier",
+        })
+      }
     }
     setSubmittingId(null)
   }
@@ -301,10 +317,27 @@ export default function BuyerSuppliersPage() {
       toast.error("Something went wrong. Please try again.")
     } else {
       setRequestedSampleProductIds((prev) => new Set([...prev, sampleModalProduct.id]))
+      toast.success("Sample request sent successfully")
+
+      // 공급사에게 알림 발송
+      const { data: suppUser } = await supabase
+        .from("beauty_suppliers")
+        .select("user_id")
+        .eq("id", sampleModalProduct.supplier_id)
+        .maybeSingle()
+      if (suppUser?.user_id) {
+        await supabase.from("beauty_notifications").insert({
+          user_id: suppUser.user_id,
+          type: "sample_request",
+          title: "새로운 샘플 요청",
+          message: `${buyer.company_name}에서 ${sampleModalProduct.product_name_en} 샘플을 요청했습니다.`,
+          link: "/kbeauty/dashboard/supplier",
+        })
+      }
+
       setSampleModalProduct(null)
       setSampleQty(1)
       setSampleMsg("")
-      toast.success("Sample request sent successfully")
     }
     setSubmittingSample(false)
   }
