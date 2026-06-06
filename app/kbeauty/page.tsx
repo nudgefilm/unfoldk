@@ -1,24 +1,51 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Menu, Check, Instagram, Linkedin } from "lucide-react"
+import { Menu, Check, Instagram, Linkedin, LogOut } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
-type UserRole = "supplier" | "buyer" | null | "loading"
+// ─── 타입 ──────────────────────────────────────────────────────────────────
+
+interface AuthInfo {
+  loaded: boolean
+  email: string | null
+  dashboards: { href: string; label: string }[]
+}
 
 // ─── Navbar ────────────────────────────────────────────────────────────────
 
 function BeautyNavbar({
   onLoginClick,
   onGetStartedClick,
+  auth,
+  onLogout,
 }: {
   onLoginClick: () => void
   onGetStartedClick: () => void
+  auth: AuthInfo
+  onLogout: () => void
 }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!dropdownOpen) return
+    function handleOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleOutside)
+    return () => document.removeEventListener("mousedown", handleOutside)
+  }, [dropdownOpen])
+
+  const isLoggedIn = auth.loaded && auth.email !== null
+  const initial = auth.email ? auth.email[0].toUpperCase() : "?"
+
   return (
     <header className="sticky top-0 z-50 w-full bg-white border-b border-[#E8E2DA] h-16">
       <div className="max-w-[1280px] mx-auto h-full px-6 flex items-center justify-between">
@@ -45,21 +72,64 @@ function BeautyNavbar({
           </a>
         </nav>
 
+        {/* 데스크톱: 비로그인 버튼 / 로그인 아바타 */}
         <div className="hidden md:flex items-center gap-3">
-          <button
-            onClick={onLoginClick}
-            className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors px-4 py-2"
-          >
-            Log in
-          </button>
-          <button
-            onClick={onGetStartedClick}
-            className="bg-[#1A3A5C] text-white text-sm font-medium px-5 py-2.5 rounded-md hover:bg-[#153249] transition-colors"
-          >
-            Get Started
-          </button>
+          {!isLoggedIn ? (
+            <>
+              <button
+                onClick={onLoginClick}
+                className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors px-4 py-2"
+              >
+                Log in
+              </button>
+              <button
+                onClick={onGetStartedClick}
+                className="bg-[#1A3A5C] text-white text-sm font-medium px-5 py-2.5 rounded-md hover:bg-[#153249] transition-colors"
+              >
+                Get Started
+              </button>
+            </>
+          ) : (
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setDropdownOpen(v => !v)}
+                className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white hover:opacity-85 transition-opacity"
+                style={{ background: "#C8A882" }}
+                aria-label="계정 메뉴"
+              >
+                {initial}
+              </button>
+
+              {dropdownOpen && (
+                <div className="absolute right-0 top-11 w-56 bg-white border border-[#E8E2DA] rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] py-1.5 z-50">
+                  <p className="px-4 pt-1 pb-2.5 text-[11px] text-[#6B6B6B] truncate border-b border-[#F3F4F6]">
+                    {auth.email}
+                  </p>
+                  {auth.dashboards.map(d => (
+                    <Link
+                      key={d.href}
+                      href={d.href}
+                      onClick={() => setDropdownOpen(false)}
+                      className="block px-4 py-2.5 text-sm text-[#0F0F0F] hover:bg-[#F8F7F5] transition-colors"
+                    >
+                      {d.label}
+                    </Link>
+                  ))}
+                  <div className="border-t border-[#E8E2DA] my-1" />
+                  <button
+                    onClick={() => { setDropdownOpen(false); onLogout() }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    로그아웃
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
+        {/* 모바일 햄버거 */}
         <Sheet>
           <SheetTrigger asChild className="md:hidden">
             <button className="p-2 text-[#0F0F0F]">
@@ -75,15 +145,39 @@ function BeautyNavbar({
               <a href="#how-it-works" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">How It Works</a>
               <a href="#data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Data Sources</a>
               <div className="border-t border-[#E8E2DA] my-2" />
-              <button onClick={onLoginClick} className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2 text-left">
-                Log in
-              </button>
-              <button
-                onClick={onGetStartedClick}
-                className="bg-[#1A3A5C] text-white font-medium px-5 py-3 rounded-md w-full mt-2"
-              >
-                Get Started
-              </button>
+              {!isLoggedIn ? (
+                <>
+                  <button onClick={onLoginClick} className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2 text-left">
+                    Log in
+                  </button>
+                  <button
+                    onClick={onGetStartedClick}
+                    className="bg-[#1A3A5C] text-white font-medium px-5 py-3 rounded-md w-full mt-2"
+                  >
+                    Get Started
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-[#6B6B6B] truncate">{auth.email}</p>
+                  {auth.dashboards.map(d => (
+                    <Link
+                      key={d.href}
+                      href={d.href}
+                      className="text-[#0F0F0F] hover:text-[#1A3A5C] py-2 font-medium transition-colors"
+                    >
+                      {d.label}
+                    </Link>
+                  ))}
+                  <button
+                    onClick={onLogout}
+                    className="text-red-600 py-2 text-left flex items-center gap-2 text-sm"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    로그아웃
+                  </button>
+                </>
+              )}
             </nav>
           </SheetContent>
         </Sheet>
@@ -407,40 +501,53 @@ function FooterSection() {
 
 export default function BeautyLandingPage() {
   const router = useRouter()
-  const [userRole, setUserRole] = useState<UserRole>("loading")
+  const supabase = createSupabaseBrowserClient()
+
+  const [auth, setAuth] = useState<AuthInfo>({ loaded: false, email: null, dashboards: [] })
 
   useEffect(() => {
-    const supabase = createSupabaseBrowserClient()
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { setUserRole(null); return }
+    async function checkAuth() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setAuth({ loaded: true, email: null, dashboards: [] }); return }
 
-      const { data: supplier } = await supabase
-        .from("beauty_suppliers")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle()
-      if (supplier) { setUserRole("supplier"); return }
+      // 역할별 대시보드 + 어드민 병렬 확인
+      const [
+        { data: supplier },
+        { data: buyer },
+        { data: seller },
+        { data: isAdminResult },
+      ] = await Promise.all([
+        supabase.from("beauty_suppliers").select("id").eq("user_id", user.id).maybeSingle(),
+        supabase.from("beauty_buyers").select("id").eq("user_id", user.id).maybeSingle(),
+        supabase.from("beauty_sellers").select("id").eq("user_id", user.id).maybeSingle(),
+        supabase.rpc("is_admin", { uid: user.id }),
+      ])
 
-      const { data: buyer } = await supabase
-        .from("beauty_buyers")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle()
-      if (buyer) { setUserRole("buyer"); return }
+      const dashboards: { href: string; label: string }[] = []
+      if (supplier)      dashboards.push({ href: "/kbeauty/dashboard/supplier", label: "공급사 대시보드" })
+      if (buyer)         dashboards.push({ href: "/kbeauty/dashboard/buyer",    label: "바이어 대시보드" })
+      if (seller)        dashboards.push({ href: "/kbeauty/dashboard/seller",   label: "셀러 대시보드" })
+      if (isAdminResult) dashboards.push({ href: "/kbeauty/admin",              label: "어드민" })
 
-      setUserRole(null)
-    })
+      setAuth({ loaded: true, email: user.email ?? user.id, dashboards })
+    }
+    checkAuth()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    setAuth({ loaded: true, email: null, dashboards: [] })
+    // 현재 페이지 유지
+  }
+
   const handleSupplierCTA = () => {
-    if (userRole === "supplier") { router.push("/kbeauty/dashboard/supplier"); return }
-    if (userRole === "buyer") { router.push("/kbeauty/dashboard/buyer"); return }
+    if (auth.dashboards.length > 0) { router.push(auth.dashboards[0].href); return }
     router.push("/kbeauty/supplier")
   }
 
   const handleBuyerCTA = () => {
-    if (userRole === "supplier") { router.push("/kbeauty/dashboard/supplier"); return }
-    if (userRole === "buyer") { router.push("/kbeauty/dashboard/buyer"); return }
+    if (auth.dashboards.length > 0) { router.push(auth.dashboards[0].href); return }
     router.push("/kbeauty/buyer/register")
   }
 
@@ -449,6 +556,8 @@ export default function BeautyLandingPage() {
       <BeautyNavbar
         onLoginClick={() => router.push("/kbeauty/login")}
         onGetStartedClick={() => router.push("/kbeauty/auth")}
+        auth={auth}
+        onLogout={handleLogout}
       />
       <main>
         <HeroSection onSupplierCTA={handleSupplierCTA} onBuyerCTA={handleBuyerCTA} />
