@@ -4,7 +4,8 @@ import { NextResponse, type NextRequest } from "next/server"
 // kbeauty Google OAuth 콜백
 // beauty_suppliers → /kbeauty/dashboard/supplier
 // beauty_buyers    → /kbeauty/dashboard/buyer
-// 둘 다 없음       → /kbeauty/auth (신규 가입 선택)
+// beauty_sellers   → /kbeauty/dashboard/seller
+// 모두 없음        → /kbeauty/auth (신규 가입 선택)
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
@@ -63,6 +64,16 @@ export async function GET(request: NextRequest) {
 
   if (buyer) {
     return redirectWithCookies(`${origin}/kbeauty/dashboard/buyer`, supabaseResponse)
+  }
+
+  const { data: seller } = await supabase
+    .from("beauty_sellers")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (seller) {
+    return redirectWithCookies(`${origin}/kbeauty/dashboard/seller`, supabaseResponse)
   }
 
   return redirectWithCookies(`${origin}/kbeauty/auth`, supabaseResponse)
