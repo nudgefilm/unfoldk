@@ -71,6 +71,19 @@ interface RecommendedBuyer {
   business_type: string | null
 }
 
+interface RecommendedSeller {
+  id: string
+  company_name: string
+  country: string | null
+  categories: string[] | null
+  annual_sales_volume: string | null
+  platform_urls: {
+    amazon?: string
+    shopify?: string
+    tiktok?: string
+  } | null
+}
+
 // ─── 상수 ──────────────────────────────────────────────────────────────────
 
 const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png"]
@@ -240,6 +253,9 @@ export default function SupplierDashboardPage() {
   const [recommendedBuyers, setRecommendedBuyers] = useState<RecommendedBuyer[]>([])
   const [contactedBuyerIds, setContactedBuyerIds] = useState<Set<string>>(new Set())
   const [contactingId, setContactingId] = useState<string | null>(null)
+  const [recommendedSellers, setRecommendedSellers] = useState<RecommendedSeller[]>([])
+  const [contactedSellerIds, setContactedSellerIds] = useState<Set<string>>(new Set())
+  const [contactingSellerSourcing, setContactingSellerSourcing] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -359,6 +375,24 @@ export default function SupplierDashboardPage() {
         .eq("supplier_id", supplierData.id)
         .eq("initiated_by", "supplier")
       setContactedBuyerIds(new Set((contactedData ?? []).map((m: { buyer_id: string }) => m.buyer_id)))
+
+      // 추천 셀러 (카테고리 교집합)
+      if (supplierCats.length > 0) {
+        const { data: sellerData } = await supabase
+          .from("beauty_sellers")
+          .select("id, company_name, country, categories, annual_sales_volume, platform_urls")
+          .overlaps("categories", supplierCats)
+          .limit(10)
+        setRecommendedSellers((sellerData as RecommendedSeller[]) ?? [])
+      }
+
+      // 이미 컨택한 셀러 ID
+      const { data: contactedSellerData } = await supabase
+        .from("beauty_seller_sourcing")
+        .select("seller_id")
+        .eq("supplier_id", supplierData.id)
+        .eq("initiated_by", "supplier")
+      setContactedSellerIds(new Set((contactedSellerData ?? []).map((r: { seller_id: string }) => r.seller_id)))
 
       setLoading(false)
     }
@@ -516,6 +550,25 @@ export default function SupplierDashboardPage() {
       toast.success("컨택 요청을 보냈습니다.")
     }
     setContactingId(null)
+  }
+
+  // ─── 공급사 → 셀러 컨택 ──────────────────────────────────────────────────
+  async function handleContactSeller(sellerId: string) {
+    if (!supplier) return
+    setContactingSellerSourcing(sellerId)
+    const { error } = await supabase.from("beauty_seller_sourcing").insert({
+      supplier_id: supplier.id,
+      seller_id: sellerId,
+      initiated_by: "supplier",
+      status: "requested",
+    })
+    if (error) {
+      toast.error("오류가 발생했습니다. 다시 시도해주세요.")
+    } else {
+      setContactedSellerIds((prev) => new Set([...prev, sellerId]))
+      toast.success("셀러에게 컨택 요청을 보냈습니다.")
+    }
+    setContactingSellerSourcing(null)
   }
 
   if (loading) {
@@ -898,6 +951,92 @@ export default function SupplierDashboardPage() {
                       </div>
                       <button
                         onClick={() => handleContact(buyer.id)}
+                        disabled={alreadyContacted || isContacting}
+                        className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
+                        style={
+                          alreadyContacted
+                            ? { background: "#F8F7F5", color: "#6B6B6B", border: "1px solid #E8E2DA" }
+                            : { background: "#1A3A5C", color: "white" }
+                        }
+                      >
+                        {isContacting ? "..." : alreadyContacted ? "요청 중" : "컨택 요청"}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+
+          {/* 추천 셀러 */}
+          <div className="bg-white border border-[#E8E2DA] mt-6" style={{ borderRadius: 12 }}>
+            <div className="px-6 py-4 border-b border-[#E8E2DA]">
+              <h2 className="text-sm font-semibold text-[#0F0F0F]">
+                추천 셀러
+                {recommendedSellers.length > 0 && (
+                  <span className="ml-2 text-xs font-normal text-[#6B6B6B]">({recommendedSellers.length}개 매칭)</span>
+                )}
+              </h2>
+              <p className="text-xs text-[#6B6B6B] mt-0.5">카테고리가 일치하는 해외 셀러입니다.</p>
+            </div>
+            {recommendedSellers.length === 0 ? (
+              <div className="px-6 py-10 text-center">
+                <p className="text-sm text-[#6B6B6B]">현재 카테고리에 맞는 추천 셀러가 없습니다.</p>
+              </div>
+            ) : (
+              <ul>
+                {recommendedSellers.map((seller, idx) => {
+                  const alreadyContacted = contactedSellerIds.has(seller.id)
+                  const isContacting = contactingSellerSourcing === seller.id
+                  const platforms = [
+                    seller.platform_urls?.amazon && "Amazon",
+                    seller.platform_urls?.shopify && "Shopify",
+                    seller.platform_urls?.tiktok && "TikTok",
+                  ].filter(Boolean) as string[]
+                  return (
+                    <li
+                      key={seller.id}
+                      className={`flex items-start justify-between gap-4 px-6 py-4 ${
+                        idx < recommendedSellers.length - 1 ? "border-b border-[#E8E2DA]" : ""
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-[#0F0F0F]">{seller.company_name}</p>
+                          {seller.country && <span className="text-xs text-[#6B6B6B]">{seller.country}</span>}
+                        </div>
+                        {seller.annual_sales_volume && (
+                          <p className="text-xs text-[#6B6B6B] mt-0.5">판매 규모: {seller.annual_sales_volume}</p>
+                        )}
+                        {seller.categories && seller.categories.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {seller.categories.slice(0, 4).map((cat) => (
+                              <span
+                                key={cat}
+                                className="text-[10px] font-medium px-1.5 py-0.5 rounded capitalize"
+                                style={{ background: "#F0EDE8", color: "#6B6B6B" }}
+                              >
+                                {cat}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {platforms.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {platforms.map((p) => (
+                              <span
+                                key={p}
+                                className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+                                style={{ background: "#C8A88218", color: "#8B6F47" }}
+                              >
+                                {p}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleContactSeller(seller.id)}
                         disabled={alreadyContacted || isContacting}
                         className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
                         style={
