@@ -17,6 +17,8 @@ import {
   History,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { usePaddle } from "@/components/PaddleProvider"
+import { PADDLE_PRICE_IDS } from "@/lib/paddle/constants"
 import { cn } from "@/lib/utils"
 
 // ─── 상수 ──────────────────────────────────────────────────────────────────
@@ -225,9 +227,13 @@ function computeTrendStats(products: ProductRow[], category: string): TrendStats
 export default function SourcingSniperPage() {
   const router = useRouter()
   const supabase = createSupabaseBrowserClient()
+  const paddle = usePaddle()
 
   const [companyName, setCompanyName] = useState("")
   const [loading, setLoading] = useState(true)
+  const [sniperActive, setSniperActive] = useState<boolean | null>(null)
+  const [userEmail, setUserEmail] = useState<string | undefined>()
+  const [userId, setUserId] = useState<string | undefined>()
   const [allProducts, setAllProducts] = useState<ProductRow[]>([])
   const [categoryFilter, setCategoryFilter] = useState("")
 
@@ -250,14 +256,20 @@ export default function SourcingSniperPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push("/kbeauty/seller/login"); return }
 
+      setUserEmail(user.email ?? undefined)
+      setUserId(user.id)
+
       const { data: seller } = await supabase
         .from("beauty_sellers")
-        .select("id, company_name")
+        .select("id, company_name, sourcing_sniper_active")
         .eq("user_id", user.id)
         .maybeSingle()
 
       if (!seller) { router.push("/kbeauty/seller/login"); return }
-      setCompanyName((seller as { id: string; company_name: string }).company_name)
+
+      const s = seller as { id: string; company_name: string; sourcing_sniper_active: boolean }
+      setCompanyName(s.company_name)
+      setSniperActive(s.sourcing_sniper_active ?? false)
 
       const { data: products } = await supabase
         .from("beauty_products")
@@ -359,10 +371,95 @@ export default function SourcingSniperPage() {
 
   // ─── 로딩 ─────────────────────────────────────────────────────────────────
 
+  function openSniperCheckout(priceId: string) {
+    if (!paddle) return
+    paddle.Checkout.open({
+      items: [{ priceId, quantity: 1 }],
+      customer: userEmail ? { email: userEmail } : undefined,
+      customData: userId ? { userId } : undefined,
+      settings: { displayMode: "overlay", theme: "light" },
+    })
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F8F7F5] flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin" style={{ color: GOLD }} />
+      </div>
+    )
+  }
+
+  // ─── 결제 게이트 ───────────────────────────────────────────────────────────
+  if (sniperActive === false) {
+    return (
+      <div
+        className="min-h-screen bg-[#F8F7F5]"
+        style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
+      >
+        <Sidebar companyName={companyName} />
+        <main className="min-h-screen flex items-center justify-center" style={{ marginLeft: 240 }}>
+          <div className="max-w-md w-full mx-auto px-8">
+            <div className="bg-white border border-[#E8E2DA] rounded-2xl p-8 shadow-[0_4px_24px_rgba(0,0,0,0.08)] text-center">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
+                style={{ background: `${GOLD_LIGHT}22` }}
+              >
+                <Crosshair className="w-7 h-7" style={{ color: GOLD }} />
+              </div>
+              <h1
+                style={{ fontFamily: '"Cormorant Garamond", Georgia, serif', fontSize: 26, fontWeight: 600, color: "#0F0F0F" }}
+                className="mb-2"
+              >
+                Sourcing Sniper
+              </h1>
+              <p className="text-sm text-[#6B6B6B] mb-7 leading-relaxed">
+                AI supplier intelligence for smarter sourcing decisions.<br />
+                Unlock instant access with a subscription.
+              </p>
+
+              {/* 플랜 선택 */}
+              <div className="space-y-3 mb-7">
+                {/* Monthly */}
+                <button
+                  onClick={() => openSniperCheckout(PADDLE_PRICE_IDS.sourcing_sniper_monthly)}
+                  disabled={!paddle}
+                  className="w-full flex items-center justify-between px-5 py-4 border-2 rounded-xl transition-all disabled:opacity-50 hover:border-[#C8A882]"
+                  style={{ borderColor: `${GOLD_LIGHT}88` }}
+                >
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-[#0F0F0F]">Monthly Access</p>
+                    <p className="text-xs text-[#6B6B6B] mt-0.5">Cancel anytime</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold" style={{ color: GOLD }}>$29</p>
+                    <p className="text-xs text-[#6B6B6B]">/month</p>
+                  </div>
+                </button>
+
+                {/* One-time */}
+                <button
+                  onClick={() => openSniperCheckout(PADDLE_PRICE_IDS.sourcing_sniper_onetime)}
+                  disabled={!paddle}
+                  className="w-full flex items-center justify-between px-5 py-4 border-2 rounded-xl transition-all disabled:opacity-50 text-white"
+                  style={{ background: GOLD, borderColor: GOLD }}
+                >
+                  <div className="text-left">
+                    <p className="text-sm font-semibold">Lifetime Access</p>
+                    <p className="text-xs text-white/70 mt-0.5">One-time payment</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold">$79</p>
+                    <p className="text-xs text-white/70">one-time</p>
+                  </div>
+                </button>
+              </div>
+
+              <p className="text-xs text-[#9B9B9B]">
+                Secure payment powered by Paddle. 7-day refund guarantee.
+              </p>
+            </div>
+          </div>
+        </main>
       </div>
     )
   }

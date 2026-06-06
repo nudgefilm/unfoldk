@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import Script from 'next/script'
 import { Header } from '@/components/header'
+import { PaddleProvider } from '@/components/PaddleProvider'
 import './globals.css'
 import 'flag-icons/css/flag-icons.min.css'
 
@@ -90,7 +91,9 @@ export default function RootLayout({
         {/* Header 단일 마운트 — 페이지 navigation 간 unmount 안 돼 인증/프로필
             state 영속, 깜빡임 0. /admin·/login 등은 Header 내부에서 pathname 가드로 null 반환. */}
         <Header />
+        <PaddleProvider>
         {children}
+        </PaddleProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
         {PIXEL_ID && (
           <>

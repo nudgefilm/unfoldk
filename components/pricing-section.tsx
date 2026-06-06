@@ -1,29 +1,48 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
 import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { StartModal } from "@/components/start-modal"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { usePaddle } from "@/components/PaddleProvider"
+import { PADDLE_PRICE_IDS } from "@/lib/paddle/constants"
 
 export function PricingSection() {
   const [isAnnual, setIsAnnual] = useState(false)
-  // 로그인 상태에 따라 CTA 동작 분기 — 비로그인: StartModal, 로그인: /mypage/subscription
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | undefined>()
+  const [userId, setUserId] = useState<string | undefined>()
+  const paddle = usePaddle()
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       setIsLoggedIn(!!user)
+      setUserEmail(user?.email ?? undefined)
+      setUserId(user?.id ?? undefined)
     })
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(!!session?.user)
+      setUserEmail(session?.user?.email ?? undefined)
+      setUserId(session?.user?.id ?? undefined)
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  function openCheckout() {
+    if (!paddle) return
+    const priceId = isAnnual
+      ? PADDLE_PRICE_IDS.hallyu_pass_annual
+      : PADDLE_PRICE_IDS.hallyu_pass_monthly
+
+    paddle.Checkout.open({
+      items: [{ priceId, quantity: 1 }],
+      customer: userEmail ? { email: userEmail } : undefined,
+      customData: userId ? { userId } : undefined,
+      settings: { displayMode: "overlay", theme: "light" },
+    })
+  }
 
   const freeFeatures = [
     "Basic access to all 6 services",
@@ -53,7 +72,7 @@ export function PricingSection() {
 
       {/* 2-Column Layout */}
       <div className="w-full px-5 flex flex-col md:flex-row justify-center items-stretch gap-4 md:gap-6 mt-8 max-w-[800px] mx-auto">
-        
+
         {/* Free Plan Card */}
         <div
           className="flex-1 p-6 overflow-hidden rounded-xl flex flex-col justify-between items-start bg-gradient-to-b from-gray-50/5 to-gray-50/0"
@@ -79,15 +98,16 @@ export function PricingSection() {
               </div>
             </div>
             {isLoggedIn ? (
-              <Link href="/mypage/subscription" className="self-stretch">
+              <div className="self-stretch">
                 <Button
+                  onClick={() => {/* already logged in, no action needed */}}
                   className="w-full px-5 py-2 rounded-[40px] flex justify-center items-center bg-transparent border border-zinc-600 text-zinc-200 hover:bg-zinc-800 hover:border-zinc-500"
                 >
                   <span className="text-center text-sm font-medium leading-tight">
-                    Get started
+                    Current plan
                   </span>
                 </Button>
-              </Link>
+              </div>
             ) : (
               <div className="self-stretch">
                 <StartModal
@@ -145,8 +165,8 @@ export function PricingSection() {
                 <button
                   onClick={() => setIsAnnual(false)}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    !isAnnual 
-                      ? "bg-white text-[#FF4B6E] shadow-sm" 
+                    !isAnnual
+                      ? "bg-white text-[#FF4B6E] shadow-sm"
                       : "text-white/70 hover:text-white"
                   }`}
                 >
@@ -155,8 +175,8 @@ export function PricingSection() {
                 <button
                   onClick={() => setIsAnnual(true)}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    isAnnual 
-                      ? "bg-white text-[#FF4B6E] shadow-sm" 
+                    isAnnual
+                      ? "bg-white text-[#FF4B6E] shadow-sm"
                       : "text-white/70 hover:text-white"
                   }`}
                 >
@@ -188,15 +208,17 @@ export function PricingSection() {
               </div>
             </div>
             {isLoggedIn ? (
-              <Link href="/mypage/subscription" className="self-stretch">
+              <div className="self-stretch">
                 <Button
-                  className="w-full px-5 py-2 rounded-[40px] flex justify-center items-center bg-white hover:bg-white/90"
+                  onClick={openCheckout}
+                  disabled={!paddle}
+                  className="w-full px-5 py-2 rounded-[40px] flex justify-center items-center bg-white hover:bg-white/90 disabled:opacity-60"
                 >
                   <span className="text-center text-sm font-medium leading-tight" style={{ color: "#FF4B6E" }}>
                     Join now
                   </span>
                 </Button>
-              </Link>
+              </div>
             ) : (
               <div className="self-stretch">
                 <StartModal
