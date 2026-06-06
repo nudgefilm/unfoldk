@@ -85,6 +85,18 @@ export default function KBeautyLoginPage() {
 
       if (buyer) { router.push("/kbeauty/dashboard/buyer"); return }
 
+      const { data: seller } = await supabase
+        .from("beauty_sellers")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle()
+
+      if (seller) { router.push("/kbeauty/dashboard/seller"); return }
+
+      // 어드민 확인 (SECURITY DEFINER 함수 — public.users.is_admin 조회)
+      const { data: isAdminResult } = await supabase.rpc("is_admin", { uid: user.id })
+      if (isAdminResult) { router.push("/kbeauty/admin"); return }
+
       setNoAccount(true)
     } catch {
       setError("Server error. Please try again.")
@@ -260,6 +272,12 @@ export default function KBeautyLoginPage() {
               Buyer Sign Up
             </Link>
           </div>
+        </div>
+
+        <div className="mt-4 text-center">
+          <Link href="/kbeauty/admin" className="text-[11px] text-[#6B6B6B]/50 hover:text-[#6B6B6B] transition-colors">
+            Admin
+          </Link>
         </div>
       </div>
     </div>
