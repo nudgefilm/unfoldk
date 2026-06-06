@@ -30,6 +30,11 @@ interface Buyer {
   stage1_approved: boolean
   stage2_approved: boolean
   status: string
+  categories: string[] | null
+  annual_import_volume: string | null
+  handling_korean_products: boolean | null
+  known_suppliers: string | null
+  state: string | null
 }
 
 interface Product {
@@ -202,6 +207,7 @@ export default function BuyerDashboardPage() {
   const [pendingCount, setPendingCount] = useState(0)
   const [approvedCount, setApprovedCount] = useState(0)
   const [serviceCount, setServiceCount] = useState(0)
+  const [sampleRequestCount, setSampleRequestCount] = useState(0)
 
   // 제품 목록
   const [products, setProducts] = useState<Product[]>([])
@@ -228,7 +234,7 @@ export default function BuyerDashboardPage() {
 
       const { data: buyerData } = await supabase
         .from("beauty_buyers")
-        .select("id, company_name, country, stage1_approved, stage2_approved, status")
+        .select("id, company_name, country, stage1_approved, stage2_approved, status, categories, annual_import_volume, handling_korean_products, known_suppliers, state")
         .eq("user_id", user.id)
         .maybeSingle()
 
@@ -267,6 +273,14 @@ export default function BuyerDashboardPage() {
         setServices(safeServices)
         setServiceCount(safeServices.length)
       }
+
+      // 샘플 요청 수
+      const { count: sampleCount } = await supabase
+        .from("beauty_post_matching_services")
+        .select("id", { count: "exact", head: true })
+        .eq("buyer_id", buyerId)
+        .eq("service_type", "sample")
+      setSampleRequestCount(sampleCount ?? 0)
 
       setLoading(false)
     }
@@ -373,6 +387,14 @@ export default function BuyerDashboardPage() {
 
   // ─── 로딩 ─────────────────────────────────────────────────────────────────
 
+  const profileIncomplete = buyer !== null && (
+    !buyer.categories?.length ||
+    !buyer.annual_import_volume ||
+    buyer.handling_korean_products === null ||
+    !buyer.known_suppliers ||
+    !buyer.state
+  )
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F8F7F5] flex items-center justify-center">
@@ -414,12 +436,29 @@ export default function BuyerDashboardPage() {
             <ExchangeRateBadge />
           </div>
 
+          {/* 프로필 미완성 배너 */}
+          {profileIncomplete && (
+            <div
+              className="flex items-center justify-between px-5 py-3 mb-6 rounded-xl cursor-pointer"
+              style={{ background: "#FEF3C7", border: "1px solid #F59E0B" }}
+              onClick={() => router.push("/kbeauty/dashboard/buyer/profile")}
+            >
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                <p className="text-sm text-amber-800 font-medium">
+                  Complete your profile to get better supplier matches →
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-amber-700 flex-shrink-0" />
+            </div>
+          )}
+
           {/* ② 요약 카드 */}
           <div className="flex gap-4 mb-8">
-            <SummaryCard label="Pending Matches" value={pendingCount} />
+            <SummaryCard label="Total Matches" value={matches.length} />
             <SummaryCard label="Approved Matches" value={approvedCount} />
-            <SummaryCard label="Post-Match Services" value={serviceCount} />
-            <SummaryCard label="Saved Suppliers" value="—" />
+            <SummaryCard label="Sample Requests" value={sampleRequestCount} />
+            <SummaryCard label="Approval Rate" value={matches.length > 0 ? `${(approvedCount / matches.length * 100).toFixed(1)}%` : "—"} />
           </div>
 
           {/* 미승인 배너 */}

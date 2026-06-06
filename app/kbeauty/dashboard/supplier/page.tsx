@@ -24,6 +24,7 @@ import { ExchangeRateBadge } from "@/components/kbeauty/ExchangeRateBadge"
 interface Supplier {
   id: string
   company_name_ko: string
+  categories: string[] | null
   cosmetic_license_verified: boolean
   cosmetic_license_url: string | null
   buyer_db_access: boolean
@@ -59,6 +60,15 @@ interface SampleRequest {
   status: string
   created_at: string
   beauty_products: { product_name_en: string; brand_name: string } | null
+}
+
+interface RecommendedBuyer {
+  id: string
+  company_name: string
+  country: string
+  categories: string[] | null
+  annual_import_volume: string | null
+  business_type: string | null
 }
 
 // ─── 상수 ──────────────────────────────────────────────────────────────────
@@ -224,6 +234,12 @@ export default function SupplierDashboardPage() {
   const [productCount, setProductCount] = useState(0)
   const [sampleRequests, setSampleRequests] = useState<SampleRequest[]>([])
   const [sampleUpdatingId, setSampleUpdatingId] = useState<string | null>(null)
+  const [totalMatchCountFull, setTotalMatchCountFull] = useState(0)
+  const [approvedMatchCountFull, setApprovedMatchCountFull] = useState(0)
+  const [sampleCountFull, setSampleCountFull] = useState(0)
+  const [recommendedBuyers, setRecommendedBuyers] = useState<RecommendedBuyer[]>([])
+  const [contactedBuyerIds, setContactedBuyerIds] = useState<Set<string>>(new Set())
+  const [contactingId, setContactingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -256,7 +272,7 @@ export default function SupplierDashboardPage() {
       const { data: supplierData } = await supabase
         .from("beauty_suppliers")
         .select(
-          "id, company_name_ko, cosmetic_license_verified, cosmetic_license_url, buyer_db_access, status, fda_status, fda_registration_number, iso_22716, iso_22716_url, vegan_certified, vegan_cert_org, vegan_cert_url, cruelty_free_certified, cruelty_free_cert_org, cruelty_free_cert_url, export_experience, export_countries"
+          "id, categories, company_name_ko, cosmetic_license_verified, cosmetic_license_url, buyer_db_access, status, fda_status, fda_registration_number, iso_22716, iso_22716_url, vegan_certified, vegan_cert_org, vegan_cert_url, cruelty_free_certified, cruelty_free_cert_org, cruelty_free_cert_url, export_experience, export_countries"
         )
         .eq("user_id", user.id)
         .single()
@@ -302,6 +318,47 @@ export default function SupplierDashboardPage() {
         .limit(30)
 
       setSampleRequests((sampleData as SampleRequest[]) ?? [])
+
+      // 전체 매칭 수 / 승인 수 / 샘플 수 (정확한 카운트)
+      const { count: totalCount } = await supabase
+        .from("beauty_matches")
+        .select("id", { count: "exact", head: true })
+        .eq("supplier_id", supplierData.id)
+      setTotalMatchCountFull(totalCount ?? 0)
+
+      const { count: approvedCount } = await supabase
+        .from("beauty_matches")
+        .select("id", { count: "exact", head: true })
+        .eq("supplier_id", supplierData.id)
+        .eq("status", "approved")
+      setApprovedMatchCountFull(approvedCount ?? 0)
+
+      const { count: sampleCountResult } = await supabase
+        .from("beauty_post_matching_services")
+        .select("id", { count: "exact", head: true })
+        .eq("supplier_id", supplierData.id)
+        .eq("service_type", "sample")
+      setSampleCountFull(sampleCountResult ?? 0)
+
+      // 추천 바이어 (카테고리 교집합 + stage1_approved)
+      const supplierCats: string[] = Array.isArray(supplierData.categories) ? supplierData.categories : []
+      if (supplierCats.length > 0) {
+        const { data: buyerData } = await supabase
+          .from("beauty_buyers")
+          .select("id, company_name, country, categories, annual_import_volume, business_type")
+          .eq("stage1_approved", true)
+          .overlaps("categories", supplierCats)
+          .limit(10)
+        setRecommendedBuyers((buyerData as RecommendedBuyer[]) ?? [])
+      }
+
+      // 이미 컨택한 바이어 ID
+      const { data: contactedData } = await supabase
+        .from("beauty_matches")
+        .select("buyer_id")
+        .eq("supplier_id", supplierData.id)
+        .eq("initiated_by", "supplier")
+      setContactedBuyerIds(new Set((contactedData ?? []).map((m: { buyer_id: string }) => m.buyer_id)))
 
       setLoading(false)
     }
@@ -442,6 +499,25 @@ export default function SupplierDashboardPage() {
     setSampleUpdatingId(null)
   }
 
+  // ─── 공급사 → 바이어 컨택 요청 ────────────────────────────────────────────
+  async function handleContact(buyerId: string) {
+    if (!supplier) return
+    setContactingId(buyerId)
+    const { error } = await supabase.from("beauty_matches").insert({
+      supplier_id: supplier.id,
+      buyer_id: buyerId,
+      status: "requested",
+      initiated_by: "supplier",
+    })
+    if (error) {
+      toast.error("오류가 발생했습니다. 다시 시도해주세요.")
+    } else {
+      setContactedBuyerIds((prev) => new Set([...prev, buyerId]))
+      toast.success("컨택 요청을 보냈습니다.")
+    }
+    setContactingId(null)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F8F7F5] flex items-center justify-center">
@@ -449,9 +525,6 @@ export default function SupplierDashboardPage() {
       </div>
     )
   }
-
-  const approvedCount = matches.filter((m) => m.status === "approved").length
-  const totalMatchCount = matches.length
 
   return (
     <div className="min-h-screen bg-[#F8F7F5]" style={{ fontFamily: '"Pretendard Variable", Pretendard, sans-serif' }}>
@@ -485,10 +558,10 @@ export default function SupplierDashboardPage() {
 
           {/* 요약 카드 + 제품 등록 버튼 */}
           <div className="flex gap-4 mb-8 items-stretch">
-            <SummaryCard label="받은 매칭 요청" value={totalMatchCount} />
-            <SummaryCard label="승인한 매칭" value={approvedCount} />
-            <SummaryCard label="등록 제품" value={productCount} />
-            <SummaryCard label="조회수" value={0} />
+            <SummaryCard label="받은 매칭 요청" value={totalMatchCountFull} />
+            <SummaryCard label="승인한 매칭" value={approvedMatchCountFull} />
+            <SummaryCard label="샘플 요청" value={sampleCountFull} />
+            <SummaryCard label="추천 바이어" value={recommendedBuyers.length} />
             <Link
               href="/kbeauty/dashboard/supplier/products/new"
               className="flex flex-col items-center justify-center gap-1 min-w-[120px] px-5 py-4 border-[1.5px] border-dashed border-[#1A3A5C]/30 rounded-xl text-[#1A3A5C] hover:bg-[#1A3A5C]/[0.04] hover:border-[#1A3A5C]/60 transition-colors"
@@ -770,6 +843,74 @@ export default function SupplierDashboardPage() {
                     <StatusBadge status={match.status} />
                   </li>
                 ))}
+              </ul>
+            )}
+          </div>
+
+          {/* 추천 바이어 */}
+          <div className="bg-white border border-[#E8E2DA] mt-6" style={{ borderRadius: 12 }}>
+            <div className="px-6 py-4 border-b border-[#E8E2DA]">
+              <h2 className="text-sm font-semibold text-[#0F0F0F]">
+                추천 바이어
+                {recommendedBuyers.length > 0 && (
+                  <span className="ml-2 text-xs font-normal text-[#6B6B6B]">({recommendedBuyers.length}개 매칭)</span>
+                )}
+              </h2>
+              <p className="text-xs text-[#6B6B6B] mt-0.5">카테고리가 일치하는 승인된 바이어입니다.</p>
+            </div>
+            {recommendedBuyers.length === 0 ? (
+              <div className="px-6 py-10 text-center">
+                <p className="text-sm text-[#6B6B6B]">현재 카테고리에 맞는 추천 바이어가 없습니다.</p>
+              </div>
+            ) : (
+              <ul>
+                {recommendedBuyers.map((buyer, idx) => {
+                  const alreadyContacted = contactedBuyerIds.has(buyer.id)
+                  const isContacting = contactingId === buyer.id
+                  return (
+                    <li
+                      key={buyer.id}
+                      className={`flex items-start justify-between gap-4 px-6 py-4 ${
+                        idx < recommendedBuyers.length - 1 ? "border-b border-[#E8E2DA]" : ""
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-[#0F0F0F]">{buyer.company_name}</p>
+                          <span className="text-xs text-[#6B6B6B]">{buyer.country}</span>
+                        </div>
+                        {buyer.annual_import_volume && (
+                          <p className="text-xs text-[#6B6B6B] mt-0.5">수입 규모: {buyer.annual_import_volume}</p>
+                        )}
+                        {buyer.categories && buyer.categories.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {buyer.categories.slice(0, 4).map((cat) => (
+                              <span
+                                key={cat}
+                                className="text-[10px] font-medium px-1.5 py-0.5 rounded capitalize"
+                                style={{ background: "#F0EDE8", color: "#6B6B6B" }}
+                              >
+                                {cat}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleContact(buyer.id)}
+                        disabled={alreadyContacted || isContacting}
+                        className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
+                        style={
+                          alreadyContacted
+                            ? { background: "#F8F7F5", color: "#6B6B6B", border: "1px solid #E8E2DA" }
+                            : { background: "#1A3A5C", color: "white" }
+                        }
+                      >
+                        {isContacting ? "..." : alreadyContacted ? "요청 중" : "컨택 요청"}
+                      </button>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>
