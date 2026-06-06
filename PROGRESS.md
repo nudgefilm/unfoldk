@@ -4,6 +4,41 @@
 
 ---
 
+## 현재 상태 (2026-06-06 세션 51 기준)
+
+### UnfoldK Beauty (kbeauty) — 공급사 가입·대시보드 개선
+
+**완료 항목**
+
+- **로그인 페이지 한영혼용 정책** (`app/kbeauty/login/page.tsx`)
+  - 제목 "Login" / 부제 "공급사 · 바이어 공통 로그인 / Supplier & Buyer Login"
+  - Email·Password·Forgot password·New here → 영문만 / 공급사 "공급사 가입" / 바이어 "Buyer Sign Up"
+
+- **Get Started 모달** (`app/kbeauty/auth/page.tsx`): 타이틀 "어떤 분이신가요? / Who are you?"
+
+- **미들웨어 통과 실패 버그 수정**
+  - 원인: `signUp()` + 이메일 인증 활성화 → `session=null` → 미들웨어 차단
+  - 해결: `app/api/kbeauty/auth/signup/route.ts` 신설 — Admin API `createUser({ email_confirm: true })` → 이메일 미발송 + 즉시 인증 상태 → `signInWithPassword`로 세션 획득
+  - `app/kbeauty/supplier/page.tsx` + `app/kbeauty/buyer/register/page.tsx` 동일 적용
+
+- **공급사 가입 폼 "인증 및 서류" 섹션 추가** (`app/kbeauty/supplier/page.tsx`)
+  - 화장품 등록필증 유형 + 파일 업로드 (필수)
+  - FDA 등록번호 / ISO 22716 / 비건 인증 / 크루얼티프리 / 수출 경험 (선택)
+  - `kbeauty-documents/suppliers/{uid}/{파일명}` 스토리지 업로드
+
+- **Migration `0065_beauty_suppliers_certifications.sql` 실행 완료**
+  - `beauty_suppliers` 13개 컬럼 추가 (`cosmetic_license_url`, `fda_registration_number`, `iso_22716_url`, `vegan_cert_org/url`, `cruelty_free_cert_org/url` 등)
+  - `kbeauty-documents` 스토리지 버킷 + RLS 정책
+
+- **공급사 대시보드 북미 수출 준비 가이드 편집 기능** (`app/kbeauty/dashboard/supplier/page.tsx`)
+  - 읽기 전용 → 인라인 편집 폼 전환 (텍스트 인풋 + 파일 업로드)
+  - 화장품 등록필증 (파일) / FDA 등록번호 (텍스트) / ISO 22716 (파일) / 비건 (기관명+파일) / 크루얼티프리 (기관명+파일) / 수출국 (텍스트)
+  - 저장: 파일 → Storage 업로드 → `beauty_suppliers` UPDATE → 로컬 상태 반영
+  - 케이스별 에러 토스트: 용량초과(10MB) / 형식오류(PDF·JPG·PNG) / Storage 실패 / 네트워크 / JWT만료(로그인 액션버튼) / 그외 오류코드
+  - `<Toaster richColors />` 로컬 마운트 (비-admin 페이지 규칙)
+
+---
+
 ## 현재 상태 (2026-06-05 세션 50 기준)
 
 ### UnfoldK Beauty (kbeauty) — MVP 1차 개발

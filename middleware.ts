@@ -135,9 +135,10 @@ export async function middleware(request: NextRequest) {
   // ────────────────────────────────────────────────────────────
   const isKbeautySupplierDash = path.startsWith("/kbeauty/dashboard/supplier")
   const isKbeautyBuyerDash    = path.startsWith("/kbeauty/dashboard/buyer")
+  const isKbeautySellerDash   = path.startsWith("/kbeauty/dashboard/seller")
   const isKbeautyAdmin        = path.startsWith("/kbeauty/admin")
 
-  if (isKbeautySupplierDash || isKbeautyBuyerDash || isKbeautyAdmin) {
+  if (isKbeautySupplierDash || isKbeautyBuyerDash || isKbeautySellerDash || isKbeautyAdmin) {
     const kbeautyRedirect = () => {
       const url = request.nextUrl.clone()
       url.pathname = "/kbeauty"
@@ -164,6 +165,15 @@ export async function middleware(request: NextRequest) {
         .eq("user_id", user.id)
         .maybeSingle()
       if (!buyer) return kbeautyRedirect()
+    }
+
+    if (isKbeautySellerDash) {
+      const { data: seller } = await supabase
+        .from("beauty_sellers")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle()
+      if (!seller) return kbeautyRedirect()
     }
 
     if (isKbeautyAdmin) {

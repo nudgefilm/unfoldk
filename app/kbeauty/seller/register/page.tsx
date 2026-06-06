@@ -1,0 +1,648 @@
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { Menu, Check, ChevronDown, Instagram, Linkedin } from "lucide-react"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { cn } from "@/lib/utils"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+
+// Navbar Component (Light variant)
+function BeautyNavbar() {
+  return (
+    <header className="sticky top-0 z-50 w-full bg-white border-b border-[#E8E2DA] h-16">
+      <div className="max-w-[1280px] mx-auto h-full px-6 flex items-center justify-between">
+        <Link href="/kbeauty" className="flex items-center gap-1">
+          <span className="font-bold text-[#0F0F0F]">UnfoldK Beauty</span>
+          <span className="text-[#C8A882]">&#9670;</span>
+        </Link>
+
+        <nav className="hidden md:flex items-center gap-8">
+          <a href="/kbeauty#suppliers" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+            For Suppliers
+          </a>
+          <a href="/kbeauty#buyers" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+            For Buyers
+          </a>
+          <a href="/kbeauty#how-it-works" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+            How It Works
+          </a>
+          <a href="/kbeauty#data-sources" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+            Data Sources
+          </a>
+        </nav>
+
+        <div className="hidden md:flex items-center gap-3">
+          <Link href="/kbeauty/login" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors px-4 py-2">
+            Log in
+          </Link>
+          <Link
+            href="/kbeauty/seller/register"
+            className="bg-[#1A3A5C] text-white text-sm font-medium px-5 py-2.5 rounded-md hover:bg-[#153249] transition-colors"
+          >
+            Get Started
+          </Link>
+        </div>
+
+        <Sheet>
+          <SheetTrigger asChild className="md:hidden">
+            <button className="p-2 text-[#0F0F0F]">
+              <Menu className="h-6 w-6" />
+              <span className="sr-only">Toggle menu</span>
+            </button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="bg-white border-t border-[#E8E2DA]">
+            <nav className="flex flex-col gap-4 mt-6">
+              <a href="/kbeauty#suppliers" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
+                For Suppliers
+              </a>
+              <a href="/kbeauty#buyers" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
+                For Buyers
+              </a>
+              <a href="/kbeauty#how-it-works" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
+                How It Works
+              </a>
+              <a href="/kbeauty#data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
+                Data Sources
+              </a>
+              <div className="border-t border-[#E8E2DA] my-2" />
+              <Link href="/kbeauty/login" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2 text-left">
+                Log in
+              </Link>
+              <Link
+                href="/kbeauty/seller/register"
+                className="bg-[#1A3A5C] text-white font-medium px-5 py-3 rounded-md w-full mt-2 text-center block"
+              >
+                Get Started
+              </Link>
+            </nav>
+          </SheetContent>
+        </Sheet>
+      </div>
+    </header>
+  )
+}
+
+// Hero Header Section
+function HeroHeader() {
+  return (
+    <section className="bg-white pt-16 pb-10 px-6">
+      <div className="max-w-[640px] mx-auto text-center">
+        <h1 className="font-serif text-4xl md:text-[48px] text-[#0F0F0F] mb-4">
+          Get Seller Access
+        </h1>
+        <p className="text-base text-[#6B6B6B] leading-[1.7]">
+          Tell us about your store. We&apos;ll connect you with verified Korean suppliers.
+        </p>
+      </div>
+    </section>
+  )
+}
+
+// Form Component
+function SellerRegistrationForm() {
+  const router = useRouter()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState("")
+  const [showLoginLink, setShowLoginLink] = useState(false)
+
+  const [companyName, setCompanyName] = useState("")
+  const [email, setEmail] = useState("")
+  const [sellerTypes, setSellerTypes] = useState<string[]>([])
+  const [marketplaceUrl, setMarketplaceUrl] = useState("")
+  const [country, setCountry] = useState("")
+  const [state, setState] = useState("")
+  const [categories, setCategories] = useState<string[]>([])
+  const [annualSalesVolume, setAnnualSalesVolume] = useState("")
+  const [handlingKorean, setHandlingKorean] = useState("")
+  const [instagramHandle, setInstagramHandle] = useState("")
+  const [linkedinUrl, setLinkedinUrl] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+
+  const countries = [
+    "United States",
+    "Canada",
+    "United Kingdom",
+    "Germany",
+    "France",
+    "Australia",
+    "Japan",
+    "Singapore",
+    "Other",
+  ]
+
+  const usStates = [
+    "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
+    "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
+    "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
+    "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
+    "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
+    "New Hampshire", "New Jersey", "New Mexico", "New York",
+    "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
+    "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
+    "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
+    "West Virginia", "Wisconsin", "Wyoming",
+  ]
+
+  const sellerTypeOptions = [
+    { label: "Amazon Seller", value: "amazon_seller" },
+    { label: "Shopify Independent Store", value: "shopify_independent_store" },
+    { label: "TikTok Shop Seller", value: "tiktok_shop_seller" },
+    { label: "Other", value: "other" },
+  ]
+
+  const categoryOptions = [
+    "Skincare",
+    "Makeup",
+    "Haircare",
+    "Suncare",
+    "Derma/Functional",
+  ]
+
+  const volumeOptions = ["Under $50K", "$50K–$500K", "Over $500K"]
+
+  const handleSellerTypeToggle = (value: string) => {
+    setSellerTypes((prev) =>
+      prev.includes(value) ? prev.filter((t) => t !== value) : [...prev, value]
+    )
+  }
+
+  const handleCategoryToggle = (category: string) => {
+    setCategories((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
+    )
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!password || password.length < 6) {
+      setSubmitError("Password must be at least 6 characters.")
+      return
+    }
+    if (password !== confirmPassword) {
+      setSubmitError("Passwords do not match.")
+      return
+    }
+
+    setIsSubmitting(true)
+    setSubmitError("")
+    setShowLoginLink(false)
+
+    try {
+      // 1. 서버사이드 API로 계정 생성 (확인 이메일 미발송)
+      const signupRes = await fetch("/api/kbeauty/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+      const signupData = await signupRes.json()
+
+      if (!signupRes.ok) {
+        const msg = signupData.error || ""
+        if (msg === "already_registered" || msg.toLowerCase().includes("already registered")) {
+          setSubmitError("This email is already registered. Please log in.")
+          setShowLoginLink(true)
+        } else if (msg.toLowerCase().includes("password") || msg.includes("6 characters")) {
+          setSubmitError("Password must be at least 6 characters.")
+        } else if (msg.toLowerCase().includes("network") || msg.toLowerCase().includes("fetch")) {
+          setSubmitError("Please check your network connection.")
+        } else {
+          setSubmitError("An error occurred. Please contact support.")
+        }
+        return
+      }
+
+      const supabase = createSupabaseBrowserClient()
+
+      // 2. 계정 생성 직후 로그인으로 세션 확보 (미들웨어 통과)
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+      if (signInErr) {
+        setSubmitError("Account created but login failed. Please log in from the login page.")
+        setShowLoginLink(true)
+        return
+      }
+
+      // 3. beauty_sellers 레코드 삽입
+      const marketplaceUrlFull = marketplaceUrl
+        ? /^https?:\/\//i.test(marketplaceUrl) ? marketplaceUrl : `https://${marketplaceUrl}`
+        : null
+
+      const { error } = await supabase.from("beauty_sellers").insert({
+        user_id: signupData.userId,
+        company_name: companyName,
+        business_email: email,
+        seller_type: sellerTypes.length > 0 ? sellerTypes : ["other"],
+        marketplace_url: marketplaceUrlFull,
+        country,
+        state: state || null,
+        categories,
+        annual_sales_volume: annualSalesVolume || null,
+        instagram_handle: instagramHandle || null,
+        linkedin_url: linkedinUrl || null,
+        status: "active",
+        source: "direct_signup",
+      })
+
+      if (error) {
+        if (error.code === "23505") {
+          setSubmitError("This store is already registered. Please log in.")
+          setShowLoginLink(true)
+        } else {
+          setSubmitError(`An error occurred. (Error code: ${error.code ?? "unknown"}) Please contact support.`)
+        }
+        return
+      }
+
+      router.push("/kbeauty/dashboard/seller")
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : ""
+      if (msg.toLowerCase().includes("network") || msg.toLowerCase().includes("fetch")) {
+        setSubmitError("Please check your network connection.")
+      } else {
+        setSubmitError("A server error occurred. Please try again.")
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const inputBaseClass =
+    "w-full px-4 py-3 border border-[#E8E2DA] rounded-lg text-sm text-[#0F0F0F] placeholder:text-[#6B6B6B]/50 hover:border-[#1A3A5C]/40 focus:border-[#1A3A5C] focus:outline-none transition-colors duration-200"
+
+  const selectBaseClass =
+    "w-full px-4 py-3 border border-[#E8E2DA] rounded-lg text-sm text-[#0F0F0F] hover:border-[#1A3A5C]/40 focus:border-[#1A3A5C] focus:outline-none transition-colors duration-200 appearance-none bg-white cursor-pointer"
+
+  return (
+    <div className="max-w-[600px] mx-auto px-6 mb-6">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white border border-[#E8E2DA] rounded-xl p-8 md:p-10 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+      >
+        {/* Company / Store Name */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+            Company / Store Name <span className="text-[#1A3A5C]">*</span>
+          </label>
+          <input
+            type="text"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            placeholder="Your Store Name"
+            required
+            className={inputBaseClass}
+          />
+        </div>
+
+        {/* Business Email */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+            Business Email <span className="text-[#1A3A5C]">*</span>
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="contact@yourstore.com"
+            required
+            className={inputBaseClass}
+          />
+          <p className="text-xs text-[#6B6B6B] mt-1.5">
+            Personal emails are not accepted.
+          </p>
+        </div>
+
+        {/* Seller Type */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-1">
+            Seller Type <span className="text-[#1A3A5C]">*</span>
+          </label>
+          <span className="text-[13px] text-[#6B6B6B] block mb-3">Select all that apply</span>
+          <div className="flex flex-col gap-3">
+            {sellerTypeOptions.map((opt) => (
+              <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
+                <div
+                  onClick={() => handleSellerTypeToggle(opt.value)}
+                  className={cn(
+                    "w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer",
+                    sellerTypes.includes(opt.value)
+                      ? "bg-[#1A3A5C] border-[#1A3A5C]"
+                      : "bg-white border-[1.5px] border-[#E8E2DA]"
+                  )}
+                >
+                  {sellerTypes.includes(opt.value) && (
+                    <Check className="w-3 h-3 text-white" />
+                  )}
+                </div>
+                <span className="text-sm text-[#0F0F0F]">{opt.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Marketplace URL */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+            Marketplace URL <span className="text-[#1A3A5C]">*</span>
+          </label>
+          <div className="flex items-center border border-[#E8E2DA] rounded-lg overflow-hidden hover:border-[#1A3A5C]/40 focus-within:border-[#1A3A5C] transition-colors duration-200">
+            <span className="px-3 py-3 text-sm text-[#6B6B6B] bg-[#F8F7F5] border-r border-[#E8E2DA] whitespace-nowrap select-none">
+              https://
+            </span>
+            <input
+              type="text"
+              value={marketplaceUrl}
+              onChange={(e) => setMarketplaceUrl(e.target.value)}
+              placeholder="amazon.com/shops/yourstore"
+              required
+              className="flex-1 px-3 py-3 text-sm text-[#0F0F0F] placeholder:text-[#6B6B6B]/50 focus:outline-none bg-white"
+            />
+          </div>
+        </div>
+
+        {/* Location - 2 Column */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Country */}
+          <div>
+            <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+              Country <span className="text-[#1A3A5C]">*</span>
+            </label>
+            <div className="relative">
+              <select
+                value={country}
+                onChange={(e) => {
+                  setCountry(e.target.value)
+                  if (e.target.value !== "United States") setState("")
+                }}
+                required
+                className={cn(selectBaseClass, !country && "text-[#6B6B6B]/50")}
+              >
+                <option value="" disabled>Select country</option>
+                {countries.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B] pointer-events-none" />
+            </div>
+          </div>
+
+          {/* State / Region */}
+          <div>
+            <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+              State / Region
+            </label>
+            <div className="relative">
+              <select
+                value={state}
+                onChange={(e) => setState(e.target.value)}
+                disabled={country !== "United States"}
+                className={cn(
+                  selectBaseClass,
+                  !state && "text-[#6B6B6B]/50",
+                  country !== "United States" && "bg-[#F8F7F5] cursor-not-allowed"
+                )}
+              >
+                <option value="" disabled>Select state</option>
+                {usStates.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B] pointer-events-none" />
+            </div>
+          </div>
+        </div>
+
+        {/* Product Categories */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-1">
+            Product Categories <span className="text-[#1A3A5C]">*</span>
+          </label>
+          <span className="text-[13px] text-[#6B6B6B] block mb-3">Select all that apply</span>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {categoryOptions.map((category) => (
+              <label key={category} className="flex items-center gap-3 cursor-pointer">
+                <div
+                  onClick={() => handleCategoryToggle(category)}
+                  className={cn(
+                    "w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer",
+                    categories.includes(category)
+                      ? "bg-[#1A3A5C] border-[#1A3A5C]"
+                      : "bg-white border-[1.5px] border-[#E8E2DA]"
+                  )}
+                >
+                  {categories.includes(category) && (
+                    <Check className="w-3 h-3 text-white" />
+                  )}
+                </div>
+                <span className="text-sm text-[#0F0F0F]">{category}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Annual Sales Volume */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-3">
+            Annual Sales Volume <span className="text-[#1A3A5C]">*</span>
+          </label>
+          <div className="flex flex-wrap gap-6">
+            {volumeOptions.map((option) => (
+              <label key={option} className="flex items-center gap-2.5 cursor-pointer">
+                <div
+                  onClick={() => setAnnualSalesVolume(option)}
+                  className={cn(
+                    "w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer",
+                    annualSalesVolume === option ? "border-[#1A3A5C]" : "border-[#E8E2DA]"
+                  )}
+                >
+                  {annualSalesVolume === option && (
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />
+                  )}
+                </div>
+                <span className="text-sm text-[#0F0F0F]">{option}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Currently selling Korean products? */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-3">
+            Currently selling Korean products?
+          </label>
+          <div className="flex gap-8">
+            {["Yes", "No"].map((option) => (
+              <label key={option} className="flex items-center gap-2.5 cursor-pointer">
+                <div
+                  onClick={() => setHandlingKorean(option)}
+                  className={cn(
+                    "w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer",
+                    handlingKorean === option ? "border-[#1A3A5C]" : "border-[#E8E2DA]"
+                  )}
+                >
+                  {handlingKorean === option && (
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />
+                  )}
+                </div>
+                <span className="text-sm text-[#0F0F0F]">{option}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-[#E8E2DA] my-7" />
+
+        {/* Instagram Handle */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+            Instagram Handle{" "}
+            <span className="text-xs text-[#6B6B6B] font-normal">(Optional)</span>
+          </label>
+          <input
+            type="text"
+            value={instagramHandle}
+            onChange={(e) => setInstagramHandle(e.target.value)}
+            placeholder="@yourstorehandle"
+            className={inputBaseClass}
+          />
+        </div>
+
+        {/* LinkedIn URL */}
+        <div className="mb-8">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+            LinkedIn URL{" "}
+            <span className="text-xs text-[#6B6B6B] font-normal">(Optional)</span>
+          </label>
+          <input
+            type="url"
+            value={linkedinUrl}
+            onChange={(e) => setLinkedinUrl(e.target.value)}
+            placeholder="https://linkedin.com/company/..."
+            className={inputBaseClass}
+          />
+        </div>
+
+        <div className="border-t border-[#E8E2DA] my-7" />
+
+        {/* Password */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+            Password <span className="text-[#1A3A5C]">*</span>
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="At least 6 characters"
+            className={inputBaseClass}
+          />
+        </div>
+
+        {/* Confirm Password */}
+        <div className="mb-8">
+          <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
+            Confirm Password <span className="text-[#1A3A5C]">*</span>
+          </label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Re-enter your password"
+            className={inputBaseClass}
+          />
+        </div>
+
+        {/* Submit Error */}
+        {submitError && (
+          <div className="mb-4">
+            <p className="text-[13px] text-red-500">{submitError}</p>
+            {showLoginLink && (
+              <Link href="/kbeauty/login" className="mt-1.5 inline-block text-sm font-medium text-[#1A3A5C] hover:underline">
+                Log in →
+              </Link>
+            )}
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className={cn(
+            "w-full bg-[#C8A882] text-[#0F0F0F] font-semibold py-3.5 rounded-lg text-[15px] transition-colors inline-flex items-center justify-center gap-2",
+            isSubmitting ? "opacity-60 cursor-not-allowed" : "hover:bg-[#b8956e]"
+          )}
+        >
+          {isSubmitting ? "Submitting..." : "Get Seller Access"}
+          {!isSubmitting && <span className="text-lg">&#8594;</span>}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+// Footer Section
+function FooterSection() {
+  return (
+    <footer className="bg-[#0F0F0F] py-12 px-6">
+      <div className="max-w-[1280px] mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8">
+          <div>
+            <div className="flex items-center gap-1 mb-2">
+              <span className="font-bold text-white">UnfoldK Beauty</span>
+              <span className="text-[#C8A882]">&#9670;</span>
+            </div>
+            <p className="text-[13px] text-white/40">
+              Your gateway to verified K-Beauty trade.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <Link href="/privacy" className="text-sm text-white/60 hover:text-white transition-colors">
+              Privacy Policy
+            </Link>
+            <Link href="/terms" className="text-sm text-white/60 hover:text-white transition-colors">
+              Terms of Service
+            </Link>
+            <a href="mailto:contact@unfoldk.com" className="text-sm text-white/60 hover:text-white transition-colors">
+              Contact
+            </a>
+          </div>
+        </div>
+
+        <div className="border-t border-white/10 my-6" />
+
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <p className="text-xs text-white/30">
+            &copy; 2026 UnfoldK Beauty by Unfold Lab.
+          </p>
+          <div className="flex items-center gap-4">
+            <a href="#" className="text-white/40 hover:text-white transition-colors">
+              <Instagram className="w-5 h-5" />
+              <span className="sr-only">Instagram</span>
+            </a>
+            <a href="#" className="text-white/40 hover:text-white transition-colors">
+              <Linkedin className="w-5 h-5" />
+              <span className="sr-only">LinkedIn</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  )
+}
+
+// Main Page Component
+export default function SellerRegisterPage() {
+  return (
+    <div className="min-h-screen bg-white font-sans">
+      <BeautyNavbar />
+      <main>
+        <HeroHeader />
+        <SellerRegistrationForm />
+      </main>
+      <FooterSection />
+    </div>
+  )
+}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { type ReactNode, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -13,7 +13,9 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
+  Paperclip,
 } from "lucide-react"
+import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -22,13 +24,19 @@ interface Supplier {
   id: string
   company_name_ko: string
   cosmetic_license_verified: boolean
+  cosmetic_license_url: string | null
   buyer_db_access: boolean
   status: string
   fda_status: string | null
   fda_registration_number: string | null
   iso_22716: boolean
+  iso_22716_url: string | null
   vegan_certified: boolean
+  vegan_cert_org: string | null
+  vegan_cert_url: string | null
   cruelty_free_certified: boolean
+  cruelty_free_cert_org: string | null
+  cruelty_free_cert_url: string | null
   export_experience: string | null
   export_countries: string | null
 }
@@ -41,9 +49,10 @@ interface Match {
   beauty_buyers?: { company_name: string }
 }
 
-interface Product {
-  id: string
-}
+// ─── 상수 ──────────────────────────────────────────────────────────────────
+
+const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png"]
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
 // ─── 사이드바 ──────────────────────────────────────────────────────────────
 
@@ -66,7 +75,6 @@ function Sidebar({
       className="fixed top-0 left-0 h-screen bg-white border-r border-[#E8E2DA] flex flex-col"
       style={{ width: 240 }}
     >
-      {/* 로고 */}
       <div className="px-6 py-5 border-b border-[#E8E2DA]">
         <Link href="/kbeauty" className="flex items-center gap-1">
           <span className="font-bold text-[#0F0F0F] text-sm">UnfoldK Beauty</span>
@@ -74,7 +82,6 @@ function Sidebar({
         </Link>
       </div>
 
-      {/* 네비게이션 */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {NAV_ITEMS.map((item) => (
           <Link
@@ -88,7 +95,6 @@ function Sidebar({
         ))}
       </nav>
 
-      {/* 하단 계정 정보 */}
       <div className="px-4 py-4 border-t border-[#E8E2DA]">
         <p className="text-xs font-medium text-[#0F0F0F] truncate">{companyName || "—"}</p>
         <div className="mt-1">
@@ -126,7 +132,7 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
 // ─── 상태 배지 ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; icon: React.ReactNode; className: string }> = {
+  const map: Record<string, { label: string; icon: ReactNode; className: string }> = {
     requested: {
       label: "대기중",
       icon: <Clock className="w-3 h-3" />,
@@ -154,6 +160,46 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+// ─── 파일 선택 버튼 ────────────────────────────────────────────────────────
+
+function FilePickerButton({
+  id,
+  file,
+  existingUrl,
+  onChange,
+}: {
+  id: string
+  file: File | null
+  existingUrl: string | null
+  onChange: (f: File | null) => void
+}) {
+  const existingName = existingUrl ? (existingUrl.split("/").pop() ?? "") : ""
+  const displayName = file ? file.name : existingName
+
+  return (
+    <div className="mt-2 flex items-center gap-2 flex-wrap">
+      <label
+        htmlFor={id}
+        className="cursor-pointer inline-flex items-center gap-1 text-xs font-medium text-white px-2.5 py-1 rounded-md hover:opacity-80 transition-opacity"
+        style={{ background: "#1A3A5C" }}
+      >
+        <Paperclip className="w-3 h-3" />
+        {existingUrl && !file ? "재업로드" : "파일 선택"}
+      </label>
+      <input
+        id={id}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png"
+        className="hidden"
+        onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+      />
+      {displayName && (
+        <span className="text-xs text-[#6B6B6B] truncate max-w-[180px]">{displayName}</span>
+      )}
+    </div>
+  )
+}
+
 // ─── 메인 페이지 ───────────────────────────────────────────────────────────
 
 export default function SupplierDashboardPage() {
@@ -161,9 +207,23 @@ export default function SupplierDashboardPage() {
   const supabase = createSupabaseBrowserClient()
 
   const [supplier, setSupplier] = useState<Supplier | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [matches, setMatches] = useState<Match[]>([])
   const [productCount, setProductCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  // 가이드 편집 폼 상태
+  const [fdaRegNumber, setFdaRegNumber] = useState("")
+  const [exportCountries, setExportCountries] = useState("")
+  const [veganCertOrg, setVeganCertOrg] = useState("")
+  const [crueltyFreeCertOrg, setCrueltyFreeCertOrg] = useState("")
+
+  // 파일 업로드 상태
+  const [cosmeticLicenseFile, setCosmeticLicenseFile] = useState<File | null>(null)
+  const [iso22716File, setIso22716File] = useState<File | null>(null)
+  const [veganCertFile, setVeganCertFile] = useState<File | null>(null)
+  const [crueltyFreeCertFile, setCrueltyFreeCertFile] = useState<File | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -176,10 +236,14 @@ export default function SupplierDashboardPage() {
         return
       }
 
+      setUserId(user.id)
+
       // 공급사 정보
       const { data: supplierData } = await supabase
         .from("beauty_suppliers")
-        .select("id, company_name_ko, cosmetic_license_verified, buyer_db_access, status, fda_status, fda_registration_number, iso_22716, vegan_certified, cruelty_free_certified, export_experience, export_countries")
+        .select(
+          "id, company_name_ko, cosmetic_license_verified, cosmetic_license_url, buyer_db_access, status, fda_status, fda_registration_number, iso_22716, iso_22716_url, vegan_certified, vegan_cert_org, vegan_cert_url, cruelty_free_certified, cruelty_free_cert_org, cruelty_free_cert_url, export_experience, export_countries"
+        )
         .eq("user_id", user.id)
         .single()
 
@@ -189,6 +253,12 @@ export default function SupplierDashboardPage() {
       }
 
       setSupplier(supplierData)
+
+      // 폼 초기값 로드
+      setFdaRegNumber(supplierData.fda_registration_number ?? "")
+      setExportCountries(supplierData.export_countries ?? "")
+      setVeganCertOrg(supplierData.vegan_cert_org ?? "")
+      setCrueltyFreeCertOrg(supplierData.cruelty_free_cert_org ?? "")
 
       // 매칭 요청 (최신 5건)
       const { data: matchData } = await supabase
@@ -213,6 +283,121 @@ export default function SupplierDashboardPage() {
     load()
   }, [router, supabase])
 
+  // ─── 파일 유효성 검사 ────────────────────────────────────────────────────
+  function validateFile(file: File): "size" | "type" | null {
+    if (file.size > MAX_FILE_SIZE) return "size"
+    if (!ALLOWED_MIME.includes(file.type)) return "type"
+    return null
+  }
+
+  // ─── 스토리지 업로드 ─────────────────────────────────────────────────────
+  async function uploadDoc(file: File, uid: string): Promise<string> {
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
+    const path = `suppliers/${uid}/${Date.now()}_${safeName}`
+    const { error } = await supabase.storage
+      .from("kbeauty-documents")
+      .upload(path, file, { upsert: true })
+    if (error) throw new Error("storage_error")
+    return path
+  }
+
+  // ─── 저장 ────────────────────────────────────────────────────────────────
+  async function handleSave() {
+    if (!supplier || !userId) return
+    setSaving(true)
+
+    // 파일 유효성 검사
+    const filesToCheck = [cosmeticLicenseFile, iso22716File, veganCertFile, crueltyFreeCertFile].filter(
+      Boolean
+    ) as File[]
+    for (const file of filesToCheck) {
+      const err = validateFile(file)
+      if (err === "size") {
+        toast.error("파일 용량이 너무 큽니다. 10MB 이하 파일을 업로드해주세요.")
+        setSaving(false)
+        return
+      }
+      if (err === "type") {
+        toast.error("PDF, JPG, PNG 파일만 업로드 가능합니다.")
+        setSaving(false)
+        return
+      }
+    }
+
+    const updates: Record<string, unknown> = {
+      fda_registration_number: fdaRegNumber || null,
+      export_countries: exportCountries || null,
+      vegan_cert_org: veganCertOrg || null,
+      cruelty_free_cert_org: crueltyFreeCertOrg || null,
+    }
+
+    // 파일 업로드
+    try {
+      if (cosmeticLicenseFile) {
+        updates.cosmetic_license_url = await uploadDoc(cosmeticLicenseFile, userId)
+      }
+      if (iso22716File) {
+        updates.iso_22716_url = await uploadDoc(iso22716File, userId)
+        updates.iso_22716 = true
+      }
+      if (veganCertFile) {
+        updates.vegan_cert_url = await uploadDoc(veganCertFile, userId)
+        updates.vegan_certified = true
+      }
+      if (crueltyFreeCertFile) {
+        updates.cruelty_free_cert_url = await uploadDoc(crueltyFreeCertFile, userId)
+        updates.cruelty_free_certified = true
+      }
+    } catch {
+      toast.error("파일 업로드에 실패했습니다. 잠시 후 다시 시도해주세요.")
+      setSaving(false)
+      return
+    }
+
+    // DB 저장
+    const { error } = await supabase.from("beauty_suppliers").update(updates).eq("id", supplier.id)
+
+    if (error) {
+      const msg = (error as { message?: string }).message ?? ""
+      const code = (error as { code?: string }).code ?? ""
+
+      if (
+        !navigator.onLine ||
+        msg.toLowerCase().includes("fetch") ||
+        msg.toLowerCase().includes("network")
+      ) {
+        toast.error("네트워크 연결을 확인해주세요.")
+      } else if (
+        msg.toLowerCase().includes("jwt") ||
+        msg.toLowerCase().includes("expired") ||
+        code === "PGRST301"
+      ) {
+        toast.error("로그인이 만료됐습니다. 다시 로그인해주세요.", {
+          action: {
+            label: "로그인하기",
+            onClick: () => router.push("/kbeauty/login"),
+          },
+        })
+      } else {
+        toast.error(
+          `오류가 발생했습니다. (오류코드: ${code || "UNKNOWN"}) 고객센터에 문의해주세요.`
+        )
+      }
+      setSaving(false)
+      return
+    }
+
+    // 로컬 상태 반영 + 파일 입력 초기화
+    setSupplier((prev) => (prev ? ({ ...prev, ...updates } as Supplier) : prev))
+    setCosmeticLicenseFile(null)
+    setIso22716File(null)
+    setVeganCertFile(null)
+    setCrueltyFreeCertFile(null)
+
+    toast.success("저장됐습니다.")
+    setSaving(false)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F8F7F5] flex items-center justify-center">
@@ -226,6 +411,8 @@ export default function SupplierDashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#F8F7F5]" style={{ fontFamily: '"Pretendard Variable", Pretendard, sans-serif' }}>
+      <Toaster position="top-right" richColors />
+
       {/* 사이드바 */}
       <Sidebar
         companyName={supplier?.company_name_ko ?? ""}
@@ -288,24 +475,23 @@ export default function SupplierDashboardPage() {
             <p className="text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider mb-3">필수 서류</p>
             <div className="space-y-3 mb-5">
               <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-[#0F0F0F]">화장품 제조·책임판매업 등록필증</p>
                   <p className="text-xs text-[#6B6B6B] mt-0.5">식약처 발급 — 국내 합법 화장품 업체 증명</p>
+                  <FilePickerButton
+                    id="cosmetic-license-file"
+                    file={cosmeticLicenseFile}
+                    existingUrl={supplier?.cosmetic_license_url ?? null}
+                    onChange={setCosmeticLicenseFile}
+                  />
                 </div>
-                {supplier?.cosmetic_license_verified ? (
-                  <span className="text-xs font-medium text-[#1A3A5C] whitespace-nowrap">✅ 등록 완료</span>
-                ) : (
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-xs font-medium text-amber-600 whitespace-nowrap">⚠️ 미등록</span>
-                    <Link
-                      href="/kbeauty/dashboard/supplier/settings"
-                      className="text-xs font-medium text-white px-2.5 py-1 rounded-md"
-                      style={{ background: "#1A3A5C" }}
-                    >
-                      업로드
-                    </Link>
-                  </div>
-                )}
+                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0 mt-0.5">
+                  {supplier?.cosmetic_license_verified
+                    ? "✅ 검증 완료"
+                    : supplier?.cosmetic_license_url
+                    ? "🔄 검토 중"
+                    : "⚠️ 미등록"}
+                </span>
               </div>
             </div>
 
@@ -313,7 +499,7 @@ export default function SupplierDashboardPage() {
 
             {/* 권장 서류 */}
             <p className="text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider mb-3">권장 서류 (배지 부여)</p>
-            <div className="space-y-4">
+            <div className="space-y-5">
 
               {/* FDA MoCRA */}
               <div className="flex items-start justify-between gap-4">
@@ -328,10 +514,19 @@ export default function SupplierDashboardPage() {
                   >
                     등록 방법 안내 →
                   </a>
+                  <input
+                    type="text"
+                    value={fdaRegNumber}
+                    onChange={(e) => setFdaRegNumber(e.target.value)}
+                    placeholder="FDA Registration Number"
+                    className="mt-2 w-full text-xs border border-[#E8E2DA] rounded-md px-3 py-1.5 bg-[#F8F7F5] focus:outline-none focus:ring-1 focus:ring-[#1A3A5C] focus:bg-white transition-colors"
+                  />
                 </div>
-                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0">
-                  {supplier?.fda_status === "등록 완료" ? "✅ 등록 완료"
-                    : supplier?.fda_status === "진행 중" ? "🔄 진행 중"
+                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0 mt-0.5">
+                  {supplier?.fda_status === "등록 완료"
+                    ? "✅ 등록 완료"
+                    : supplier?.fda_status === "진행 중"
+                    ? "🔄 진행 중"
                     : "➖ 미등록"}
                 </span>
               </div>
@@ -349,8 +544,14 @@ export default function SupplierDashboardPage() {
                   >
                     인증 기관 안내 →
                   </a>
+                  <FilePickerButton
+                    id="iso22716-file"
+                    file={iso22716File}
+                    existingUrl={supplier?.iso_22716_url ?? null}
+                    onChange={setIso22716File}
+                  />
                 </div>
-                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0">
+                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0 mt-0.5">
                   {supplier?.iso_22716 ? "✅ 보유" : "➖ 미보유"}
                 </span>
               </div>
@@ -368,8 +569,21 @@ export default function SupplierDashboardPage() {
                   >
                     인증 기관 안내 →
                   </a>
+                  <input
+                    type="text"
+                    value={veganCertOrg}
+                    onChange={(e) => setVeganCertOrg(e.target.value)}
+                    placeholder="인증 기관명 (예: 한국비건인증원)"
+                    className="mt-2 w-full text-xs border border-[#E8E2DA] rounded-md px-3 py-1.5 bg-[#F8F7F5] focus:outline-none focus:ring-1 focus:ring-[#1A3A5C] focus:bg-white transition-colors"
+                  />
+                  <FilePickerButton
+                    id="vegan-cert-file"
+                    file={veganCertFile}
+                    existingUrl={supplier?.vegan_cert_url ?? null}
+                    onChange={setVeganCertFile}
+                  />
                 </div>
-                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0">
+                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0 mt-0.5">
                   {supplier?.vegan_certified ? "✅ 보유" : "➖ 미보유"}
                 </span>
               </div>
@@ -387,8 +601,21 @@ export default function SupplierDashboardPage() {
                   >
                     인증 기관 안내 →
                   </a>
+                  <input
+                    type="text"
+                    value={crueltyFreeCertOrg}
+                    onChange={(e) => setCrueltyFreeCertOrg(e.target.value)}
+                    placeholder="인증 기관명 (예: Leaping Bunny)"
+                    className="mt-2 w-full text-xs border border-[#E8E2DA] rounded-md px-3 py-1.5 bg-[#F8F7F5] focus:outline-none focus:ring-1 focus:ring-[#1A3A5C] focus:bg-white transition-colors"
+                  />
+                  <FilePickerButton
+                    id="cruelty-free-cert-file"
+                    file={crueltyFreeCertFile}
+                    existingUrl={supplier?.cruelty_free_cert_url ?? null}
+                    onChange={setCrueltyFreeCertFile}
+                  />
                 </div>
-                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0">
+                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0 mt-0.5">
                   {supplier?.cruelty_free_certified ? "✅ 보유" : "➖ 미보유"}
                 </span>
               </div>
@@ -397,17 +624,35 @@ export default function SupplierDashboardPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-[#0F0F0F]">수출 경험</p>
-                  {supplier?.export_experience === "수출 경험 있음" && supplier.export_countries && (
-                    <p className="text-xs text-[#6B6B6B] mt-0.5">{supplier.export_countries}</p>
-                  )}
+                  <input
+                    type="text"
+                    value={exportCountries}
+                    onChange={(e) => setExportCountries(e.target.value)}
+                    placeholder="예: 미국, 일본, 싱가포르"
+                    className="mt-1.5 w-full text-xs border border-[#E8E2DA] rounded-md px-3 py-1.5 bg-[#F8F7F5] focus:outline-none focus:ring-1 focus:ring-[#1A3A5C] focus:bg-white transition-colors"
+                  />
                 </div>
-                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0">
-                  {supplier?.export_experience === "수출 경험 있음" ? "✅ 수출 경험 있음"
-                    : supplier?.export_experience === "수출 준비 중" ? "🔄 수출 준비 중"
+                <span className="text-xs font-medium whitespace-nowrap flex-shrink-0 mt-0.5">
+                  {supplier?.export_experience === "수출 경험 있음"
+                    ? "✅ 수출 경험 있음"
+                    : supplier?.export_experience === "수출 준비 중"
+                    ? "🔄 수출 준비 중"
                     : "➖ 미입력"}
                 </span>
               </div>
 
+            </div>
+
+            {/* 저장 버튼 */}
+            <div className="flex justify-end mt-5 pt-4 border-t border-[#E8E2DA]">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="text-sm font-semibold px-5 py-2 transition-opacity hover:opacity-80 disabled:opacity-50"
+                style={{ background: "#1A3A5C", color: "white", borderRadius: 8 }}
+              >
+                {saving ? "저장 중..." : "저장"}
+              </button>
             </div>
           </div>
 
@@ -474,6 +719,7 @@ export default function SupplierDashboardPage() {
               </ul>
             )}
           </div>
+
         </div>
       </main>
     </div>
