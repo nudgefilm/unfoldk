@@ -475,6 +475,7 @@ function FooterSection() {
           <div className="flex items-center gap-6">
             <Link href="/privacy" className="text-sm text-white/60 hover:text-white transition-colors">Privacy Policy</Link>
             <Link href="/terms" className="text-sm text-white/60 hover:text-white transition-colors">Terms of Service</Link>
+            <Link href="/kbeauty/refund" className="text-sm text-white/60 hover:text-white transition-colors">Refund Policy</Link>
             <a href="mailto:contact@unfoldk.com" className="text-sm text-white/60 hover:text-white transition-colors">Contact</a>
           </div>
         </div>

@@ -150,6 +150,9 @@ export default function BuyerSuppliersPage() {
   const [sampleMsg, setSampleMsg] = useState("")
   const [submittingSample, setSubmittingSample] = useState(false)
 
+  // 공급사 평점
+  const [supplierRatings, setSupplierRatings] = useState<Map<string, { avg: number; count: number }>>(new Map())
+
   // ─── 인증 및 바이어 정보 로드 ───────────────────────────────────────────
 
   useEffect(() => {
@@ -223,6 +226,32 @@ export default function BuyerSuppliersPage() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buyer, categoryFilter])
+
+  // ─── 공급사 평점 로드 (products 변경 시) ─────────────────────────────────
+
+  useEffect(() => {
+    const supplierIds = [...new Set(products.map((p) => p.supplier_id))]
+    if (supplierIds.length === 0) { setSupplierRatings(new Map()); return }
+    supabase
+      .from("beauty_ratings")
+      .select("supplier_id, overall_rating")
+      .in("supplier_id", supplierIds)
+      .then(({ data }) => {
+        const bySupplier = new Map<string, number[]>()
+        for (const r of (data ?? [])) {
+          const arr = bySupplier.get(r.supplier_id) ?? []
+          arr.push(Number(r.overall_rating ?? 0))
+          bySupplier.set(r.supplier_id, arr)
+        }
+        const result = new Map<string, { avg: number; count: number }>()
+        for (const [sid, ratings] of bySupplier) {
+          const avg = ratings.reduce((s, v) => s + v, 0) / ratings.length
+          result.set(sid, { avg: Math.round(avg * 10) / 10, count: ratings.length })
+        }
+        setSupplierRatings(result)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products])
 
   // ─── 클라이언트 필터 (키워드 + 인증) ────────────────────────────────────
 
@@ -527,6 +556,14 @@ export default function BuyerSuppliersPage() {
                                 <span className="text-xs text-[#6B6B6B] truncate">{supplierName}</span>
                               </>
                             )}
+                            {supplierRatings.has(product.supplier_id) && (() => {
+                              const r = supplierRatings.get(product.supplier_id)!
+                              return (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: "#FEF9C3", color: "#854D0E" }}>
+                                  ★ {r.avg.toFixed(1)} ({r.count})
+                                </span>
+                              )
+                            })()}
                             {product.certifications && product.certifications.length > 0 && (
                               <div className="flex gap-1 flex-wrap">
                                 {product.certifications.map((cert) => (

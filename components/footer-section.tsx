@@ -199,6 +199,9 @@ export function FooterSection() {
               <Link href="/gdpr" className="text-foreground text-sm font-normal leading-5 hover:underline">
                 GDPR
               </Link>
+              <Link href="/refund" className="text-foreground text-sm font-normal leading-5 hover:underline">
+                Refund Policy
+              </Link>
             </div>
           </div>
         </div>

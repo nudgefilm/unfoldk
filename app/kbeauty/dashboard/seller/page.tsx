@@ -24,6 +24,7 @@ import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ExchangeRateBadge } from "@/components/kbeauty/ExchangeRateBadge"
 import { NotificationBell } from "@/components/kbeauty/NotificationBell"
+import { RatingModal } from "@/components/kbeauty/RatingModal"
 import { cn } from "@/lib/utils"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -72,6 +73,15 @@ interface Product {
   consumer_price_krw: number | null
   status: string
   beauty_suppliers: SupplierInfo | null
+}
+
+interface SourcingRequest {
+  id: string
+  supplier_id: string
+  product_id: string | null
+  status: string
+  created_at: string
+  beauty_suppliers: { company_name_en: string | null; company_name_ko: string | null } | null
 }
 
 // ─── 상수 ──────────────────────────────────────────────────────────────────
@@ -247,6 +257,12 @@ export default function SellerDashboardPage() {
   const [compCategory, setCompCategory] = useState("")
   const [compProducts, setCompProducts] = useState<Product[]>([])
 
+  // 소싱 요청 목록 + 평점
+  const [sourcingRequests, setSourcingRequests] = useState<SourcingRequest[]>([])
+  const [ratedSourcingIds, setRatedSourcingIds] = useState<Set<string>>(new Set())
+  const [ratingModalSourcing, setRatingModalSourcing] = useState<SourcingRequest | null>(null)
+  const [supplierRatings, setSupplierRatings] = useState<Map<string, { avg: number; count: number }>>(new Map())
+
   // ─── 초기 데이터 로드 ─────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -290,6 +306,23 @@ export default function SellerDashboardPage() {
         (sampleData ?? []).filter((r: { product_id: string | null }) => r.product_id).map((r: { product_id: string | null }) => r.product_id as string)
       ))
 
+      // 소싱 요청 목록 (공급사 정보 포함, 최신 20건)
+      const { data: srcList } = await supabase
+        .from("beauty_seller_sourcing")
+        .select("id, supplier_id, product_id, status, created_at, beauty_suppliers(company_name_en, company_name_ko)")
+        .eq("seller_id", sellerData.id)
+        .order("created_at", { ascending: false })
+        .limit(20)
+      setSourcingRequests((srcList as unknown as SourcingRequest[]) ?? [])
+
+      // 이미 평점을 남긴 소싱 ID 셋
+      const { data: ratedData } = await supabase
+        .from("beauty_ratings")
+        .select("reference_id")
+        .eq("reviewer_id", user.id)
+        .eq("reference_type", "sourcing")
+      setRatedSourcingIds(new Set((ratedData ?? []).map((r: { reference_id: string }) => r.reference_id)))
+
       setLoading(false)
     }
     load()
@@ -323,6 +356,32 @@ export default function SellerDashboardPage() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seller, categoryFilter, keyword, certFilter])
+
+  // ─── 공급사 평점 로드 (products 변경 시) ─────────────────────────────────
+
+  useEffect(() => {
+    const supplierIds = [...new Set(products.map((p) => p.supplier_id))]
+    if (supplierIds.length === 0) { setSupplierRatings(new Map()); return }
+    supabase
+      .from("beauty_ratings")
+      .select("supplier_id, overall_rating")
+      .in("supplier_id", supplierIds)
+      .then(({ data }) => {
+        const bySupplier = new Map<string, number[]>()
+        for (const r of (data ?? [])) {
+          const arr = bySupplier.get(r.supplier_id) ?? []
+          arr.push(Number(r.overall_rating ?? 0))
+          bySupplier.set(r.supplier_id, arr)
+        }
+        const result = new Map<string, { avg: number; count: number }>()
+        for (const [sid, ratings] of bySupplier) {
+          const avg = ratings.reduce((s, v) => s + v, 0) / ratings.length
+          result.set(sid, { avg: Math.round(avg * 10) / 10, count: ratings.length })
+        }
+        setSupplierRatings(result)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products])
 
   // ─── 경쟁 제품 비교 ───────────────────────────────────────────────────────
 
@@ -515,7 +574,54 @@ export default function SellerDashboardPage() {
             />
           </div>
 
-          {/* ③ Discover Suppliers */}
+          {/* ③ My Sourcing Requests */}
+          {sourcingRequests.length > 0 && (
+            <section className="bg-white border border-[#E8E2DA] rounded-xl p-6 mb-6 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+              <h2 className="text-base font-bold text-[#0F0F0F] mb-4">My Sourcing Requests</h2>
+              <div className="space-y-2">
+                {sourcingRequests.map((req) => {
+                  const supplierName =
+                    req.beauty_suppliers?.company_name_en ||
+                    req.beauty_suppliers?.company_name_ko ||
+                    "Unknown Supplier"
+                  const statusConfig = SOURCING_STATUS_MAP[req.status] ?? SOURCING_STATUS_MAP["requested"]
+                  return (
+                    <div
+                      key={req.id}
+                      className="flex items-center justify-between gap-4 px-4 py-3 border border-[#E8E2DA] rounded-xl"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-[#0F0F0F] truncate">{supplierName}</p>
+                        <p className="text-xs text-[#6B6B6B] mt-0.5">
+                          {new Date(req.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border", statusConfig.className)}>
+                          {statusConfig.icon}
+                          {statusConfig.label}
+                        </span>
+                        {(req.status === "approved" || req.status === "completed") && !ratedSourcingIds.has(req.id) && (
+                          <button
+                            onClick={() => setRatingModalSourcing(req)}
+                            className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                            style={{ color: GOLD, background: `${GOLD_LIGHT}25` }}
+                          >
+                            Rate Supplier
+                          </button>
+                        )}
+                        {(req.status === "approved" || req.status === "completed") && ratedSourcingIds.has(req.id) && (
+                          <span className="text-xs text-[#9CA3AF] px-2">Rated ✓</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* ④ Discover Suppliers */}
           <section id="discover" className="bg-white border border-[#E8E2DA] rounded-xl p-6 mb-6 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
             <h2 className="text-base font-bold text-[#0F0F0F] mb-4">Discover Suppliers</h2>
 
@@ -607,6 +713,14 @@ export default function SellerDashboardPage() {
                           >
                             {product.category}
                           </span>
+                          {supplierRatings.has(product.supplier_id) && (() => {
+                            const r = supplierRatings.get(product.supplier_id)!
+                            return (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: "#FEF9C3", color: "#854D0E" }}>
+                                ★ {r.avg.toFixed(1)} ({r.count})
+                              </span>
+                            )
+                          })()}
                         </div>
                         <p className="text-sm text-[#0F0F0F] truncate">{product.product_name_en}</p>
                         <p className="text-xs text-[#6B6B6B] truncate">{product.product_name_ko}</p>
@@ -908,6 +1022,23 @@ export default function SellerDashboardPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {ratingModalSourcing && (
+        <RatingModal
+          open={true}
+          onClose={() => setRatingModalSourcing(null)}
+          supplierId={ratingModalSourcing.supplier_id}
+          supplierName={
+            ratingModalSourcing.beauty_suppliers?.company_name_en ||
+            ratingModalSourcing.beauty_suppliers?.company_name_ko ||
+            "Supplier"
+          }
+          reviewerType="seller"
+          referenceType="sourcing"
+          referenceId={ratingModalSourcing.id}
+          onSuccess={() => setRatedSourcingIds((prev) => new Set([...prev, ratingModalSourcing.id]))}
+        />
       )}
     </div>
   )

@@ -20,6 +20,7 @@ import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ExchangeRateBadge } from "@/components/kbeauty/ExchangeRateBadge"
 import { NotificationBell } from "@/components/kbeauty/NotificationBell"
+import { RatingModal } from "@/components/kbeauty/RatingModal"
 import { cn } from "@/lib/utils"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -227,6 +228,10 @@ export default function BuyerDashboardPage() {
   // Post-Matching 서비스
   const [services, setServices] = useState<PostService[]>([])
 
+  // 평점 상태
+  const [ratedMatchIds, setRatedMatchIds] = useState<Set<string>>(new Set())
+  const [ratingModalMatch, setRatingModalMatch] = useState<Match | null>(null)
+
   // ─── 데이터 로드 ─────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -284,6 +289,14 @@ export default function BuyerDashboardPage() {
         .eq("buyer_id", buyerId)
         .eq("service_type", "sample")
       setSampleRequestCount(sampleCount ?? 0)
+
+      // 이미 평점을 남긴 매칭 ID 셋
+      const { data: ratingData } = await supabase
+        .from("beauty_ratings")
+        .select("reference_id")
+        .eq("reviewer_id", user.id)
+        .eq("reference_type", "match")
+      setRatedMatchIds(new Set((ratingData ?? []).map((r: { reference_id: string }) => r.reference_id)))
 
       setLoading(false)
     }
@@ -654,6 +667,17 @@ export default function BuyerDashboardPage() {
                             View Contact
                           </a>
                         )}
+                        {match.status === "approved" && !ratedMatchIds.has(match.id) && (
+                          <button
+                            onClick={() => setRatingModalMatch(match)}
+                            className="text-xs font-medium text-[#8B6F47] bg-[#C8A882]/[0.15] px-3 py-1.5 rounded-lg hover:bg-[#C8A882]/[0.3] transition-colors"
+                          >
+                            Rate Supplier
+                          </button>
+                        )}
+                        {match.status === "approved" && ratedMatchIds.has(match.id) && (
+                          <span className="text-xs text-[#9CA3AF] px-2">Rated ✓</span>
+                        )}
                       </div>
                     </div>
                   )
@@ -719,6 +743,23 @@ export default function BuyerDashboardPage() {
 
         </div>
       </main>
+
+      {ratingModalMatch && (
+        <RatingModal
+          open={true}
+          onClose={() => setRatingModalMatch(null)}
+          supplierId={ratingModalMatch.supplier_id}
+          supplierName={
+            ratingModalMatch.beauty_suppliers?.company_name_en ||
+            ratingModalMatch.beauty_suppliers?.company_name_ko ||
+            "Supplier"
+          }
+          reviewerType="buyer"
+          referenceType="match"
+          referenceId={ratingModalMatch.id}
+          onSuccess={() => setRatedMatchIds((prev) => new Set([...prev, ratingModalMatch.id]))}
+        />
+      )}
     </div>
   )
 }

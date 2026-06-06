@@ -261,6 +261,7 @@ export default function SupplierDashboardPage() {
   const [contactingSellerSourcing, setContactingSellerSourcing] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [avgRating, setAvgRating] = useState<{ avg: number; count: number } | null>(null)
 
   // 가이드 편집 폼 상태
   const [fdaRegNumber, setFdaRegNumber] = useState("")
@@ -396,6 +397,16 @@ export default function SupplierDashboardPage() {
         .eq("supplier_id", supplierData.id)
         .eq("initiated_by", "supplier")
       setContactedSellerIds(new Set((contactedSellerData ?? []).map((r: { seller_id: string }) => r.seller_id)))
+
+      // 공급사 평균 평점 로드
+      const { data: ratingRows } = await supabase
+        .from("beauty_ratings")
+        .select("overall_rating")
+        .eq("supplier_id", supplierData.id)
+      if (ratingRows && ratingRows.length > 0) {
+        const sum = ratingRows.reduce((acc, r) => acc + Number(r.overall_rating ?? 0), 0)
+        setAvgRating({ avg: Math.round((sum / ratingRows.length) * 10) / 10, count: ratingRows.length })
+      }
 
       setLoading(false)
     }
@@ -543,6 +554,16 @@ export default function SupplierDashboardPage() {
             : `${supplier?.company_name_ko ?? "The supplier"} has declined your matching request.`,
           link: "/kbeauty/dashboard/buyer",
         })
+        // 평점 요청 알림 (매칭 승인 시)
+        if (newStatus === "approved") {
+          await supabase.from("beauty_notifications").insert({
+            user_id: buyerUserId,
+            type: "match_approved",
+            title: "Rate your experience",
+            message: `How was your collaboration with ${supplier?.company_name_ko ?? "the supplier"}? Share your feedback.`,
+            link: "/kbeauty/dashboard/buyer",
+          })
+        }
       }
     }
     setMatchUpdatingId(null)
@@ -576,6 +597,16 @@ export default function SupplierDashboardPage() {
             : `Your sample request for ${productName} has been declined.`,
           link: "/kbeauty/dashboard/buyer",
         })
+        // 평점 요청 알림 (샘플 승인 시)
+        if (newStatus === "approved") {
+          await supabase.from("beauty_notifications").insert({
+            user_id: req.buyer_id,
+            type: "sample_approved",
+            title: "Rate your experience",
+            message: `How was your sample experience with ${supplier?.company_name_ko ?? "the supplier"}? Share your feedback.`,
+            link: "/kbeauty/dashboard/buyer",
+          })
+        }
       }
     }
     setSampleUpdatingId(null)
@@ -658,6 +689,18 @@ export default function SupplierDashboardPage() {
               {userId && <NotificationBell userId={userId} theme="navy" />}
               <ExchangeRateBadge />
             </div>
+          </div>
+          <div className="flex items-center gap-2 -mt-4 mb-8">
+            {avgRating ? (
+              <span className="inline-flex items-center gap-1.5 text-sm text-[#6B6B6B]">
+                <span className="text-amber-400 text-base leading-none">★</span>
+                <span className="font-semibold text-[#0F0F0F]">{avgRating.avg.toFixed(1)}</span>
+                <span>/ 5.0</span>
+                <span className="text-[#9CA3AF]">({avgRating.count} review{avgRating.count !== 1 ? "s" : ""})</span>
+              </span>
+            ) : (
+              <span className="text-xs text-[#9CA3AF]">No ratings yet</span>
+            )}
           </div>
 
           {/* 요약 카드 + 제품 등록 버튼 */}
