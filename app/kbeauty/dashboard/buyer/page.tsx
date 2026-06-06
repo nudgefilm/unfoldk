@@ -27,7 +27,7 @@ interface Buyer {
   id: string
   company_name: string
   country: string
-  buyer_db_access: boolean
+  stage1_approved: boolean
   stage2_approved: boolean
   status: string
 }
@@ -228,7 +228,7 @@ export default function BuyerDashboardPage() {
 
       const { data: buyerData } = await supabase
         .from("beauty_buyers")
-        .select("id, company_name, country, buyer_db_access, stage2_approved, status")
+        .select("id, company_name, country, stage1_approved, stage2_approved, status")
         .eq("user_id", user.id)
         .maybeSingle()
 
@@ -302,7 +302,7 @@ export default function BuyerDashboardPage() {
 
   const handleRequestMatch = async (product: Product) => {
     if (!buyer) return
-    if (!buyer.buyer_db_access) {
+    if (!buyer.stage1_approved) {
       toast.error("Your account is pending approval. You can request matches once approved.")
       return
     }
@@ -390,7 +390,7 @@ export default function BuyerDashboardPage() {
       style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
     >
       <Toaster position="top-right" richColors />
-      <Sidebar companyName={buyer?.company_name ?? ""} approved={buyer?.buyer_db_access ?? false} />
+      <Sidebar companyName={buyer?.company_name ?? ""} approved={buyer?.stage1_approved ?? false} />
 
       <main className="min-h-screen" style={{ marginLeft: 240 }}>
         <div className="max-w-4xl mx-auto px-8 py-10">
@@ -404,7 +404,7 @@ export default function BuyerDashboardPage() {
               >
                 Welcome, {buyer?.company_name}
               </h1>
-              {!buyer?.buyer_db_access && (
+              {!buyer?.stage1_approved && (
                 <p className="text-xs text-amber-700 mt-1 flex items-center gap-1">
                   <AlertCircle className="w-3.5 h-3.5" />
                   Your account is under review. Supplier access will unlock after approval.
@@ -423,7 +423,7 @@ export default function BuyerDashboardPage() {
           </div>
 
           {/* 미승인 배너 */}
-          {!buyer?.buyer_db_access && (
+          {!buyer?.stage1_approved && (
             <div
               className="flex items-center justify-between px-6 py-4 mb-8 rounded-xl"
               style={{ background: "#1A3A5C" }}
@@ -466,7 +466,7 @@ export default function BuyerDashboardPage() {
             ) : products.length === 0 ? (
               <div className="py-12 text-center">
                 <p className="text-sm text-[#6B6B6B]">
-                  {buyer?.buyer_db_access
+                  {buyer?.stage1_approved
                     ? "No products found in this category."
                     : "Supplier database access unlocks after account approval."}
                 </p>

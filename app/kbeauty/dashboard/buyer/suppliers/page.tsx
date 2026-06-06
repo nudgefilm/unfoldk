@@ -15,6 +15,7 @@ import {
   ChevronRight,
   X,
   Loader2,
+  FlaskConical,
 } from "lucide-react"
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -26,7 +27,7 @@ import { cn } from "@/lib/utils"
 interface Buyer {
   id: string
   company_name: string
-  buyer_db_access: boolean
+  stage1_approved: boolean
 }
 
 interface Product {
@@ -140,6 +141,15 @@ export default function BuyerSuppliersPage() {
   const [requestedSupplierIds, setRequestedSupplierIds] = useState<Set<string>>(new Set())
   const [submittingId, setSubmittingId] = useState<string | null>(null)
 
+  // 샘플 요청
+  const [userId, setUserId] = useState<string>("")
+  const [userEmail, setUserEmail] = useState<string>("")
+  const [requestedSampleProductIds, setRequestedSampleProductIds] = useState<Set<string>>(new Set())
+  const [sampleModalProduct, setSampleModalProduct] = useState<Product | null>(null)
+  const [sampleQty, setSampleQty] = useState(1)
+  const [sampleMsg, setSampleMsg] = useState("")
+  const [submittingSample, setSubmittingSample] = useState(false)
+
   // ─── 인증 및 바이어 정보 로드 ───────────────────────────────────────────
 
   useEffect(() => {
@@ -147,9 +157,12 @@ export default function BuyerSuppliersPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push("/kbeauty/buyer/login"); return }
 
+      setUserId(user.id)
+      setUserEmail(user.email ?? "")
+
       const { data: buyerData } = await supabase
         .from("beauty_buyers")
-        .select("id, company_name, buyer_db_access")
+        .select("id, company_name, stage1_approved")
         .eq("user_id", user.id)
         .maybeSingle()
 
@@ -163,6 +176,22 @@ export default function BuyerSuppliersPage() {
         .eq("buyer_id", buyerData.id)
 
       setRequestedSupplierIds(new Set((matchData ?? []).map((m: { supplier_id: string }) => m.supplier_id)))
+
+      // 이미 샘플 요청한 제품 ID 셋 (buyer_id = auth.users.id)
+      const { data: sampleData } = await supabase
+        .from("beauty_post_matching_services")
+        .select("product_id")
+        .eq("buyer_id", user.id)
+        .eq("service_type", "sample")
+
+      setRequestedSampleProductIds(
+        new Set(
+          (sampleData ?? [])
+            .filter((s: { product_id: string | null }) => s.product_id)
+            .map((s: { product_id: string | null }) => s.product_id as string)
+        )
+      )
+
       setLoading(false)
     }
     init()
@@ -227,7 +256,7 @@ export default function BuyerSuppliersPage() {
 
   const handleRequestMatch = async (product: Product) => {
     if (!buyer) return
-    if (!buyer.buyer_db_access) {
+    if (!buyer.stage1_approved) {
       toast.error("Your account is pending approval. Matching requests unlock after approval.")
       return
     }
@@ -249,6 +278,44 @@ export default function BuyerSuppliersPage() {
     setSubmittingId(null)
   }
 
+  // ─── 샘플 요청 제출 ─────────────────────────────────────────────────────
+
+  const handleRequestSample = async () => {
+    if (!sampleModalProduct || !userId || !buyer) return
+    if (!buyer.stage1_approved) {
+      toast.error("Your account is pending approval. Sample requests unlock after approval.")
+      return
+    }
+    setSubmittingSample(true)
+    const { error } = await supabase.from("beauty_post_matching_services").insert({
+      buyer_id: userId,
+      product_id: sampleModalProduct.id,
+      supplier_id: sampleModalProduct.supplier_id,
+      service_type: "sample",
+      status: "pending",
+      quantity: sampleQty,
+      message: sampleMsg.trim() || null,
+      buyer_email: userEmail,
+    })
+    if (error) {
+      toast.error("Something went wrong. Please try again.")
+    } else {
+      setRequestedSampleProductIds((prev) => new Set([...prev, sampleModalProduct.id]))
+      setSampleModalProduct(null)
+      setSampleQty(1)
+      setSampleMsg("")
+      toast.success("Sample request sent successfully")
+    }
+    setSubmittingSample(false)
+  }
+
+  const closeSampleModal = () => {
+    if (submittingSample) return
+    setSampleModalProduct(null)
+    setSampleQty(1)
+    setSampleMsg("")
+  }
+
   // ─── 헬퍼 ──────────────────────────────────────────────────────────────
 
   const formatPrice = (min: number | null, max: number | null) => {
@@ -268,7 +335,7 @@ export default function BuyerSuppliersPage() {
     )
   }
 
-  const isNotApproved = !buyer?.buyer_db_access
+  const isNotApproved = !buyer?.stage1_approved
 
   return (
     <div
@@ -276,7 +343,7 @@ export default function BuyerSuppliersPage() {
       style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
     >
       <Toaster position="top-right" richColors />
-      <Sidebar companyName={buyer?.company_name ?? ""} approved={buyer?.buyer_db_access ?? false} />
+      <Sidebar companyName={buyer?.company_name ?? ""} approved={buyer?.stage1_approved ?? false} />
 
       <main className="min-h-screen" style={{ marginLeft: 240 }}>
         <div className="max-w-4xl mx-auto px-8 py-10">
@@ -408,6 +475,8 @@ export default function BuyerSuppliersPage() {
                     product.beauty_suppliers?.company_name_en || product.brand_name
                   const priceRange = formatPrice(product.price_range_min, product.price_range_max)
 
+                  const alreadySampleRequested = requestedSampleProductIds.has(product.id)
+
                   return (
                     <div
                       key={product.id}
@@ -482,30 +551,52 @@ export default function BuyerSuppliersPage() {
                           </div>
                         </div>
 
-                        {/* CTA 버튼 */}
-                        <button
-                          onClick={() => handleRequestMatch(product)}
-                          disabled={alreadyRequested || isSubmitting}
-                          className={cn(
-                            "flex-shrink-0 text-xs font-semibold px-4 py-2.5 rounded-lg transition-colors inline-flex items-center gap-1.5 whitespace-nowrap",
-                            alreadyRequested
-                              ? "bg-[#F8F7F5] text-[#6B6B6B] border border-[#E8E2DA] cursor-default"
-                              : isSubmitting
-                              ? "bg-[#1A3A5C]/70 text-white cursor-not-allowed"
-                              : "bg-[#1A3A5C] text-white hover:bg-[#153249]"
-                          )}
-                        >
-                          {isSubmitting ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : alreadyRequested ? (
-                            "Requested"
-                          ) : (
-                            <>
-                              Request Match
-                              <ChevronRight className="w-3.5 h-3.5" />
-                            </>
-                          )}
-                        </button>
+                        {/* CTA 버튼 그룹 */}
+                        <div className="flex flex-col gap-2 flex-shrink-0">
+                          {/* Request Match */}
+                          <button
+                            onClick={() => handleRequestMatch(product)}
+                            disabled={alreadyRequested || isSubmitting}
+                            className={cn(
+                              "text-xs font-semibold px-4 py-2.5 rounded-lg transition-colors inline-flex items-center gap-1.5 whitespace-nowrap",
+                              alreadyRequested
+                                ? "bg-[#F8F7F5] text-[#6B6B6B] border border-[#E8E2DA] cursor-default"
+                                : isSubmitting
+                                ? "bg-[#1A3A5C]/70 text-white cursor-not-allowed"
+                                : "bg-[#1A3A5C] text-white hover:bg-[#153249]"
+                            )}
+                          >
+                            {isSubmitting ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : alreadyRequested ? (
+                              "Requested"
+                            ) : (
+                              <>
+                                Request Match
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </>
+                            )}
+                          </button>
+
+                          {/* Request Sample */}
+                          <button
+                            onClick={() => {
+                              setSampleModalProduct(product)
+                              setSampleQty(1)
+                              setSampleMsg("")
+                            }}
+                            disabled={alreadySampleRequested}
+                            className={cn(
+                              "text-xs font-medium px-4 py-2.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap",
+                              alreadySampleRequested
+                                ? "bg-[#F8F7F5] text-[#6B6B6B] border-[#E8E2DA] cursor-default"
+                                : "bg-white border-[#C8A882] text-[#8B6F47] hover:bg-[#C8A882]/[0.08]"
+                            )}
+                          >
+                            <FlaskConical className="w-3.5 h-3.5" />
+                            {alreadySampleRequested ? "Sample Requested" : "Request Sample"}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )
@@ -515,6 +606,87 @@ export default function BuyerSuppliersPage() {
           )}
         </div>
       </main>
+
+      {/* 샘플 요청 모달 */}
+      {sampleModalProduct && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.35)" }}
+          onClick={closeSampleModal}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h3 className="text-base font-bold text-[#0F0F0F]">Request a Sample</h3>
+                <p className="text-sm text-[#6B6B6B] mt-0.5">
+                  {sampleModalProduct.brand_name} · {sampleModalProduct.product_name_en}
+                </p>
+              </div>
+              <button
+                onClick={closeSampleModal}
+                className="text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* 수량 */}
+              <div>
+                <label className="block text-xs font-semibold text-[#0F0F0F] mb-1.5">
+                  Quantity <span className="text-[#6B6B6B] font-normal">(units)</span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={sampleQty}
+                  onChange={(e) => setSampleQty(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full border border-[#E8E2DA] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1A3A5C] transition-colors"
+                />
+              </div>
+
+              {/* 메시지 */}
+              <div>
+                <label className="block text-xs font-semibold text-[#0F0F0F] mb-1.5">
+                  Message <span className="text-[#6B6B6B] font-normal">(optional)</span>
+                </label>
+                <textarea
+                  value={sampleMsg}
+                  onChange={(e) => setSampleMsg(e.target.value)}
+                  rows={3}
+                  placeholder="Specify your intended use, target market, or any requirements..."
+                  className="w-full border border-[#E8E2DA] rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-[#1A3A5C] transition-colors placeholder:text-[#6B6B6B]/50"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={closeSampleModal}
+                disabled={submittingSample}
+                className="flex-1 text-sm font-medium px-4 py-2.5 rounded-lg border border-[#E8E2DA] text-[#6B6B6B] hover:bg-[#F8F7F5] transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRequestSample}
+                disabled={submittingSample}
+                className="flex-1 text-sm font-semibold px-4 py-2.5 rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+                style={{ background: "#1A3A5C" }}
+              >
+                {submittingSample ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "Submit Request"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

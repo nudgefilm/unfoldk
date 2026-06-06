@@ -114,15 +114,6 @@ function HeroSection({
               <br />
               Korean Beauty Suppliers.
             </h1>
-            <div className="mb-10 max-w-lg">
-              <p className="text-base text-[#0F0F0F] leading-relaxed">
-                ImportGenius 세관 데이터 기반 북미 바이어 2,000개사.
-              </p>
-              <p className="text-base text-[#6B6B6B] leading-relaxed mt-1">
-                500+ FDA-registered Korean manufacturers.
-              </p>
-            </div>
-
             <div className="flex flex-col sm:flex-row gap-3 mb-4">
               <button
                 onClick={onSupplierCTA}
@@ -140,9 +131,6 @@ function HeroSection({
               </button>
             </div>
 
-            <p className="text-xs text-[#C8A882] mt-4">
-              2,000+ verified buyers &middot; 500+ FDA-registered suppliers
-            </p>
           </div>
 
           <div className="relative hidden lg:block">
@@ -171,34 +159,6 @@ function HeroSection({
   )
 }
 
-// ─── Trust Stats ────────────────────────────────────────────────────────────
-
-function TrustStatsSection() {
-  return (
-    <section id="data-sources" className="bg-[#1A3A5C] py-16 px-6">
-      <div className="max-w-[960px] mx-auto">
-        <div className="grid md:grid-cols-3 gap-8 md:gap-0">
-          <div className="text-center md:border-r md:border-white/15 md:pr-8">
-            <div className="font-serif text-5xl text-[#C8A882] mb-2">2,000+</div>
-            <div className="text-[11px] uppercase tracking-wider text-white/60 mb-1">VERIFIED US IMPORTERS</div>
-            <div className="text-[13px] text-white/40">ImportGenius customs records</div>
-          </div>
-          <div className="text-center md:border-r md:border-white/15 md:px-8">
-            <div className="font-serif text-5xl text-[#C8A882] mb-2">500+</div>
-            <div className="text-[11px] uppercase tracking-wider text-white/60 mb-1">FDA-REGISTERED SUPPLIERS</div>
-            <div className="text-[13px] text-white/40">MoCRA-compliant manufacturers</div>
-          </div>
-          <div className="text-center md:pl-8">
-            <div className="font-serif text-[30px] text-[#C8A882] mb-2">3304 &middot; 3305 &middot; 3307</div>
-            <div className="text-[11px] uppercase tracking-wider text-white/60 mb-1">HS CODES COVERED</div>
-            <div className="text-[13px] text-white/40">Skincare &middot; Haircare &middot; Fragrance</div>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
 // ─── Entry Cards ────────────────────────────────────────────────────────────
 
 function EntryCardsSection({
@@ -215,16 +175,16 @@ function EntryCardsSection({
           Are you in the business?
         </h2>
 
-        <div className="grid md:grid-cols-3 gap-6" id="buyers">
+        <div className="grid md:grid-cols-3 gap-6 items-stretch" id="buyers">
           {/* 공급사 카드 */}
-          <div className="bg-white border border-[#E8E2DA] rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <div className="bg-white border border-[#E8E2DA] rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col">
             <span className="inline-block bg-[#1A3A5C]/10 text-[#1A3A5C] text-xs font-medium px-4 py-1.5 rounded-full mb-4">
               공급사
             </span>
             <h3 className="text-[22px] font-bold text-[#0F0F0F] mb-1">국내 공급사</h3>
             <p className="text-sm text-[#6B6B6B] mb-6">K-뷰티 제조&middot;브랜드사라면</p>
             <div className="border-t border-[#E8E2DA] my-6" />
-            <ul className="space-y-3 mb-8">
+            <ul className="space-y-3 flex-1">
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#1A3A5C] mt-0.5 flex-shrink-0" />
                 검증된 북미 바이어 2,000개사 연결
@@ -240,7 +200,7 @@ function EntryCardsSection({
             </ul>
             <button
               onClick={onSupplierCTA}
-              className="w-full bg-[#1A3A5C] text-white font-semibold py-3.5 rounded-md hover:bg-[#153249] transition-colors inline-flex items-center justify-center gap-2"
+              className="w-full mt-8 bg-[#1A3A5C] text-white font-semibold py-3.5 rounded-md hover:bg-[#153249] transition-colors inline-flex items-center justify-center gap-2"
             >
               공급사 파트너 신청
               <span className="text-lg">&#8594;</span>
@@ -248,14 +208,14 @@ function EntryCardsSection({
           </div>
 
           {/* 바이어 카드 */}
-          <div className="bg-white border border-[#E8E2DA] rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <div className="bg-white border border-[#E8E2DA] rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col">
             <span className="inline-block bg-[#C8A882]/15 text-[#8B6F47] text-xs font-medium px-4 py-1.5 rounded-full mb-4">
               Buyer
             </span>
             <h3 className="text-[22px] font-bold text-[#0F0F0F] mb-1">For Global Buyers</h3>
             <p className="text-sm text-[#6B6B6B] mb-6">Looking for Korean beauty suppliers?</p>
             <div className="border-t border-[#E8E2DA] my-6" />
-            <ul className="space-y-3 mb-8">
+            <ul className="space-y-3 flex-1">
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#C8A882] mt-0.5 flex-shrink-0" />
                 ImportGenius-verified supplier database
@@ -271,7 +231,7 @@ function EntryCardsSection({
             </ul>
             <button
               onClick={onBuyerCTA}
-              className="w-full border-[1.5px] border-[#C8A882] text-[#8B6F47] font-semibold py-3.5 rounded-md hover:bg-[#C8A882]/10 transition-colors inline-flex items-center justify-center gap-2"
+              className="w-full mt-8 border-[1.5px] border-[#C8A882] text-[#8B6F47] font-semibold py-3.5 rounded-md hover:bg-[#C8A882]/10 transition-colors inline-flex items-center justify-center gap-2"
             >
               Get Buyer Access
               <span className="text-lg">&#8594;</span>
@@ -279,32 +239,32 @@ function EntryCardsSection({
           </div>
 
           {/* 셀러 카드 */}
-          <div className="bg-white border border-[#E8E2DA] rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-            <span className="inline-block bg-[#1A3A5C]/10 text-[#1A3A5C] text-xs font-medium px-4 py-1.5 rounded-full mb-4">
-              셀러
+          <div className="bg-white border border-[#E8E2DA] rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col">
+            <span className="inline-block bg-[#C8A882]/15 text-[#8B6F47] text-xs font-medium px-4 py-1.5 rounded-full mb-4">
+              Seller
             </span>
-            <h3 className="text-[22px] font-bold text-[#0F0F0F] mb-1">K-뷰티 셀러</h3>
-            <p className="text-sm text-[#6B6B6B] mb-6">글로벌 마켓플레이스 판매자라면</p>
+            <h3 className="text-[22px] font-bold text-[#0F0F0F] mb-1">K-Beauty Sellers</h3>
+            <p className="text-sm text-[#6B6B6B] mb-6">For Global Marketplace Sellers</p>
             <div className="border-t border-[#E8E2DA] my-6" />
-            <ul className="space-y-3 mb-8">
+            <ul className="space-y-3 flex-1">
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
-                <Check className="w-4 h-4 text-[#1A3A5C] mt-0.5 flex-shrink-0" />
-                검증된 K-뷰티 공급사 소싱
+                <Check className="w-4 h-4 text-[#C8A882] mt-0.5 flex-shrink-0" />
+                Source directly from verified K-beauty suppliers
               </li>
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
-                <Check className="w-4 h-4 text-[#1A3A5C] mt-0.5 flex-shrink-0" />
-                북미·유럽 판매 채널 연결
+                <Check className="w-4 h-4 text-[#C8A882] mt-0.5 flex-shrink-0" />
+                Sell on Amazon, Shopify, or TikTok Shop
               </li>
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
-                <Check className="w-4 h-4 text-[#1A3A5C] mt-0.5 flex-shrink-0" />
-                마진 분석 및 트렌드 리포트
+                <Check className="w-4 h-4 text-[#C8A882] mt-0.5 flex-shrink-0" />
+                Access margin data and trend reports
               </li>
             </ul>
             <Link
               href="/kbeauty/seller"
-              className="w-full bg-[#1A3A5C] text-white font-semibold py-3.5 rounded-md hover:bg-[#153249] transition-colors inline-flex items-center justify-center gap-2"
+              className="w-full mt-8 border-[1.5px] border-[#C8A882] text-[#8B6F47] font-semibold py-3.5 rounded-md hover:bg-[#C8A882]/10 transition-colors inline-flex items-center justify-center gap-2"
             >
-              셀러 신청
+              Get Seller Access
               <span className="text-lg">&#8594;</span>
             </Link>
           </div>
@@ -317,7 +277,7 @@ function EntryCardsSection({
 // ─── How It Works ───────────────────────────────────────────────────────────
 
 function HowItWorksSection() {
-  const [activeTab, setActiveTab] = useState<"supplier" | "buyer">("supplier")
+  const [activeTab, setActiveTab] = useState<"supplier" | "buyer" | "seller">("supplier")
 
   const supplierSteps = [
     { number: "1", title: "사업자 인증", desc1: "국세청 API 자동 검증", desc2: "빠르고 정확한 국내 사업자 확인" },
@@ -333,7 +293,14 @@ function HowItWorksSection() {
     { number: "4", title: "Request a Match", desc1: "Submit business documents", desc2: "Contact info released after approval" },
   ]
 
-  const steps = activeTab === "supplier" ? supplierSteps : buyerSteps
+  const sellerSteps = [
+    { number: "1", title: "Sign Up", desc1: "Create your seller account", desc2: "Amazon · Shopify · TikTok Shop" },
+    { number: "2", title: "Browse Suppliers", desc1: "Filter by category, certification,", desc2: "and price" },
+    { number: "3", title: "Request Samples", desc1: "Verify quality before committing", desc2: "Direct from manufacturer" },
+    { number: "4", title: "Start Selling", desc1: "Source directly and maximize", desc2: "your margin" },
+  ]
+
+  const steps = activeTab === "supplier" ? supplierSteps : activeTab === "buyer" ? buyerSteps : sellerSteps
 
   return (
     <section id="how-it-works" className="bg-white py-20 px-6">
@@ -360,6 +327,15 @@ function HowItWorksSection() {
             )}
           >
             Buyer
+          </button>
+          <button
+            onClick={() => setActiveTab("seller")}
+            className={cn(
+              "text-sm font-semibold pb-2 border-b-2 transition-colors",
+              activeTab === "seller" ? "text-[#1A3A5C] border-[#1A3A5C]" : "text-[#6B6B6B] border-transparent hover:text-[#0F0F0F]"
+            )}
+          >
+            Seller
           </button>
         </div>
 
@@ -476,7 +452,6 @@ export default function BeautyLandingPage() {
       />
       <main>
         <HeroSection onSupplierCTA={handleSupplierCTA} onBuyerCTA={handleBuyerCTA} />
-        <TrustStatsSection />
         <EntryCardsSection onSupplierCTA={handleSupplierCTA} onBuyerCTA={handleBuyerCTA} />
         <HowItWorksSection />
       </main>

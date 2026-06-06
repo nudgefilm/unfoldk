@@ -50,6 +50,17 @@ interface Match {
   beauty_buyers?: { company_name: string }
 }
 
+interface SampleRequest {
+  id: string
+  product_id: string | null
+  buyer_email: string | null
+  quantity: number
+  message: string | null
+  status: string
+  created_at: string
+  beauty_products: { product_name_en: string; brand_name: string } | null
+}
+
 // ─── 상수 ──────────────────────────────────────────────────────────────────
 
 const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png"]
@@ -211,6 +222,8 @@ export default function SupplierDashboardPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [matches, setMatches] = useState<Match[]>([])
   const [productCount, setProductCount] = useState(0)
+  const [sampleRequests, setSampleRequests] = useState<SampleRequest[]>([])
+  const [sampleUpdatingId, setSampleUpdatingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -278,6 +291,18 @@ export default function SupplierDashboardPage() {
         .eq("supplier_id", supplierData.id)
 
       setProductCount(count ?? 0)
+
+      // 샘플 요청 현황
+      const { data: sampleData } = await supabase
+        .from("beauty_post_matching_services")
+        .select("id, product_id, buyer_email, quantity, message, status, created_at, beauty_products(product_name_en, brand_name)")
+        .eq("supplier_id", supplierData.id)
+        .eq("service_type", "sample")
+        .order("created_at", { ascending: false })
+        .limit(30)
+
+      setSampleRequests((sampleData as SampleRequest[]) ?? [])
+
       setLoading(false)
     }
 
@@ -397,6 +422,24 @@ export default function SupplierDashboardPage() {
 
     toast.success("저장됐습니다.")
     setSaving(false)
+  }
+
+  // ─── 샘플 요청 승인/거절 ─────────────────────────────────────────────────
+  async function handleSampleStatus(id: string, newStatus: "approved" | "rejected") {
+    setSampleUpdatingId(id)
+    const { error } = await supabase
+      .from("beauty_post_matching_services")
+      .update({ status: newStatus })
+      .eq("id", id)
+    if (error) {
+      toast.error("오류가 발생했습니다.")
+    } else {
+      setSampleRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
+      )
+      toast.success(newStatus === "approved" ? "샘플 요청을 승인했습니다." : "샘플 요청을 거절했습니다.")
+    }
+    setSampleUpdatingId(null)
   }
 
   if (loading) {
@@ -725,6 +768,82 @@ export default function SupplierDashboardPage() {
                       </p>
                     </div>
                     <StatusBadge status={match.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* 샘플 요청 현황 */}
+          <div className="bg-white border border-[#E8E2DA] mt-6" style={{ borderRadius: 12 }}>
+            <div className="px-6 py-4 border-b border-[#E8E2DA]">
+              <h2 className="text-sm font-semibold text-[#0F0F0F]">
+                샘플 요청 현황
+                {sampleRequests.length > 0 && (
+                  <span className="ml-2 text-xs font-normal text-[#6B6B6B]">({sampleRequests.length}건)</span>
+                )}
+              </h2>
+            </div>
+
+            {sampleRequests.length === 0 ? (
+              <div className="px-6 py-10 text-center">
+                <p className="text-sm text-[#6B6B6B]">아직 샘플 요청이 없습니다.</p>
+              </div>
+            ) : (
+              <ul>
+                {sampleRequests.map((req, idx) => (
+                  <li
+                    key={req.id}
+                    className={`px-6 py-4 ${idx < sampleRequests.length - 1 ? "border-b border-[#E8E2DA]" : ""}`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-[#0F0F0F]">
+                          {req.beauty_products?.product_name_en ?? "—"}
+                        </p>
+                        <p className="text-xs text-[#6B6B6B] mb-2">
+                          {req.beauty_products?.brand_name}
+                        </p>
+                        <div className="flex items-center gap-4 text-xs text-[#6B6B6B] flex-wrap">
+                          <span>바이어: {req.buyer_email ?? "—"}</span>
+                          <span>수량: {req.quantity}개</span>
+                          <span>
+                            {new Date(req.created_at).toLocaleDateString("ko-KR", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}
+                          </span>
+                        </div>
+                        {req.message && (
+                          <p className="mt-2 text-xs text-[#6B6B6B] bg-[#F8F7F5] rounded-lg px-3 py-2 border border-[#E8E2DA]">
+                            {req.message}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                        <StatusBadge status={req.status} />
+                        {req.status === "pending" && (
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => handleSampleStatus(req.id, "rejected")}
+                              disabled={sampleUpdatingId === req.id}
+                              className="text-xs font-medium px-2.5 py-1 rounded-lg border border-[#E8E2DA] text-[#6B6B6B] hover:bg-[#F8F7F5] transition-colors disabled:opacity-50"
+                            >
+                              {sampleUpdatingId === req.id ? "..." : "거절"}
+                            </button>
+                            <button
+                              onClick={() => handleSampleStatus(req.id, "approved")}
+                              disabled={sampleUpdatingId === req.id}
+                              className="text-xs font-semibold px-2.5 py-1 rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                              style={{ background: "#1A3A5C" }}
+                            >
+                              {sampleUpdatingId === req.id ? "..." : "승인"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </li>
                 ))}
               </ul>
