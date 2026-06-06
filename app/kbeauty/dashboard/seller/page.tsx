@@ -18,6 +18,7 @@ import {
   BarChart2,
   RefreshCcw,
   X,
+  Crosshair,
 } from "lucide-react"
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -78,6 +79,7 @@ const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/kbeauty/dashboard/seller" },
   { label: "Discover", icon: Search, href: "#discover" },
   { label: "Calculator", icon: Calculator, href: "#calculator" },
+  { label: "Sourcing Sniper", icon: Crosshair, href: "/kbeauty/sourcing-sniper", highlight: true },
   { label: "Settings", icon: Settings, href: "/kbeauty/dashboard/seller/settings" },
 ]
 
@@ -153,10 +155,19 @@ function Sidebar({ companyName, verified }: { companyName: string; verified: boo
           <a
             key={item.label}
             href={item.href}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#6B6B6B] hover:bg-[#F8F7F5] hover:text-[#0F0F0F] transition-colors"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+              item.highlight
+                ? "font-semibold"
+                : "text-[#6B6B6B] hover:bg-[#F8F7F5] hover:text-[#0F0F0F]"
+            )}
+            style={item.highlight ? { color: GOLD, background: `${GOLD_LIGHT}18` } : {}}
           >
             <item.icon className="w-4 h-4 flex-shrink-0" />
             {item.label}
+            {item.highlight && (
+              <ChevronRight className="w-3 h-3 ml-auto" style={{ color: GOLD_LIGHT }} />
+            )}
           </a>
         ))}
       </nav>
