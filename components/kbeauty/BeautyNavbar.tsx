@@ -15,7 +15,7 @@ export interface BeautyAuthInfo {
 }
 
 interface Props {
-  activeLink?: "supplier" | "buyer" | "seller" | "data-sources"
+  activeLink?: "supplier" | "buyer" | "seller" | "market-intelligence"
   /** light=화이트 상시 / dark=네이비→스크롤시 화이트 / black=블랙 상시 */
   variant?: "light" | "dark" | "black"
   loginHref?: string
@@ -162,7 +162,7 @@ export function BeautyNavbar({
           <Link href="/kbeauty/supplier" className={linkClass("supplier")}>For Suppliers</Link>
           <Link href="/kbeauty/buyer" className={linkClass("buyer")}>For Buyers</Link>
           <Link href="/kbeauty/seller" className={linkClass("seller")}>For Sellers</Link>
-          <Link href="/kbeauty/data-sources" className={linkClass("data-sources")}>Data Sources</Link>
+          <Link href="/kbeauty/market-intelligence" className={linkClass("market-intelligence")}>Market Intelligence</Link>
         </nav>
 
         {/* 데스크톱 우측: 비로그인 버튼 / 로그인 아바타 */}
@@ -225,7 +225,7 @@ export function BeautyNavbar({
               <Link href="/kbeauty/supplier" className={mobileLinkClass("supplier")}>For Suppliers</Link>
               <Link href="/kbeauty/buyer" className={mobileLinkClass("buyer")}>For Buyers</Link>
               <Link href="/kbeauty/seller" className={mobileLinkClass("seller")}>For Sellers</Link>
-              <Link href="/kbeauty/data-sources" className={mobileLinkClass("data-sources")}>Data Sources</Link>
+              <Link href="/kbeauty/market-intelligence" className={mobileLinkClass("market-intelligence")}>Market Intelligence</Link>
               <div className={dividerClass} />
               {!isLoggedIn ? (
                 <>
