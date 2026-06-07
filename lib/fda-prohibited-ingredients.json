@@ -1,0 +1,270 @@
+{
+  "prohibited": [
+    {
+      "name": "Bithionol",
+      "cas_number": "97-18-7",
+      "reason": "Potent photosensitizer causing severe skin reactions",
+      "restriction_detail": "Prohibited in all cosmetic products (21 CFR 700.11)"
+    },
+    {
+      "name": "Chloroform",
+      "cas_number": "67-66-3",
+      "reason": "Carcinogen and CNS depressant",
+      "restriction_detail": "Prohibited as cosmetic ingredient (21 CFR 700.18)"
+    },
+    {
+      "name": "Hexachlorophene",
+      "cas_number": "70-30-4",
+      "reason": "Neurotoxic; causes brain damage at high exposure",
+      "restriction_detail": "Prohibited in OTC cosmetics; prescription only (21 CFR 700.14)"
+    },
+    {
+      "name": "Mercury",
+      "cas_number": "7439-97-6",
+      "reason": "Neurotoxin with cumulative systemic toxicity",
+      "restriction_detail": "Prohibited except as preservative in eye cosmetics ≤65 ppm (21 CFR 700.13)"
+    },
+    {
+      "name": "Phenyl mercuric acetate",
+      "cas_number": "62-38-4",
+      "reason": "Organic mercury compound — neurotoxin",
+      "restriction_detail": "Prohibited except as preservative in eye cosmetics ≤65 ppm (21 CFR 700.13)"
+    },
+    {
+      "name": "Thimerosal",
+      "cas_number": "54-64-8",
+      "reason": "Ethylmercury-containing preservative",
+      "restriction_detail": "Prohibited except as preservative in eye cosmetics ≤65 ppm (21 CFR 700.13)"
+    },
+    {
+      "name": "Methylene chloride",
+      "cas_number": "75-09-2",
+      "reason": "Carcinogen and CNS depressant",
+      "restriction_detail": "Prohibited as cosmetic ingredient (21 CFR 700.19)"
+    },
+    {
+      "name": "Vinyl chloride",
+      "cas_number": "75-01-4",
+      "reason": "Known human carcinogen (Group 1)",
+      "restriction_detail": "Prohibited as aerosol propellant in cosmetics (21 CFR 700.16)"
+    },
+    {
+      "name": "Zirconium",
+      "cas_number": "7440-67-7",
+      "reason": "Causes lung granulomas and skin reactions in aerosol form",
+      "restriction_detail": "Prohibited in aerosol cosmetic products (21 CFR 700.17)"
+    },
+    {
+      "name": "Methyl chloride",
+      "cas_number": "74-87-3",
+      "reason": "Neurotoxin and suspected carcinogen",
+      "restriction_detail": "Prohibited as cosmetic aerosol propellant"
+    },
+    {
+      "name": "Trichloroethylene",
+      "cas_number": "79-01-6",
+      "reason": "Carcinogen; liver and kidney toxicant",
+      "restriction_detail": "Prohibited as cosmetic ingredient"
+    },
+    {
+      "name": "Tetrachlorosalicylanilide",
+      "cas_number": "1154-59-2",
+      "reason": "Halogenated salicylanilide — severe photosensitizer",
+      "restriction_detail": "Prohibited in all cosmetics (21 CFR 700.15)"
+    },
+    {
+      "name": "Tribromsalan",
+      "cas_number": "87-10-5",
+      "reason": "Halogenated salicylanilide — severe photosensitizer",
+      "restriction_detail": "Prohibited in all cosmetics (21 CFR 700.15)"
+    },
+    {
+      "name": "Dibromsalan",
+      "cas_number": "3147-76-0",
+      "reason": "Halogenated salicylanilide — severe photosensitizer",
+      "restriction_detail": "Prohibited in all cosmetics (21 CFR 700.15)"
+    },
+    {
+      "name": "Lead acetate",
+      "cas_number": "301-04-2",
+      "reason": "Lead compound — neurotoxin and developmental toxicant",
+      "restriction_detail": "Prohibited in hair dyes (FDA final rule 2018)"
+    },
+    {
+      "name": "Aminophenol",
+      "cas_number": "591-27-5",
+      "reason": "Sensitizer; potential carcinogen at high concentrations",
+      "restriction_detail": "Prohibited in hair dye products unless within strict concentration limits"
+    },
+    {
+      "name": "Chlorofluorocarbon",
+      "cas_number": "75-73-0",
+      "reason": "Ozone-depleting substance; inhalation hazard",
+      "restriction_detail": "Prohibited as cosmetic aerosol propellant (21 CFR 700.23)"
+    }
+  ],
+  "restricted": [
+    {
+      "name": "Hydroquinone",
+      "cas_number": "123-31-9",
+      "reason": "Potential carcinogen at high concentrations; not approved for OTC skin lightening",
+      "restriction_detail": "OTC use >2% requires Rx in US. Banned in EU for consumer cosmetics. FDA removed from OTC monograph."
+    },
+    {
+      "name": "Formaldehyde",
+      "cas_number": "50-00-0",
+      "reason": "Known carcinogen (Group 1 IARC); skin sensitizer",
+      "restriction_detail": "Max 0.2% as preservative (EU/US guidance). Prohibited in aerosols. Labeling required."
+    },
+    {
+      "name": "DMDM Hydantoin",
+      "cas_number": "6440-58-4",
+      "reason": "Formaldehyde-releasing preservative",
+      "restriction_detail": "Max 0.6% (releases formaldehyde). Subject to increasing regulatory scrutiny."
+    },
+    {
+      "name": "Quaternium-15",
+      "cas_number": "4080-31-3",
+      "reason": "Formaldehyde-releasing preservative; skin sensitizer",
+      "restriction_detail": "Max 0.2% equivalent formaldehyde release. Restricted in many markets."
+    },
+    {
+      "name": "Diazolidinyl Urea",
+      "cas_number": "78491-02-8",
+      "reason": "Formaldehyde-releasing preservative",
+      "restriction_detail": "Max 0.5% (as formaldehyde releaser). Requires labeling of formaldehyde release."
+    },
+    {
+      "name": "Imidazolidinyl Urea",
+      "cas_number": "39236-46-9",
+      "reason": "Formaldehyde-releasing preservative",
+      "restriction_detail": "Max 0.6% as preservative. Restricted concentration limits."
+    },
+    {
+      "name": "Bronopol",
+      "cas_number": "52-51-7",
+      "reason": "Formaldehyde-releasing; forms carcinogenic nitrosamines",
+      "restriction_detail": "Max 0.1% (rinse-off), 0.02% (leave-on). Banned in EU leave-on products."
+    },
+    {
+      "name": "Retinol",
+      "cas_number": "68-26-8",
+      "reason": "Teratogen at high concentrations; photosensitizer",
+      "restriction_detail": "FDA advising max 0.3% (leave-on) / 0.3% (rinse-off). Prescription-strength retinoic acid is Rx-only."
+    },
+    {
+      "name": "Tretinoin",
+      "cas_number": "302-79-4",
+      "reason": "Retinoic acid — teratogen; prescription-strength retinoid",
+      "restriction_detail": "Prescription only in US. Prohibited in OTC cosmetics."
+    },
+    {
+      "name": "Coal tar",
+      "cas_number": "8007-45-2",
+      "reason": "Complex carcinogenic mixture; phototoxic",
+      "restriction_detail": "Permitted in OTC dandruff/psoriasis shampoos at 0.5–5%. Warning label required. Banned in EU cosmetics."
+    },
+    {
+      "name": "Resorcinol",
+      "cas_number": "108-46-3",
+      "reason": "Thyroid disruptor; skin sensitizer",
+      "restriction_detail": "Max 0.5% (rinse-off) in OTC products. Restricted in leave-on cosmetics."
+    },
+    {
+      "name": "Oxybenzone",
+      "cas_number": "131-57-7",
+      "reason": "Endocrine disruptor; environmental harm to coral reefs",
+      "restriction_detail": "Banned in Hawaii and Palau reef-protection laws. FDA requesting additional safety data (2019 proposal)."
+    },
+    {
+      "name": "Benzophenone-3",
+      "cas_number": "131-57-7",
+      "reason": "Endocrine disruptor (same as Oxybenzone)",
+      "restriction_detail": "Max 6% in EU. Under FDA safety review for sunscreen ingredients."
+    },
+    {
+      "name": "Homosalate",
+      "cas_number": "118-56-9",
+      "reason": "Potential endocrine disruptor",
+      "restriction_detail": "FDA requesting additional safety data. Max 15% in EU."
+    },
+    {
+      "name": "Octisalate",
+      "cas_number": "118-60-5",
+      "reason": "Potential hormone disruption; systemic absorption detected",
+      "restriction_detail": "Under FDA Category III review for sunscreen ingredients."
+    },
+    {
+      "name": "Octinoxate",
+      "cas_number": "5466-77-3",
+      "reason": "Potential endocrine disruptor; systemic absorption",
+      "restriction_detail": "Banned in Hawaii. Max 10% in EU. Under FDA safety review."
+    },
+    {
+      "name": "Kojic acid",
+      "cas_number": "501-30-4",
+      "reason": "Potential carcinogen at high concentrations; skin sensitizer",
+      "restriction_detail": "Max 1% in Japan (restricted). EU safety assessment ongoing. No current FDA limit but monitor."
+    },
+    {
+      "name": "Parabens",
+      "cas_number": "94-13-3",
+      "reason": "Endocrine disruption at high concentrations",
+      "restriction_detail": "Propyl/butyl paraben banned in EU leave-on products for children under 3. Total paraben ≤0.8% (EU)."
+    },
+    {
+      "name": "Propylparaben",
+      "cas_number": "94-13-3",
+      "reason": "Endocrine disruptor; weak estrogenic activity",
+      "restriction_detail": "Banned in EU for leave-on products for children under 3. Max 0.14% each or 0.8% mixed."
+    },
+    {
+      "name": "Butylparaben",
+      "cas_number": "94-26-8",
+      "reason": "Endocrine disruptor; weak estrogenic activity",
+      "restriction_detail": "Banned in EU for leave-on products for children under 3. Max 0.14% each or 0.8% mixed."
+    },
+    {
+      "name": "Phthalates",
+      "cas_number": "84-74-2",
+      "reason": "Endocrine disruptors; reproductive toxicants",
+      "restriction_detail": "DBP, DEHP, BBP banned in EU toys/childcare. California Prop 65 listed. FDA monitoring."
+    },
+    {
+      "name": "Dibutyl phthalate",
+      "cas_number": "84-74-2",
+      "reason": "Reproductive toxicant; endocrine disruptor",
+      "restriction_detail": "Banned in EU nail products. California Prop 65. Restricted in cosmetics in multiple jurisdictions."
+    },
+    {
+      "name": "Talc",
+      "cas_number": "14807-96-6",
+      "reason": "Potential asbestos contamination; inhalation risk",
+      "restriction_detail": "Must be asbestos-free (FDA guidance). Restricted in baby powder; several recalls issued."
+    },
+    {
+      "name": "Hydrogen peroxide",
+      "cas_number": "7722-84-1",
+      "reason": "Oxidizer; mucosal irritant at high concentrations",
+      "restriction_detail": "Max 12% (hair products), 6% (teeth), 3% (general cosmetics)."
+    },
+    {
+      "name": "p-Phenylenediamine",
+      "cas_number": "106-50-3",
+      "reason": "Strong sensitizer; potential carcinogen",
+      "restriction_detail": "Max 2% (oxidative hair dye). Warning label required. Patch test recommended."
+    },
+    {
+      "name": "Silver",
+      "cas_number": "7440-22-4",
+      "reason": "Accumulates in body (argyria); antimicrobial resistance concern",
+      "restriction_detail": "No approved OTC use in cosmetics; EPA regulates nano-silver as a pesticide."
+    },
+    {
+      "name": "Aluminum compounds",
+      "cas_number": "7429-90-5",
+      "reason": "Neurotoxicity concern at high systemic exposure",
+      "restriction_detail": "Max 10.6% (rinse-off), 6.25% (deodorant sticks) per SCCS. FDA reviewing."
+    }
+  ]
+}

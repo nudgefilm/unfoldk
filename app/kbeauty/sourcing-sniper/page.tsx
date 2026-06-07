@@ -15,6 +15,8 @@ import {
   Sparkles,
   TrendingUp,
   History,
+  ShieldCheck,
+  AlertTriangle,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { usePaddle } from "@/components/PaddleProvider"
@@ -36,6 +38,17 @@ const CATEGORY_CHIPS = [
   { label: "Body", value: "body" },
   { label: "Derma", value: "derma" },
 ]
+
+// 카테고리별 대표 성분 샘플 (공급사 분석 시 자동 pre-populate)
+const CATEGORY_INGREDIENT_SAMPLES: Record<string, string[]> = {
+  skincare: ["Niacinamide", "Retinol", "Hyaluronic Acid", "Glycolic Acid", "DMDM Hydantoin", "Parabens", "Vitamin C"],
+  cleansing: ["Sodium Lauryl Sulfate", "Sodium Laureth Sulfate", "DMDM Hydantoin", "Benzophenone-3", "Formaldehyde"],
+  suncare: ["Zinc Oxide", "Titanium Dioxide", "Oxybenzone", "Avobenzone", "Octinoxate", "Homosalate", "Octisalate"],
+  makeup: ["Mica", "Titanium Dioxide", "Talc", "Iron Oxides", "Parabens", "Dibutyl phthalate", "Bismuth Oxychloride"],
+  haircare: ["Formaldehyde", "Resorcinol", "Hydrogen Peroxide", "Coal Tar", "p-Phenylenediamine", "Quaternium-15"],
+  body: ["Glycerin", "Shea Butter", "Parabens", "DMDM Hydantoin", "Diazolidinyl Urea"],
+  derma: ["Hydroquinone", "Kojic Acid", "Niacinamide", "Alpha-Arbutin", "Retinol", "Tretinoin"],
+}
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/kbeauty/dashboard/seller" },
@@ -95,12 +108,58 @@ interface HistoryEntry {
   result: AnalysisResult
 }
 
+interface IngredientFlagEntry {
+  input: string
+  matched: string
+  reason: string
+  restriction_detail: string
+  severity: "prohibited" | "restricted"
+}
+
+interface IngredientCheckResult {
+  flagged: IngredientFlagEntry[]
+  safe: string[]
+  compliance_score: number
+  total_checked: number
+}
+
 interface TrendStats {
   avgExportPrice: number
   moqMin: number
   moqMax: number
   certRatio: number
   supplierCount: number
+}
+
+// ─── FDA 성분 체크 API 호출 (컴포넌트 외부 헬퍼) ──────────────────────────
+
+interface IngredientCheckResultInner {
+  flagged: { input: string; matched: string; reason: string; restriction_detail: string; severity: "prohibited" | "restricted" }[]
+  safe: string[]
+  compliance_score: number
+  total_checked: number
+}
+
+async function runIngredientCheckViaAPI(
+  ingredients: string[],
+  setResult: (r: IngredientCheckResultInner | null) => void,
+  setChecking: (b: boolean) => void
+) {
+  setChecking(true)
+  setResult(null)
+  try {
+    const res = await fetch("/api/kbeauty/ingredient-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ingredients }),
+    })
+    const data = await res.json() as IngredientCheckResultInner
+    setResult(data)
+  } catch {
+    // silent fail
+  } finally {
+    setChecking(false)
+  }
 }
 
 // ─── 사이드바 ──────────────────────────────────────────────────────────────
@@ -243,6 +302,11 @@ export default function SourcingSniperPage() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
   const [history, setHistory] = useState<HistoryEntry[]>([])
 
+  // 성분 컴플라이언스
+  const [ingredientInput, setIngredientInput] = useState("")
+  const [ingredientResult, setIngredientResult] = useState<IngredientCheckResult | null>(null)
+  const [checkingIngredients, setCheckingIngredients] = useState(false)
+
   // 카테고리 트렌드
   const [trendCategory, setTrendCategory] = useState("")
   const [trendStats, setTrendStats] = useState<TrendStats | null>(null)
@@ -344,7 +408,30 @@ export default function SourcingSniperPage() {
         ...filtered,
       ].slice(0, 10)
     })
+
+    // 공급사 카테고리 기반 성분 자동 pre-populate + 체크
+    const allCats = [...(supplier.categories ?? []), ...supplier.product_categories]
+      .map((c) => c.toLowerCase())
+    const samples = allCats
+      .flatMap((cat) => CATEGORY_INGREDIENT_SAMPLES[cat] ?? [])
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .slice(0, 18)
+    if (samples.length > 0) {
+      setIngredientInput(samples.join("\n"))
+      void runIngredientCheckViaAPI(samples, setIngredientResult, setCheckingIngredients)
+    }
   }, [])
+
+  // ─── 성분 컴플라이언스 체크 ─────────────────────────────────────────────
+
+  const handleIngredientCheck = useCallback(() => {
+    const lines = ingredientInput
+      .split(/[\n,]+/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+    if (lines.length === 0) return
+    void runIngredientCheckViaAPI(lines, setIngredientResult, setCheckingIngredients)
+  }, [ingredientInput])
 
   // ─── 카테고리 트렌드 ─────────────────────────────────────────────────────
 
@@ -656,7 +743,143 @@ export default function SourcingSniperPage() {
             )}
           </section>
 
-          {/* ③ 카테고리 트렌드 스나이핑 */}
+          {/* ③ 성분 컴플라이언스 체크 */}
+          <section className="bg-white border border-[#E8E2DA] rounded-xl p-6 mb-6 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck className="w-4 h-4" style={{ color: GOLD }} />
+              <h2 className="text-base font-bold text-[#0F0F0F]">Ingredient Compliance Check</h2>
+              <span
+                className="text-[10px] font-bold tracking-wide px-2 py-0.5 rounded"
+                style={{ background: "#FEF3C7", color: "#92400E" }}
+              >
+                FDA · 21 CFR
+              </span>
+            </div>
+            <p className="text-xs text-[#6B6B6B] mb-4">
+              Paste ingredients (one per line or comma-separated). Auto-populated when you analyze a supplier.
+            </p>
+
+            <textarea
+              value={ingredientInput}
+              onChange={(e) => setIngredientInput(e.target.value)}
+              rows={6}
+              className="w-full resize-none text-sm text-[#0F0F0F] border border-[#E8E2DA] rounded-xl px-4 py-3 outline-none transition-colors mb-3 bg-[#FAFAF9]"
+              style={{ fontFamily: "inherit" }}
+              onFocus={(e) => { e.target.style.borderColor = "#C8A882" }}
+              onBlur={(e) => { e.target.style.borderColor = "#E8E2DA" }}
+              placeholder={"Niacinamide\nRetinol\nHydroquinone\nFormaldehyde\nOxybenzone"}
+            />
+
+            <button
+              onClick={handleIngredientCheck}
+              disabled={checkingIngredients || !ingredientInput.trim()}
+              className="flex items-center gap-1.5 text-xs font-semibold px-5 py-2.5 rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-40"
+              style={{ background: GOLD }}
+            >
+              {checkingIngredients
+                ? <Loader2 className="w-3 h-3 animate-spin" />
+                : <ShieldCheck className="w-3 h-3" />}
+              {checkingIngredients ? "Checking..." : "Check Compliance"}
+            </button>
+
+            {ingredientResult && !checkingIngredients && (
+              <div className="mt-5 space-y-4">
+                {/* 점수 */}
+                <div className="flex flex-wrap items-start gap-6">
+                  <div>
+                    <p className="text-[10px] font-medium text-[#6B6B6B] uppercase tracking-wide mb-1">
+                      Compliance Score
+                    </p>
+                    <div className="flex items-end gap-2">
+                      <span
+                        className="text-3xl font-bold"
+                        style={{
+                          color: ingredientResult.compliance_score >= 80
+                            ? "#16A34A"
+                            : ingredientResult.compliance_score >= 50
+                            ? GOLD
+                            : "#DC2626",
+                        }}
+                      >
+                        {ingredientResult.compliance_score}
+                      </span>
+                      <span className="text-sm text-[#6B6B6B] mb-1">/100</span>
+                    </div>
+                    <div className="w-48 h-1.5 bg-[#E8E2DA] rounded-full overflow-hidden mt-1.5">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${ingredientResult.compliance_score}%`,
+                          background: ingredientResult.compliance_score >= 80
+                            ? "#16A34A"
+                            : ingredientResult.compliance_score >= 50
+                            ? GOLD
+                            : "#DC2626",
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5 mt-1 text-xs">
+                    <span className="flex items-center gap-1.5 text-[#DC2626] font-medium">
+                      <AlertTriangle className="w-3 h-3" />
+                      {ingredientResult.flagged.filter((f) => f.severity === "prohibited").length} prohibited
+                    </span>
+                    <span className="flex items-center gap-1.5 font-medium" style={{ color: "#D97706" }}>
+                      <Clock className="w-3 h-3" />
+                      {ingredientResult.flagged.filter((f) => f.severity === "restricted").length} restricted
+                    </span>
+                    <span className="flex items-center gap-1.5 text-green-700 font-medium">
+                      <CheckCircle2 className="w-3 h-3" />
+                      {ingredientResult.safe.length} cleared
+                    </span>
+                  </div>
+                </div>
+
+                {/* Flagged */}
+                {ingredientResult.flagged.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-[#0F0F0F]">Flagged Ingredients</p>
+                    {ingredientResult.flagged.map((f, i) => (
+                      <div
+                        key={i}
+                        className="px-4 py-3 rounded-xl border"
+                        style={
+                          f.severity === "prohibited"
+                            ? { background: "#FEF2F2", borderColor: "#FECACA" }
+                            : { background: "#FFFBEB", borderColor: "#FDE68A" }
+                        }
+                      >
+                        <div className="flex items-start justify-between gap-3 mb-1">
+                          <span className="text-xs font-semibold text-[#0F0F0F]">{f.input}</span>
+                          <span
+                            className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide flex-shrink-0 text-white"
+                            style={{ background: f.severity === "prohibited" ? "#DC2626" : "#D97706" }}
+                          >
+                            {f.severity}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#6B6B6B] leading-relaxed">{f.restriction_detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {ingredientResult.flagged.length === 0 && (
+                  <div
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                    style={{ background: "#F0FDF4", border: "1px solid #BBF7D0" }}
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    <p className="text-sm text-green-700 font-medium">
+                      All {ingredientResult.total_checked} ingredients cleared — no FDA flags detected.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* ④ 카테고리 트렌드 스나이핑 */}
           <section className="bg-white border border-[#E8E2DA] rounded-xl p-6 mb-6 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
             <div className="flex items-center gap-2 mb-5">
               <TrendingUp className="w-4 h-4" style={{ color: GOLD }} />
@@ -732,7 +955,7 @@ export default function SourcingSniperPage() {
             ) : null}
           </section>
 
-          {/* ④ 분석 히스토리 */}
+          {/* ⑤ 분석 히스토리 */}
           {history.length > 0 && (
             <section className="bg-white border border-[#E8E2DA] rounded-xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
               <div className="flex items-center gap-2 mb-4">
