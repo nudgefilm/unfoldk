@@ -56,12 +56,12 @@ function BeautyNavbar({
         </Link>
 
         <nav className="hidden md:flex items-center gap-8">
-          <a href="#suppliers" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+          <Link href="/kbeauty/supplier" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             For Suppliers
-          </a>
-          <a href="#buyers" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+          </Link>
+          <Link href="/kbeauty/buyer" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             For Buyers
-          </a>
+          </Link>
           <Link href="/kbeauty/seller" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             For Sellers
           </Link>
@@ -140,8 +140,8 @@ function BeautyNavbar({
           </SheetTrigger>
           <SheetContent side="bottom" className="bg-white border-t border-[#E8E2DA]">
             <nav className="flex flex-col gap-4 mt-6">
-              <a href="#suppliers" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Suppliers</a>
-              <a href="#buyers" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Buyers</a>
+              <Link href="/kbeauty/supplier" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Suppliers</Link>
+              <Link href="/kbeauty/buyer" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Buyers</Link>
               <Link href="/kbeauty/seller" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Sellers</Link>
               <a href="#how-it-works" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">How It Works</a>
               <a href="#data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Data Sources</a>
