@@ -162,7 +162,7 @@ export function BeautyNavbar({
           <Link href="/kbeauty/supplier" className={linkClass("supplier")}>For Suppliers</Link>
           <Link href="/kbeauty/buyer" className={linkClass("buyer")}>For Buyers</Link>
           <Link href="/kbeauty/seller" className={linkClass("seller")}>For Sellers</Link>
-          <Link href="/kbeauty/market-intelligence" className={linkClass("market-intelligence")}>Trend Radar</Link>
+          <Link href="/kbeauty/market-intelligence" className={linkClass("market-intelligence")}>Market Intelligence</Link>
         </nav>
 
         {/* 데스크톱 우측: 비로그인 버튼 / 로그인 아바타 */}
@@ -225,7 +225,7 @@ export function BeautyNavbar({
               <Link href="/kbeauty/supplier" className={mobileLinkClass("supplier")}>For Suppliers</Link>
               <Link href="/kbeauty/buyer" className={mobileLinkClass("buyer")}>For Buyers</Link>
               <Link href="/kbeauty/seller" className={mobileLinkClass("seller")}>For Sellers</Link>
-              <Link href="/kbeauty/market-intelligence" className={mobileLinkClass("market-intelligence")}>Trend Radar</Link>
+              <Link href="/kbeauty/market-intelligence" className={mobileLinkClass("market-intelligence")}>Market Intelligence</Link>
               <div className={dividerClass} />
               {!isLoggedIn ? (
                 <>
