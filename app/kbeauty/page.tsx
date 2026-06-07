@@ -187,6 +187,46 @@ function BeautyNavbar({
   )
 }
 
+// ─── Stats ──────────────────────────────────────────────────────────────────
+
+function StatsSection() {
+  const stats = [
+    {
+      main: "End-to-End Verified",
+      sub1: "FROM SUPPLIERS TO BUYERS",
+      sub2: "Full verification at every step",
+    },
+    {
+      main: "3304 · 3305 · 3307",
+      sub1: "HS CODES COVERED",
+      sub2: "Skincare · Haircare · Fragrance",
+    },
+    {
+      main: "Global Trade Ready",
+      sub1: "NORTH AMERICA & EUROPE",
+      sub2: "MoCRA · CPNP · ISO 22716",
+    },
+  ]
+
+  return (
+    <section className="bg-[#1A3A5C] py-14 px-6">
+      <div className="max-w-[1120px] mx-auto grid grid-cols-1 sm:grid-cols-3 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-white/15">
+        {stats.map((s, i) => (
+          <div key={i} className="flex flex-col items-center text-center px-8 py-6 sm:py-0">
+            <p className="text-[10px] tracking-[0.16em] font-semibold text-white/50 uppercase mb-3">
+              {s.sub1}
+            </p>
+            <p className="font-serif text-2xl md:text-[28px] font-bold text-white leading-tight mb-2">
+              {s.main}
+            </p>
+            <p className="text-sm text-white/60">{s.sub2}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 // ─── Entry Cards ────────────────────────────────────────────────────────────
 
 function EntryCardsSection({
@@ -496,6 +536,7 @@ export default function BeautyLandingPage() {
       />
       <main>
         <HeroSection />
+        <StatsSection />
         <EntryCardsSection onSupplierCTA={handleSupplierCTA} onBuyerCTA={handleBuyerCTA} />
         <HowItWorksSection />
       </main>
