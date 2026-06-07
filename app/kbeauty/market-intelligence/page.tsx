@@ -341,7 +341,7 @@ export default function MarketIntelligencePage() {
                 icon={Zap}
                 title="Real-Time Fan Vote Logging"
                 description="When B2C users vote on trending ingredients via Trend Radar, each vote is logged in real-time to our ingredient tracking system. Limited to once per day per user to ensure data integrity."
-                badge="Trend Radar · 1 vote/user/day"
+                badge="Trend Radar · Daily Vote Limit Applied"
               />
               <ProcessStep
                 number="02"
