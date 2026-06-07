@@ -1,4 +1,4 @@
-import { Languages } from "lucide-react"
+import { Languages, Briefcase } from "lucide-react"
 import Link from "next/link"
 
 interface FeatureCard {
@@ -7,9 +7,10 @@ interface FeatureCard {
   description: string
   highlighted?: boolean
   href: string
+  badge?: string
 }
 
-const FeatureCard = ({ icon, title, description, highlighted, href }: FeatureCard) => (
+const FeatureCard = ({ icon, title, description, highlighted, href, badge }: FeatureCard) => (
   <Link href={href} className="block">
     <div
       className={`overflow-hidden rounded-2xl flex flex-col justify-start items-start relative p-6 h-full transition-all hover:scale-[1.02] hover:shadow-lg ${
@@ -25,6 +26,12 @@ const FeatureCard = ({ icon, title, description, highlighted, href }: FeatureCar
     >
       {/* Additional subtle gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-2xl pointer-events-none" />
+
+      {badge && (
+        <span className="absolute top-4 right-4 z-10 text-[10px] font-semibold tracking-wider px-2 py-0.5 rounded-full bg-foreground/10 text-foreground/60">
+          {badge}
+        </span>
+      )}
 
       <div className="relative z-10 flex flex-col gap-3">
         <span className="text-4xl flex items-center justify-center">{icon}</span>
@@ -85,6 +92,13 @@ export function BentoSection() {
       title: "Get your Korean name",
       description: "Discover your Korean name based on your vibe.",
       href: "/name",
+    },
+    {
+      icon: <Briefcase className="w-9 h-9 text-foreground/70" />,
+      title: "UnfoldK Beauty",
+      description: "Connect verified Korean suppliers with global buyers & sellers.",
+      href: "/kbeauty",
+      badge: "B2B",
     },
   ]
 
