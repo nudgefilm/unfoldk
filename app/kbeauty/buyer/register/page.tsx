@@ -1,9 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Menu, Check, ChevronDown, Instagram, Linkedin } from "lucide-react"
+import { Menu, Check, ChevronDown, ChevronUp, Instagram, Linkedin } from "lucide-react"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { cn } from "@/lib/utils"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 const GOOGLE_SVG = (
   <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
@@ -13,14 +16,17 @@ const GOOGLE_SVG = (
     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
   </svg>
 )
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { cn } from "@/lib/utils"
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 // Navbar Component (Light variant - same as main landing)
 function BeautyNavbar() {
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10)
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
   return (
-    <header className="sticky top-0 z-50 w-full bg-white border-b border-[#E8E2DA] h-16">
+    <header className={`sticky top-0 z-50 w-full h-16 transition-shadow ${scrolled ? "bg-white shadow-sm" : "bg-white border-b border-[#E8E2DA]"}`}>
       <div className="max-w-[1280px] mx-auto h-full px-6 flex items-center justify-between">
         <Link href="/kbeauty" className="flex items-center gap-1">
           <span className="font-bold text-[#0F0F0F]">UnfoldK Beauty</span>
@@ -34,12 +40,9 @@ function BeautyNavbar() {
           <a href="/kbeauty#buyers" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             For Buyers
           </a>
-          <a href="/kbeauty#how-it-works" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
-            How It Works
-          </a>
-          <a href="/kbeauty#data-sources" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+          <Link href="/kbeauty/data-sources" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             Data Sources
-          </a>
+          </Link>
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
@@ -66,12 +69,9 @@ function BeautyNavbar() {
               <a href="/kbeauty#buyers" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
                 For Buyers
               </a>
-              <a href="/kbeauty#how-it-works" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
-                How It Works
-              </a>
-              <a href="/kbeauty#data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
+              <Link href="/kbeauty/data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
                 Data Sources
-              </a>
+              </Link>
               <div className="border-t border-[#E8E2DA] my-2" />
               <button className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2 text-left">
                 Log in
@@ -716,6 +716,26 @@ function FooterSection() {
   )
 }
 
+function ScrollTopButton() {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 300)
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
+  if (!visible) return null
+  return (
+    <button
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      className="fixed bottom-8 right-8 z-50 w-11 h-11 rounded-full flex items-center justify-center shadow-lg hover:opacity-80 transition-opacity"
+      style={{ background: "#1A3A5C" }}
+      aria-label="Back to top"
+    >
+      <ChevronUp className="w-5 h-5 text-white" />
+    </button>
+  )
+}
+
 // Main Page Component
 export default function BuyerRegisterPage() {
   return (
@@ -726,6 +746,7 @@ export default function BuyerRegisterPage() {
         <BuyerRegistrationForm />
       </main>
       <FooterSection />
+      <ScrollTopButton />
     </div>
   )
 }
