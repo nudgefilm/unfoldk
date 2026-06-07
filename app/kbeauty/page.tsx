@@ -65,10 +65,10 @@ function BeautyNavbar({
           <Link href="/kbeauty/seller" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             For Sellers
           </Link>
-          <a href="#how-it-works" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+          <a href="/kbeauty#how-it-works" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             How It Works
           </a>
-          <a href="#data-sources" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+          <a href="/kbeauty#data-sources" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             Data Sources
           </a>
         </nav>
@@ -143,8 +143,8 @@ function BeautyNavbar({
               <Link href="/kbeauty/supplier" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Suppliers</Link>
               <Link href="/kbeauty/buyer" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Buyers</Link>
               <Link href="/kbeauty/seller" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Sellers</Link>
-              <a href="#how-it-works" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">How It Works</a>
-              <a href="#data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Data Sources</a>
+              <a href="/kbeauty#how-it-works" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">How It Works</a>
+              <a href="/kbeauty#data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Data Sources</a>
               <div className="border-t border-[#E8E2DA] my-2" />
               {!isLoggedIn ? (
                 <>
@@ -286,7 +286,7 @@ function EntryCardsSection({
             <ul className="space-y-3 flex-1">
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#C8A882] mt-0.5 flex-shrink-0" />
-                ImportGenius-verified supplier database
+                Customs data-verified supplier database
               </li>
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#C8A882] mt-0.5 flex-shrink-0" />

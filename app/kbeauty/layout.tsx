@@ -11,7 +11,7 @@ const cormorantGaramond = Cormorant_Garamond({
 export const metadata: Metadata = {
   title: "UnfoldK Beauty - B2B K-Beauty Platform",
   description:
-    "Connect with verified K-Beauty suppliers and buyers. ImportGenius customs data backed. FDA-registered Korean manufacturers.",
+    "Connect with verified K-Beauty suppliers and buyers. Global customs data backed. FDA-registered Korean manufacturers.",
 }
 
 export default function BeautyLayout({

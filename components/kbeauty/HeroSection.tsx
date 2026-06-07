@@ -23,7 +23,7 @@ const SEGMENTS: Record<
     label: "Global Buyers",
     accent: "#8B6F47",
     stats: [
-      { value: "2,150+", label: "Verified Importers\n검증된 수입사", sub: "US importers tracked via customs data\nImportGenius 기반 북미 수입사" },
+      { value: "2,150+", label: "Verified Importers\n검증된 수입사", sub: "US importers tracked via customs data\n글로벌 무역 데이터 기반 북미 수입사" },
       { value: "$42M+", label: "Total Import Volume\n총 수입 규모", sub: "Tracked over last 12 months\n최근 12개월 통관 추적 규모" },
       { value: "3304.99", label: "Top HS Code\n최다 수입 코드", sub: "Skincare — #1 import frequency\n스킨케어 · 수입 빈도 1위" },
     ],

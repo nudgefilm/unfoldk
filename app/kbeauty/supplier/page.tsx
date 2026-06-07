@@ -28,12 +28,15 @@ function BeautyNavbar() {
         </Link>
 
         <nav className="hidden md:flex items-center gap-8">
-          <a href="/kbeauty#suppliers" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+          <Link href="/kbeauty/supplier" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             For Suppliers
-          </a>
-          <a href="/kbeauty#buyers" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+          </Link>
+          <Link href="/kbeauty/buyer" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             For Buyers
-          </a>
+          </Link>
+          <Link href="/kbeauty/seller" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+            For Sellers
+          </Link>
           <a href="/kbeauty#how-it-works" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             How It Works
           </a>
@@ -43,12 +46,12 @@ function BeautyNavbar() {
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
-          <button className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors px-4 py-2">
+          <Link href="/kbeauty/login" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors px-4 py-2">
             Log in
-          </button>
-          <button className="bg-[#1A3A5C] text-white text-sm font-medium px-5 py-2.5 rounded-md hover:bg-[#153249] transition-colors">
+          </Link>
+          <Link href="/kbeauty/auth" className="bg-[#1A3A5C] text-white text-sm font-medium px-5 py-2.5 rounded-md hover:bg-[#153249] transition-colors">
             Get Started
-          </button>
+          </Link>
         </div>
 
         <Sheet>
@@ -60,12 +63,15 @@ function BeautyNavbar() {
           </SheetTrigger>
           <SheetContent side="bottom" className="bg-white border-t border-[#E8E2DA]">
             <nav className="flex flex-col gap-4 mt-6">
-              <a href="/kbeauty#suppliers" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
+              <Link href="/kbeauty/supplier" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
                 For Suppliers
-              </a>
-              <a href="/kbeauty#buyers" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
+              </Link>
+              <Link href="/kbeauty/buyer" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
                 For Buyers
-              </a>
+              </Link>
+              <Link href="/kbeauty/seller" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
+                For Sellers
+              </Link>
               <a href="/kbeauty#how-it-works" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
                 How It Works
               </a>
@@ -73,10 +79,10 @@ function BeautyNavbar() {
                 Data Sources
               </a>
               <div className="border-t border-[#E8E2DA] my-2" />
-              <button className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2 text-left">
+              <Link href="/kbeauty/login" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2 text-left">
                 Log in
-              </button>
-              <button className="bg-[#1A3A5C] text-white font-medium px-5 py-3 rounded-md w-full mt-2">
+              </Link>
+              <Link href="/kbeauty/auth" className="bg-[#1A3A5C] text-white font-medium px-5 py-3 rounded-md w-full mt-2 text-center block">
                 Get Started
               </button>
             </nav>
@@ -855,7 +861,7 @@ function SupplierForm() {
           <div className="mb-4">
             <p className="text-[13px] text-red-500">{submitError}</p>
             {showLoginLink && (
-              <Link href="/kbeauty/login" className="mt-1.5 inline-block text-sm font-medium text-[#1A3A5C] hover:underline">
+              <Link href="/kbeauty/supplier/login" className="mt-1.5 inline-block text-sm font-medium text-[#1A3A5C] hover:underline">
                 로그인하기 →
               </Link>
             )}

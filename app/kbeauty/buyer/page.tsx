@@ -17,12 +17,15 @@ function TransparentNavbar() {
 
         {/* Center: Nav Links (Desktop) */}
         <nav className="hidden md:flex items-center gap-8">
-          <a href="/kbeauty#suppliers" className="text-sm text-white/70 hover:text-white transition-colors">
+          <Link href="/kbeauty/supplier" className="text-sm text-white/70 hover:text-white transition-colors">
             For Suppliers
-          </a>
-          <a href="/kbeauty#buyers" className="text-sm text-white/70 hover:text-white transition-colors">
+          </Link>
+          <Link href="/kbeauty/buyer" className="text-sm text-white/70 hover:text-white transition-colors">
             For Buyers
-          </a>
+          </Link>
+          <Link href="/kbeauty/seller" className="text-sm text-white/70 hover:text-white transition-colors">
+            For Sellers
+          </Link>
           <a href="/kbeauty#how-it-works" className="text-sm text-white/70 hover:text-white transition-colors">
             How It Works
           </a>
@@ -33,12 +36,12 @@ function TransparentNavbar() {
 
         {/* Right: Buttons (Desktop) */}
         <div className="hidden md:flex items-center gap-3">
-          <button className="text-sm text-white hover:text-white/80 transition-colors px-4 py-2">
+          <Link href="/kbeauty/buyer/login" className="text-sm text-white hover:text-white/80 transition-colors px-4 py-2">
             Log in
-          </button>
-          <button className="bg-[#C8A882] text-[#0F0F0F] text-sm font-semibold px-5 py-2.5 rounded-md hover:bg-[#b8956e] transition-colors">
+          </Link>
+          <Link href="/kbeauty/auth" className="bg-[#C8A882] text-[#0F0F0F] text-sm font-semibold px-5 py-2.5 rounded-md hover:bg-[#b8956e] transition-colors">
             Get Started
-          </button>
+          </Link>
         </div>
 
         {/* Mobile Hamburger */}
@@ -51,12 +54,15 @@ function TransparentNavbar() {
           </SheetTrigger>
           <SheetContent side="bottom" className="bg-[#1A3A5C] border-t border-white/10">
             <nav className="flex flex-col gap-4 mt-6">
-              <a href="/kbeauty#suppliers" className="text-white py-2">
+              <Link href="/kbeauty/supplier" className="text-white py-2">
                 For Suppliers
-              </a>
-              <a href="/kbeauty#buyers" className="text-white py-2">
+              </Link>
+              <Link href="/kbeauty/buyer" className="text-white py-2">
                 For Buyers
-              </a>
+              </Link>
+              <Link href="/kbeauty/seller" className="text-white py-2">
+                For Sellers
+              </Link>
               <a href="/kbeauty#how-it-works" className="text-white py-2">
                 How It Works
               </a>
@@ -64,12 +70,12 @@ function TransparentNavbar() {
                 Data Sources
               </a>
               <div className="border-t border-white/10 my-2" />
-              <button className="text-white py-2 text-left">
+              <Link href="/kbeauty/buyer/login" className="text-white py-2 text-left">
                 Log in
-              </button>
-              <button className="bg-[#C8A882] text-[#0F0F0F] font-semibold px-5 py-3 rounded-md w-full mt-2">
+              </Link>
+              <Link href="/kbeauty/auth" className="bg-[#C8A882] text-[#0F0F0F] font-semibold px-5 py-3 rounded-md w-full mt-2 text-center block">
                 Get Started
-              </button>
+              </Link>
             </nav>
           </SheetContent>
         </Sheet>
@@ -97,14 +103,14 @@ function HeroSection() {
 
         {/* Sub */}
         <p className="text-base text-white/65 mb-10">
-          ImportGenius-verified. FDA-registered. Data-backed.
+          Customs data-verified. FDA-registered. Data-backed.
         </p>
 
         {/* CTA */}
-        <button className="bg-[#C8A882] text-[#0F0F0F] font-semibold px-9 py-3.5 rounded-lg hover:bg-[#b8956e] transition-colors inline-flex items-center justify-center gap-2">
+        <Link href="/kbeauty/buyer/register" className="bg-[#C8A882] text-[#0F0F0F] font-semibold px-9 py-3.5 rounded-lg hover:bg-[#b8956e] transition-colors inline-flex items-center justify-center gap-2">
           Get Buyer Access
           <span className="text-lg">&#8594;</span>
-        </button>
+        </Link>
 
         {/* Trust Line */}
         <p className="text-xs text-white/45 mt-4">
@@ -128,7 +134,7 @@ function DataStatsSection() {
               Verified US Importers
             </div>
             <div className="text-xs text-[#6B6B6B]">
-              ImportGenius customs records
+              Global customs &amp; shipping records
             </div>
           </div>
 
@@ -166,7 +172,7 @@ function BuyerBenefitsSection() {
       badge: "Verified",
       badgeStyle: "bg-[#1A3A5C]/10 text-[#1A3A5C]",
       title: "Verified Suppliers",
-      desc: "Access FDA-registered Korean manufacturers verified through ImportGenius customs records.",
+      desc: "Access FDA-registered Korean manufacturers verified through Global customs &amp; shipping records.",
     },
     {
       badge: "Insights",
@@ -273,10 +279,10 @@ function FinalCTASection() {
         <p className="text-base text-white/65 mb-10">
           Join verified buyers already sourcing from Korea.
         </p>
-        <button className="bg-[#C8A882] text-[#0F0F0F] font-semibold px-10 py-3.5 rounded-lg hover:bg-[#b8956e] transition-colors inline-flex items-center justify-center gap-2">
+        <Link href="/kbeauty/buyer/register" className="bg-[#C8A882] text-[#0F0F0F] font-semibold px-10 py-3.5 rounded-lg hover:bg-[#b8956e] transition-colors inline-flex items-center justify-center gap-2">
           Get Buyer Access
           <span className="text-lg">&#8594;</span>
-        </button>
+        </Link>
       </div>
     </section>
   )

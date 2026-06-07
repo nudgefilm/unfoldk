@@ -17,12 +17,15 @@ function TransparentNavbar() {
 
         {/* Center: Nav Links (Desktop) */}
         <nav className="hidden md:flex items-center gap-8">
-          <a href="/kbeauty#suppliers" className="text-sm text-white/70 hover:text-white transition-colors">
+          <Link href="/kbeauty/supplier" className="text-sm text-white/70 hover:text-white transition-colors">
             For Suppliers
-          </a>
-          <a href="/kbeauty#buyers" className="text-sm text-white/70 hover:text-white transition-colors">
+          </Link>
+          <Link href="/kbeauty/buyer" className="text-sm text-white/70 hover:text-white transition-colors">
             For Buyers
-          </a>
+          </Link>
+          <Link href="/kbeauty/seller" className="text-sm text-white/70 hover:text-white transition-colors">
+            For Sellers
+          </Link>
           <a href="/kbeauty#how-it-works" className="text-sm text-white/70 hover:text-white transition-colors">
             How It Works
           </a>
@@ -33,7 +36,7 @@ function TransparentNavbar() {
 
         {/* Right: Buttons (Desktop) */}
         <div className="hidden md:flex items-center gap-3">
-          <Link href="/kbeauty/login" className="text-sm text-white hover:text-white/80 transition-colors px-4 py-2">
+          <Link href="/kbeauty/seller/login" className="text-sm text-white hover:text-white/80 transition-colors px-4 py-2">
             Log in
           </Link>
           <Link
@@ -54,12 +57,15 @@ function TransparentNavbar() {
           </SheetTrigger>
           <SheetContent side="bottom" className="bg-[#1A3A5C] border-t border-white/10">
             <nav className="flex flex-col gap-4 mt-6">
-              <a href="/kbeauty#suppliers" className="text-white py-2">
+              <Link href="/kbeauty/supplier" className="text-white py-2">
                 For Suppliers
-              </a>
-              <a href="/kbeauty#buyers" className="text-white py-2">
+              </Link>
+              <Link href="/kbeauty/buyer" className="text-white py-2">
                 For Buyers
-              </a>
+              </Link>
+              <Link href="/kbeauty/seller" className="text-white py-2">
+                For Sellers
+              </Link>
               <a href="/kbeauty#how-it-works" className="text-white py-2">
                 How It Works
               </a>
@@ -67,7 +73,7 @@ function TransparentNavbar() {
                 Data Sources
               </a>
               <div className="border-t border-white/10 my-2" />
-              <Link href="/kbeauty/login" className="text-white py-2 text-left">
+              <Link href="/kbeauty/seller/login" className="text-white py-2 text-left">
                 Log in
               </Link>
               <Link
@@ -136,7 +142,7 @@ function DataStatsSection() {
               Verified US Importers
             </div>
             <div className="text-xs text-[#6B6B6B]">
-              ImportGenius customs records
+              Global customs &amp; shipping records
             </div>
           </div>
 
@@ -178,7 +184,7 @@ function SellerBenefitsSection() {
       badge: "Verified",
       badgeStyle: "bg-[#1A3A5C]/10 text-[#1A3A5C]",
       title: "Verified Suppliers",
-      desc: "FDA-registered Korean manufacturers verified through ImportGenius customs records.",
+      desc: "FDA-registered Korean manufacturers verified through Global customs &amp; shipping records.",
     },
     {
       badge: "Direct",

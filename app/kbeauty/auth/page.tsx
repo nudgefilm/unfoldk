@@ -89,7 +89,7 @@ export default function KBeautyAuthPage() {
           </p>
           <ul className="flex flex-col gap-2 mb-8">
             {[
-              "ImportGenius-verified supplier database",
+              "Customs data-verified supplier database",
               "FDA-registered Korean manufacturers",
               "Market insight reports (HS 3304·3305·3307)",
             ].map((item) => (
