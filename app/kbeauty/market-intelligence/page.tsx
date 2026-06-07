@@ -18,7 +18,7 @@ interface IngredientCard {
   insight: string
 }
 
-// ─── Fallback 데이터 (beauty_trade_analytics 미수집 시) ───────────────────────
+// ─── Fallback 데이터 ──────────────────────────────────────────────────────────
 
 const FALLBACK_TOP2: IngredientCard[] = [
   {
@@ -340,8 +340,8 @@ export default function MarketIntelligencePage() {
                 number="01"
                 icon={Zap}
                 title="Real-Time Fan Vote Logging"
-                description="When B2C users vote on trending ingredients via Trend Radar, each vote is logged in real-time to the beauty_fan_votes table. Limited to once per day per user to ensure data integrity."
-                badge="beauty_fan_votes · 1 vote/user/day"
+                description="When B2C users vote on trending ingredients via Trend Radar, each vote is logged in real-time to our ingredient tracking system. Limited to once per day per user to ensure data integrity."
+                badge="Trend Radar · 1 vote/user/day"
               />
               <ProcessStep
                 number="02"
@@ -349,14 +349,14 @@ export default function MarketIntelligencePage() {
                 title="Weekly Velocity Score Engine"
                 description="Every Monday, a scheduled cron job analyzes the past 7 days of vote trends and calculates the Hallyu Velocity Score for each ingredient — measuring week-over-week acceleration."
                 formula={`Velocity Score = (This Week − Last Week) / Last Week × 100\nZero-division safe: if Last Week = 0 → Score = This Week × 100`}
-                badge="hallyu_velocity_score · Weekly Cron"
+                badge="Hallyu Velocity Score · Weekly Cron"
               />
               <ProcessStep
                 number="03"
                 icon={Crosshair}
                 title="Verified Supplier Pipeline Activation"
                 description="Top-ranked ingredients are matched against registered Korean suppliers carrying those active ingredients. Verified supplier links are activated directly in buyer and seller dashboards."
-                badge="beauty_suppliers · beauty_products · Direct Match"
+                badge="Verified Suppliers · Active Ingredients · Direct Match"
                 isLast
               />
             </div>
