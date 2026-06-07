@@ -15,7 +15,7 @@ function Navbar() {
     return () => window.removeEventListener("scroll", onScroll)
   }, [])
   return (
-    <header className={`sticky top-0 z-50 w-full h-16 transition-all duration-200 ${scrolled ? "bg-white/95 backdrop-blur-sm shadow-sm" : "bg-transparent"}`}>
+    <header className={`sticky top-0 z-50 w-full h-16 transition-all duration-200 ${scrolled ? "bg-white/95 backdrop-blur-sm shadow-sm" : "bg-[#1A3A5C]"}`}>
       <div className="max-w-[1280px] mx-auto h-full px-6 flex items-center justify-between">
         <Link href="/kbeauty" className="flex items-center gap-1">
           <span className={`font-bold transition-colors ${scrolled ? "text-[#0F0F0F]" : "text-white"}`}>UnfoldK Beauty</span>
