@@ -7,6 +7,7 @@ import { Menu, Check, Instagram, Linkedin, LogOut } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import HeroSection from "@/components/kbeauty/HeroSection"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 
@@ -183,73 +184,6 @@ function BeautyNavbar({
         </Sheet>
       </div>
     </header>
-  )
-}
-
-// ─── Hero ───────────────────────────────────────────────────────────────────
-
-function HeroSection({
-  onSupplierCTA,
-  onBuyerCTA,
-}: {
-  onSupplierCTA: () => void
-  onBuyerCTA: () => void
-}) {
-  return (
-    <section className="bg-white py-20 px-6 min-h-[calc(100vh-64px)] flex items-center">
-      <div className="max-w-[1280px] mx-auto w-full">
-        <div className="grid lg:grid-cols-[55%_45%] gap-12 items-center">
-          <div>
-            <span className="text-xs tracking-[0.15em] text-[#C8A882] font-medium mb-4 block">
-              B2B PLATFORM
-            </span>
-            <h1 className="font-serif text-4xl md:text-5xl lg:text-[56px] text-[#0F0F0F] leading-[1.1] mb-6">
-              Connect with Verified
-              <br />
-              Korean Beauty Suppliers.
-            </h1>
-            <div className="flex flex-col sm:flex-row gap-3 mb-4">
-              <button
-                onClick={onSupplierCTA}
-                className="bg-[#1A3A5C] text-white font-semibold px-7 py-3.5 rounded-md hover:bg-[#153249] transition-colors inline-flex items-center justify-center gap-2"
-              >
-                공급사 파트너 신청
-                <span className="text-lg">&#8594;</span>
-              </button>
-              <button
-                onClick={onBuyerCTA}
-                className="border-[1.5px] border-[#1A3A5C] text-[#1A3A5C] font-semibold px-7 py-3.5 rounded-md hover:bg-[#1A3A5C]/5 transition-colors inline-flex items-center justify-center gap-2"
-              >
-                Get Buyer Access
-                <span className="text-lg">&#8594;</span>
-              </button>
-            </div>
-
-          </div>
-
-          <div className="relative hidden lg:block">
-            <div className="relative h-[400px] w-[380px]">
-              <div
-                className="absolute w-52 h-72 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-[#E8E2DA]/50"
-                style={{ backgroundColor: "#C4B5A0", top: "10px", left: "0px", transform: "rotate(-8deg)" }}
-              />
-              <div
-                className="absolute w-52 h-72 rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.15)] border border-[#E8E2DA]/50"
-                style={{ backgroundColor: "#E8C9A0", top: "20px", left: "60px", transform: "rotate(4deg)" }}
-              />
-              <div
-                className="absolute w-52 h-72 rounded-xl shadow-[0_16px_50px_rgba(0,0,0,0.18)] border border-[#E8E2DA]/50"
-                style={{ backgroundColor: "#D4A896", top: "40px", left: "120px", transform: "rotate(-3deg)" }}
-              >
-                <div className="absolute top-4 left-4 bg-[#1A3A5C] text-white text-[10px] font-medium px-2.5 py-1.5 rounded-md shadow-sm">
-                  VERIFIED SUPPLIER
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
   )
 }
 
@@ -561,7 +495,7 @@ export default function BeautyLandingPage() {
         onLogout={handleLogout}
       />
       <main>
-        <HeroSection onSupplierCTA={handleSupplierCTA} onBuyerCTA={handleBuyerCTA} />
+        <HeroSection />
         <EntryCardsSection onSupplierCTA={handleSupplierCTA} onBuyerCTA={handleBuyerCTA} />
         <HowItWorksSection />
       </main>
