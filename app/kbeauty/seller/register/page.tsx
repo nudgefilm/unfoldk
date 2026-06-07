@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Menu, Check, ChevronDown, ChevronUp, Instagram, Linkedin } from "lucide-react"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Check, ChevronDown, ChevronUp, Instagram, Linkedin } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { BeautyNavbar } from "@/components/kbeauty/BeautyNavbar"
 
 const GOOGLE_SVG = (
   <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
@@ -16,82 +16,6 @@ const GOOGLE_SVG = (
     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
   </svg>
 )
-
-// Navbar Component (Light variant)
-function BeautyNavbar() {
-  const [scrolled, setScrolled] = useState(false)
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 10)
-    window.addEventListener("scroll", onScroll, { passive: true })
-    return () => window.removeEventListener("scroll", onScroll)
-  }, [])
-  return (
-    <header className={`sticky top-0 z-50 w-full h-16 transition-shadow ${scrolled ? "bg-white shadow-sm" : "bg-white border-b border-[#E8E2DA]"}`}>
-      <div className="max-w-[1280px] mx-auto h-full px-6 flex items-center justify-between">
-        <Link href="/kbeauty" className="flex items-center gap-1">
-          <span className="font-bold text-[#0F0F0F]">UnfoldK Beauty</span>
-          <span className="text-[#C8A882]">&#9670;</span>
-        </Link>
-
-        <nav className="hidden md:flex items-center gap-8">
-          <a href="/kbeauty#suppliers" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
-            For Suppliers
-          </a>
-          <a href="/kbeauty#buyers" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
-            For Buyers
-          </a>
-          <Link href="/kbeauty/data-sources" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
-            Data Sources
-          </Link>
-        </nav>
-
-        <div className="hidden md:flex items-center gap-3">
-          <Link href="/kbeauty/login" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors px-4 py-2">
-            Log in
-          </Link>
-          <Link
-            href="/kbeauty/seller/register"
-            className="bg-[#1A3A5C] text-white text-sm font-medium px-5 py-2.5 rounded-md hover:bg-[#153249] transition-colors"
-          >
-            Get Started
-          </Link>
-        </div>
-
-        <Sheet>
-          <SheetTrigger asChild className="md:hidden">
-            <button className="p-2 text-[#0F0F0F]">
-              <Menu className="h-6 w-6" />
-              <span className="sr-only">Toggle menu</span>
-            </button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="bg-white border-t border-[#E8E2DA]">
-            <nav className="flex flex-col gap-4 mt-6">
-              <a href="/kbeauty#suppliers" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
-                For Suppliers
-              </a>
-              <a href="/kbeauty#buyers" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
-                For Buyers
-              </a>
-              <Link href="/kbeauty/data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">
-                Data Sources
-              </Link>
-              <div className="border-t border-[#E8E2DA] my-2" />
-              <Link href="/kbeauty/login" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2 text-left">
-                Log in
-              </Link>
-              <Link
-                href="/kbeauty/seller/register"
-                className="bg-[#1A3A5C] text-white font-medium px-5 py-3 rounded-md w-full mt-2 text-center block"
-              >
-                Get Started
-              </Link>
-            </nav>
-          </SheetContent>
-        </Sheet>
-      </div>
-    </header>
-  )
-}
 
 // Hero Header Section
 function HeroHeader() {

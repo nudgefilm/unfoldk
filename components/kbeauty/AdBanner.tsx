@@ -1,7 +1,16 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+
+// 슬롯별 빈 상태 높이 (광고 없을 때)
+const SLOT_EMPTY_HEIGHT: Record<string, string> = {
+  featured_supplier: "h-32",
+  data_sources_banner: "h-20",
+  dashboard_sidebar: "h-24",
+  sourcing_sniper: "h-28",
+}
 
 interface Ad {
   id: string
@@ -63,7 +72,27 @@ export function AdBanner({ slotId, className = "" }: Props) {
     window.open(ad.link_url, "_blank", "noopener,noreferrer")
   }
 
-  if (loading || !ad) return null
+  if (loading) return null
+
+  if (!ad) {
+    const emptyH = SLOT_EMPTY_HEIGHT[slotId] ?? "h-24"
+    return (
+      <div className={`relative flex items-center justify-between gap-3 rounded-xl border border-dashed border-[#C8A882]/40 bg-[#FDFBF8] px-5 ${emptyH} ${className}`}>
+        <span className="absolute top-2 left-3 text-[9px] font-semibold tracking-widest text-[#C8A882]/70 uppercase px-1.5 py-0.5 rounded border border-[#C8A882]/30 bg-white/60">
+          AD SLOT
+        </span>
+        <p className="text-sm text-[#9B8A74] mt-4">
+          Advertise Here · Reach verified K-beauty partners
+        </p>
+        <Link
+          href="/kbeauty/auth"
+          className="flex-shrink-0 text-xs font-semibold text-[#C8A882] hover:text-[#8B6F47] transition-colors flex items-center gap-1 mt-4"
+        >
+          Apply &#8594;
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <div

@@ -1,194 +1,12 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Menu, Check, ChevronUp, Instagram, Linkedin, LogOut } from "lucide-react"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Check, ChevronUp, Instagram, Linkedin } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { BeautyNavbar } from "@/components/kbeauty/BeautyNavbar"
 import HeroSection from "@/components/kbeauty/HeroSection"
-
-// ─── 타입 ──────────────────────────────────────────────────────────────────
-
-interface AuthInfo {
-  loaded: boolean
-  email: string | null
-  dashboards: { href: string; label: string }[]
-}
-
-// ─── Navbar ────────────────────────────────────────────────────────────────
-
-function BeautyNavbar({
-  onLoginClick,
-  onGetStartedClick,
-  auth,
-  onLogout,
-}: {
-  onLoginClick: () => void
-  onGetStartedClick: () => void
-  auth: AuthInfo
-  onLogout: () => void
-}) {
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 10)
-    window.addEventListener("scroll", onScroll, { passive: true })
-    return () => window.removeEventListener("scroll", onScroll)
-  }, [])
-
-  useEffect(() => {
-    if (!dropdownOpen) return
-    function handleOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleOutside)
-    return () => document.removeEventListener("mousedown", handleOutside)
-  }, [dropdownOpen])
-
-  const isLoggedIn = auth.loaded && auth.email !== null
-  const initial = auth.email ? auth.email[0].toUpperCase() : "?"
-
-  return (
-    <header className={`sticky top-0 z-50 w-full h-16 transition-shadow ${scrolled ? "bg-white/95 backdrop-blur-sm shadow-sm" : "bg-white border-b border-[#E8E2DA]"}`}>
-      <div className="max-w-[1280px] mx-auto h-full px-6 flex items-center justify-between">
-        <Link href="/kbeauty" className="flex items-center gap-1">
-          <span className="font-bold text-[#0F0F0F]">UnfoldK Beauty</span>
-          <span className="text-[#C8A882]">&#9670;</span>
-        </Link>
-
-        <nav className="hidden md:flex items-center gap-8">
-          <Link href="/kbeauty/supplier" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
-            For Suppliers
-          </Link>
-          <Link href="/kbeauty/buyer" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
-            For Buyers
-          </Link>
-          <Link href="/kbeauty/seller" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
-            For Sellers
-          </Link>
-          <Link href="/kbeauty/data-sources" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
-            Data Sources
-          </Link>
-        </nav>
-
-        {/* 데스크톱: 비로그인 버튼 / 로그인 아바타 */}
-        <div className="hidden md:flex items-center gap-3">
-          {!isLoggedIn ? (
-            <>
-              <button
-                onClick={onLoginClick}
-                className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors px-4 py-2"
-              >
-                Log in
-              </button>
-              <button
-                onClick={onGetStartedClick}
-                className="bg-[#1A3A5C] text-white text-sm font-medium px-5 py-2.5 rounded-md hover:bg-[#153249] transition-colors"
-              >
-                Get Started
-              </button>
-            </>
-          ) : (
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setDropdownOpen(v => !v)}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white hover:opacity-85 transition-opacity"
-                style={{ background: "#C8A882" }}
-                aria-label="계정 메뉴"
-              >
-                {initial}
-              </button>
-
-              {dropdownOpen && (
-                <div className="absolute right-0 top-11 w-56 bg-white border border-[#E8E2DA] rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] py-1.5 z-50">
-                  <p className="px-4 pt-1 pb-2.5 text-[11px] text-[#6B6B6B] truncate border-b border-[#F3F4F6]">
-                    {auth.email}
-                  </p>
-                  {auth.dashboards.map(d => (
-                    <Link
-                      key={d.href}
-                      href={d.href}
-                      onClick={() => setDropdownOpen(false)}
-                      className="block px-4 py-2.5 text-sm text-[#0F0F0F] hover:bg-[#F8F7F5] transition-colors"
-                    >
-                      {d.label}
-                    </Link>
-                  ))}
-                  <div className="border-t border-[#E8E2DA] my-1" />
-                  <button
-                    onClick={() => { setDropdownOpen(false); onLogout() }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    로그아웃
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* 모바일 햄버거 */}
-        <Sheet>
-          <SheetTrigger asChild className="md:hidden">
-            <button className="p-2 text-[#0F0F0F]">
-              <Menu className="h-6 w-6" />
-              <span className="sr-only">Toggle menu</span>
-            </button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="bg-white border-t border-[#E8E2DA]">
-            <nav className="flex flex-col gap-4 mt-6">
-              <Link href="/kbeauty/supplier" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Suppliers</Link>
-              <Link href="/kbeauty/buyer" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Buyers</Link>
-              <Link href="/kbeauty/seller" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Sellers</Link>
-              <Link href="/kbeauty/data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Data Sources</Link>
-              <div className="border-t border-[#E8E2DA] my-2" />
-              {!isLoggedIn ? (
-                <>
-                  <button onClick={onLoginClick} className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2 text-left">
-                    Log in
-                  </button>
-                  <button
-                    onClick={onGetStartedClick}
-                    className="bg-[#1A3A5C] text-white font-medium px-5 py-3 rounded-md w-full mt-2"
-                  >
-                    Get Started
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs text-[#6B6B6B] truncate">{auth.email}</p>
-                  {auth.dashboards.map(d => (
-                    <Link
-                      key={d.href}
-                      href={d.href}
-                      className="text-[#0F0F0F] hover:text-[#1A3A5C] py-2 font-medium transition-colors"
-                    >
-                      {d.label}
-                    </Link>
-                  ))}
-                  <button
-                    onClick={onLogout}
-                    className="text-red-600 py-2 text-left flex items-center gap-2 text-sm"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    로그아웃
-                  </button>
-                </>
-              )}
-            </nav>
-          </SheetContent>
-        </Sheet>
-      </div>
-    </header>
-  )
-}
 
 // ─── Stats ──────────────────────────────────────────────────────────────────
 
@@ -501,64 +319,13 @@ function ScrollTopButton() {
 
 export default function BeautyLandingPage() {
   const router = useRouter()
-  const supabase = createSupabaseBrowserClient()
 
-  const [auth, setAuth] = useState<AuthInfo>({ loaded: false, email: null, dashboards: [] })
-
-  useEffect(() => {
-    async function checkAuth() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setAuth({ loaded: true, email: null, dashboards: [] }); return }
-
-      // 역할별 대시보드 + 어드민 병렬 확인
-      const [
-        { data: supplier },
-        { data: buyer },
-        { data: seller },
-        { data: isAdminResult },
-      ] = await Promise.all([
-        supabase.from("beauty_suppliers").select("id").eq("user_id", user.id).maybeSingle(),
-        supabase.from("beauty_buyers").select("id").eq("user_id", user.id).maybeSingle(),
-        supabase.from("beauty_sellers").select("id").eq("user_id", user.id).maybeSingle(),
-        supabase.rpc("is_admin", { uid: user.id }),
-      ])
-
-      const dashboards: { href: string; label: string }[] = []
-      if (supplier)      dashboards.push({ href: "/kbeauty/dashboard/supplier", label: "공급사 대시보드" })
-      if (buyer)         dashboards.push({ href: "/kbeauty/dashboard/buyer",    label: "바이어 대시보드" })
-      if (seller)        dashboards.push({ href: "/kbeauty/dashboard/seller",   label: "셀러 대시보드" })
-      if (isAdminResult) dashboards.push({ href: "/kbeauty/admin",              label: "어드민" })
-
-      setAuth({ loaded: true, email: user.email ?? user.id, dashboards })
-    }
-    checkAuth()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  async function handleLogout() {
-    await supabase.auth.signOut()
-    setAuth({ loaded: true, email: null, dashboards: [] })
-    // 현재 페이지 유지
-  }
-
-  const handleSupplierCTA = () => {
-    if (auth.dashboards.length > 0) { router.push(auth.dashboards[0].href); return }
-    router.push("/kbeauty/supplier")
-  }
-
-  const handleBuyerCTA = () => {
-    if (auth.dashboards.length > 0) { router.push(auth.dashboards[0].href); return }
-    router.push("/kbeauty/buyer/register")
-  }
+  const handleSupplierCTA = () => router.push("/kbeauty/supplier")
+  const handleBuyerCTA = () => router.push("/kbeauty/buyer/register")
 
   return (
     <div className="min-h-screen bg-white font-sans">
-      <BeautyNavbar
-        onLoginClick={() => router.push("/kbeauty/login")}
-        onGetStartedClick={() => router.push("/kbeauty/auth")}
-        auth={auth}
-        onLogout={handleLogout}
-      />
+      <BeautyNavbar />
       <main>
         <HeroSection />
         <StatsSection />

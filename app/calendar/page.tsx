@@ -1150,7 +1150,7 @@ export default function HallyuCalendarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <Toaster />
       {/* Event Detail Modal */}
       <EventDetailModal

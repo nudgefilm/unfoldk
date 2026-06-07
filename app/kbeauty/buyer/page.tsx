@@ -2,84 +2,8 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Menu, ShieldCheck, ChevronUp, Zap, Globe2, FileCheck2, BarChart3, Package, Check, Instagram, Linkedin } from "lucide-react"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-
-// ─── Navbar ──────────────────────────────────────────────────────────────────
-
-function Navbar() {
-  const [scrolled, setScrolled] = useState(false)
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 10)
-    window.addEventListener("scroll", onScroll, { passive: true })
-    return () => window.removeEventListener("scroll", onScroll)
-  }, [])
-  return (
-    <header className={`sticky top-0 z-50 w-full h-16 transition-shadow ${scrolled ? "bg-white/95 backdrop-blur-sm shadow-sm" : "bg-white border-b border-[#E8E2DA]"}`}>
-      <div className="max-w-[1280px] mx-auto h-full px-6 flex items-center justify-between">
-        <Link href="/kbeauty" className="flex items-center gap-1">
-          <span className="font-bold text-[#0F0F0F]">UnfoldK Beauty</span>
-          <span className="text-[#C8A882]">&#9670;</span>
-        </Link>
-
-        <nav className="hidden md:flex items-center gap-7">
-          <Link href="/kbeauty/supplier" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
-            For Suppliers
-          </Link>
-          <Link href="/kbeauty/buyer" className="text-sm font-semibold text-[#0F0F0F] transition-colors">
-            For Buyers
-          </Link>
-          <Link href="/kbeauty/seller" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
-            For Sellers
-          </Link>
-          <Link href="/kbeauty/data-sources" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
-            Data Sources
-          </Link>
-        </nav>
-
-        <div className="hidden md:flex items-center gap-3">
-          <Link
-            href="/kbeauty/buyer/login"
-            className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors px-4 py-2"
-          >
-            Log in
-          </Link>
-          <Link
-            href="/kbeauty/buyer/register"
-            className="bg-[#1A3A5C] text-white text-sm font-semibold px-5 py-2.5 rounded-[8px] hover:bg-[#153249] transition-colors"
-          >
-            Get Buyer Access
-          </Link>
-        </div>
-
-        <Sheet>
-          <SheetTrigger asChild className="md:hidden">
-            <button className="p-2 text-[#0F0F0F]">
-              <Menu className="h-6 w-6" />
-              <span className="sr-only">Toggle menu</span>
-            </button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="bg-white border-t border-[#E8E2DA]">
-            <nav className="flex flex-col gap-4 mt-6">
-              <Link href="/kbeauty/supplier" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Suppliers</Link>
-              <Link href="/kbeauty/buyer" className="font-semibold text-[#0F0F0F] py-2">For Buyers</Link>
-              <Link href="/kbeauty/seller" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Sellers</Link>
-              <Link href="/kbeauty/data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Data Sources</Link>
-              <div className="border-t border-[#E8E2DA] my-2" />
-              <Link href="/kbeauty/buyer/login" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Log in</Link>
-              <Link
-                href="/kbeauty/buyer/register"
-                className="bg-[#1A3A5C] text-white font-semibold px-5 py-3 rounded-[8px] w-full mt-2 text-center block"
-              >
-                Get Buyer Access
-              </Link>
-            </nav>
-          </SheetContent>
-        </Sheet>
-      </div>
-    </header>
-  )
-}
+import { ShieldCheck, ChevronUp, Zap, Globe2, FileCheck2, BarChart3, Package, Check, Instagram, Linkedin } from "lucide-react"
+import { BeautyNavbar } from "@/components/kbeauty/BeautyNavbar"
 
 function ScrollTopButton() {
   const [visible, setVisible] = useState(false)
@@ -525,7 +449,7 @@ export default function BuyerLandingPage() {
           '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
       }}
     >
-      <Navbar />
+      <BeautyNavbar activeLink="buyer" loginHref="/kbeauty/buyer/login" ctaHref="/kbeauty/buyer/register" ctaLabel="Get Buyer Access" />
       <main>
         <HeroSection />
         <ComplianceSection />
