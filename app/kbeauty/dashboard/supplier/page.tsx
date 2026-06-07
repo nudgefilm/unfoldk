@@ -16,11 +16,13 @@ import {
   XCircle,
   Paperclip,
   Lock,
+  Megaphone,
 } from "lucide-react"
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ExchangeRateBadge } from "@/components/kbeauty/ExchangeRateBadge"
 import { NotificationBell } from "@/components/kbeauty/NotificationBell"
+import { AdRequestForm } from "@/components/kbeauty/AdRequestForm"
 import { usePaddle } from "@/components/PaddleProvider"
 import { PADDLE_PRICE_IDS } from "@/lib/paddle/constants"
 
@@ -109,9 +111,11 @@ const NAV_ITEMS = [
 function Sidebar({
   companyName,
   licenseVerified,
+  onAdvertiseClick,
 }: {
   companyName: string
   licenseVerified: boolean
+  onAdvertiseClick: () => void
 }) {
   return (
     <aside
@@ -138,6 +142,16 @@ function Sidebar({
         ))}
       </nav>
 
+      <div className="px-4 py-3 border-t border-[#E8E2DA]">
+        <button
+          onClick={onAdvertiseClick}
+          className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-white py-2 rounded-lg hover:opacity-90 transition-opacity"
+          style={{ background: "#C8A882" }}
+        >
+          <Megaphone className="w-3.5 h-3.5" />
+          광고 신청
+        </button>
+      </div>
       <div className="px-4 py-4 border-t border-[#E8E2DA]">
         <p className="text-xs font-medium text-[#0F0F0F] truncate">{companyName || "—"}</p>
         <div className="mt-1">
@@ -352,6 +366,7 @@ export default function SupplierDashboardPage() {
   const [avgRating, setAvgRating] = useState<{ avg: number; count: number } | null>(null)
   const [proActive, setProActive] = useState(false)
   const [showProModal, setShowProModal] = useState(false)
+  const [showAdForm, setShowAdForm] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
 
   // 가이드 편집 폼 상태
@@ -755,10 +770,16 @@ export default function SupplierDashboardPage() {
     <div className="min-h-screen bg-[#F8F7F5]" style={{ fontFamily: '"Pretendard Variable", Pretendard, sans-serif' }}>
       <Toaster position="top-right" richColors />
 
+      {/* 광고 신청 모달 */}
+      {showAdForm && (
+        <AdRequestForm userType="supplier" onClose={() => setShowAdForm(false)} />
+      )}
+
       {/* 사이드바 */}
       <Sidebar
         companyName={supplier?.company_name_ko ?? ""}
         licenseVerified={supplier?.cosmetic_license_verified ?? false}
+        onAdvertiseClick={() => setShowAdForm(true)}
       />
 
       {/* 메인 콘텐츠 */}

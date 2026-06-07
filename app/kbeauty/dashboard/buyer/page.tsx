@@ -15,12 +15,15 @@ import {
   ChevronRight,
   Loader2,
   RefreshCcw,
+  Megaphone,
 } from "lucide-react"
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ExchangeRateBadge } from "@/components/kbeauty/ExchangeRateBadge"
 import { NotificationBell } from "@/components/kbeauty/NotificationBell"
 import { RatingModal } from "@/components/kbeauty/RatingModal"
+import { AdRequestForm } from "@/components/kbeauty/AdRequestForm"
+import { AdBanner } from "@/components/kbeauty/AdBanner"
 import { cn } from "@/lib/utils"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -125,7 +128,15 @@ const MATCH_STATUS_MAP: Record<string, { label: string; icon: ReactNode; classNa
 
 // ─── 사이드바 ──────────────────────────────────────────────────────────────
 
-function Sidebar({ companyName, approved }: { companyName: string; approved: boolean }) {
+function Sidebar({
+  companyName,
+  approved,
+  onAdvertiseClick,
+}: {
+  companyName: string
+  approved: boolean
+  onAdvertiseClick: () => void
+}) {
   return (
     <aside
       className="fixed top-0 left-0 h-screen bg-white border-r border-[#E8E2DA] flex flex-col"
@@ -151,6 +162,19 @@ function Sidebar({ companyName, approved }: { companyName: string; approved: boo
         ))}
       </nav>
 
+      <div className="px-3 py-3 border-t border-[#E8E2DA]">
+        <AdBanner slotId="dashboard_sidebar" className="text-xs" />
+      </div>
+      <div className="px-4 py-3 border-t border-[#E8E2DA]">
+        <button
+          onClick={onAdvertiseClick}
+          className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-white py-2 rounded-lg hover:opacity-90 transition-opacity"
+          style={{ background: "#C8A882" }}
+        >
+          <Megaphone className="w-3.5 h-3.5" />
+          Advertise
+        </button>
+      </div>
       <div className="px-4 py-4 border-t border-[#E8E2DA]">
         <p className="text-xs font-medium text-[#0F0F0F] truncate">{companyName || "—"}</p>
         <div className="mt-1">
@@ -205,6 +229,7 @@ export default function BuyerDashboardPage() {
   const [buyer, setBuyer] = useState<Buyer | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showAdForm, setShowAdForm] = useState(false)
 
   // 요약 카운트
   const [pendingCount, setPendingCount] = useState(0)
@@ -428,7 +453,14 @@ export default function BuyerDashboardPage() {
       style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
     >
       <Toaster position="top-right" richColors />
-      <Sidebar companyName={buyer?.company_name ?? ""} approved={buyer?.stage1_approved ?? false} />
+      {showAdForm && (
+        <AdRequestForm userType="buyer" onClose={() => setShowAdForm(false)} />
+      )}
+      <Sidebar
+        companyName={buyer?.company_name ?? ""}
+        approved={buyer?.stage1_approved ?? false}
+        onAdvertiseClick={() => setShowAdForm(true)}
+      />
 
       <main className="min-h-screen" style={{ marginLeft: 240 }}>
         <div className="max-w-4xl mx-auto px-8 py-10">

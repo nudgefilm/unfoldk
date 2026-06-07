@@ -21,6 +21,7 @@ import {
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { usePaddle } from "@/components/PaddleProvider"
 import { PADDLE_PRICE_IDS } from "@/lib/paddle/constants"
+import { AdBanner } from "@/components/kbeauty/AdBanner"
 import { cn } from "@/lib/utils"
 
 // ─── 상수 ──────────────────────────────────────────────────────────────────
@@ -1018,6 +1019,9 @@ export default function SourcingSniperPage() {
               </div>
             </section>
           )}
+
+          {/* Sourcing Sniper 광고 배너 */}
+          <AdBanner slotId="sourcing_sniper" className="mt-8" />
 
           <div className="h-12" />
         </div>

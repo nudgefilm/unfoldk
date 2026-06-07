@@ -7,6 +7,7 @@ import {
   Loader2, CheckCircle2, XCircle, Package,
   Users, Store, ShoppingBag, Handshake, FlaskConical,
   ToggleLeft, ToggleRight, ExternalLink, Mail, X, Eye,
+  Megaphone,
 } from "lucide-react"
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -16,7 +17,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 const NAVY = "#1A3A5C"
 const GOLD = "#C8A882"
 
-type Tab = "suppliers" | "buyers" | "sellers" | "products" | "matches" | "services" | "emails"
+type Tab = "suppliers" | "buyers" | "sellers" | "products" | "matches" | "services" | "emails" | "ads"
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "suppliers", label: "공급사",    icon: Package },
@@ -26,6 +27,7 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "matches",   label: "매칭",      icon: Handshake },
   { key: "services",  label: "샘플·소싱", icon: FlaskConical },
   { key: "emails",    label: "이메일 발송", icon: Mail },
+  { key: "ads",       label: "광고 관리",  icon: Megaphone },
 ]
 
 // ─── 이메일 템플릿 ─────────────────────────────────────────────────────────
@@ -170,6 +172,27 @@ interface AdminSourcing {
   requested_at: string
 }
 
+interface AdminAd {
+  id: string
+  slot_id: string
+  advertiser_type: string
+  title: string
+  description: string | null
+  image_url: string | null
+  link_url: string
+  status: string
+  start_date: string | null
+  end_date: string | null
+  monthly_price: number
+  paid: boolean
+  impressions_count: number
+  clicks_count: number
+  rejection_reason: string | null
+  created_at: string
+  beauty_ad_slots: { slot_name: string } | null
+  users?: { email: string } | null
+}
+
 // ─── 유틸 ──────────────────────────────────────────────────────────────────
 
 function fmtDate(iso: string) {
@@ -230,6 +253,13 @@ export default function KBeautyAdminPage() {
   const [matches,   setMatches]     = useState<AdminMatch[]>([])
   const [services,  setServices]    = useState<AdminService[]>([])
   const [sourcings, setSourceings]  = useState<AdminSourcing[]>([])
+  const [ads,       setAds]         = useState<AdminAd[]>([])
+
+  // 광고 관리 상태
+  const [adFilter,       setAdFilter]       = useState<string>("all")
+  const [rejectTarget,   setRejectTarget]   = useState<string | null>(null)
+  const [rejectReason,   setRejectReason]   = useState("")
+  const [adActioning,    setAdActioning]    = useState<string | null>(null)
 
   // 이름 맵 (ID → 이름) — 매칭·상품 탭 표시용
   const [supplierNameMap, setSupplierNameMap] = useState<Record<string, string>>({})
@@ -355,6 +385,14 @@ export default function KBeautyAdminPage() {
       setSourceings((src ?? []) as AdminSourcing[])
     }
 
+    if (tab === "ads") {
+      const { data } = await supabase
+        .from("beauty_ads")
+        .select("id, slot_id, advertiser_type, title, description, image_url, link_url, status, start_date, end_date, monthly_price, paid, impressions_count, clicks_count, rejection_reason, created_at, beauty_ad_slots(slot_name)")
+        .order("created_at", { ascending: false })
+      setAds((data ?? []) as AdminAd[])
+    }
+
     setLoadedTabs(prev => new Set(prev).add(tab))
   }, [loadedTabs, supabase])
 
@@ -429,6 +467,30 @@ export default function KBeautyAdminPage() {
     } finally {
       setIsSending(false)
     }
+  }
+
+  async function approveAd(id: string) {
+    setAdActioning(id)
+    const ad = ads.find(a => a.id === id)
+    const newStatus = ad?.start_date && new Date(ad.start_date) > new Date() ? "approved" : "active"
+    const { error } = await supabase.from("beauty_ads").update({ status: newStatus }).eq("id", id)
+    if (error) { toast.error("업데이트 실패"); setAdActioning(null); return }
+    setAds(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a))
+    toast.success(newStatus === "active" ? "광고 승인 및 집행 시작됨" : "광고 승인됨 (집행일 대기)")
+    setAdActioning(null)
+  }
+
+  async function rejectAd(id: string) {
+    if (!rejectReason.trim()) { toast.error("거절 사유를 입력하세요."); return }
+    setAdActioning(id)
+    const { error } = await supabase.from("beauty_ads")
+      .update({ status: "rejected", rejection_reason: rejectReason.trim() }).eq("id", id)
+    if (error) { toast.error("업데이트 실패"); setAdActioning(null); return }
+    setAds(prev => prev.map(a => a.id === id ? { ...a, status: "rejected", rejection_reason: rejectReason.trim() } : a))
+    toast.success("광고 거절됨")
+    setRejectTarget(null)
+    setRejectReason("")
+    setAdActioning(null)
   }
 
   async function updateProductStatus(id: string, newStatus: "active" | "inactive") {
@@ -1010,9 +1072,206 @@ export default function KBeautyAdminPage() {
               </div>
             )}
 
+            {/* ── ⑧ 광고 관리 ────────────────────────────────────────── */}
+            {activeTab === "ads" && (
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-bold text-[#0F0F0F]">광고 관리</h2>
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                    ⚠️ 승인 전 이미지 URL과 랜딩 URL을 반드시 육안으로 확인하세요
+                  </p>
+                </div>
+
+                {/* 상태 필터 */}
+                <div className="flex flex-wrap gap-2 mb-5">
+                  {[
+                    { value: "all",     label: "전체" },
+                    { value: "pending", label: "대기" },
+                    { value: "approved",label: "승인" },
+                    { value: "active",  label: "집행중" },
+                    { value: "rejected",label: "거절" },
+                    { value: "expired", label: "만료" },
+                  ].map(f => (
+                    <button
+                      key={f.value}
+                      onClick={() => setAdFilter(f.value)}
+                      className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors"
+                      style={adFilter === f.value
+                        ? { background: NAVY, color: "white", borderColor: NAVY }
+                        : { background: "white", color: "#6B6B6B", borderColor: "#E8E2DA" }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                {!loadedTabs.has("ads")
+                  ? <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-[#6B6B6B]" /></div>
+                  : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr>
+                          {["광고주 타입", "슬롯", "제목", "이미지", "랜딩URL", "집행기간", "단가", "결제", "노출/클릭", "CTR", "상태", "액션"].map(h => (
+                            <th key={h} className={thCls + " pr-3"}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#F3F4F6]">
+                        {ads
+                          .filter(a => adFilter === "all" || a.status === adFilter)
+                          .map(ad => {
+                            const ctr = ad.impressions_count > 0
+                              ? ((ad.clicks_count / ad.impressions_count) * 100).toFixed(1)
+                              : "—"
+                            return (
+                              <tr key={ad.id}>
+                                <td className={tdCls + " pr-3"}>
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-[#F3F4F6] text-[#6B6B6B]">
+                                    {ad.advertiser_type}
+                                  </span>
+                                </td>
+                                <td className={tdCls + " pr-3 text-xs text-[#6B6B6B]"}>
+                                  {ad.beauty_ad_slots?.slot_name ?? ad.slot_id}
+                                </td>
+                                <td className={tdCls + " pr-3 max-w-[140px]"}>
+                                  <p className="text-sm font-medium text-[#0F0F0F] truncate">{ad.title}</p>
+                                  {ad.description && (
+                                    <p className="text-xs text-[#6B6B6B] truncate">{ad.description}</p>
+                                  )}
+                                  <p className="text-[10px] text-[#6B6B6B] mt-0.5">
+                                    신청: {fmtDate(ad.created_at)}
+                                  </p>
+                                </td>
+                                <td className={tdCls + " pr-3"}>
+                                  {ad.image_url ? (
+                                    <a href={ad.image_url} target="_blank" rel="noopener noreferrer">
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img src={ad.image_url} alt="" className="w-14 h-10 object-cover rounded border border-[#E8E2DA]" />
+                                    </a>
+                                  ) : <span className="text-xs text-[#D1D5DB]">없음</span>}
+                                </td>
+                                <td className={tdCls + " pr-3"}>
+                                  <a
+                                    href={ad.link_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-xs text-[#1A3A5C] hover:underline"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    확인
+                                  </a>
+                                </td>
+                                <td className={tdCls + " pr-3 text-xs text-[#6B6B6B]"}>
+                                  {ad.start_date ? fmtDate(ad.start_date) : "—"}
+                                  {" ~ "}
+                                  {ad.end_date ? fmtDate(ad.end_date) : "∞"}
+                                </td>
+                                <td className={tdCls + " pr-3 text-sm font-medium"}>
+                                  ${ad.monthly_price}/mo
+                                </td>
+                                <td className={tdCls + " pr-3"}>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${ad.paid ? "bg-green-50 text-green-700" : "bg-[#FFFBEB] text-amber-700"}`}>
+                                    {ad.paid ? "결제완료" : "미결제"}
+                                  </span>
+                                </td>
+                                <td className={tdCls + " pr-3 text-xs text-[#6B6B6B]"}>
+                                  {ad.impressions_count.toLocaleString()} / {ad.clicks_count.toLocaleString()}
+                                </td>
+                                <td className={tdCls + " pr-3 text-xs font-medium"}>
+                                  {ctr}{ctr !== "—" ? "%" : ""}
+                                </td>
+                                <td className={tdCls + " pr-3"}>
+                                  <StatusBadge value={ad.status} />
+                                  {ad.rejection_reason && (
+                                    <p className="text-[10px] text-red-600 mt-0.5 max-w-[100px] truncate" title={ad.rejection_reason}>
+                                      {ad.rejection_reason}
+                                    </p>
+                                  )}
+                                </td>
+                                <td className={tdCls + " pr-3"}>
+                                  {ad.status === "pending" && (
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => approveAd(ad.id)}
+                                        disabled={adActioning === ad.id}
+                                        className="text-xs font-semibold px-2.5 py-1 rounded-lg text-white hover:opacity-80 transition-opacity disabled:opacity-40"
+                                        style={{ background: "#10B981" }}
+                                      >
+                                        {adActioning === ad.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "승인"}
+                                      </button>
+                                      <button
+                                        onClick={() => { setRejectTarget(ad.id); setRejectReason("") }}
+                                        disabled={adActioning === ad.id}
+                                        className="text-xs font-semibold px-2.5 py-1 rounded-lg text-white hover:opacity-80 transition-opacity disabled:opacity-40"
+                                        style={{ background: "#EF4444" }}
+                                      >
+                                        거절
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                      </tbody>
+                    </table>
+                    {ads.filter(a => adFilter === "all" || a.status === adFilter).length === 0 && (
+                      <p className="text-sm text-[#6B6B6B] text-center py-10">광고 신청 내역이 없습니다.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         </div>
       </main>
+
+      {/* ── 광고 거절 모달 ────────────────────────────────────────── */}
+      {rejectTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setRejectTarget(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E2DA]">
+              <h3 className="text-sm font-bold text-[#0F0F0F]">광고 거절 사유 입력</h3>
+              <button onClick={() => setRejectTarget(null)} className="text-[#6B6B6B] hover:text-[#0F0F0F]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <textarea
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                rows={4}
+                placeholder="광고주에게 전달될 거절 사유를 입력하세요."
+                className="w-full border border-[#E8E2DA] rounded-lg px-3 py-2 text-sm text-[#0F0F0F] focus:outline-none focus:ring-1 focus:ring-[#1A3A5C] resize-none"
+              />
+            </div>
+            <div className="px-6 py-4 border-t border-[#E8E2DA] flex justify-end gap-2">
+              <button
+                onClick={() => setRejectTarget(null)}
+                className="text-sm font-medium px-4 py-2 border border-[#E8E2DA] rounded-lg text-[#6B6B6B] hover:bg-[#F8F7F5]"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => rejectAd(rejectTarget)}
+                disabled={adActioning === rejectTarget}
+                className="text-sm font-semibold px-4 py-2 rounded-lg text-white hover:opacity-80 disabled:opacity-40"
+                style={{ background: "#EF4444" }}
+              >
+                {adActioning === rejectTarget ? <Loader2 className="w-4 h-4 animate-spin" /> : "거절 확정"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 미리보기 모달 ─────────────────────────────────────────── */}
       {showPreview && (

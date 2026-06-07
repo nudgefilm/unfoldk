@@ -20,6 +20,7 @@ import {
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ExchangeRateBadge } from "@/components/kbeauty/ExchangeRateBadge"
+import { AdBanner } from "@/components/kbeauty/AdBanner"
 import { cn } from "@/lib/utils"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -438,6 +439,9 @@ export default function BuyerSuppliersPage() {
               </p>
             </div>
           )}
+
+          {/* Featured Supplier 광고 배너 */}
+          <AdBanner slotId="featured_supplier" className="mb-6" />
 
           {/* ② 필터 바 */}
           <div className="bg-white border border-[#E8E2DA] rounded-xl p-5 mb-6 shadow-[0_2px_8px_rgba(0,0,0,0.06)] space-y-4">

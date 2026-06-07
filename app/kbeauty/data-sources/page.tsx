@@ -21,6 +21,7 @@ import {
   Linkedin,
 } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { AdBanner } from "@/components/kbeauty/AdBanner"
 
 // ─── Navbar ──────────────────────────────────────────────────────────────────
 
@@ -228,8 +229,8 @@ function BuyerDataSection() {
       />
       <DataCard
         icon={<Users className="w-5 h-5" />}
-        title="Apollo.io Contact Enrichment"
-        description="Buyer contact verification and enrichment. Company name, role, and email validated before platform invitation."
+        title="B2B Contact Verification"
+        description="Verified business contact points sourced through GDPR and CCPA compliant global B2B data pipelines."
         badge="Contact Verification"
         badgeVariant="trade"
       />
@@ -259,7 +260,7 @@ function SellerDataSection() {
       <DataCard
         icon={<TrendingUp className="w-5 h-5" />}
         title="TikTok Shop Analytics"
-        description="TikTok Shop K-beauty sellers tracked by GMV and category performance. Public email contacts collected where available."
+        description="TikTok Shop K-beauty category performance tracked by GMV and sales volume. Seller intelligence sourced via globally compliant B2B directory integration."
         badge="Social Commerce"
         badgeVariant="marketplace"
       />
@@ -406,6 +407,11 @@ export default function DataSourcesPage() {
         <HeroSection />
         <SupplierDataSection />
         <BuyerDataSection />
+        <div className="px-6 py-6 bg-white">
+          <div className="max-w-[1100px] mx-auto">
+            <AdBanner slotId="data_sources_banner" />
+          </div>
+        </div>
         <SellerDataSection />
         <ComplianceDataSection />
         <MarketIntelligenceSection />

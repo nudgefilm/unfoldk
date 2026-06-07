@@ -206,7 +206,7 @@ api/kbeauty/
     route.ts                            ← 국세청 API 인증 ✅
   pipeline/
     amazon-seller/
-      route.ts                          ← 아마존 셀러 수집 파이프라인
+      route.ts                          ← 아마존 셀러 연동 파이프라인
 ```
 
 ---
@@ -333,7 +333,7 @@ contact_verified BOOLEAN DEFAULT false
 bounce_count INTEGER DEFAULT 0
 status TEXT DEFAULT 'active'
 source TEXT DEFAULT 'direct_signup'
-  -- direct_signup | amazon_scraping | builtwith | fastmoss | storeleads
+  -- direct_signup | amazon_b2b_directory | builtwith | fastmoss | storeleads
 created_at TIMESTAMPTZ
 ```
 
@@ -404,21 +404,21 @@ approved_at TIMESTAMPTZ
 공급사:
   kbeauty/supplier → POST /api/kbeauty/auth/signup
   → admin.createUser (이메일 인증 없음)
-  → signInWithPassword → 세션 확보
+  → signInWithPassword → 세션 생성
   → beauty_suppliers INSERT
   → kbeauty/dashboard/supplier
 
 바이어:
   kbeauty/buyer/register → POST /api/kbeauty/auth/signup
   → admin.createUser (이메일 인증 없음)
-  → signInWithPassword → 세션 확보
+  → signInWithPassword → 세션 생성
   → beauty_buyers INSERT
   → kbeauty/dashboard/buyer
 
 셀러:
   kbeauty/seller/register → POST /api/kbeauty/auth/signup
   → admin.createUser (이메일 인증 없음)
-  → signInWithPassword → 세션 확보
+  → signInWithPassword → 세션 생성
   → beauty_sellers INSERT
   → kbeauty/dashboard/seller
 ```
@@ -440,20 +440,25 @@ kbeauty/login (통합 로그인)
 
 ## 19. 셀러 DB 파이프라인 (자동화)
 
+**⚠️ 법적 준수 원칙**: LEGAL_COMPLIANCE.md 필수 숙지
+- 화면·기획서 표기: "글로벌 B2B 디렉토리 연동"으로 통일
+- 이메일 발송 시 LEGAL_COMPLIANCE.md §3 (제목 표기·출처 명시·수신거부) 필수 적용
+- 코드 주석에서도 "공개 이메일 수집" 표현 사용 금지
+
 ```
 아마존 셀러 (매핑 성공률 70%+)
-  Rainforest API → 법인명 + 우편번호 + 도시 추출
-  Apollo 복합 쿼리: company_name + zip_code + city
+  글로벌 B2B 데이터 파이프라인 → 법인명 + 우편번호 + 도시 추출
+  GDPR·CCPA 준수 컨택 검증: company_name + zip_code + city
   → beauty_sellers (seller_type: amazon_seller)
 
 숍파이 독립몰
-  6~7월: Store Leads 무료 샘플 수동 Import
-  8월~: Bootleads/BuiltWith API 자동화
+  6~7월: 글로벌 B2B 디렉토리 무료 샘플 수동 Import
+  8월~: 글로벌 규격 준수 B2B 데이터 파이프라인 자동화
   → beauty_sellers (seller_type: shopify_independent_store)
 
 틱톡숍 셀러
-  EchoTik → K-뷰티 상위 셀러 공개 이메일 수집
-  이메일 있는 경우만 초대 이메일 발송
+  글로벌 B2B 디렉토리 연동 → K-뷰티 상위 셀러 비즈니스 컨택 포인트 연동
+  컨택 정보 있는 경우만 초대 이메일 발송 (LEGAL_COMPLIANCE.md §3 준수)
   instagram_handle·linkedin_url DB 보관
   → beauty_sellers (seller_type: tiktok_shop_seller)
 
@@ -505,38 +510,40 @@ KBEAUTY.md 파일 읽고 UnfoldK Beauty B2B 프로젝트 기준 파악해줘.
 
 ## 22. 단계별 비용 명세
 
+> 벤더명 직접 표기 금지 (LEGAL_COMPLIANCE.md §2 준수) — 내부 예산 논의 시도 준수 필요
+
 ### 1단계: 6~7월 MVP (최소 비용)
 
 | 구분 | 솔루션 | 월 비용 |
 |------|--------|---------|
-| 바이어 수집 | ImportGenius Essentials | $229 |
-| 담당자 매핑 | Apollo.io Basic | $49 |
-| 숍파이 셀러 | Store Leads 무료 샘플 | $0 |
-| 틱톡숍 셀러 | EchoTik 무료 플랜 | $0 |
+| 바이어 DB 구축 | 글로벌 무역 데이터 파이프라인 | $229 |
+| 컨택 검증 | GDPR·CCPA 준수 B2B 컨택 검증 서비스 | $49 |
+| 숍파이 셀러 | 글로벌 스토어 B2B 디렉토리 샘플 | $0 |
+| 틱톡숍 셀러 | 소셜 커머스 B2B 디렉토리 | $0 |
 | 이메일 발송 | Resend 무료 (월 3,000건) | $0 |
 | 호스팅/DB | Supabase + Vercel 무료 티어 | $0 |
 | **합계** | | **$278** |
 
 BEP 공식: Sourcing Sniper 구독자 10명 × $29 = $290 → 고정비 즉시 상쇄
 
-### ImportGenius 치트키 (6월 한정)
-6월: $229 결제 → 최근 12개월 데이터 전수 CSV 다운로드
+### B2B 무역 데이터 전략 (6월 한정)
+6월: $229 결제 → 최근 12개월 무역 데이터 전수 다운로드
 7월: 구독 일시정지 → $229 절약
-Apollo $49만으로 매핑 작업 계속
+컨택 검증 서비스 $49만으로 매핑 작업 계속
 
 ### 2단계: 8월 이후 자동화 (지자체 수주 후)
 
 | 구분 | 솔루션 | 월 비용 |
 |------|--------|---------|
-| 기존 유지 | ImportGenius + Apollo | $278 |
-| 아마존 수집 | Rainforest API | $50 |
-| 숍파이 자동화 | Bootleads.com API | $50 |
-| 틱톡숍 확장 | EchoTik Premium | $30 |
+| 기존 유지 | 글로벌 무역 데이터 + 컨택 검증 | $278 |
+| 아마존 B2B 연동 | 아마존 B2B 데이터 파이프라인 | $50 |
+| 숍파이 자동화 | 숍파이 B2B 스토어 디렉토리 | $50 |
+| 틱톡숍 확장 | 소셜 커머스 B2B 디렉토리 확장 | $30 |
 | 이메일 확장 | Resend Pro | $20 |
 | DB 업그레이드 | Supabase Pro | $25 |
 | **합계** | | **$453** |
 
-※ 수집 볼륨 최대 시 최대 $773까지 확장 가능
+※ 연동 볼륨 최대 시 최대 $773까지 확장 가능
 
 ### 숨은 비용
 Claude Haiku (Sourcing Sniper 인사이트)

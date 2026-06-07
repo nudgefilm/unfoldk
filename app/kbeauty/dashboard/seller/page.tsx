@@ -19,12 +19,15 @@ import {
   RefreshCcw,
   X,
   Crosshair,
+  Megaphone,
 } from "lucide-react"
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ExchangeRateBadge } from "@/components/kbeauty/ExchangeRateBadge"
 import { NotificationBell } from "@/components/kbeauty/NotificationBell"
 import { RatingModal } from "@/components/kbeauty/RatingModal"
+import { AdRequestForm } from "@/components/kbeauty/AdRequestForm"
+import { AdBanner } from "@/components/kbeauty/AdBanner"
 import { cn } from "@/lib/utils"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
@@ -149,7 +152,15 @@ const GOLD_LIGHT = "#C8A882"
 
 // ─── 사이드바 ──────────────────────────────────────────────────────────────
 
-function Sidebar({ companyName, verified }: { companyName: string; verified: boolean }) {
+function Sidebar({
+  companyName,
+  verified,
+  onAdvertiseClick,
+}: {
+  companyName: string
+  verified: boolean
+  onAdvertiseClick: () => void
+}) {
   return (
     <aside
       className="fixed top-0 left-0 h-screen bg-white border-r border-[#E8E2DA] flex flex-col"
@@ -182,6 +193,19 @@ function Sidebar({ companyName, verified }: { companyName: string; verified: boo
           </a>
         ))}
       </nav>
+      <div className="px-3 py-3 border-t border-[#E8E2DA]">
+        <AdBanner slotId="dashboard_sidebar" className="text-xs" />
+      </div>
+      <div className="px-4 py-3 border-t border-[#E8E2DA]">
+        <button
+          onClick={onAdvertiseClick}
+          className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-white py-2 rounded-lg hover:opacity-90 transition-opacity"
+          style={{ background: "#C8A882" }}
+        >
+          <Megaphone className="w-3.5 h-3.5" />
+          Advertise
+        </button>
+      </div>
       <div className="px-4 py-4 border-t border-[#E8E2DA]">
         <p className="text-xs font-medium text-[#0F0F0F] truncate">{companyName || "—"}</p>
         <div className="mt-1">
@@ -222,6 +246,7 @@ export default function SellerDashboardPage() {
   const [seller, setSeller] = useState<Seller | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showAdForm, setShowAdForm] = useState(false)
 
   // 요약 카운트
   const [sourcingCount, setSourcingCount] = useState(0)
@@ -524,7 +549,14 @@ export default function SellerDashboardPage() {
       style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
     >
       <Toaster position="top-right" richColors />
-      <Sidebar companyName={seller?.company_name ?? ""} verified={seller?.contact_verified ?? false} />
+      {showAdForm && (
+        <AdRequestForm userType="seller" onClose={() => setShowAdForm(false)} />
+      )}
+      <Sidebar
+        companyName={seller?.company_name ?? ""}
+        verified={seller?.contact_verified ?? false}
+        onAdvertiseClick={() => setShowAdForm(true)}
+      />
 
       <main className="min-h-screen" style={{ marginLeft: 240 }}>
         <div className="max-w-4xl mx-auto px-8 py-10">
