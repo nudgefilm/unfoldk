@@ -64,7 +64,7 @@ export default function KBeautyAuthPage() {
             ))}
           </ul>
           <Link
-            href="/kbeauty/supplier"
+            href="/kbeauty/supplier/register"
             className="mt-auto w-full inline-flex items-center justify-center gap-2 font-semibold py-3 px-5 rounded-lg transition-opacity hover:opacity-80"
             style={{ background: "#C8A882", color: "#0F0F0F", borderRadius: 8 }}
           >
