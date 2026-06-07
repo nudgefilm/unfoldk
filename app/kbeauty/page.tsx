@@ -71,6 +71,9 @@ function BeautyNavbar({
           <a href="/kbeauty#data-sources" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             Data Sources
           </a>
+          <Link href="/kbeauty/trend-radar" className="text-sm font-semibold text-[#FF2D78] hover:text-[#e0265f] transition-colors">
+            Trend Radar
+          </Link>
         </nav>
 
         {/* 데스크톱: 비로그인 버튼 / 로그인 아바타 */}
@@ -145,6 +148,7 @@ function BeautyNavbar({
               <Link href="/kbeauty/seller" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Sellers</Link>
               <a href="/kbeauty#how-it-works" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">How It Works</a>
               <a href="/kbeauty#data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Data Sources</a>
+              <Link href="/kbeauty/trend-radar" className="text-[#FF2D78] font-semibold py-2">Trend Radar</Link>
               <div className="border-t border-[#E8E2DA] my-2" />
               {!isLoggedIn ? (
                 <>

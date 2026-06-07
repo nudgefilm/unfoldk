@@ -84,7 +84,7 @@ function BeautyNavbar() {
               </Link>
               <Link href="/kbeauty/auth" className="bg-[#1A3A5C] text-white font-medium px-5 py-3 rounded-md w-full mt-2 text-center block">
                 Get Started
-              </button>
+              </Link>
             </nav>
           </SheetContent>
         </Sheet>

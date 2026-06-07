@@ -8,10 +8,12 @@ interface FeatureCard {
   highlighted?: boolean
   href: string
   badge?: string
+  /** B2B 카드 전용: 단일 href 대신 버튼 2개 표시 */
+  dualButtons?: { label: string; href: string }[]
 }
 
-const FeatureCard = ({ icon, title, description, highlighted, href, badge }: FeatureCard) => (
-  <Link href={href} className="block">
+const FeatureCard = ({ icon, title, description, highlighted, href, badge, dualButtons }: FeatureCard) => {
+  const inner = (
     <div
       className={`overflow-hidden rounded-2xl flex flex-col justify-start items-start relative p-6 h-full transition-all hover:scale-[1.02] hover:shadow-lg ${
         highlighted
@@ -33,14 +35,31 @@ const FeatureCard = ({ icon, title, description, highlighted, href, badge }: Fea
         </span>
       )}
 
-      <div className="relative z-10 flex flex-col gap-3">
+      <div className="relative z-10 flex flex-col gap-3 w-full">
         <span className="text-4xl flex items-center justify-center">{icon}</span>
         <h3 className="text-foreground text-xl font-semibold">{title}</h3>
         <p className="text-muted-foreground text-base leading-relaxed">{description}</p>
+        {dualButtons && (
+          <div className="flex flex-col gap-2 mt-1 w-full">
+            {dualButtons.map((btn) => (
+              <Link
+                key={btn.href}
+                href={btn.href}
+                className="w-full text-center text-xs font-semibold px-3 py-2 rounded-lg border border-white/20 text-foreground/80 hover:border-primary/50 hover:text-foreground transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {btn.label}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </div>
-  </Link>
-)
+  )
+
+  if (dualButtons) return <div className="block">{inner}</div>
+  return <Link href={href} className="block">{inner}</Link>
+}
 
 export function BentoSection() {
   const cards: FeatureCard[] = [
@@ -99,6 +118,10 @@ export function BentoSection() {
       description: "Connect verified Korean suppliers with global buyers & sellers.",
       href: "/kbeauty",
       badge: "B2B",
+      dualButtons: [
+        { label: "Inquire about B2B access →", href: "/contact" },
+        { label: "Explore K-Beauty Trends →", href: "/kbeauty/trend-radar" },
+      ],
     },
   ]
 
