@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Menu, Check, Instagram, Linkedin, LogOut } from "lucide-react"
+import { Menu, Check, ChevronUp, Instagram, Linkedin, LogOut } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -31,7 +31,14 @@ function BeautyNavbar({
   onLogout: () => void
 }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10)
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
 
   useEffect(() => {
     if (!dropdownOpen) return
@@ -48,7 +55,7 @@ function BeautyNavbar({
   const initial = auth.email ? auth.email[0].toUpperCase() : "?"
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white border-b border-[#E8E2DA] h-16">
+    <header className={`sticky top-0 z-50 w-full h-16 transition-shadow ${scrolled ? "bg-white/95 backdrop-blur-sm shadow-sm" : "bg-white border-b border-[#E8E2DA]"}`}>
       <div className="max-w-[1280px] mx-auto h-full px-6 flex items-center justify-between">
         <Link href="/kbeauty" className="flex items-center gap-1">
           <span className="font-bold text-[#0F0F0F]">UnfoldK Beauty</span>
@@ -65,9 +72,9 @@ function BeautyNavbar({
           <Link href="/kbeauty/seller" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             For Sellers
           </Link>
-          <a href="/kbeauty#data-sources" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
+          <Link href="/kbeauty/data-sources" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             Data Sources
-          </a>
+          </Link>
         </nav>
 
         {/* 데스크톱: 비로그인 버튼 / 로그인 아바타 */}
@@ -140,7 +147,7 @@ function BeautyNavbar({
               <Link href="/kbeauty/supplier" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Suppliers</Link>
               <Link href="/kbeauty/buyer" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Buyers</Link>
               <Link href="/kbeauty/seller" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Sellers</Link>
-              <a href="/kbeauty#data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Data Sources</a>
+              <Link href="/kbeauty/data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Data Sources</Link>
               <div className="border-t border-[#E8E2DA] my-2" />
               {!isLoggedIn ? (
                 <>
@@ -468,6 +475,28 @@ function FooterSection() {
   )
 }
 
+// ─── Back to Top ─────────────────────────────────────────────────────────────
+
+function ScrollTopButton() {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 300)
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
+  if (!visible) return null
+  return (
+    <button
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      className="fixed bottom-8 right-8 z-50 w-11 h-11 rounded-full flex items-center justify-center shadow-lg hover:opacity-80 transition-opacity"
+      style={{ background: "#1A3A5C" }}
+      aria-label="Back to top"
+    >
+      <ChevronUp className="w-5 h-5 text-white" />
+    </button>
+  )
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function BeautyLandingPage() {
@@ -537,6 +566,7 @@ export default function BeautyLandingPage() {
         <HowItWorksSection />
       </main>
       <FooterSection />
+      <ScrollTopButton />
     </div>
   )
 }

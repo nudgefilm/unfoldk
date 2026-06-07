@@ -1,39 +1,46 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Menu, ShieldCheck, FileCheck2, Award, Globe2, Users, Package, Check, Instagram, Linkedin } from "lucide-react"
+import { Menu, ShieldCheck, ChevronUp, FileCheck2, Award, Globe2, Users, Package, Check, Instagram, Linkedin } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
 // ─── 네비게이션 ──────────────────────────────────────────────────────────────
 
 function Navbar() {
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10)
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
   return (
-    <header className="absolute top-0 left-0 right-0 z-50 h-16">
+    <header className={`sticky top-0 z-50 w-full h-16 transition-all duration-200 ${scrolled ? "bg-white/95 backdrop-blur-sm shadow-sm" : "bg-transparent"}`}>
       <div className="max-w-[1280px] mx-auto h-full px-6 flex items-center justify-between">
         <Link href="/kbeauty" className="flex items-center gap-1">
-          <span className="font-bold text-white">UnfoldK Beauty</span>
+          <span className={`font-bold transition-colors ${scrolled ? "text-[#0F0F0F]" : "text-white"}`}>UnfoldK Beauty</span>
           <span className="text-[#C8A882]">&#9670;</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-7">
-          <Link href="/kbeauty/supplier" className="text-sm text-white/80 hover:text-white transition-colors">
+          <Link href="/kbeauty/supplier" className={`text-sm transition-colors ${scrolled ? "text-[#0F0F0F] font-semibold" : "text-white/80 hover:text-white"}`}>
             공급사
           </Link>
-          <Link href="/kbeauty/buyer" className="text-sm text-white/70 hover:text-white transition-colors">
+          <Link href="/kbeauty/buyer" className={`text-sm transition-colors ${scrolled ? "text-[#6B6B6B] hover:text-[#0F0F0F]" : "text-white/70 hover:text-white"}`}>
             For Buyers
           </Link>
-          <Link href="/kbeauty/seller" className="text-sm text-white/70 hover:text-white transition-colors">
+          <Link href="/kbeauty/seller" className={`text-sm transition-colors ${scrolled ? "text-[#6B6B6B] hover:text-[#0F0F0F]" : "text-white/70 hover:text-white"}`}>
             For Sellers
           </Link>
-          <a href="/kbeauty#data-sources" className="text-sm text-white/70 hover:text-white transition-colors">
+          <Link href="/kbeauty/data-sources" className={`text-sm transition-colors ${scrolled ? "text-[#6B6B6B] hover:text-[#0F0F0F]" : "text-white/70 hover:text-white"}`}>
             Data Sources
-          </a>
+          </Link>
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
           <Link
             href="/kbeauty/supplier/login"
-            className="text-sm text-white/80 hover:text-white transition-colors px-4 py-2"
+            className={`text-sm transition-colors px-4 py-2 ${scrolled ? "text-[#6B6B6B] hover:text-[#0F0F0F]" : "text-white/80 hover:text-white"}`}
           >
             로그인
           </Link>
@@ -47,7 +54,7 @@ function Navbar() {
 
         <Sheet>
           <SheetTrigger asChild className="md:hidden">
-            <button className="p-2 text-white">
+            <button className={`p-2 transition-colors ${scrolled ? "text-[#0F0F0F]" : "text-white"}`}>
               <Menu className="h-6 w-6" />
               <span className="sr-only">메뉴 열기</span>
             </button>
@@ -57,7 +64,7 @@ function Navbar() {
               <Link href="/kbeauty/supplier" className="text-white font-medium py-2">공급사</Link>
               <Link href="/kbeauty/buyer" className="text-white/70 py-2">For Buyers</Link>
               <Link href="/kbeauty/seller" className="text-white/70 py-2">For Sellers</Link>
-              <a href="/kbeauty#data-sources" className="text-white/70 py-2">Data Sources</a>
+              <Link href="/kbeauty/data-sources" className="text-white/70 py-2">Data Sources</Link>
               <div className="border-t border-white/10 my-2" />
               <Link href="/kbeauty/supplier/login" className="text-white/80 py-2">로그인</Link>
               <Link
@@ -74,11 +81,31 @@ function Navbar() {
   )
 }
 
+function ScrollTopButton() {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 300)
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
+  if (!visible) return null
+  return (
+    <button
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      className="fixed bottom-8 right-8 z-50 w-11 h-11 rounded-full flex items-center justify-center shadow-lg hover:opacity-80 transition-opacity"
+      style={{ background: "#1A3A5C" }}
+      aria-label="Back to top"
+    >
+      <ChevronUp className="w-5 h-5 text-white" />
+    </button>
+  )
+}
+
 // ─── Section 1: 히어로 ────────────────────────────────────────────────────────
 
 function HeroSection() {
   return (
-    <section className="bg-[#1A3A5C] min-h-[82vh] flex items-center justify-center px-6 pt-[120px] pb-20 relative overflow-hidden">
+    <section className="bg-[#1A3A5C] min-h-[82vh] flex items-center justify-center px-6 pt-16 pb-20 relative overflow-hidden">
       {/* 배경 글로우 */}
       <div
         aria-hidden="true"
@@ -502,6 +529,7 @@ export default function SupplierLandingPage() {
         <FinalCTASection />
       </main>
       <FooterSection />
+      <ScrollTopButton />
     </div>
   )
 }
