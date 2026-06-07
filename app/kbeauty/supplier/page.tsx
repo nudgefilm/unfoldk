@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Menu, ShieldCheck, ChevronUp, FileCheck2, Award, Globe2, Users, Package, Check, Instagram, Linkedin } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { usePaddle } from "@/components/PaddleProvider"
+import { PADDLE_PRICE_IDS } from "@/lib/paddle/constants"
 
 // ─── 네비게이션 ──────────────────────────────────────────────────────────────
 
@@ -349,7 +351,119 @@ function BenefitsSection() {
   )
 }
 
-// ─── Section 4: How to Get Started ───────────────────────────────────────────
+// ─── Section 4: 플랜 선택 ─────────────────────────────────────────────────────
+
+function PricingSection() {
+  const paddle = usePaddle()
+
+  function openCheckout(priceId: string) {
+    if (!paddle) return
+    paddle.Checkout.open({
+      items: [{ priceId, quantity: 1 }],
+      settings: { displayMode: "overlay", theme: "light" },
+    })
+  }
+
+  const freeFeatures = [
+    "공급사 프로필 등록",
+    "제품 등록 무제한",
+    "매칭 요청 수신 무제한",
+    "글로벌 바이어 노출",
+  ]
+
+  const proFeatures = [
+    "Free 플랜 모든 기능",
+    "매칭 요청 승인 · 거절",
+    "샘플 요청 승인 · 거절",
+    "추천 바이어 · 셀러 전체 열람",
+    "컨택 정보 공개 및 요청",
+  ]
+
+  return (
+    <section className="bg-white py-20 px-6">
+      <div className="max-w-[960px] mx-auto">
+        <h2
+          className="text-center text-[#0F0F0F] font-bold mb-3"
+          style={{
+            fontFamily: '"Cormorant Garamond", Georgia, serif',
+            fontSize: "clamp(24px, 3vw, 34px)",
+          }}
+        >
+          플랜 선택
+        </h2>
+        <p className="text-center text-sm text-[#6B6B6B] mb-12">
+          무료로 시작하고, 필요할 때 업그레이드하세요
+        </p>
+
+        <div className="grid md:grid-cols-2 gap-5 max-w-[680px] mx-auto">
+          {/* Free 카드 */}
+          <div className="border border-[#E8E2DA] rounded-[12px] p-7 bg-white">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#6B6B6B] mb-3">Free</p>
+            <p className="text-4xl font-bold text-[#0F0F0F] mb-1">
+              $0
+            </p>
+            <p className="text-sm text-[#6B6B6B] mb-6">영구 무료</p>
+            <ul className="space-y-2.5 text-sm text-[#6B6B6B] mb-8">
+              {freeFeatures.map((f) => (
+                <li key={f} className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-[#1A3A5C] shrink-0" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/kbeauty/supplier/register"
+              className="block text-center text-sm font-semibold px-4 py-3 rounded-xl border border-[#1A3A5C] text-[#1A3A5C] hover:bg-[#1A3A5C]/5 transition-colors"
+            >
+              무료로 시작하기
+            </Link>
+          </div>
+
+          {/* Pro 카드 */}
+          <div className="border-2 border-[#1A3A5C] rounded-[12px] p-7 bg-white relative">
+            <span
+              className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold px-3 py-1 rounded-full text-white tracking-wider"
+              style={{ background: "#1A3A5C" }}
+            >
+              추천
+            </span>
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#1A3A5C] mb-3">Pro</p>
+            <p className="text-4xl font-bold text-[#0F0F0F] mb-1">
+              $49
+              <span className="text-base font-normal text-[#6B6B6B]">/월</span>
+            </p>
+            <p className="text-sm text-[#6B6B6B] mb-6">연간 결제 시 월 $33 ($399/년)</p>
+            <ul className="space-y-2.5 text-sm text-[#6B6B6B] mb-8">
+              {proFeatures.map((f) => (
+                <li key={f} className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-[#C8A882] shrink-0" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <div className="space-y-2.5">
+              <button
+                onClick={() => openCheckout(PADDLE_PRICE_IDS.supplier_pro_monthly)}
+                className="w-full text-sm font-semibold px-4 py-3 rounded-xl text-[#0F0F0F] hover:opacity-80 transition-opacity"
+                style={{ background: "#C8A882" }}
+              >
+                Pro 시작하기 — $49/월
+              </button>
+              <button
+                onClick={() => openCheckout(PADDLE_PRICE_IDS.supplier_pro_annual)}
+                className="w-full text-sm font-medium px-4 py-3 rounded-xl text-[#1A3A5C] border border-[#1A3A5C] hover:bg-[#1A3A5C]/5 transition-colors"
+              >
+                연간 결제 — $399/년 (33% 절약)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Section 5: How to Get Started ───────────────────────────────────────────
 
 function HowToStartSection() {
   const steps = [
@@ -525,6 +639,7 @@ export default function SupplierLandingPage() {
         <HeroSection />
         <VerifiedBadgeSection />
         <BenefitsSection />
+        <PricingSection />
         <HowToStartSection />
         <FinalCTASection />
       </main>

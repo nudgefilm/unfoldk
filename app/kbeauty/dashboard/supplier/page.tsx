@@ -15,11 +15,14 @@ import {
   Clock,
   XCircle,
   Paperclip,
+  Lock,
 } from "lucide-react"
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ExchangeRateBadge } from "@/components/kbeauty/ExchangeRateBadge"
 import { NotificationBell } from "@/components/kbeauty/NotificationBell"
+import { usePaddle } from "@/components/PaddleProvider"
+import { PADDLE_PRICE_IDS } from "@/lib/paddle/constants"
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────
 
@@ -43,6 +46,7 @@ interface Supplier {
   cruelty_free_cert_url: string | null
   export_experience: string | null
   export_countries: string | null
+  pro_active: boolean
 }
 
 interface Match {
@@ -239,6 +243,88 @@ function FilePickerButton({
   )
 }
 
+// ─── Pro 업그레이드 모달 ────────────────────────────────────────────────────
+
+function ProUpgradeModal({
+  onClose,
+  userId,
+  userEmail,
+}: {
+  onClose: () => void
+  userId: string | null
+  userEmail: string | null
+}) {
+  const paddle = usePaddle()
+
+  function openCheckout(priceId: string) {
+    if (!paddle) return
+    paddle.Checkout.open({
+      items: [{ priceId, quantity: 1 }],
+      customer: userEmail ? { email: userEmail } : undefined,
+      customData: userId ? { userId } : undefined,
+      settings: {
+        displayMode: "overlay",
+        theme: "light",
+        successUrl: typeof window !== "undefined" ? window.location.href : undefined,
+      },
+    })
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-bold text-[#0F0F0F]">Pro 플랜 업그레이드</h2>
+          <button
+            onClick={onClose}
+            className="text-[#6B6B6B] hover:text-[#0F0F0F] text-xl leading-none"
+          >
+            &times;
+          </button>
+        </div>
+
+        <ul className="text-sm text-[#6B6B6B] space-y-2.5 mb-6">
+          {[
+            "매칭 요청 승인 · 거절",
+            "샘플 요청 승인 · 거절",
+            "추천 바이어 · 셀러 전체 열람",
+            "컨택 정보 공개 및 요청",
+          ].map((f) => (
+            <li key={f} className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-[#1A3A5C] shrink-0" />
+              {f}
+            </li>
+          ))}
+        </ul>
+
+        <div className="space-y-2.5">
+          <button
+            onClick={() => openCheckout(PADDLE_PRICE_IDS.supplier_pro_monthly)}
+            className="w-full py-3 rounded-xl font-semibold text-sm text-[#0F0F0F] transition-opacity hover:opacity-80"
+            style={{ background: "#C8A882" }}
+          >
+            월 $49 — 월간 결제
+          </button>
+          <button
+            onClick={() => openCheckout(PADDLE_PRICE_IDS.supplier_pro_annual)}
+            className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-opacity hover:opacity-80"
+            style={{ background: "#1A3A5C" }}
+          >
+            연 $399 — 연간 결제{" "}
+            <span className="font-normal text-xs opacity-75 ml-1">(33% 할인)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── 메인 페이지 ───────────────────────────────────────────────────────────
 
 export default function SupplierDashboardPage() {
@@ -264,6 +350,9 @@ export default function SupplierDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [avgRating, setAvgRating] = useState<{ avg: number; count: number } | null>(null)
+  const [proActive, setProActive] = useState(false)
+  const [showProModal, setShowProModal] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
 
   // 가이드 편집 폼 상태
   const [fdaRegNumber, setFdaRegNumber] = useState("")
@@ -289,12 +378,13 @@ export default function SupplierDashboardPage() {
       }
 
       setUserId(user.id)
+      setUserEmail(user.email ?? null)
 
       // 공급사 정보
       const { data: supplierData } = await supabase
         .from("beauty_suppliers")
         .select(
-          "id, categories, company_name_ko, cosmetic_license_verified, cosmetic_license_url, buyer_db_access, status, fda_status, fda_registration_number, iso_22716, iso_22716_url, vegan_certified, vegan_cert_org, vegan_cert_url, cruelty_free_certified, cruelty_free_cert_org, cruelty_free_cert_url, export_experience, export_countries"
+          "id, categories, company_name_ko, cosmetic_license_verified, cosmetic_license_url, buyer_db_access, status, fda_status, fda_registration_number, iso_22716, iso_22716_url, vegan_certified, vegan_cert_org, vegan_cert_url, cruelty_free_certified, cruelty_free_cert_org, cruelty_free_cert_url, export_experience, export_countries, pro_active"
         )
         .eq("user_id", user.id)
         .single()
@@ -305,6 +395,7 @@ export default function SupplierDashboardPage() {
       }
 
       setSupplier(supplierData)
+      setProActive(supplierData.pro_active)
 
       // 폼 초기값 로드
       setFdaRegNumber(supplierData.fda_registration_number ?? "")
@@ -720,26 +811,29 @@ export default function SupplierDashboardPage() {
             </Link>
           </div>
 
-          {/* Pro 플랜 업그레이드 배너 */}
-          <div
-            className="flex items-center justify-between px-6 py-4 mb-8"
-            style={{ background: "#1A3A5C", borderRadius: 12 }}
-          >
-            <p className="text-white text-sm font-medium">
-              매칭을 승인하려면 Pro 플랜이 필요합니다.
-            </p>
-            <button
-              className="text-sm font-semibold px-4 py-2 transition-opacity hover:opacity-80"
-              style={{
-                background: "#C8A882",
-                color: "#0F0F0F",
-                borderRadius: 8,
-                whiteSpace: "nowrap",
-              }}
+          {/* Pro 플랜 업그레이드 배너 — Pro 활성화 시 숨김 */}
+          {!proActive && (
+            <div
+              className="flex items-center justify-between px-6 py-4 mb-8"
+              style={{ background: "#1A3A5C", borderRadius: 12 }}
             >
-              Pro 업그레이드
-            </button>
-          </div>
+              <p className="text-white text-sm font-medium">
+                매칭을 승인하려면 Pro 플랜이 필요합니다.
+              </p>
+              <button
+                onClick={() => setShowProModal(true)}
+                className="text-sm font-semibold px-4 py-2 transition-opacity hover:opacity-80"
+                style={{
+                  background: "#C8A882",
+                  color: "#0F0F0F",
+                  borderRadius: 8,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Pro 업그레이드
+              </button>
+            </div>
+          )}
 
           {/* 북미 수출 준비 가이드 */}
           <div className="bg-white border border-[#E8E2DA] mb-6" style={{ borderRadius: 12, padding: 24 }}>
@@ -1001,12 +1095,18 @@ export default function SupplierDashboardPage() {
                             {matchUpdatingId === match.id ? "..." : "거절"}
                           </button>
                           <button
-                            onClick={() => handleMatchStatus(match.id, "approved", match.beauty_buyers?.user_id ?? null)}
-                            disabled={matchUpdatingId === match.id}
+                            onClick={() =>
+                              proActive
+                                ? handleMatchStatus(match.id, "approved", match.beauty_buyers?.user_id ?? null)
+                                : setShowProModal(true)
+                            }
+                            disabled={proActive && matchUpdatingId === match.id}
                             className="text-xs font-semibold px-2.5 py-1 rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50"
                             style={{ background: "#1A3A5C" }}
                           >
-                            {matchUpdatingId === match.id ? "..." : "승인"}
+                            {proActive
+                              ? (matchUpdatingId === match.id ? "..." : "승인")
+                              : <span className="flex items-center gap-1"><Lock className="w-3 h-3" />Pro</span>}
                           </button>
                         </div>
                       )}
@@ -1020,10 +1120,13 @@ export default function SupplierDashboardPage() {
           {/* 추천 바이어 */}
           <div className="bg-white border border-[#E8E2DA] mt-6" style={{ borderRadius: 12 }}>
             <div className="px-6 py-4 border-b border-[#E8E2DA]">
-              <h2 className="text-sm font-semibold text-[#0F0F0F]">
+              <h2 className="text-sm font-semibold text-[#0F0F0F] flex items-center gap-2">
                 추천 바이어
+                {!proActive && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#1A3A5C] text-white">PRO</span>
+                )}
                 {recommendedBuyers.length > 0 && (
-                  <span className="ml-2 text-xs font-normal text-[#6B6B6B]">({recommendedBuyers.length}개 매칭)</span>
+                  <span className="text-xs font-normal text-[#6B6B6B]">({recommendedBuyers.length}개 매칭)</span>
                 )}
               </h2>
               <p className="text-xs text-[#6B6B6B] mt-0.5">카테고리가 일치하는 승인된 바이어입니다.</p>
@@ -1037,12 +1140,13 @@ export default function SupplierDashboardPage() {
                 {recommendedBuyers.map((buyer, idx) => {
                   const alreadyContacted = contactedBuyerIds.has(buyer.id)
                   const isContacting = contactingId === buyer.id
+                  const isLocked = !proActive && idx >= 3
                   return (
                     <li
                       key={buyer.id}
                       className={`flex items-start justify-between gap-4 px-6 py-4 ${
                         idx < recommendedBuyers.length - 1 ? "border-b border-[#E8E2DA]" : ""
-                      }`}
+                      } ${isLocked ? "blur-sm pointer-events-none select-none" : ""}`}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -1067,31 +1171,46 @@ export default function SupplierDashboardPage() {
                         )}
                       </div>
                       <button
-                        onClick={() => handleContact(buyer.id)}
-                        disabled={alreadyContacted || isContacting}
-                        className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
+                        onClick={() => proActive ? handleContact(buyer.id) : setShowProModal(true)}
+                        disabled={proActive ? (alreadyContacted || isContacting) : false}
+                        className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60 flex items-center gap-1"
                         style={
-                          alreadyContacted
+                          proActive && alreadyContacted
                             ? { background: "#F8F7F5", color: "#6B6B6B", border: "1px solid #E8E2DA" }
                             : { background: "#1A3A5C", color: "white" }
                         }
                       >
-                        {isContacting ? "..." : alreadyContacted ? "요청 중" : "컨택 요청"}
+                        {proActive
+                          ? (isContacting ? "..." : alreadyContacted ? "요청 중" : "컨택 요청")
+                          : <><Lock className="w-3 h-3" />Pro</>}
                       </button>
                     </li>
                   )
                 })}
               </ul>
             )}
+            {!proActive && recommendedBuyers.length > 3 && (
+              <div className="px-6 py-3 border-t border-[#E8E2DA] text-center">
+                <button
+                  onClick={() => setShowProModal(true)}
+                  className="text-xs font-medium text-[#1A3A5C] hover:underline"
+                >
+                  Pro에서 전체 {recommendedBuyers.length}개 바이어 열람 →
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 추천 셀러 */}
           <div className="bg-white border border-[#E8E2DA] mt-6" style={{ borderRadius: 12 }}>
             <div className="px-6 py-4 border-b border-[#E8E2DA]">
-              <h2 className="text-sm font-semibold text-[#0F0F0F]">
+              <h2 className="text-sm font-semibold text-[#0F0F0F] flex items-center gap-2">
                 추천 셀러
+                {!proActive && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#1A3A5C] text-white">PRO</span>
+                )}
                 {recommendedSellers.length > 0 && (
-                  <span className="ml-2 text-xs font-normal text-[#6B6B6B]">({recommendedSellers.length}개 매칭)</span>
+                  <span className="text-xs font-normal text-[#6B6B6B]">({recommendedSellers.length}개 매칭)</span>
                 )}
               </h2>
               <p className="text-xs text-[#6B6B6B] mt-0.5">카테고리가 일치하는 해외 셀러입니다.</p>
@@ -1105,6 +1224,7 @@ export default function SupplierDashboardPage() {
                 {recommendedSellers.map((seller, idx) => {
                   const alreadyContacted = contactedSellerIds.has(seller.id)
                   const isContacting = contactingSellerSourcing === seller.id
+                  const isLocked = !proActive && idx >= 3
                   const platforms = [
                     seller.platform_urls?.amazon && "Amazon",
                     seller.platform_urls?.shopify && "Shopify",
@@ -1115,7 +1235,7 @@ export default function SupplierDashboardPage() {
                       key={seller.id}
                       className={`flex items-start justify-between gap-4 px-6 py-4 ${
                         idx < recommendedSellers.length - 1 ? "border-b border-[#E8E2DA]" : ""
-                      }`}
+                      } ${isLocked ? "blur-sm pointer-events-none select-none" : ""}`}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -1153,21 +1273,33 @@ export default function SupplierDashboardPage() {
                         )}
                       </div>
                       <button
-                        onClick={() => handleContactSeller(seller.id)}
-                        disabled={alreadyContacted || isContacting}
-                        className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
+                        onClick={() => proActive ? handleContactSeller(seller.id) : setShowProModal(true)}
+                        disabled={proActive ? (alreadyContacted || isContacting) : false}
+                        className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60 flex items-center gap-1"
                         style={
-                          alreadyContacted
+                          proActive && alreadyContacted
                             ? { background: "#F8F7F5", color: "#6B6B6B", border: "1px solid #E8E2DA" }
                             : { background: "#1A3A5C", color: "white" }
                         }
                       >
-                        {isContacting ? "..." : alreadyContacted ? "요청 중" : "컨택 요청"}
+                        {proActive
+                          ? (isContacting ? "..." : alreadyContacted ? "요청 중" : "컨택 요청")
+                          : <><Lock className="w-3 h-3" />Pro</>}
                       </button>
                     </li>
                   )
                 })}
               </ul>
+            )}
+            {!proActive && recommendedSellers.length > 3 && (
+              <div className="px-6 py-3 border-t border-[#E8E2DA] text-center">
+                <button
+                  onClick={() => setShowProModal(true)}
+                  className="text-xs font-medium text-[#1A3A5C] hover:underline"
+                >
+                  Pro에서 전체 {recommendedSellers.length}개 셀러 열람 →
+                </button>
+              </div>
             )}
           </div>
 
@@ -1230,12 +1362,18 @@ export default function SupplierDashboardPage() {
                               {sampleUpdatingId === req.id ? "..." : "거절"}
                             </button>
                             <button
-                              onClick={() => handleSampleStatus(req.id, "approved")}
-                              disabled={sampleUpdatingId === req.id}
-                              className="text-xs font-semibold px-2.5 py-1 rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                              onClick={() =>
+                                proActive
+                                  ? handleSampleStatus(req.id, "approved")
+                                  : setShowProModal(true)
+                              }
+                              disabled={proActive && sampleUpdatingId === req.id}
+                              className="text-xs font-semibold px-2.5 py-1 rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-1"
                               style={{ background: "#1A3A5C" }}
                             >
-                              {sampleUpdatingId === req.id ? "..." : "승인"}
+                              {proActive
+                                ? (sampleUpdatingId === req.id ? "..." : "승인")
+                                : <><Lock className="w-3 h-3" />Pro</>}
                             </button>
                           </div>
                         )}
@@ -1249,6 +1387,14 @@ export default function SupplierDashboardPage() {
 
         </div>
       </main>
+
+      {showProModal && (
+        <ProUpgradeModal
+          onClose={() => setShowProModal(false)}
+          userId={userId}
+          userEmail={userEmail}
+        />
+      )}
     </div>
   )
 }

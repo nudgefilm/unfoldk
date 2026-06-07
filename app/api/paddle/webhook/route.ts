@@ -1,6 +1,6 @@
 import { createHmac } from "crypto"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
-import { HALLYU_PASS_PRICE_IDS, SOURCING_SNIPER_PRICE_IDS } from "@/lib/paddle/constants"
+import { HALLYU_PASS_PRICE_IDS, SOURCING_SNIPER_PRICE_IDS, SUPPLIER_PRO_PRICE_IDS } from "@/lib/paddle/constants"
 
 // Paddle webhook 서명 검증
 function verifySignature(rawBody: string, signature: string, secret: string): boolean {
@@ -86,6 +86,18 @@ export async function POST(req: Request) {
         .update({ sourcing_sniper_active: true })
         .eq("user_id", userId)
     }
+
+    if (SUPPLIER_PRO_PRICE_IDS.has(priceId)) {
+      // Supplier Pro 활성화
+      await supabase
+        .from("beauty_suppliers")
+        .update({
+          pro_active: true,
+          ...(customerId ? { paddle_customer_id: customerId } : {}),
+          ...(event_type === "subscription.activated" ? { paddle_subscription_id: data.id } : {}),
+        })
+        .eq("user_id", userId)
+    }
   }
 
   // ── 구독 취소 / 일시정지 ──────────────────────────────────────────────────
@@ -93,7 +105,7 @@ export async function POST(req: Request) {
     event_type === "subscription.canceled" ||
     event_type === "subscription.paused"
   ) {
-    // userId가 없으면 paddle_subscription_id로 역조회
+    // userId가 없으면 paddle_subscription_id로 역조회 (users → beauty_suppliers 순)
     let targetUserId = userId
 
     if (!targetUserId && data.id) {
@@ -103,6 +115,15 @@ export async function POST(req: Request) {
         .eq("paddle_subscription_id", data.id)
         .maybeSingle()
       targetUserId = (row as { id: string } | null)?.id
+
+      if (!targetUserId) {
+        const { data: supplierRow } = await supabase
+          .from("beauty_suppliers")
+          .select("user_id")
+          .eq("paddle_subscription_id", data.id)
+          .maybeSingle()
+        targetUserId = (supplierRow as { user_id: string } | null)?.user_id
+      }
     }
 
     if (!targetUserId) {
@@ -125,6 +146,13 @@ export async function POST(req: Request) {
       await supabase
         .from("beauty_sellers")
         .update({ sourcing_sniper_active: false })
+        .eq("user_id", targetUserId)
+    }
+
+    if (SUPPLIER_PRO_PRICE_IDS.has(priceId)) {
+      await supabase
+        .from("beauty_suppliers")
+        .update({ pro_active: false })
         .eq("user_id", targetUserId)
     }
   }

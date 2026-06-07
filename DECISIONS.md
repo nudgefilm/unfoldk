@@ -21,6 +21,21 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-06-08 Supplier Pro 구독 플랜 결제 구조 확정
+
+- 결정 내용:
+  - `beauty_suppliers.pro_active` BOOLEAN 컬럼으로 Pro 상태 관리 (Paddle webhook이 SET)
+  - Price ID: `supplier_pro_monthly` ($49/월) / `supplier_pro_annual` ($399/년)
+  - `SUPPLIER_PRO_PRICE_IDS` Set으로 webhook에서 product 구분
+  - Pro 게이팅 항목: 매칭·샘플 승인, 추천 바이어·셀러 전체 열람 (Free는 3개 미리보기), 컨택 요청
+  - Sourcing Sniper Annual ($249/년, 28% OFF) 동시 추가 — `SOURCING_SNIPER_PRICE_IDS` Set에 포함
+- 이유:
+  - B2B 공급사 핵심 가치(매칭 승인, 컨택)는 Pro 뒤에 두어 수익화
+  - beauty_suppliers 테이블 직접 관리로 Supabase RLS와 연계 용이
+  - Sourcing Sniper 연간 플랜: 월 대비 28% 할인으로 장기 고객 확보
+- 대안으로 고려했던 것:
+  - users.plan_type 활용 → kbeauty 전용 플랜이므로 별도 컬럼이 적합
+
 ## 2026-06-03 Chart Attack 데이터 소스 원칙 확정
 
 - 결정 내용:

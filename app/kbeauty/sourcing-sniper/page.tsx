@@ -523,6 +523,31 @@ export default function SourcingSniperPage() {
                   </div>
                 </button>
 
+                {/* Annual */}
+                <button
+                  onClick={() => openSniperCheckout(PADDLE_PRICE_IDS.sourcing_sniper_annual)}
+                  disabled={!paddle}
+                  className="w-full flex items-center justify-between px-5 py-4 border-2 rounded-xl transition-all disabled:opacity-50 hover:border-[#C8A882]"
+                  style={{ borderColor: GOLD_LIGHT, background: `${GOLD_LIGHT}12` }}
+                >
+                  <div className="text-left">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-[#0F0F0F]">Annual Access</p>
+                      <span
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white"
+                        style={{ background: GOLD }}
+                      >
+                        28% OFF
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#6B6B6B] mt-0.5">$20.75/month, billed annually</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold" style={{ color: GOLD }}>$249</p>
+                    <p className="text-xs text-[#6B6B6B]">/year</p>
+                  </div>
+                </button>
+
                 {/* One-time */}
                 <button
                   onClick={() => openSniperCheckout(PADDLE_PRICE_IDS.sourcing_sniper_onetime)}

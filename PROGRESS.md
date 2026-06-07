@@ -4,6 +4,46 @@
 
 ---
 
+## 현재 상태 (2026-06-08 세션 54 기준)
+
+### UnfoldK Beauty (kbeauty) — Supplier Pro 결제 + 네비 개선 + Sourcing Sniper Annual
+
+**완료 항목**
+
+- **K-Beauty 네비게이션 전체 정비**
+  - `app/kbeauty/page.tsx` / `buyer/page.tsx` / `seller/page.tsx` / `supplier/page.tsx`: sticky top-0 + 스크롤 시 bg-white/95 + shadow-sm + backdrop-blur
+  - 공급사·셀러 랜딩 (dark hero): `absolute→sticky` 전환 버그 수정 — `bg-transparent` → `bg-[#1A3A5C]` 미스크롤 상태 (sticky 시 흰 바디 노출 문제)
+  - `buyer/register/page.tsx` / `seller/register/page.tsx`: sticky nav + 스크롤 shadow + "How It Works" 제거 + Data Sources 링크 수정
+  - 전체 4개 랜딩 + 2개 가입 페이지: `ScrollTopButton` (fixed bottom-8 right-8, Navy 원형, ChevronUp) 추가
+  - `trend-radar/page.tsx`: 다크 테마 Navbar (bg-[#0F0F0F] 고정) + ScrollTopButton 신규 추가
+
+- **Data Sources 페이지 신규** (`app/kbeauty/data-sources/page.tsx`)
+  - 5개 섹션, 13개 데이터 카드: 공급사 (MFDS·NTS·FDA MoCRA) / 바이어 (관세·Apollo.io) / 셀러 (Amazon·Shopify·TikTok Shop) / 컴플라이언스 (FDA·ISO 22716·CPNP) / 마켓인텔리전스 (UN Comtrade·Hallyu Fan Vote)
+  - government/trade/marketplace/compliance/proprietary 뱃지 분류
+
+- **Supplier Pro 구독 결제 연동**
+  - `lib/paddle/constants.ts`: `supplier_pro_monthly` / `supplier_pro_annual` Price ID + `SUPPLIER_PRO_PRICE_IDS` Set
+  - `supabase/migrations/0077_beauty_suppliers_pro.sql`: `beauty_suppliers`에 `pro_active BOOLEAN DEFAULT false`, `paddle_customer_id TEXT`, `paddle_subscription_id TEXT` 추가 **(실행 완료)**
+  - `app/api/paddle/webhook/route.ts`: Supplier Pro activation (`pro_active=true`) / cancellation (`pro_active=false`) 처리. 취소 fallback 조회: `users → beauty_suppliers` 순 확장
+  - `app/kbeauty/dashboard/supplier/page.tsx`:
+    - `ProUpgradeModal` 컴포넌트 (CheckCircle2 피처 리스트 + 월간 $49 / 연간 $399 Paddle Overlay 체크아웃)
+    - `proActive` / `showProModal` / `userEmail` 상태 추가, load() 에서 `pro_active` 패치
+    - 매칭 승인 버튼 → `!proActive` 시 Pro 모달 트리거 (`Lock` 아이콘 표시)
+    - 샘플 승인 버튼 → 동일 게이팅
+    - 추천 바이어·셀러 섹션 헤더: PRO 뱃지 / idx ≥ 3 항목 `blur-sm pointer-events-none` / 전체 열람 링크
+    - 기존 "Pro 업그레이드 배너" `onClick` 연결 + `proActive` 시 자동 숨김
+  - `app/kbeauty/supplier/page.tsx`: `PricingSection` (Free vs Pro 2단 카드, `PADDLE_PRICE_IDS` 연동) BenefitsSection 직후 삽입
+
+- **Sourcing Sniper Annual 플랜 추가**
+  - `lib/paddle/constants.ts`: `sourcing_sniper_annual: 'pri_01kthga3328gjmwhqs32t0sgqq'` + `SOURCING_SNIPER_PRICE_IDS` Set 포함 (webhook 자동 커버)
+  - `app/kbeauty/sourcing-sniper/page.tsx`: Monthly / **Annual $249/년 (28% OFF)** / One-time 3단 플랜 UI
+
+**다음 세션**
+- Paddle 웹훅 실서버 등록 및 실결제 테스트 (샌드박스 → 프로덕션)
+- Pro 유저 UX 확인 (proActive=true 상태 대시보드 흐름)
+
+---
+
 ## 현재 상태 (2026-06-07 세션 53 기준)
 
 ### UnfoldK Beauty (kbeauty) — 공급사 프로필 관리 페이지
