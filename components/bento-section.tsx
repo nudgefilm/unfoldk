@@ -46,7 +46,6 @@ const FeatureCard = ({ icon, title, description, highlighted, href, badge, dualB
                 key={btn.href}
                 href={btn.href}
                 className="w-full text-center text-xs font-semibold px-3 py-2 rounded-lg border border-white/20 text-foreground/80 hover:border-primary/50 hover:text-foreground transition-colors"
-                onClick={(e) => e.stopPropagation()}
               >
                 {btn.label}
               </Link>
