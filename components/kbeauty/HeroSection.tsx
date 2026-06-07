@@ -11,32 +11,46 @@ const SEGMENTS: Record<
   { label: string; accent: string; stats: { value: string; label: string; sub: string }[] }
 > = {
   suppliers: {
-    label: "Korean Suppliers · 국내 공급사",
+    label: "Korean Suppliers",
     accent: "#1A3A5C",
     stats: [
-      { value: "520+", label: "Active Manufacturers · 활성 제조사", sub: "Synced live with MFDS registry API · 식약처 API 실시간 연동" },
-      { value: "12,400+", label: "SKUs Registered · 등록 품목", sub: "Total cosmetic products listed · 총 화장품 품목 수" },
-      { value: "74%", label: "MoCRA Compliant · FDA 서류 제출", sub: "Suppliers with FDA filings submitted · MoCRA 서류 제출 공급사 비율" },
+      { value: "520+", label: "Active Manufacturers\n활성 제조사", sub: "Synced live with MFDS registry API\n식약처 API 실시간 연동" },
+      { value: "12,400+", label: "SKUs Registered\n등록 품목 수", sub: "Total cosmetic products listed\n총 화장품 품목 수" },
+      { value: "74%", label: "MoCRA Compliant\nFDA 서류 제출", sub: "Suppliers with FDA filings submitted\nMoCRA 서류 제출 공급사 비율" },
     ],
   },
   buyers: {
-    label: "해외 바이어 현황 · Global Buyers",
+    label: "Global Buyers",
     accent: "#8B6F47",
     stats: [
-      { value: "2,150+", label: "Verified Importers · 검증된 수입사", sub: "ImportGenius 기반 북미 수입사 · US importers tracked via customs data" },
-      { value: "$42M+", label: "Total Import Volume · 총 수입 규모", sub: "최근 12개월 통관 추적 규모 · Tracked over last 12 months" },
-      { value: "3304.99", label: "Top HS Code · 최다 수입 코드", sub: "스킨케어 · 수입 빈도 1위 · Skincare — #1 import frequency" },
+      { value: "2,150+", label: "Verified Importers\n검증된 수입사", sub: "US importers tracked via customs data\nImportGenius 기반 북미 수입사" },
+      { value: "$42M+", label: "Total Import Volume\n총 수입 규모", sub: "Tracked over last 12 months\n최근 12개월 통관 추적 규모" },
+      { value: "3304.99", label: "Top HS Code\n최다 수입 코드", sub: "Skincare — #1 import frequency\n스킨케어 · 수입 빈도 1위" },
     ],
   },
   sellers: {
-    label: "해외 셀러 현황 · Global Sellers",
+    label: "Global Sellers",
     accent: "#B07D62",
     stats: [
-      { value: "1,280+", label: "E-commerce Stores · 온라인 스토어", sub: "Amazon · Shopify · TikTok 매핑 · Mapped across major platforms" },
-      { value: "TikTok Shop", label: "Top Channel · 최상위 채널", sub: "가장 활발한 소싱 채널 · Most active K-beauty sourcing channel" },
-      { value: "+54%", label: "Rising: Rice Extract · 급상승 성분", sub: "이번 주 가속도 1위 성분 · #1 trending ingredient this week" },
+      { value: "1,280+", label: "E-commerce Stores\n온라인 스토어", sub: "Mapped across major platforms\nAmazon · Shopify · TikTok 매핑" },
+      { value: "TikTok Shop", label: "Top Channel\n최상위 채널", sub: "Most active K-beauty sourcing channel\n가장 활발한 소싱 채널" },
+      { value: "+54%", label: "Rising: Rice Extract\n급상승 성분", sub: "#1 trending ingredient this week\n이번 주 가속도 1위 성분" },
     ],
   },
+}
+
+function Lines({ text }: { text: string }) {
+  const parts = text.split("\n")
+  return (
+    <>
+      {parts.map((part, i) => (
+        <span key={i}>
+          {i > 0 && <br />}
+          {part}
+        </span>
+      ))}
+    </>
+  )
 }
 
 export default function HeroSection() {
@@ -80,7 +94,7 @@ export default function HeroSection() {
 
           <div className="mb-10 mx-auto max-w-xl">
             <p className="text-base md:text-lg text-[#0F0F0F] leading-relaxed">
-              글로벌 무역 데이터 및 선적 서류 분석 데이터 기반 북미 바이어 2,000개사.
+              글로벌 무역 데이터 및 선적 서류 분석 데이터 기반 바이어 2,000개사.
             </p>
             <p className="text-base md:text-lg text-[#6B6B6B] leading-relaxed mt-1">
               500+ FDA-registered Korean manufacturers, ready to trade.
@@ -150,8 +164,12 @@ export default function HeroSection() {
                 <div className="font-serif text-3xl md:text-[34px] leading-none mb-2" style={{ color: active.accent }}>
                   {stat.value}
                 </div>
-                <div className="text-sm font-semibold text-[#0F0F0F]">{stat.label}</div>
-                <div className="text-xs text-[#6B6B6B] mt-1 leading-relaxed">{stat.sub}</div>
+                <div className="text-sm font-semibold text-[#0F0F0F] leading-snug">
+                  <Lines text={stat.label} />
+                </div>
+                <div className="text-xs text-[#6B6B6B] mt-1 leading-relaxed">
+                  <Lines text={stat.sub} />
+                </div>
               </div>
             ))}
           </div>

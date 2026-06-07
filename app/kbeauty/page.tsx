@@ -207,30 +207,30 @@ function EntryCardsSection({
           {/* 공급사 카드 */}
           <div className="bg-white border border-[#E8E2DA] rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col">
             <span className="inline-block bg-[#1A3A5C]/10 text-[#1A3A5C] text-xs font-medium px-4 py-1.5 rounded-full mb-4">
-              공급사
+              Supplier
             </span>
-            <h3 className="text-[22px] font-bold text-[#0F0F0F] mb-1">국내 공급사</h3>
-            <p className="text-sm text-[#6B6B6B] mb-6">K-뷰티 제조&middot;브랜드사라면</p>
+            <h3 className="text-[22px] font-bold text-[#0F0F0F] mb-1">Korean Suppliers</h3>
+            <p className="text-sm text-[#6B6B6B] mb-6">K-beauty manufacturers &amp; brands</p>
             <div className="border-t border-[#E8E2DA] my-6" />
             <ul className="space-y-3 flex-1">
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#1A3A5C] mt-0.5 flex-shrink-0" />
-                검증된 북미 바이어 2,000개사 연결
+                Connect with 2,000+ verified global buyers
               </li>
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#1A3A5C] mt-0.5 flex-shrink-0" />
-                FDA 등록 기반 신뢰 배지 제공
+                FDA-registration based trust badges
               </li>
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#1A3A5C] mt-0.5 flex-shrink-0" />
-                국세청 API 사업자 인증으로 빠른 입점
+                Fast onboarding via business verification API
               </li>
             </ul>
             <button
               onClick={onSupplierCTA}
               className="w-full mt-8 bg-[#1A3A5C] text-white font-semibold py-3.5 rounded-md hover:bg-[#153249] transition-colors inline-flex items-center justify-center gap-2"
             >
-              공급사 파트너 신청
+              Apply as Supplier
               <span className="text-lg">&#8594;</span>
             </button>
           </div>
@@ -238,30 +238,30 @@ function EntryCardsSection({
           {/* 바이어 카드 */}
           <div className="bg-white border border-[#E8E2DA] rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col">
             <span className="inline-block bg-[#C8A882]/15 text-[#8B6F47] text-xs font-medium px-4 py-1.5 rounded-full mb-4">
-              Buyer
+              바이어
             </span>
-            <h3 className="text-[22px] font-bold text-[#0F0F0F] mb-1">For Global Buyers</h3>
-            <p className="text-sm text-[#6B6B6B] mb-6">Looking for Korean beauty suppliers?</p>
+            <h3 className="text-[22px] font-bold text-[#0F0F0F] mb-1">해외 바이어</h3>
+            <p className="text-sm text-[#6B6B6B] mb-6">한국 뷰티 공급사를 찾고 있다면</p>
             <div className="border-t border-[#E8E2DA] my-6" />
             <ul className="space-y-3 flex-1">
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#C8A882] mt-0.5 flex-shrink-0" />
-                ImportGenius-verified supplier database
+                ImportGenius 검증 공급사 데이터베이스
               </li>
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#C8A882] mt-0.5 flex-shrink-0" />
-                FDA-registered Korean manufacturers
+                FDA 등록 한국 제조사
               </li>
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#C8A882] mt-0.5 flex-shrink-0" />
-                Market insight reports (HS 3304&middot;3305&middot;3307)
+                시장 인사이트 리포트 (HS 3304&middot;3305&middot;3307)
               </li>
             </ul>
             <button
               onClick={onBuyerCTA}
               className="w-full mt-8 border-[1.5px] border-[#C8A882] text-[#8B6F47] font-semibold py-3.5 rounded-md hover:bg-[#C8A882]/10 transition-colors inline-flex items-center justify-center gap-2"
             >
-              Get Buyer Access
+              바이어 액세스 신청
               <span className="text-lg">&#8594;</span>
             </button>
           </div>
@@ -269,30 +269,30 @@ function EntryCardsSection({
           {/* 셀러 카드 */}
           <div className="bg-white border border-[#E8E2DA] rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col">
             <span className="inline-block bg-[#C8A882]/15 text-[#8B6F47] text-xs font-medium px-4 py-1.5 rounded-full mb-4">
-              Seller
+              셀러
             </span>
-            <h3 className="text-[22px] font-bold text-[#0F0F0F] mb-1">K-Beauty Sellers</h3>
-            <p className="text-sm text-[#6B6B6B] mb-6">For Global Marketplace Sellers</p>
+            <h3 className="text-[22px] font-bold text-[#0F0F0F] mb-1">해외 셀러</h3>
+            <p className="text-sm text-[#6B6B6B] mb-6">글로벌 마켓플레이스 판매자라면</p>
             <div className="border-t border-[#E8E2DA] my-6" />
             <ul className="space-y-3 flex-1">
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#C8A882] mt-0.5 flex-shrink-0" />
-                Source directly from verified K-beauty suppliers
+                검증된 K-뷰티 공급사 직접 소싱
               </li>
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#C8A882] mt-0.5 flex-shrink-0" />
-                Sell on Amazon, Shopify, or TikTok Shop
+                아마존·Shopify·TikTok Shop 판매 채널 연결
               </li>
               <li className="flex items-start gap-3 text-sm text-[#0F0F0F]">
                 <Check className="w-4 h-4 text-[#C8A882] mt-0.5 flex-shrink-0" />
-                Access margin data and trend reports
+                마진 분석 및 트렌드 리포트 제공
               </li>
             </ul>
             <Link
               href="/kbeauty/seller"
               className="w-full mt-8 border-[1.5px] border-[#C8A882] text-[#8B6F47] font-semibold py-3.5 rounded-md hover:bg-[#C8A882]/10 transition-colors inline-flex items-center justify-center gap-2"
             >
-              Get Seller Access
+              셀러 액세스 신청
               <span className="text-lg">&#8594;</span>
             </Link>
           </div>
@@ -308,24 +308,24 @@ function HowItWorksSection() {
   const [activeTab, setActiveTab] = useState<"supplier" | "buyer" | "seller">("supplier")
 
   const supplierSteps = [
-    { number: "1", title: "사업자 인증", desc1: "국세청 API 자동 검증", desc2: "빠르고 정확한 국내 사업자 확인" },
-    { number: "2", title: "제품 등록", desc1: "인증 배지 포함 상세 등록", desc2: "MOQ·가격·수출 조건 포함" },
-    { number: "3", title: "바이어 매칭 요청", desc1: "타깃 국가·카테고리 설정", desc2: "검증된 바이어에게 직접 요청" },
-    { number: "4", title: "컨택 정보 공개", desc1: "관리자 최종 승인 후", desc2: "직접 소통 시작" },
+    { number: "1", title: "Business Verification", desc1: "Automatic verification via National Tax Service API", desc2: "Fast and accurate business confirmation" },
+    { number: "2", title: "Product Registration", desc1: "List products with certifications, MOQ, and pricing", desc2: "Include certification badges" },
+    { number: "3", title: "Buyer Match Request", desc1: "Set target country and category", desc2: "Receive match requests from verified buyers" },
+    { number: "4", title: "Contact Info Revealed", desc1: "After admin approval", desc2: "Start direct communication with buyers" },
   ]
 
   const buyerSteps = [
-    { number: "1", title: "Submit Business Info", desc1: "EIN · VAT · Website required", desc2: "Business accounts only" },
-    { number: "2", title: "Get Approved", desc1: "Admin review within 1 business day", desc2: "Confirmation via email" },
-    { number: "3", title: "Browse Suppliers", desc1: "Filter by FDA · Certification · MOQ", desc2: "Access verified Korean manufacturers" },
-    { number: "4", title: "Request a Match", desc1: "Submit business documents", desc2: "Contact info released after approval" },
+    { number: "1", title: "사업자 정보 제출", desc1: "EIN · VAT · 웹사이트 필수", desc2: "법인 계정 전용" },
+    { number: "2", title: "승인 대기", desc1: "영업일 1일 내 관리자 검토", desc2: "이메일로 결과 안내" },
+    { number: "3", title: "공급사 탐색", desc1: "FDA · 인증 · MOQ 기준 필터", desc2: "검증된 한국 제조사 접근" },
+    { number: "4", title: "매칭 요청", desc1: "사업 서류 제출 후", desc2: "승인 완료 시 컨택 정보 공개" },
   ]
 
   const sellerSteps = [
-    { number: "1", title: "Sign Up", desc1: "Create your seller account", desc2: "Amazon · Shopify · TikTok Shop" },
-    { number: "2", title: "Browse Suppliers", desc1: "Filter by category, certification,", desc2: "and price" },
-    { number: "3", title: "Request Samples", desc1: "Verify quality before committing", desc2: "Direct from manufacturer" },
-    { number: "4", title: "Start Selling", desc1: "Source directly and maximize", desc2: "your margin" },
+    { number: "1", title: "계정 생성", desc1: "셀러 계정 등록", desc2: "아마존 · Shopify · TikTok Shop" },
+    { number: "2", title: "공급사 탐색", desc1: "카테고리 · 인증 · 가격 기준", desc2: "원하는 조건으로 필터링" },
+    { number: "3", title: "샘플 요청", desc1: "발주 전 품질 직접 확인", desc2: "제조사 직접 배송" },
+    { number: "4", title: "판매 시작", desc1: "직접 소싱으로 마진 극대화", desc2: "검증된 공급망으로 운영" },
   ]
 
   const steps = activeTab === "supplier" ? supplierSteps : activeTab === "buyer" ? buyerSteps : sellerSteps
@@ -345,7 +345,7 @@ function HowItWorksSection() {
               activeTab === "supplier" ? "text-[#1A3A5C] border-[#1A3A5C]" : "text-[#6B6B6B] border-transparent hover:text-[#0F0F0F]"
             )}
           >
-            공급사
+            Supplier
           </button>
           <button
             onClick={() => setActiveTab("buyer")}
@@ -354,7 +354,7 @@ function HowItWorksSection() {
               activeTab === "buyer" ? "text-[#1A3A5C] border-[#1A3A5C]" : "text-[#6B6B6B] border-transparent hover:text-[#0F0F0F]"
             )}
           >
-            Buyer
+            바이어
           </button>
           <button
             onClick={() => setActiveTab("seller")}
@@ -363,7 +363,7 @@ function HowItWorksSection() {
               activeTab === "seller" ? "text-[#1A3A5C] border-[#1A3A5C]" : "text-[#6B6B6B] border-transparent hover:text-[#0F0F0F]"
             )}
           >
-            Seller
+            셀러
           </button>
         </div>
 
