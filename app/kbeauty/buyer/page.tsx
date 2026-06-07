@@ -25,15 +25,9 @@ function Navbar() {
           <Link href="/kbeauty/seller" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             For Sellers
           </Link>
-          <a href="/kbeauty#how-it-works" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
-            How It Works
-          </a>
           <a href="/kbeauty#data-sources" className="text-sm text-[#6B6B6B] hover:text-[#0F0F0F] transition-colors">
             Data Sources
           </a>
-          <Link href="/kbeauty/trend-radar" className="text-sm font-semibold text-[#FF2D78] hover:text-[#e0265f] transition-colors">
-            Trend Radar
-          </Link>
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
@@ -63,9 +57,7 @@ function Navbar() {
               <Link href="/kbeauty/supplier" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Suppliers</Link>
               <Link href="/kbeauty/buyer" className="font-semibold text-[#0F0F0F] py-2">For Buyers</Link>
               <Link href="/kbeauty/seller" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">For Sellers</Link>
-              <a href="/kbeauty#how-it-works" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">How It Works</a>
               <a href="/kbeauty#data-sources" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Data Sources</a>
-              <Link href="/kbeauty/trend-radar" className="text-[#FF2D78] font-semibold py-2">Trend Radar</Link>
               <div className="border-t border-[#E8E2DA] my-2" />
               <Link href="/kbeauty/buyer/login" className="text-[#6B6B6B] hover:text-[#0F0F0F] py-2">Log in</Link>
               <Link

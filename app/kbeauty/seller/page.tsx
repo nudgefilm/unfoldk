@@ -25,15 +25,9 @@ function Navbar() {
           <Link href="/kbeauty/seller" className="text-sm font-semibold text-white transition-colors">
             For Sellers
           </Link>
-          <a href="/kbeauty#how-it-works" className="text-sm text-white/65 hover:text-white transition-colors">
-            How It Works
-          </a>
           <a href="/kbeauty#data-sources" className="text-sm text-white/65 hover:text-white transition-colors">
             Data Sources
           </a>
-          <Link href="/kbeauty/trend-radar" className="text-sm font-semibold text-[#FF2D78] hover:text-[#ff5a93] transition-colors">
-            Trend Radar
-          </Link>
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
@@ -63,9 +57,7 @@ function Navbar() {
               <Link href="/kbeauty/supplier" className="text-white/70 py-2">For Suppliers</Link>
               <Link href="/kbeauty/buyer" className="text-white/70 py-2">For Buyers</Link>
               <Link href="/kbeauty/seller" className="text-white font-semibold py-2">For Sellers</Link>
-              <a href="/kbeauty#how-it-works" className="text-white/70 py-2">How It Works</a>
               <a href="/kbeauty#data-sources" className="text-white/70 py-2">Data Sources</a>
-              <Link href="/kbeauty/trend-radar" className="text-[#FF2D78] font-semibold py-2">Trend Radar</Link>
               <div className="border-t border-white/10 my-2" />
               <Link href="/kbeauty/seller/login" className="text-white/70 py-2">Log in</Link>
               <Link
