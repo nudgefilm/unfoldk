@@ -2,35 +2,57 @@ import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
-// data.go.kr 화장품 책임판매업체 전수 조회
-// API 문서: https://www.data.go.kr → "화장품책임판매업" 검색
-// 엔드포인트: apis.data.go.kr/1471000/CsmtcsRpsblSaleEntpBs01/getCsmtcsRpsblSaleEntpBs01
-// 실제 응답 필드명은 API 발급 후 샘플 응답으로 재확인 필요
-const MFDS_BASE = "https://apis.data.go.kr/1471000/CsmtcsRpsblSaleEntpBs01/getCsmtcsRpsblSaleEntpBs01"
+// 식약처 화장품 제조(판매)업 정보조회
+// 엔드포인트: apis.data.go.kr/1471000/CsmtcsInspctTrsmMgmtService/getCsmtcsBsshInfoList
+// ⚠️ MFDS_API_KEY: data.go.kr 발급 "일반 인증키(Decoding)" 사용 — Encoding 키 사용 시 이중 인코딩 오류
+const MFDS_BASE = "https://apis.data.go.kr/1471000/CsmtcsInspctTrsmMgmtService/getCsmtcsBsshInfoList"
 const PAGE_SIZE = 100
 
 interface MfdsItem {
-  entrpNm?: string   // 업체명
-  bizrno?: string    // 사업자등록번호
-  addr?: string      // 주소
-  lcsNo?: string     // 허가번호
-  lcnsTy?: string    // 허가유형
-  stts?: string      // 상태
+  entrpNm?: string    // 업체명
+  bizrno?: string     // 사업자등록번호
+  addr?: string       // 주소
+  lcsNo?: string      // 허가번호
+  lcnsTy?: string     // 허가유형
+  stts?: string       // 상태
+  [key: string]: unknown
+}
+
+interface MfdsBody {
+  items?: { item?: MfdsItem | MfdsItem[] } | MfdsItem[]
+  totalCount?: number
+  numOfRows?: number
+  pageNo?: number
 }
 
 interface MfdsResponse {
   response?: {
-    body?: {
-      items?: { item?: MfdsItem | MfdsItem[] }
-      totalCount?: number
-    }
+    header?: { resultCode?: string; resultMsg?: string }
+    body?: MfdsBody
   }
 }
 
-function normalizeItems(raw: MfdsItem | MfdsItem[] | undefined): MfdsItem[] {
+function normalizeItems(raw: unknown): MfdsItem[] {
   if (!raw) return []
-  if (Array.isArray(raw)) return raw
-  return [raw]
+  // items가 배열로 직접 오는 경우
+  if (Array.isArray(raw)) return raw as MfdsItem[]
+  // items.item 구조
+  const obj = raw as { item?: MfdsItem | MfdsItem[] }
+  if (!obj.item) return []
+  if (Array.isArray(obj.item)) return obj.item
+  return [obj.item]
+}
+
+// text()로 먼저 받은 후 JSON 파싱 — API가 에러 시 XML/텍스트를 반환하는 경우 대비
+async function safeFetchJson(url: string): Promise<{ json: MfdsResponse | null; raw: string; ok: boolean }> {
+  const res = await fetch(url)
+  const raw = await res.text()
+  try {
+    const json = JSON.parse(raw) as MfdsResponse
+    return { json, raw, ok: true }
+  } catch {
+    return { json: null, raw, ok: false }
+  }
 }
 
 export async function POST() {
@@ -63,43 +85,70 @@ export async function POST() {
       .filter(Boolean)
   )
 
-  // ── 4. 전수 페이지네이션 조회 ─────────────────────────────────────────────
-  let pageNo = 1
-  let totalCount = 0
-  let inserted = 0
-  let skipped = 0
-
-  // 1페이지로 totalCount 파악
+  // ── 4. 1페이지 시범 호출 — totalCount 파악 + API 응답 검증 ─────────────────
   const firstUrl = new URL(MFDS_BASE)
   firstUrl.searchParams.set("serviceKey", apiKey)
   firstUrl.searchParams.set("pageNo", "1")
   firstUrl.searchParams.set("numOfRows", String(PAGE_SIZE))
   firstUrl.searchParams.set("type", "json")
 
-  let firstRes: MfdsResponse
+  let firstResult: Awaited<ReturnType<typeof safeFetchJson>>
   try {
-    const r = await fetch(firstUrl.toString())
-    firstRes = await r.json() as MfdsResponse
+    firstResult = await safeFetchJson(firstUrl.toString())
   } catch (err) {
     return NextResponse.json(
-      { error: `MFDS API 호출 실패: ${err instanceof Error ? err.message : String(err)}` },
+      { error: `MFDS API 네트워크 오류: ${err instanceof Error ? err.message : String(err)}` },
       { status: 502 }
     )
   }
 
-  totalCount = firstRes?.response?.body?.totalCount ?? 0
+  // JSON 파싱 실패 → 원본 텍스트 로그 출력 후 에러 반환
+  if (!firstResult.ok || !firstResult.json) {
+    console.error("[MFDS] JSON 파싱 실패. 원본 응답:", firstResult.raw.slice(0, 500))
+    return NextResponse.json(
+      {
+        error: "MFDS API가 JSON이 아닌 응답을 반환했습니다. 서버 로그에서 원본 응답을 확인하세요.",
+        rawPreview: firstResult.raw.slice(0, 200),
+      },
+      { status: 502 }
+    )
+  }
+
+  // API 레벨 오류 코드 확인 (resultCode가 '00'이 아닌 경우)
+  const header = firstResult.json.response?.header
+  if (header?.resultCode && header.resultCode !== "00") {
+    console.error("[MFDS] API 오류 응답:", header)
+    return NextResponse.json(
+      { error: `MFDS API 오류 — resultCode: ${header.resultCode}, msg: ${header.resultMsg}` },
+      { status: 502 }
+    )
+  }
+
+  const body = firstResult.json.response?.body
+  const totalCount = body?.totalCount ?? 0
+
+  // 테스트 로그: 첫 번째 응답 구조 확인용
+  console.log("[MFDS] 1페이지 응답 헤더:", header)
+  console.log("[MFDS] totalCount:", totalCount, "/ body keys:", body ? Object.keys(body) : "없음")
+
   if (totalCount === 0) {
-    return NextResponse.json({ total: 0, inserted: 0, skipped: 0, message: "MFDS 응답 데이터 없음" })
+    return NextResponse.json({
+      total: 0, inserted: 0, skipped: 0,
+      message: "MFDS 응답 데이터 없음 (totalCount=0). API 키·엔드포인트·파라미터를 확인하세요.",
+      rawPreview: firstResult.raw.slice(0, 300),
+    })
   }
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
+  let inserted = 0
+  let skipped = 0
 
-  // 모든 페이지 순차 조회 → INSERT
-  for (pageNo = 1; pageNo <= totalPages; pageNo++) {
+  // ── 5. 전수 페이지네이션 조회 → INSERT ───────────────────────────────────
+  for (let pageNo = 1; pageNo <= totalPages; pageNo++) {
     let items: MfdsItem[]
 
     if (pageNo === 1) {
-      items = normalizeItems(firstRes?.response?.body?.items?.item)
+      items = normalizeItems(body?.items)
     } else {
       const url = new URL(MFDS_BASE)
       url.searchParams.set("serviceKey", apiKey)
@@ -108,11 +157,14 @@ export async function POST() {
       url.searchParams.set("type", "json")
 
       try {
-        const r = await fetch(url.toString())
-        const json = await r.json() as MfdsResponse
-        items = normalizeItems(json?.response?.body?.items?.item)
+        const result = await safeFetchJson(url.toString())
+        if (!result.ok || !result.json) {
+          console.error(`[MFDS] 페이지 ${pageNo} JSON 파싱 실패:`, result.raw.slice(0, 200))
+          skipped += PAGE_SIZE
+          continue
+        }
+        items = normalizeItems(result.json.response?.body?.items)
       } catch {
-        // 개별 페이지 실패 시 스킵하고 계속
         skipped += PAGE_SIZE
         continue
       }
@@ -150,6 +202,7 @@ export async function POST() {
         if (r.business_registration_number) existingBizNos.add(r.business_registration_number)
       })
     } else {
+      console.error(`[MFDS] INSERT 오류 (페이지 ${pageNo}):`, error.message)
       skipped += rows.length
     }
   }
