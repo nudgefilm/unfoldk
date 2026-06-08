@@ -2,48 +2,46 @@ import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
-// 식약처 화장품 제조(판매)업 정보조회
-// 엔드포인트: apis.data.go.kr/1471000/CsmtcsInspctTrsmMgmtService/getCsmtcsBsshInfoList
-// ⚠️ MFDS_API_KEY: data.go.kr 발급 "일반 인증키(Decoding)" 사용 — Encoding 키 사용 시 이중 인코딩 오류
-const MFDS_BASE = "https://apis.data.go.kr/1471000/CsmtcsInspctTrsmMgmtService/getCsmtcsBsshInfoList"
+// 식약처 화장품 제조업체 정보 목록 조회
+// 엔드포인트: apis.data.go.kr/1471000/CsmtcsMfcrtrInfoService01/getCsmtcsMfcrtrInfoList01
+// ⚠️ MFDS_API_KEY: data.go.kr 발급 "일반 인증키(Decoding)" 사용
+const MFDS_BASE = "https://apis.data.go.kr/1471000/CsmtcsMfcrtrInfoService01/getCsmtcsMfcrtrInfoList01"
 const PAGE_SIZE = 100
 
+// 실제 API 응답 필드 (대문자 스네이크케이스)
 interface MfdsItem {
-  entrpNm?: string    // 업체명
-  bizrno?: string     // 사업자등록번호
-  addr?: string       // 주소
-  lcsNo?: string      // 허가번호
-  lcnsTy?: string     // 허가유형
-  stts?: string       // 상태
+  ENTP_NAME?: string         // 업체명 → company_name_ko
+  BIZRNO?: string            // 사업자등록번호 → business_registration_number
+  FACTORY_ADDR?: string      // 공장 주소 → address_ko
+  BOSS_NAME?: string         // 대표자명 (스킵)
+  INDUTY?: string            // 업종 (화장품제조 / 화장품책임판매) → license_type
+  ENTP_PERMIT_DATE?: string  // 허가일 (스킵)
   [key: string]: unknown
-}
-
-interface MfdsBody {
-  items?: { item?: MfdsItem | MfdsItem[] } | MfdsItem[]
-  totalCount?: number
-  numOfRows?: number
-  pageNo?: number
 }
 
 interface MfdsResponse {
   response?: {
     header?: { resultCode?: string; resultMsg?: string }
-    body?: MfdsBody
+    body?: {
+      items?: MfdsItem[]     // 직접 배열로 반환
+      totalCount?: number
+      numOfRows?: number
+      pageNo?: number
+    }
   }
 }
 
+// body.items 가 직접 배열로 오는 구조
 function normalizeItems(raw: unknown): MfdsItem[] {
   if (!raw) return []
-  // items가 배열로 직접 오는 경우
   if (Array.isArray(raw)) return raw as MfdsItem[]
-  // items.item 구조
+  // 만약 { item: [...] } 중첩 구조라면 하위 호환
   const obj = raw as { item?: MfdsItem | MfdsItem[] }
   if (!obj.item) return []
-  if (Array.isArray(obj.item)) return obj.item
-  return [obj.item]
+  return Array.isArray(obj.item) ? obj.item : [obj.item]
 }
 
-// URLSearchParams로 URL 구성 — serviceKey 자동 인코딩 (직접 문자열 concatenation 금지)
+// URLSearchParams로 URL 구성 — serviceKey 자동 인코딩
 function buildMfdsUrl(apiKey: string, pageNo: number): string {
   const params = new URLSearchParams({
     serviceKey: apiKey,
@@ -54,7 +52,7 @@ function buildMfdsUrl(apiKey: string, pageNo: number): string {
   return `${MFDS_BASE}?${params.toString()}`
 }
 
-// text()로 먼저 받은 후 JSON 파싱 — API가 에러 시 XML/텍스트를 반환하는 경우 대비
+// text() 먼저 수신 후 JSON 파싱 — API 에러 시 XML/텍스트 반환 대비
 async function safeFetchJson(url: string): Promise<{ json: MfdsResponse | null; raw: string; ok: boolean }> {
   const res = await fetch(url)
   const raw = await res.text()
@@ -115,7 +113,7 @@ export async function POST() {
     )
   }
 
-  // JSON 파싱 실패 → 원본 텍스트 로그 출력 후 에러 반환
+  // JSON 파싱 실패 → 원본 텍스트 로그 + 에러 반환
   if (!firstResult.ok || !firstResult.json) {
     console.error("[MFDS] JSON 파싱 실패. 원본 응답:", firstResult.raw.slice(0, 500))
     return NextResponse.json(
@@ -127,7 +125,7 @@ export async function POST() {
     )
   }
 
-  // API 레벨 오류 코드 확인 (resultCode가 '00'이 아닌 경우)
+  // API 레벨 오류 코드 확인
   const header = firstResult.json.response?.header
   if (header?.resultCode && header.resultCode !== "00") {
     console.error("[MFDS] API 오류 응답:", header)
@@ -140,9 +138,12 @@ export async function POST() {
   const body = firstResult.json.response?.body
   const totalCount = body?.totalCount ?? 0
 
-  // 테스트 로그: 첫 번째 응답 구조 확인용
-  console.log("[MFDS] 1페이지 응답 헤더:", header)
+  // 응답 구조 확인용 로그
+  console.log("[MFDS] header:", header)
   console.log("[MFDS] totalCount:", totalCount, "/ body keys:", body ? Object.keys(body) : "없음")
+  if (body?.items && body.items.length > 0) {
+    console.log("[MFDS] 첫 번째 item 키:", Object.keys(body.items[0]))
+  }
 
   if (totalCount === 0) {
     return NextResponse.json({
@@ -180,20 +181,21 @@ export async function POST() {
 
     const rows = items
       .filter(item => {
-        if (!item.entrpNm) return false
-        if (item.bizrno && existingBizNos.has(item.bizrno)) return false
+        if (!item.ENTP_NAME) return false
+        // BIZRNO 중복 스킵
+        if (item.BIZRNO && existingBizNos.has(item.BIZRNO)) return false
         return true
       })
       .map(item => ({
-        company_name_ko: item.entrpNm ?? "",
-        address_ko: item.addr ?? null,
-        business_registration_number: item.bizrno ?? null,
-        license_number: item.lcsNo ?? null,
-        license_type: item.lcnsTy ?? null,
-        status_ko: item.stts ?? null,
-        translate_status: "pending",
-        apollo_status: "pending",
-        invite_status: "pending",
+        company_name_ko:             item.ENTP_NAME ?? "",
+        address_ko:                  item.FACTORY_ADDR ?? null,
+        business_registration_number: item.BIZRNO ?? null,
+        license_number:              null,
+        license_type:                item.INDUTY ?? null,   // 화장품제조 / 화장품책임판매
+        status_ko:                   null,
+        translate_status:            "pending",
+        apollo_status:               "pending",
+        invite_status:               "pending",
       }))
 
     skipped += items.length - rows.length
