@@ -4,7 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 // 식약처 화장품 제조업체 정보 목록 조회
 // 엔드포인트: apis.data.go.kr/1471000/CsmtcsMfcrtrInfoService01/getCsmtcsMfcrtrInfoList01
-// ⚠️ MFDS_API_KEY: data.go.kr 발급 "일반 인증키(Decoding)" 사용
+// ⚠️ MFDS_COSMETICS_API_KEY: data.go.kr 발급 "일반 인증키(Decoding)" 사용
 const MFDS_BASE = "https://apis.data.go.kr/1471000/CsmtcsMfcrtrInfoService01/getCsmtcsMfcrtrInfoList01"
 const PAGE_SIZE = 100
 
@@ -79,8 +79,8 @@ export async function POST() {
     .maybeSingle()
   if (!userRow?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const apiKey = process.env.MFDS_API_KEY
-  if (!apiKey) return NextResponse.json({ error: "MFDS_API_KEY 환경변수 미설정" }, { status: 500 })
+  const apiKey = process.env.MFDS_COSMETICS_API_KEY
+  if (!apiKey) return NextResponse.json({ error: "MFDS_COSMETICS_API_KEY 환경변수 미설정" }, { status: 500 })
 
   // ── 3. 기존 사업자번호 목록 조회 (중복 스킵용) ────────────────────────────
   const { data: existingRows } = await admin
