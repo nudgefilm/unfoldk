@@ -19,15 +19,14 @@ interface MfdsItem {
   [key: string]: unknown
 }
 
+// 실제 응답: { "header": {...}, "body": {...} } — response 래퍼 없음
 interface MfdsResponse {
-  response?: {
-    header?: { resultCode?: string; resultMsg?: string }
-    body?: {
-      items?: MfdsItem[]     // 직접 배열로 반환
-      totalCount?: number
-      numOfRows?: number
-      pageNo?: number
-    }
+  header?: { resultCode?: string; resultMsg?: string }
+  body?: {
+    items?: MfdsItem[]     // 직접 배열로 반환
+    totalCount?: number
+    numOfRows?: number
+    pageNo?: number
   }
 }
 
@@ -127,7 +126,7 @@ export async function POST() {
   }
 
   // API 레벨 오류 코드 확인
-  const header = firstResult.json.response?.header
+  const header = firstResult.json.header
   if (header?.resultCode && header.resultCode !== "00") {
     console.error("[MFDS] API 오류 응답:", header)
     return NextResponse.json(
@@ -136,7 +135,7 @@ export async function POST() {
     )
   }
 
-  const body = firstResult.json.response?.body
+  const body = firstResult.json.body
   const totalCount = body?.totalCount ?? 0
 
   // 응답 구조 확인용 로그
@@ -173,7 +172,7 @@ export async function POST() {
           skipped += PAGE_SIZE
           continue
         }
-        items = normalizeItems(result.json.response?.body?.items)
+        items = normalizeItems(result.json.body?.items)
       } catch {
         skipped += PAGE_SIZE
         continue

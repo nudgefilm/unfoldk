@@ -42,15 +42,14 @@ interface MfdsItem {
   [key: string]: unknown
 }
 
+// 실제 응답: { "header": {...}, "body": {...} } — response 래퍼 없음
 interface MfdsResponse {
-  response?: {
-    header?: { resultCode?: string; resultMsg?: string }
-    body?: {
-      items?: MfdsItem[]
-      totalCount?: number
-      numOfRows?: number
-      pageNo?: number
-    }
+  header?: { resultCode?: string; resultMsg?: string }
+  body?: {
+    items?: MfdsItem[]
+    totalCount?: number
+    numOfRows?: number
+    pageNo?: number
   }
 }
 
@@ -115,13 +114,13 @@ async function main() {
     process.exit(1)
   }
 
-  const header = first.response?.header
+  const header = first.header
   if (header?.resultCode && header.resultCode !== "00") {
     console.error(`❌ API 오류 — resultCode: ${header.resultCode}, msg: ${header.resultMsg}`)
     process.exit(1)
   }
 
-  const body       = first.response?.body
+  const body       = first.body
   const totalCount = body?.totalCount ?? 0
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 
@@ -151,7 +150,7 @@ async function main() {
         errors++
         continue
       }
-      items = normalizeItems(json.response?.body?.items)
+      items = normalizeItems(json.body?.items)
     }
 
     const rows = items
