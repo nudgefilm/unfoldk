@@ -80,6 +80,7 @@ export async function POST() {
   if (!userRow?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const apiKey = process.env.MFDS_COSMETICS_API_KEY
+  console.log("[MFDS] MFDS_COSMETICS_API_KEY 앞 5자리:", apiKey ? apiKey.slice(0, 5) : "없음(미설정)")
   if (!apiKey) return NextResponse.json({ error: "MFDS_COSMETICS_API_KEY 환경변수 미설정" }, { status: 500 })
 
   // ── 3. 기존 사업자번호 목록 조회 (중복 스킵용) ────────────────────────────
