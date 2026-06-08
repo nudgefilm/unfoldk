@@ -230,6 +230,7 @@ export default function BuyerDashboardPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAdForm, setShowAdForm] = useState(false)
+  const [isAdminPreview, setIsAdminPreview] = useState(false)
 
   // 요약 카운트
   const [pendingCount, setPendingCount] = useState(0)
@@ -265,13 +266,20 @@ export default function BuyerDashboardPage() {
       if (!user) { router.push("/kbeauty/buyer/login"); return }
       setUserId(user.id)
 
-      const { data: buyerData } = await supabase
-        .from("beauty_buyers")
-        .select("id, company_name, country, stage1_approved, stage2_approved, status, categories, annual_import_volume, handling_korean_products, known_suppliers, state")
-        .eq("user_id", user.id)
-        .maybeSingle()
+      const previewId = new URLSearchParams(window.location.search).get("preview")
+      const { data: adminResult } = await supabase.rpc("is_admin", { uid: user.id })
+      const isAdmin = !!adminResult
 
-      if (!buyerData) { router.push("/kbeauty/buyer/register"); return }
+      const buyerFields = "id, company_name, country, stage1_approved, stage2_approved, status, categories, annual_import_volume, handling_korean_products, known_suppliers, state"
+      const { data: buyerData } = await (
+        isAdmin && previewId
+          ? supabase.from("beauty_buyers").select(buyerFields).eq("id", previewId)
+          : supabase.from("beauty_buyers").select(buyerFields).eq("user_id", user.id)
+      ).maybeSingle()
+
+      if (isAdmin && previewId) setIsAdminPreview(true)
+
+      if (!buyerData) { router.push(isAdmin ? "/kbeauty/admin" : "/kbeauty/buyer/register"); return }
       setBuyer(buyerData)
 
       const buyerId = buyerData.id
@@ -453,6 +461,15 @@ export default function BuyerDashboardPage() {
       style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
     >
       <Toaster position="top-right" richColors />
+
+      {/* 어드민 프리뷰 배너 */}
+      {isAdminPreview && (
+        <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-5 py-2 text-sm text-white bg-[#1A3A5C]">
+          <span>어드민 프리뷰 — 바이어 대시보드 · <strong>{buyer?.company_name ?? ""}</strong></span>
+          <Link href="/kbeauty/admin" className="underline opacity-80 hover:opacity-100">← 어드민 패널로 돌아가기</Link>
+        </div>
+      )}
+
       {showAdForm && (
         <AdRequestForm userType="buyer" onClose={() => setShowAdForm(false)} />
       )}
@@ -462,7 +479,7 @@ export default function BuyerDashboardPage() {
         onAdvertiseClick={() => setShowAdForm(true)}
       />
 
-      <main className="min-h-screen" style={{ marginLeft: 240 }}>
+      <main className="min-h-screen" style={{ marginLeft: 240, paddingTop: isAdminPreview ? 36 : 0 }}>
         <div className="max-w-4xl mx-auto px-8 py-10">
 
           {/* ① 헤더 */}

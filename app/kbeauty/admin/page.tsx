@@ -730,7 +730,7 @@ export default function KBeautyAdminPage() {
                     <table className="w-full">
                       <thead>
                         <tr>
-                          {["회사명(한)", "회사명(영)", "이메일", "카테고리", "상태", "DB 접근", "가입일"].map(h => (
+                          {["회사명(한)", "회사명(영)", "이메일", "카테고리", "상태", "DB 접근", "가입일", ""].map(h => (
                             <th key={h} className={thCls + " pr-4"}>{h}</th>
                           ))}
                         </tr>
@@ -757,10 +757,20 @@ export default function KBeautyAdminPage() {
                               />
                             </td>
                             <td className={tdCls + " text-[#6B6B6B] text-xs"}>{fmtDate(s.created_at)}</td>
+                            <td className={tdCls}>
+                              <a
+                                href={`/kbeauty/dashboard/supplier?preview=${s.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-[#1A3A5C] hover:underline whitespace-nowrap"
+                              >
+                                <ExternalLink className="w-3 h-3" />보기
+                              </a>
+                            </td>
                           </tr>
                         ))}
                         {suppliers.length === 0 && (
-                          <tr><td colSpan={7} className="text-center py-10 text-sm text-[#6B6B6B]">데이터 없음</td></tr>
+                          <tr><td colSpan={8} className="text-center py-10 text-sm text-[#6B6B6B]">데이터 없음</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -780,7 +790,7 @@ export default function KBeautyAdminPage() {
                     <table className="w-full">
                       <thead>
                         <tr>
-                          {["회사명", "국가", "이메일", "카테고리", "1차 승인", "2차 승인", "가입일"].map(h => (
+                          {["회사명", "국가", "이메일", "카테고리", "1차 승인", "2차 승인", "가입일", ""].map(h => (
                             <th key={h} className={thCls + " pr-4"}>{h}</th>
                           ))}
                         </tr>
@@ -813,10 +823,20 @@ export default function KBeautyAdminPage() {
                               />
                             </td>
                             <td className={tdCls + " text-[#6B6B6B] text-xs"}>{fmtDate(b.created_at)}</td>
+                            <td className={tdCls}>
+                              <a
+                                href={`/kbeauty/dashboard/buyer?preview=${b.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-[#1A3A5C] hover:underline whitespace-nowrap"
+                              >
+                                <ExternalLink className="w-3 h-3" />보기
+                              </a>
+                            </td>
                           </tr>
                         ))}
                         {buyers.length === 0 && (
-                          <tr><td colSpan={7} className="text-center py-10 text-sm text-[#6B6B6B]">데이터 없음</td></tr>
+                          <tr><td colSpan={8} className="text-center py-10 text-sm text-[#6B6B6B]">데이터 없음</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -836,7 +856,7 @@ export default function KBeautyAdminPage() {
                     <table className="w-full">
                       <thead>
                         <tr>
-                          {["회사명", "국가", "연매출", "플랫폼", "카테고리", "인증", "가입일"].map(h => (
+                          {["회사명", "국가", "연매출", "플랫폼", "카테고리", "인증", "가입일", ""].map(h => (
                             <th key={h} className={thCls + " pr-4"}>{h}</th>
                           ))}
                         </tr>
@@ -870,11 +890,21 @@ export default function KBeautyAdminPage() {
                                   : <XCircle className="w-4 h-4 text-[#D1D5DB]" />}
                               </td>
                               <td className={tdCls + " text-[#6B6B6B] text-xs"}>{fmtDate(s.created_at)}</td>
+                              <td className={tdCls}>
+                                <a
+                                  href={`/kbeauty/dashboard/seller?preview=${s.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-[#1A3A5C] hover:underline whitespace-nowrap"
+                                >
+                                  <ExternalLink className="w-3 h-3" />보기
+                                </a>
+                              </td>
                             </tr>
                           )
                         })}
                         {sellers.length === 0 && (
-                          <tr><td colSpan={7} className="text-center py-10 text-sm text-[#6B6B6B]">데이터 없음</td></tr>
+                          <tr><td colSpan={8} className="text-center py-10 text-sm text-[#6B6B6B]">데이터 없음</td></tr>
                         )}
                       </tbody>
                     </table>

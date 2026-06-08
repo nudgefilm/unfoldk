@@ -368,6 +368,7 @@ export default function SupplierDashboardPage() {
   const [showProModal, setShowProModal] = useState(false)
   const [showAdForm, setShowAdForm] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [isAdminPreview, setIsAdminPreview] = useState(false)
 
   // 가이드 편집 폼 상태
   const [fdaRegNumber, setFdaRegNumber] = useState("")
@@ -395,17 +396,23 @@ export default function SupplierDashboardPage() {
       setUserId(user.id)
       setUserEmail(user.email ?? null)
 
-      // 공급사 정보
-      const { data: supplierData } = await supabase
-        .from("beauty_suppliers")
-        .select(
-          "id, categories, company_name_ko, cosmetic_license_verified, cosmetic_license_url, buyer_db_access, status, fda_status, fda_registration_number, iso_22716, iso_22716_url, vegan_certified, vegan_cert_org, vegan_cert_url, cruelty_free_certified, cruelty_free_cert_org, cruelty_free_cert_url, export_experience, export_countries, pro_active"
-        )
-        .eq("user_id", user.id)
-        .single()
+      // 어드민 프리뷰 모드 감지
+      const previewId = new URLSearchParams(window.location.search).get("preview")
+      const { data: adminResult } = await supabase.rpc("is_admin", { uid: user.id })
+      const isAdmin = !!adminResult
+
+      // 공급사 정보 (어드민 + ?preview=id 시 해당 공급사 조회)
+      const supplierFields = "id, categories, company_name_ko, cosmetic_license_verified, cosmetic_license_url, buyer_db_access, status, fda_status, fda_registration_number, iso_22716, iso_22716_url, vegan_certified, vegan_cert_org, vegan_cert_url, cruelty_free_certified, cruelty_free_cert_org, cruelty_free_cert_url, export_experience, export_countries, pro_active"
+      const { data: supplierData } = await (
+        isAdmin && previewId
+          ? supabase.from("beauty_suppliers").select(supplierFields).eq("id", previewId)
+          : supabase.from("beauty_suppliers").select(supplierFields).eq("user_id", user.id)
+      ).maybeSingle()
+
+      if (isAdmin && previewId) setIsAdminPreview(true)
 
       if (!supplierData) {
-        router.push("/kbeauty/supplier")
+        router.push(isAdmin ? "/kbeauty/admin" : "/kbeauty/supplier")
         return
       }
 
@@ -770,6 +777,14 @@ export default function SupplierDashboardPage() {
     <div className="min-h-screen bg-[#F8F7F5]" style={{ fontFamily: '"Pretendard Variable", Pretendard, sans-serif' }}>
       <Toaster position="top-right" richColors />
 
+      {/* 어드민 프리뷰 배너 */}
+      {isAdminPreview && (
+        <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-5 py-2 text-sm text-white bg-[#1A3A5C]">
+          <span>어드민 프리뷰 — 공급사 대시보드 · <strong>{supplier?.company_name_ko ?? ""}</strong></span>
+          <Link href="/kbeauty/admin" className="underline opacity-80 hover:opacity-100">← 어드민 패널로 돌아가기</Link>
+        </div>
+      )}
+
       {/* 광고 신청 모달 */}
       {showAdForm && (
         <AdRequestForm userType="supplier" onClose={() => setShowAdForm(false)} />
@@ -783,7 +798,7 @@ export default function SupplierDashboardPage() {
       />
 
       {/* 메인 콘텐츠 */}
-      <main className="min-h-screen" style={{ marginLeft: 240 }}>
+      <main className="min-h-screen" style={{ marginLeft: 240, paddingTop: isAdminPreview ? 36 : 0 }}>
         <div className="max-w-4xl mx-auto px-8 py-10">
 
           {/* 헤더 — 환영 메시지 + 환율 배지 */}

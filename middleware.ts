@@ -149,6 +149,11 @@ export async function middleware(request: NextRequest) {
     // 미로그인 → /kbeauty
     if (!user) return kbeautyRedirect()
 
+    // 어드민 체크 1회 — 어드민은 모든 kbeauty 대시보드 통과 (preview 모드 포함)
+    const { data: isAdminUser } = await supabase.rpc("is_admin", { uid: user.id })
+    if (isAdminUser) return supabaseResponse
+
+    // 비어드민: 역할별 레코드 확인
     if (isKbeautySupplierDash) {
       const { data: supplier } = await supabase
         .from("beauty_suppliers")
@@ -176,10 +181,8 @@ export async function middleware(request: NextRequest) {
       if (!seller) return kbeautyRedirect()
     }
 
-    if (isKbeautyAdmin) {
-      const { data: isAdminUser } = await supabase.rpc("is_admin", { uid: user.id })
-      if (!isAdminUser) return kbeautyRedirect()
-    }
+    // 비어드민은 어드민 라우트 차단 (is_admin=false 이미 확인됨)
+    if (isKbeautyAdmin) return kbeautyRedirect()
   }
 
   // ⚠️ 공식 가이드: supabaseResponse 객체를 그대로 반환해야 쿠키 동기화가 보장됨.
