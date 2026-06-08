@@ -105,27 +105,49 @@ async function main() {
   const supabase  = createClient(SUPA_URL, SUPA_KEY)
   const anthropic = new Anthropic({ apiKey: ANTHROPIC_KEY })
 
-  // 1. pending 전체 조회
-  console.log("\n[1/3] translate_status='pending' 항목 조회 중...")
-  const { data: pendingRows, error: fetchErr } = await supabase
+  // 1. pending 건수 먼저 확인 + 전체 조회 (Supabase 기본 1,000행 캡 우회 — 페이지네이션)
+  console.log("\n[1/3] translate_status='pending' 건수 확인 중...")
+  const { count: pendingCount, error: countErr } = await supabase
     .from("beauty_suppliers_staging")
-    .select("id, company_name_ko, address_ko")
+    .select("*", { count: "exact", head: true })
     .eq("translate_status", "pending")
 
-  if (fetchErr) {
-    console.error("❌ Supabase 조회 오류:", fetchErr.message)
+  if (countErr) {
+    console.error("❌ Supabase 카운트 오류:", countErr.message)
     process.exit(1)
   }
 
-  const rows = (pendingRows ?? []) as StagingRow[]
+  console.log(`   → 현재 pending: ${(pendingCount ?? 0).toLocaleString()}건`)
 
-  if (rows.length === 0) {
+  if ((pendingCount ?? 0) === 0) {
     console.log("   → 번역 대기 항목 없음. 종료합니다.")
     return
   }
 
+  console.log("   → 전체 조회 중...")
+  const rows: StagingRow[] = []
+  const FETCH_PAGE = 1000
+  let fetchFrom = 0
+  while (true) {
+    const { data, error: fetchErr } = await supabase
+      .from("beauty_suppliers_staging")
+      .select("id, company_name_ko, address_ko")
+      .eq("translate_status", "pending")
+      .range(fetchFrom, fetchFrom + FETCH_PAGE - 1)
+
+    if (fetchErr) {
+      console.error("❌ Supabase 조회 오류:", fetchErr.message)
+      process.exit(1)
+    }
+
+    if (!data || data.length === 0) break
+    rows.push(...(data as StagingRow[]))
+    if (data.length < FETCH_PAGE) break
+    fetchFrom += FETCH_PAGE
+  }
+
   const totalBatches = Math.ceil(rows.length / BATCH_SIZE)
-  console.log(`   → ${rows.length.toLocaleString()}건 / ${totalBatches}배치 (${BATCH_SIZE}건/배치)`)
+  console.log(`   → 조회 완료: ${rows.length.toLocaleString()}건 / ${totalBatches}배치 (${BATCH_SIZE}건/배치)`)
 
   // 2. 배치 처리
   console.log("\n[2/3] Claude Haiku 번역 시작...")
