@@ -282,6 +282,7 @@ export default function KBeautyAdminPage() {
   const [stagingStats,    setStagingStats]    = useState<StagingStats | null>(null)
   const [stagingItems,    setStagingItems]    = useState<StagingRow[]>([])
   const [stagingFilter,   setStagingFilter]   = useState<string>("all")
+  const [stagingPage,     setStagingPage]     = useState<number>(1)
   const [pipelineRunning, setPipelineRunning] = useState<Record<string, boolean>>({})
 
   // 광고 관리 상태
@@ -437,7 +438,7 @@ export default function KBeautyAdminPage() {
         supabase.from("beauty_suppliers_staging")
           .select("id, company_name_ko, company_name_en, translate_status, apollo_status, invite_status, created_at")
           .order("created_at", { ascending: false })
-          .limit(50),
+          .range(0, 49),
       ])
       setStagingStats({
         total: total ?? 0,
@@ -445,6 +446,7 @@ export default function KBeautyAdminPage() {
         apolloMapped: apolloMapped ?? 0,
         inviteSent: inviteSent ?? 0,
       })
+      setStagingPage(1)
       setStagingItems((items ?? []) as StagingRow[])
     }
 
@@ -573,9 +575,21 @@ export default function KBeautyAdminPage() {
       supabase.from("beauty_suppliers_staging")
         .select("id, company_name_ko, company_name_en, translate_status, apollo_status, invite_status, created_at")
         .order("created_at", { ascending: false })
-        .limit(50),
+        .range(0, 49),
     ])
     setStagingStats({ total: total ?? 0, translateCompleted: translateCompleted ?? 0, apolloMapped: apolloMapped ?? 0, inviteSent: inviteSent ?? 0 })
+    setStagingPage(1)
+    setStagingItems((items ?? []) as StagingRow[])
+  }
+
+  async function loadStagingPage(page: number) {
+    const from = (page - 1) * 50
+    const { data: items } = await supabase
+      .from("beauty_suppliers_staging")
+      .select("id, company_name_ko, company_name_en, translate_status, apollo_status, invite_status, created_at")
+      .order("created_at", { ascending: false })
+      .range(from, from + 49)
+    setStagingPage(page)
     setStagingItems((items ?? []) as StagingRow[])
   }
 
@@ -1387,7 +1401,9 @@ export default function KBeautyAdminPage() {
                 {/* 스테이징 테이블 */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-[#0F0F0F]">스테이징 목록 (최근 50개)</h3>
+                    <h3 className="text-sm font-semibold text-[#0F0F0F]">
+                      스테이징 목록{stagingStats ? ` (전체 ${stagingStats.total.toLocaleString()}건, 50개씩 표시)` : ""}
+                    </h3>
                     <div className="flex gap-1.5">
                       {[
                         { key: "all",       label: "전체" },
@@ -1413,41 +1429,71 @@ export default function KBeautyAdminPage() {
 
                   {!loadedTabs.has("pipeline")
                     ? <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-[#6B6B6B]" /></div>
-                    : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr>
-                            {["업체명 (한글)", "업체명 (영문)", "번역 상태", "Apollo 상태", "초대 상태", "등록일"].map(h => (
-                              <th key={h} className={thCls + " pr-4"}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#F3F4F6]">
-                          {stagingItems
-                            .filter(row => {
-                              if (stagingFilter === "translate") return row.translate_status !== "completed"
-                              if (stagingFilter === "apollo")    return row.apollo_status !== "mapped"
-                              if (stagingFilter === "invite")    return row.invite_status !== "sent"
-                              return true
-                            })
-                            .map(row => (
-                              <tr key={row.id}>
-                                <td className={tdCls + " pr-4 font-medium max-w-[180px] truncate"}>{row.company_name_ko}</td>
-                                <td className={tdCls + " pr-4 text-[#6B6B6B] max-w-[180px] truncate"}>{row.company_name_en ?? "—"}</td>
-                                <td className={tdCls + " pr-4"}><StatusBadge value={row.translate_status} /></td>
-                                <td className={tdCls + " pr-4"}><StatusBadge value={row.apollo_status} /></td>
-                                <td className={tdCls + " pr-4"}><StatusBadge value={row.invite_status} /></td>
-                                <td className={tdCls + " text-[#6B6B6B] text-xs"}>{fmtDate(row.created_at)}</td>
-                              </tr>
-                            ))}
-                          {stagingItems.length === 0 && (
-                            <tr><td colSpan={6} className="text-center py-10 text-sm text-[#6B6B6B]">스테이징 데이터 없음</td></tr>
+                    : (() => {
+                      const totalPages = Math.ceil((stagingStats?.total ?? 0) / 50)
+                      const filtered = stagingItems.filter(row => {
+                        if (stagingFilter === "translate") return row.translate_status !== "completed"
+                        if (stagingFilter === "apollo")    return row.apollo_status !== "mapped"
+                        if (stagingFilter === "invite")    return row.invite_status !== "sent"
+                        return true
+                      })
+                      return (
+                        <>
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead>
+                                <tr>
+                                  {["업체명 (한글)", "업체명 (영문)", "번역 상태", "Apollo 상태", "초대 상태", "등록일"].map(h => (
+                                    <th key={h} className={thCls + " pr-4"}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[#F3F4F6]">
+                                {filtered.map(row => (
+                                  <tr key={row.id}>
+                                    <td className={tdCls + " pr-4 font-medium max-w-[180px] truncate"}>{row.company_name_ko}</td>
+                                    <td className={tdCls + " pr-4 text-[#6B6B6B] max-w-[180px] truncate"}>{row.company_name_en ?? "—"}</td>
+                                    <td className={tdCls + " pr-4"}><StatusBadge value={row.translate_status} /></td>
+                                    <td className={tdCls + " pr-4"}><StatusBadge value={row.apollo_status} /></td>
+                                    <td className={tdCls + " pr-4"}><StatusBadge value={row.invite_status} /></td>
+                                    <td className={tdCls + " text-[#6B6B6B] text-xs"}>{fmtDate(row.created_at)}</td>
+                                  </tr>
+                                ))}
+                                {filtered.length === 0 && (
+                                  <tr><td colSpan={6} className="text-center py-10 text-sm text-[#6B6B6B]">스테이징 데이터 없음</td></tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* 페이지네이션 */}
+                          {totalPages > 1 && (
+                            <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#F3F4F6]">
+                              <p className="text-xs text-[#6B6B6B]">
+                                {stagingPage} / {totalPages} 페이지
+                              </p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => loadStagingPage(stagingPage - 1)}
+                                  disabled={stagingPage <= 1}
+                                  className="px-3 py-1.5 text-xs font-medium border border-[#E8E2DA] rounded-lg text-[#0F0F0F] hover:bg-[#F8F7F5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  이전
+                                </button>
+                                <button
+                                  onClick={() => loadStagingPage(stagingPage + 1)}
+                                  disabled={stagingPage >= totalPages}
+                                  className="px-3 py-1.5 text-xs font-medium border border-[#E8E2DA] rounded-lg text-[#0F0F0F] hover:bg-[#F8F7F5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  다음
+                                </button>
+                              </div>
+                            </div>
                           )}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                        </>
+                      )
+                    })()
+                  }
                 </div>
               </div>
             )}
