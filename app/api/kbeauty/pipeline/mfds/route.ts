@@ -191,8 +191,8 @@ export async function POST() {
         address_ko:                  item.FACTORY_ADDR ?? null,
         business_registration_number: item.BIZRNO ?? null,
         license_number:              null,
-        license_type:                item.INDUTY ?? null,   // 화장품제조 / 화장품책임판매
-        status_ko:                   null,
+        license_type:                item.INDUTY ?? null,          // 화장품제조 / 화장품책임판매
+        status_ko:                   item.ENTP_PERMIT_DATE ?? null, // 허가일
         translate_status:            "pending",
         apollo_status:               "pending",
         invite_status:               "pending",
