@@ -4,6 +4,49 @@
 
 ---
 
+## 현재 상태 (2026-06-09 세션 58 기준)
+
+### UnfoldK Beauty (kbeauty) — 공급사 가입 서류 필수 해제 + 대시보드 구현 + 인프라
+
+**완료 항목**
+
+- **번역 파이프라인 Supabase Edge Function 전환** (`supabase/functions/translate-pipeline/index.ts`)
+  - 로컬 스크립트 → 서버사이드 자동화 전환
+  - pending 건만 처리, completed/failed 건 건드리지 않음
+  - 페이지네이션으로 Supabase 1,000행 캡 우회
+  - max_batches 파라미터로 호출당 처리량 제어
+
+- **번역 파이프라인 Vercel Cron 자동화** (`vercel.json`, `app/api/cron/translate-pipeline/route.ts`)
+  - 매 10분 자동 호출, pending 0건 시 자동 no-op (자연 종료)
+  - 17,839건 → 500건/회 × 36회 ≈ 6시간 완료 예상
+
+- **미구현 대시보드 페이지 3개 신규 구현**
+  - `app/kbeauty/dashboard/supplier/matches/page.tsx` — 매칭 관리 (전체/대기중/승인/거절 탭, 승인·거절 액션, Pro 게이트)
+  - `app/kbeauty/dashboard/supplier/settings/page.tsx` — 공급사 계정 설정 (알림 설정, 비밀번호 변경, Danger Zone)
+  - `app/kbeauty/dashboard/seller/settings/page.tsx` — 셀러 계정 설정 (동일 구조, 골드 accent)
+
+- **공급사 가입 서류 필수 해제** (`app/kbeauty/supplier/register/page.tsx`)
+  - "준비 중 — 가입 후 대시보드에서 제출" 체크박스 추가
+  - 체크 시 라디오·파일 피커 숨김, 필수 검증·Submit 비활성화 해제
+  - DB 삽입 시 `cosmetic_license_type: "준비중"` 저장
+
+- **공급사 프로필 서류 업로드 섹션 추가** (`app/kbeauty/dashboard/supplier/profile/page.tsx`)
+  - 미제출 / 검토 중 / 인증 완료 3단계 상태 UI
+  - 파일 업로드 후 `cosmetic_license_type`, `cosmetic_license_url` DB 갱신
+  - 어드민 승인 전까지 `cosmetic_license_verified = false` 유지
+
+- **바이어 공급사 목록 인증 필터** (`app/kbeauty/dashboard/buyer/suppliers/page.tsx`)
+  - `cosmetic_license_verified = true` 공급사 제품만 바이어에게 노출
+
+- **푸터 Discord 링크 교체** (`components/footer-section.tsx`)
+  - `discord.gg/MEdWGvgy` → `discord.gg/EcQr36AqtC`
+
+**다음 세션**
+- Apollo.io 매핑 파이프라인 구현
+- Paddle 웹훅 실서버 등록 및 실결제 테스트
+
+---
+
 ## 현재 상태 (2026-06-08 세션 57 기준)
 
 ### UnfoldK Beauty (kbeauty) — 파이프라인 어드민 UI 개선 + 번역 파이프라인 실행
