@@ -114,7 +114,7 @@ export function FooterSection() {
           <p className="text-foreground/90 text-sm font-medium leading-[18px] text-left">Your Pass to Korean Culture</p>
           <div className="flex justify-start items-start gap-3">
             <a
-              href="https://discord.gg/MEdWGvgy"
+              href="https://discord.gg/EcQr36AqtC"
               aria-label="Discord"
               target="_blank"
               rel="noopener noreferrer"
