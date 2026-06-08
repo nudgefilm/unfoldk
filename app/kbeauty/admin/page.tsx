@@ -7,7 +7,7 @@ import {
   Loader2, CheckCircle2, XCircle, Package,
   Users, Store, ShoppingBag, Handshake, FlaskConical,
   ToggleLeft, ToggleRight, ExternalLink, Mail, X, Eye,
-  Megaphone, Database, Play,
+  Megaphone, Database, Play, ChevronDown,
 } from "lucide-react"
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -279,11 +279,13 @@ export default function KBeautyAdminPage() {
   const [ads,       setAds]         = useState<AdminAd[]>([])
 
   // 파이프라인 탭 상태
-  const [stagingStats,    setStagingStats]    = useState<StagingStats | null>(null)
-  const [stagingItems,    setStagingItems]    = useState<StagingRow[]>([])
-  const [stagingFilter,   setStagingFilter]   = useState<string>("all")
-  const [stagingPage,     setStagingPage]     = useState<number>(1)
-  const [pipelineRunning, setPipelineRunning] = useState<Record<string, boolean>>({})
+  const [stagingStats,       setStagingStats]       = useState<StagingStats | null>(null)
+  const [stagingItems,       setStagingItems]       = useState<StagingRow[]>([])
+  const [stagingFilter,      setStagingFilter]      = useState<string>("all")
+  const [stagingPage,        setStagingPage]        = useState<number>(1)
+  const [pipelineRunning,    setPipelineRunning]    = useState<Record<string, boolean>>({})
+  const [openSections,       setOpenSections]       = useState<Record<string, boolean>>({ supplier: true, buyer: false, seller: false })
+  const [stagingListPipeline, setStagingListPipeline] = useState<"supplier" | "buyer" | "seller">("supplier")
 
   // 광고 관리 상태
   const [adFilter,       setAdFilter]       = useState<string>("all")
@@ -560,6 +562,22 @@ export default function KBeautyAdminPage() {
     setToggling(null)
   }
 
+  function toggleSection(key: string) {
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  async function switchStagingPipeline(pipeline: "supplier" | "buyer" | "seller") {
+    setStagingListPipeline(pipeline)
+    setStagingPage(1)
+    if (pipeline !== "supplier") { setStagingItems([]); return }
+    const { data: items } = await supabase
+      .from("beauty_suppliers_staging")
+      .select("id, company_name_ko, company_name_en, translate_status, apollo_status, invite_status, created_at")
+      .order("created_at", { ascending: false })
+      .range(0, 49)
+    setStagingItems((items ?? []) as StagingRow[])
+  }
+
   async function refreshStagingData() {
     const [
       { count: total },
@@ -583,6 +601,7 @@ export default function KBeautyAdminPage() {
   }
 
   async function loadStagingPage(page: number) {
+    if (stagingListPipeline !== "supplier") { setStagingPage(page); setStagingItems([]); return }
     const from = (page - 1) * 50
     const { data: items } = await supabase
       .from("beauty_suppliers_staging")
@@ -1342,67 +1361,165 @@ export default function KBeautyAdminPage() {
               <div className="p-6">
                 <h2 className="text-base font-bold text-[#0F0F0F] mb-6">DB 수집 파이프라인</h2>
 
-                {/* 스테이징 현황 카드 4개 */}
-                {stagingStats && (
-                  <div className="grid grid-cols-4 gap-4 mb-7">
-                    {[
-                      { label: "전체 스테이징", value: stagingStats.total },
-                      { label: "번역 완료", value: stagingStats.translateCompleted, sub: "translate_status = completed" },
-                      { label: "Apollo 매핑 완료", value: stagingStats.apolloMapped, sub: "apollo_status = mapped" },
-                      { label: "초대 발송 완료", value: stagingStats.inviteSent, sub: "invite_status = sent" },
-                    ].map(({ label, value, sub }) => (
-                      <div key={label} className="bg-[#F8F7F5] border border-[#E8E2DA] rounded-xl p-4">
-                        <p className="text-xs text-[#6B6B6B] mb-1 leading-snug">{label}</p>
-                        <p className="text-2xl font-bold" style={{ color: NAVY }}>{value.toLocaleString()}</p>
-                        {sub && <p className="text-[10px] text-[#6B6B6B] mt-0.5 font-mono">{sub}</p>}
+                {/* ── 아코디언 3개 ─────────────────────────────────────── */}
+                <div className="space-y-3 mb-8">
+
+                  {/* ① 공급사 파이프라인 */}
+                  <div className="border border-[#E8E2DA] rounded-xl overflow-hidden">
+                    <button
+                      onClick={() => toggleSection("supplier")}
+                      className="w-full flex items-center justify-between px-5 py-4 bg-[#F8F7F5] hover:bg-[#F0EDE8] transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold w-6 h-6 flex items-center justify-center rounded text-white flex-shrink-0" style={{ background: NAVY }}>①</span>
+                        <span className="text-sm font-bold text-[#0F0F0F]">공급사 파이프라인</span>
+                        {stagingStats && (
+                          <span className="text-[11px] text-[#6B6B6B] border border-[#E8E2DA] bg-white px-2 py-0.5 rounded-full">
+                            {stagingStats.total.toLocaleString()}건 적재
+                          </span>
+                        )}
                       </div>
-                    ))}
+                      <ChevronDown className={`w-4 h-4 text-[#6B6B6B] transition-transform flex-shrink-0 ${openSections.supplier ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {openSections.supplier && (
+                      <div className="px-5 py-5 border-t border-[#E8E2DA]">
+                        {stagingStats && (
+                          <div className="grid grid-cols-4 gap-3 mb-5">
+                            {[
+                              { label: "전체 스테이징",    value: stagingStats.total },
+                              { label: "번역 완료",        value: stagingStats.translateCompleted, sub: "translate_status=completed" },
+                              { label: "Apollo 매핑 완료", value: stagingStats.apolloMapped,       sub: "apollo_status=mapped" },
+                              { label: "초대 발송 완료",   value: stagingStats.inviteSent,          sub: "invite_status=sent" },
+                            ].map(({ label, value, sub }) => (
+                              <div key={label} className="bg-[#F8F7F5] border border-[#E8E2DA] rounded-lg p-3">
+                                <p className="text-xs text-[#6B6B6B] mb-0.5 leading-snug">{label}</p>
+                                <p className="text-xl font-bold" style={{ color: NAVY }}>{value.toLocaleString()}</p>
+                                {sub && <p className="text-[9px] text-[#6B6B6B] mt-0.5 font-mono">{sub}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => runPipeline("/api/kbeauty/pipeline/mfds", "mfds")}
+                            disabled={pipelineRunning.mfds}
+                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                            style={{ background: NAVY }}
+                          >
+                            {pipelineRunning.mfds ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                            식약처 API 조회 실행
+                          </button>
+                          <button disabled className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-[#E8E2DA] text-[#9CA3AF] bg-[#F9FAFB] cursor-not-allowed">
+                            <Play className="w-3.5 h-3.5" />GMP 업체 조회 실행
+                            <span className="text-[9px] bg-[#F3F4F6] text-[#9CA3AF] rounded px-1 py-0.5">추후</span>
+                          </button>
+                          <button
+                            onClick={() => runPipeline("/api/kbeauty/pipeline/translate", "translate")}
+                            disabled={pipelineRunning.translate}
+                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                            style={{ background: "#7C3AED" }}
+                          >
+                            {pipelineRunning.translate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                            영문 변환 실행
+                          </button>
+                          {["Apollo 매핑 실행", "초대 이메일 발송", "공급사 이관 실행"].map(label => (
+                            <button key={label} disabled className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-[#E8E2DA] text-[#9CA3AF] bg-[#F9FAFB] cursor-not-allowed">
+                              <Play className="w-3.5 h-3.5" />{label}
+                              <span className="text-[9px] bg-[#F3F4F6] text-[#9CA3AF] rounded px-1 py-0.5">추후</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
 
-                {/* 실행 버튼 3개 */}
-                <div className="flex flex-wrap gap-3 mb-8">
-                  <button
-                    onClick={() => runPipeline("/api/kbeauty/pipeline/mfds", "mfds")}
-                    disabled={pipelineRunning.mfds}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50"
-                    style={{ background: NAVY }}
-                  >
-                    {pipelineRunning.mfds
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : <Play className="w-4 h-4" />}
-                    식약처 API 조회 실행
-                  </button>
+                  {/* ② 바이어 파이프라인 */}
+                  <div className="border border-[#E8E2DA] rounded-xl overflow-hidden">
+                    <button
+                      onClick={() => toggleSection("buyer")}
+                      className="w-full flex items-center justify-between px-5 py-4 bg-[#F8F7F5] hover:bg-[#F0EDE8] transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold w-6 h-6 flex items-center justify-center rounded text-white flex-shrink-0" style={{ background: "#059669" }}>②</span>
+                        <span className="text-sm font-bold text-[#0F0F0F]">바이어 파이프라인</span>
+                        <span className="text-[11px] text-[#9CA3AF] border border-[#E8E2DA] bg-white px-2 py-0.5 rounded-full">준비중</span>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 text-[#6B6B6B] transition-transform flex-shrink-0 ${openSections.buyer ? "rotate-180" : ""}`} />
+                    </button>
 
-                  <button
-                    onClick={() => runPipeline("/api/kbeauty/pipeline/translate", "translate")}
-                    disabled={pipelineRunning.translate}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50"
-                    style={{ background: "#7C3AED" }}
-                  >
-                    {pipelineRunning.translate
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : <Play className="w-4 h-4" />}
-                    영문 변환 실행
-                  </button>
+                    {openSections.buyer && (
+                      <div className="px-5 py-5 border-t border-[#E8E2DA]">
+                        <div className="grid grid-cols-2 gap-3 mb-5">
+                          {[
+                            { label: "전체 바이어 스테이징", value: 0 },
+                            { label: "Apollo 매핑 완료",     value: 0 },
+                          ].map(({ label, value }) => (
+                            <div key={label} className="bg-[#F8F7F5] border border-[#E8E2DA] rounded-lg p-3">
+                              <p className="text-xs text-[#6B6B6B] mb-0.5">{label}</p>
+                              <p className="text-xl font-bold text-[#D1D5DB]">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {["CSV 업로드", "Apollo 매핑 실행", "초대 이메일 발송"].map(label => (
+                            <button key={label} disabled className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-[#E8E2DA] text-[#9CA3AF] bg-[#F9FAFB] cursor-not-allowed">
+                              <Play className="w-3.5 h-3.5" />{label}
+                              <span className="text-[9px] bg-[#F3F4F6] text-[#9CA3AF] rounded px-1 py-0.5">추후</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
-                  <button
-                    disabled
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg text-white opacity-40 cursor-not-allowed"
-                    style={{ background: "#6B6B6B" }}
-                    title="추후 구현 예정"
-                  >
-                    <Play className="w-4 h-4" />
-                    Apollo 매핑 실행
-                    <span className="text-[10px] ml-1 opacity-80">(추후)</span>
-                  </button>
+                  {/* ③ 셀러 파이프라인 */}
+                  <div className="border border-[#E8E2DA] rounded-xl overflow-hidden">
+                    <button
+                      onClick={() => toggleSection("seller")}
+                      className="w-full flex items-center justify-between px-5 py-4 bg-[#F8F7F5] hover:bg-[#F0EDE8] transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold w-6 h-6 flex items-center justify-center rounded text-white flex-shrink-0" style={{ background: "#7C3AED" }}>③</span>
+                        <span className="text-sm font-bold text-[#0F0F0F]">셀러 파이프라인</span>
+                        <span className="text-[11px] text-[#9CA3AF] border border-[#E8E2DA] bg-white px-2 py-0.5 rounded-full">준비중</span>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 text-[#6B6B6B] transition-transform flex-shrink-0 ${openSections.seller ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {openSections.seller && (
+                      <div className="px-5 py-5 border-t border-[#E8E2DA]">
+                        <div className="grid grid-cols-2 gap-3 mb-5">
+                          {[
+                            { label: "전체 셀러 스테이징", value: 0 },
+                            { label: "초대 발송 완료",     value: 0 },
+                          ].map(({ label, value }) => (
+                            <div key={label} className="bg-[#F8F7F5] border border-[#E8E2DA] rounded-lg p-3">
+                              <p className="text-xs text-[#6B6B6B] mb-0.5">{label}</p>
+                              <p className="text-xl font-bold text-[#D1D5DB]">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {["EchoTik CSV 업로드", "Store Leads CSV 업로드", "초대 이메일 발송"].map(label => (
+                            <button key={label} disabled className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-[#E8E2DA] text-[#9CA3AF] bg-[#F9FAFB] cursor-not-allowed">
+                              <Play className="w-3.5 h-3.5" />{label}
+                              <span className="text-[9px] bg-[#F3F4F6] text-[#9CA3AF] rounded px-1 py-0.5">추후</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* 스테이징 테이블 */}
+                {/* ── 스테이징 목록 ─────────────────────────────────────── */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-semibold text-[#0F0F0F]">
-                      스테이징 목록{stagingStats ? ` (전체 ${stagingStats.total.toLocaleString()}건, 50개씩 표시)` : ""}
+                      {stagingListPipeline === "supplier" && stagingStats
+                        ? `스테이징 목록 (전체 ${stagingStats.total.toLocaleString()}건, 50개씩 표시)`
+                        : "스테이징 목록 (전체 0건)"}
                     </h3>
                     <div className="flex gap-1.5">
                       {[
@@ -1427,10 +1544,34 @@ export default function KBeautyAdminPage() {
                     </div>
                   </div>
 
+                  {/* 파이프라인 필터 탭 */}
+                  <div className="flex gap-2 mb-4">
+                    {([
+                      { key: "supplier" as const, label: "공급사" },
+                      { key: "buyer"    as const, label: "바이어" },
+                      { key: "seller"   as const, label: "셀러"   },
+                    ]).map(p => (
+                      <button
+                        key={p.key}
+                        onClick={() => switchStagingPipeline(p.key)}
+                        className="text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors"
+                        style={
+                          stagingListPipeline === p.key
+                            ? { background: NAVY, borderColor: NAVY, color: "white" }
+                            : { background: "white", borderColor: "#E8E2DA", color: "#6B6B6B" }
+                        }
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
                   {!loadedTabs.has("pipeline")
                     ? <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-[#6B6B6B]" /></div>
                     : (() => {
-                      const totalPages = Math.ceil((stagingStats?.total ?? 0) / 50)
+                      const totalPages = stagingListPipeline === "supplier"
+                        ? Math.ceil((stagingStats?.total ?? 0) / 50)
+                        : 0
                       const filtered = stagingItems.filter(row => {
                         if (stagingFilter === "translate") return row.translate_status !== "completed"
                         if (stagingFilter === "apollo")    return row.apollo_status !== "mapped"
@@ -1460,33 +1601,28 @@ export default function KBeautyAdminPage() {
                                   </tr>
                                 ))}
                                 {filtered.length === 0 && (
-                                  <tr><td colSpan={6} className="text-center py-10 text-sm text-[#6B6B6B]">스테이징 데이터 없음</td></tr>
+                                  <tr><td colSpan={6} className="text-center py-10 text-sm text-[#6B6B6B]">
+                                    {stagingListPipeline !== "supplier" ? "준비중입니다" : "스테이징 데이터 없음"}
+                                  </td></tr>
                                 )}
                               </tbody>
                             </table>
                           </div>
 
-                          {/* 페이지네이션 */}
                           {totalPages > 1 && (
                             <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#F3F4F6]">
-                              <p className="text-xs text-[#6B6B6B]">
-                                {stagingPage} / {totalPages} 페이지
-                              </p>
+                              <p className="text-xs text-[#6B6B6B]">{stagingPage} / {totalPages} 페이지</p>
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => loadStagingPage(stagingPage - 1)}
                                   disabled={stagingPage <= 1}
                                   className="px-3 py-1.5 text-xs font-medium border border-[#E8E2DA] rounded-lg text-[#0F0F0F] hover:bg-[#F8F7F5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                >
-                                  이전
-                                </button>
+                                >이전</button>
                                 <button
                                   onClick={() => loadStagingPage(stagingPage + 1)}
                                   disabled={stagingPage >= totalPages}
                                   className="px-3 py-1.5 text-xs font-medium border border-[#E8E2DA] rounded-lg text-[#0F0F0F] hover:bg-[#F8F7F5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                >
-                                  다음
-                                </button>
+                                >다음</button>
                               </div>
                             </div>
                           )}
