@@ -43,6 +43,17 @@ function normalizeItems(raw: unknown): MfdsItem[] {
   return [obj.item]
 }
 
+// URLSearchParams로 URL 구성 — serviceKey 자동 인코딩 (직접 문자열 concatenation 금지)
+function buildMfdsUrl(apiKey: string, pageNo: number): string {
+  const params = new URLSearchParams({
+    serviceKey: apiKey,
+    pageNo:     String(pageNo),
+    numOfRows:  String(PAGE_SIZE),
+    type:       "json",
+  })
+  return `${MFDS_BASE}?${params.toString()}`
+}
+
 // text()로 먼저 받은 후 JSON 파싱 — API가 에러 시 XML/텍스트를 반환하는 경우 대비
 async function safeFetchJson(url: string): Promise<{ json: MfdsResponse | null; raw: string; ok: boolean }> {
   const res = await fetch(url)
@@ -86,15 +97,17 @@ export async function POST() {
   )
 
   // ── 4. 1페이지 시범 호출 — totalCount 파악 + API 응답 검증 ─────────────────
-  const firstUrl = new URL(MFDS_BASE)
-  firstUrl.searchParams.set("serviceKey", apiKey)
-  firstUrl.searchParams.set("pageNo", "1")
-  firstUrl.searchParams.set("numOfRows", String(PAGE_SIZE))
-  firstUrl.searchParams.set("type", "json")
+  const firstUrl = buildMfdsUrl(apiKey, 1)
+
+  // serviceKey 앞 20자만 로그 출력 (전체 키 노출 방지)
+  console.log("[MFDS] 호출 URL:", firstUrl.replace(
+    encodeURIComponent(apiKey),
+    apiKey.slice(0, 20) + "***"
+  ))
 
   let firstResult: Awaited<ReturnType<typeof safeFetchJson>>
   try {
-    firstResult = await safeFetchJson(firstUrl.toString())
+    firstResult = await safeFetchJson(firstUrl)
   } catch (err) {
     return NextResponse.json(
       { error: `MFDS API 네트워크 오류: ${err instanceof Error ? err.message : String(err)}` },
@@ -150,14 +163,9 @@ export async function POST() {
     if (pageNo === 1) {
       items = normalizeItems(body?.items)
     } else {
-      const url = new URL(MFDS_BASE)
-      url.searchParams.set("serviceKey", apiKey)
-      url.searchParams.set("pageNo", String(pageNo))
-      url.searchParams.set("numOfRows", String(PAGE_SIZE))
-      url.searchParams.set("type", "json")
-
+      const url = buildMfdsUrl(apiKey, pageNo)
       try {
-        const result = await safeFetchJson(url.toString())
+        const result = await safeFetchJson(url)
         if (!result.ok || !result.json) {
           console.error(`[MFDS] 페이지 ${pageNo} JSON 파싱 실패:`, result.raw.slice(0, 200))
           skipped += PAGE_SIZE
