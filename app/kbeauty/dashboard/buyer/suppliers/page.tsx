@@ -45,7 +45,7 @@ interface Product {
   lead_time_days: number | null
   consumer_price_krw: number | null
   status: string
-  beauty_suppliers: { company_name_en: string; company_name_ko: string } | null
+  beauty_suppliers: { company_name_en: string; company_name_ko: string; cosmetic_license_verified: boolean } | null
 }
 
 // ─── 상수 ──────────────────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ export default function BuyerSuppliersPage() {
     let query = supabase
       .from("beauty_products")
       .select(
-        "id, supplier_id, product_name_ko, product_name_en, brand_name, category, certifications, moq, price_range_min, price_range_max, lead_time_days, consumer_price_krw, status, beauty_suppliers(company_name_en, company_name_ko)"
+        "id, supplier_id, product_name_ko, product_name_en, brand_name, category, certifications, moq, price_range_min, price_range_max, lead_time_days, consumer_price_krw, status, beauty_suppliers(company_name_en, company_name_ko, cosmetic_license_verified)"
       )
       .in("status", ["active", "pending"])
       .order("created_at", { ascending: false })
@@ -222,7 +222,11 @@ export default function BuyerSuppliersPage() {
     }
 
     query.then(({ data }) => {
-      setProducts((data as unknown as Product[]) ?? [])
+      // 화장품 허가 인증(cosmetic_license_verified) 완료된 공급사 제품만 노출
+      const verified = ((data as unknown as Product[]) ?? []).filter(
+        (p) => p.beauty_suppliers?.cosmetic_license_verified === true
+      )
+      setProducts(verified)
       setLoadingProducts(false)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps

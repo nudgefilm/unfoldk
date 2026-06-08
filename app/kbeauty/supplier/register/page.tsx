@@ -115,6 +115,7 @@ function SupplierForm() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
 
   // 인증 및 서류
+  const [licenseNotReady, setLicenseNotReady] = useState(false)
   const [cosmeticLicenseType, setCosmeticLicenseType] = useState("")
   const [cosmeticLicenseFile, setCosmeticLicenseFile] = useState<File | null>(null)
   const [iso22716, setIso22716] = useState("")
@@ -198,11 +199,11 @@ function SupplierForm() {
       setSubmitError("비밀번호가 일치하지 않습니다.")
       return
     }
-    if (!cosmeticLicenseType) {
+    if (!licenseNotReady && !cosmeticLicenseType) {
       setSubmitError("화장품 등록필증 종류를 선택해주세요.")
       return
     }
-    if (!cosmeticLicenseFile) {
+    if (!licenseNotReady && !cosmeticLicenseFile) {
       setSubmitError("화장품 등록필증 파일을 업로드해주세요.")
       return
     }
@@ -275,7 +276,7 @@ function SupplierForm() {
           ? /^https?:\/\//i.test(website) ? website : `https://${website}`
           : null,
         fda_status: fdaStatus || null,
-        cosmetic_license_type: cosmeticLicenseType || null,
+        cosmetic_license_type: licenseNotReady ? "준비중" : (cosmeticLicenseType || null),
         cosmetic_license_url: cosmeticLicenseUrl,
         fda_registration_number: fdaStatus === "등록 완료" ? fdaRegNumber || null : null,
         iso_22716: iso22716 === "보유",
@@ -544,49 +545,72 @@ function SupplierForm() {
         <div className="mb-8">
           <h3 className="text-sm font-semibold text-[#0F0F0F] mb-5">인증 및 서류</h3>
 
-          {/* 화장품 등록필증 (필수) */}
+          {/* 화장품 등록필증 (필수 → 준비중 체크 시 해제) */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-[#0F0F0F] mb-2">
               화장품 등록필증 <span className="text-[#1A3A5C]">*</span>
             </label>
-            <div className="flex flex-wrap gap-6 mb-3">
-              {["제조업 등록필증", "책임판매업 등록필증"].map((type) => (
-                <label key={type} className="flex items-center gap-2.5 cursor-pointer">
-                  <div
-                    onClick={() => setCosmeticLicenseType(type)}
-                    className={cn(
-                      "w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer",
-                      cosmeticLicenseType === type ? "border-[#1A3A5C]" : "border-[#E8E2DA]"
-                    )}
-                  >
-                    {cosmeticLicenseType === type && <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />}
-                  </div>
-                  <span className="text-sm text-[#0F0F0F]">{type}</span>
-                </label>
-              ))}
-            </div>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 px-4 py-2.5 border border-[#1A3A5C] text-[#1A3A5C] text-sm font-medium rounded-lg cursor-pointer hover:bg-[#1A3A5C]/5 transition-colors">
-                <Upload className="w-4 h-4" />
-                파일 선택
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  className="hidden"
-                  onChange={(e) => setCosmeticLicenseFile(e.target.files?.[0] ?? null)}
-                />
-              </label>
-              {cosmeticLicenseFile ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-[#0F0F0F] truncate max-w-[200px]">{cosmeticLicenseFile.name}</span>
-                  <button type="button" onClick={() => setCosmeticLicenseFile(null)} className="text-[#6B6B6B] hover:text-red-500 transition-colors">
-                    <X className="w-4 h-4" />
-                  </button>
+            {/* 준비중 체크박스 */}
+            <label className="flex items-center gap-2.5 cursor-pointer mb-3">
+              <div
+                onClick={() => {
+                  setLicenseNotReady(!licenseNotReady)
+                  setCosmeticLicenseType("")
+                  setCosmeticLicenseFile(null)
+                }}
+                className={cn(
+                  "w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer",
+                  licenseNotReady
+                    ? "bg-[#1A3A5C] border-[#1A3A5C]"
+                    : "bg-white border-[1.5px] border-[#E8E2DA]"
+                )}
+              >
+                {licenseNotReady && <Check className="w-3 h-3 text-white" />}
+              </div>
+              <span className="text-sm text-[#6B6B6B]">준비 중 — 가입 후 대시보드에서 제출</span>
+            </label>
+            {!licenseNotReady && (
+              <>
+                <div className="flex flex-wrap gap-6 mb-3">
+                  {["제조업 등록필증", "책임판매업 등록필증"].map((type) => (
+                    <label key={type} className="flex items-center gap-2.5 cursor-pointer">
+                      <div
+                        onClick={() => setCosmeticLicenseType(type)}
+                        className={cn(
+                          "w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer",
+                          cosmeticLicenseType === type ? "border-[#1A3A5C]" : "border-[#E8E2DA]"
+                        )}
+                      >
+                        {cosmeticLicenseType === type && <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />}
+                      </div>
+                      <span className="text-sm text-[#0F0F0F]">{type}</span>
+                    </label>
+                  ))}
                 </div>
-              ) : (
-                <span className="text-sm text-[#6B6B6B]/60">파일을 선택해주세요</span>
-              )}
-            </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-4 py-2.5 border border-[#1A3A5C] text-[#1A3A5C] text-sm font-medium rounded-lg cursor-pointer hover:bg-[#1A3A5C]/5 transition-colors">
+                    <Upload className="w-4 h-4" />
+                    파일 선택
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      className="hidden"
+                      onChange={(e) => setCosmeticLicenseFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  {cosmeticLicenseFile ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-[#0F0F0F] truncate max-w-[200px]">{cosmeticLicenseFile.name}</span>
+                      <button type="button" onClick={() => setCosmeticLicenseFile(null)} className="text-[#6B6B6B] hover:text-red-500 transition-colors">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-[#6B6B6B]/60">파일을 선택해주세요</span>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {/* FDA MoCRA 등록 */}
@@ -795,10 +819,10 @@ function SupplierForm() {
         {/* Submit Button */}
         <button
           onClick={handleSubmit}
-          disabled={isSubmitting || !cosmeticLicenseFile}
+          disabled={isSubmitting || (!cosmeticLicenseFile && !licenseNotReady)}
           className={cn(
             "w-full bg-[#1A3A5C] text-white font-semibold py-3.5 rounded-lg text-[15px] transition-colors inline-flex items-center justify-center gap-2",
-            isSubmitting || !cosmeticLicenseFile ? "opacity-60 cursor-not-allowed" : "hover:bg-[#153249]"
+            isSubmitting || (!cosmeticLicenseFile && !licenseNotReady) ? "opacity-60 cursor-not-allowed" : "hover:bg-[#153249]"
           )}
         >
           {isSubmitting ? "저장 중..." : "대시보드 시작하기"}

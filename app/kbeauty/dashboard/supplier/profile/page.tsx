@@ -14,6 +14,8 @@ import {
   Clock,
   Save,
   X,
+  Upload,
+  AlertCircle,
 } from "lucide-react"
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -118,6 +120,7 @@ interface SupplierProfile {
   business_registration_number: string | null
   business_registration_verified: boolean
   cosmetic_license_type: string | null
+  cosmetic_license_url: string | null
   cosmetic_license_verified: boolean
   fda_status: string | null
   fda_registration_number: string | null
@@ -171,6 +174,11 @@ export default function SupplierProfilePage() {
   const [exportCountries, setExportCountries] = useState<string[]>([])
   const [countryInput, setCountryInput] = useState("")
 
+  // 화장품 등록필증 업로드
+  const [licenseFile, setLicenseFile] = useState<File | null>(null)
+  const [licenseTypeInput, setLicenseTypeInput] = useState("")
+  const [uploadingLicense, setUploadingLicense] = useState(false)
+
   useEffect(() => {
     async function load() {
       const {
@@ -185,7 +193,7 @@ export default function SupplierProfilePage() {
       const { data, error } = await supabase
         .from("beauty_suppliers")
         .select(
-          "id, company_name_ko, company_name_en, website, contact_name, contact_email, contact_phone, business_registration_number, business_registration_verified, cosmetic_license_type, cosmetic_license_verified, fda_status, fda_registration_number, categories, iso_22716, iso_22716_url, vegan_certified, vegan_cert_org, vegan_cert_url, cruelty_free_certified, cruelty_free_cert_org, cruelty_free_cert_url, export_experience, export_countries"
+          "id, company_name_ko, company_name_en, website, contact_name, contact_email, contact_phone, business_registration_number, business_registration_verified, cosmetic_license_type, cosmetic_license_url, cosmetic_license_verified, fda_status, fda_registration_number, categories, iso_22716, iso_22716_url, vegan_certified, vegan_cert_org, vegan_cert_url, cruelty_free_certified, cruelty_free_cert_org, cruelty_free_cert_url, export_experience, export_countries"
         )
         .eq("user_id", user.id)
         .single()
@@ -297,6 +305,39 @@ export default function SupplierProfilePage() {
       toast.error("저장 중 오류가 발생했습니다.")
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleLicenseUpload() {
+    if (!supplierId || !licenseFile) return
+    if (!licenseTypeInput) {
+      toast.error("등록필증 종류를 선택해주세요.")
+      return
+    }
+    setUploadingLicense(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error("not authenticated")
+      const safeName = `${Date.now()}_${licenseFile.name.replace(/\s+/g, "_")}`
+      const path = `suppliers/${user.id}/${safeName}`
+      const { error: upErr } = await supabase.storage
+        .from("kbeauty-documents")
+        .upload(path, licenseFile, { upsert: true })
+      if (upErr) throw upErr
+      const { error: dbErr } = await supabase
+        .from("beauty_suppliers")
+        .update({ cosmetic_license_type: licenseTypeInput, cosmetic_license_url: path })
+        .eq("id", supplierId)
+      if (dbErr) throw dbErr
+      setProfile((prev) => prev ? { ...prev, cosmetic_license_type: licenseTypeInput, cosmetic_license_url: path, cosmetic_license_verified: false } : prev)
+      setLicenseFile(null)
+      setLicenseTypeInput("")
+      toast.success("서류가 제출되었습니다. 관리자 검토 후 바이어에게 노출됩니다.")
+    } catch (err) {
+      console.error(err)
+      toast.error("업로드 중 오류가 발생했습니다.")
+    } finally {
+      setUploadingLicense(false)
     }
   }
 
@@ -443,6 +484,87 @@ export default function SupplierProfilePage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* ② -1 화장품 등록필증 제출 */}
+        <div className={sectionClass} style={sectionStyle}>
+          <h2 className="text-sm font-semibold text-[#1A3A5C] mb-1">화장품 등록필증 제출</h2>
+          <p className="text-xs text-[#6B6B6B] mb-4">
+            서류 제출 후 관리자 검토가 완료되면 바이어 검색 결과에 노출됩니다.
+          </p>
+
+          {profile.cosmetic_license_verified ? (
+            /* 인증 완료 */
+            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+              인증 완료 — 바이어에게 노출 중입니다.
+            </div>
+          ) : profile.cosmetic_license_url && profile.cosmetic_license_type !== "준비중" ? (
+            /* 제출 완료, 검토 중 */
+            <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <Clock className="w-4 h-4 flex-shrink-0" />
+              서류 검토 중 — 관리자 승인 후 바이어에게 노출됩니다.
+            </div>
+          ) : (
+            /* 미제출 */
+            <>
+              <div className="flex items-start gap-2 text-sm text-[#1A3A5C] bg-[#1A3A5C]/5 border border-[#1A3A5C]/20 rounded-lg px-4 py-3 mb-4">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>서류 미제출 상태입니다. 제출 후 어드민 승인 시 바이어에게 노출됩니다.</span>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-medium text-[#6B6B6B] mb-2">등록필증 종류</p>
+                  <div className="flex flex-wrap gap-5">
+                    {["제조업 등록필증", "책임판매업 등록필증"].map((type) => (
+                      <label key={type} className="flex items-center gap-2 cursor-pointer">
+                        <div
+                          onClick={() => setLicenseTypeInput(type)}
+                          className="w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors cursor-pointer"
+                          style={{ borderColor: licenseTypeInput === type ? "#1A3A5C" : "#E8E2DA" }}
+                        >
+                          {licenseTypeInput === type && <div className="w-2.5 h-2.5 rounded-full bg-[#1A3A5C]" />}
+                        </div>
+                        <span className="text-sm text-[#0F0F0F]">{type}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-4 py-2 border border-[#1A3A5C] text-[#1A3A5C] text-sm font-medium rounded-lg cursor-pointer hover:bg-[#1A3A5C]/5 transition-colors">
+                    <Upload className="w-4 h-4" />
+                    파일 선택
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      className="hidden"
+                      onChange={(e) => setLicenseFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  {licenseFile ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-[#0F0F0F] truncate max-w-[200px]">{licenseFile.name}</span>
+                      <button type="button" onClick={() => setLicenseFile(null)} className="text-[#6B6B6B] hover:text-red-500">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-[#6B6B6B]/60">PDF, JPG, PNG</span>
+                  )}
+                </div>
+                <div className="flex justify-end pt-2 border-t border-[#E8E2DA]">
+                  <button
+                    onClick={handleLicenseUpload}
+                    disabled={uploadingLicense || !licenseFile || !licenseTypeInput}
+                    className="text-sm font-semibold px-5 py-2 rounded-lg transition-opacity hover:opacity-80 disabled:opacity-40"
+                    style={{ background: "#1A3A5C", color: "white" }}
+                  >
+                    {uploadingLicense ? "제출 중..." : "서류 제출"}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* ③ 인증 정보 (읽기 전용) */}
