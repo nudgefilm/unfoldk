@@ -133,3 +133,38 @@
 - app/api/kbeauty/pipeline/apollo/route.ts — Apollo.io 매핑
 - app/api/kbeauty/pipeline/email/route.ts — Resend 발송
 - supabase/migrations/XXXX_beauty_suppliers_staging.sql — 스테이징 테이블
+
+---
+
+## ⑦ OEM/ODM 공급사 매칭 확장 계획
+
+### 배경
+식약처 API로 적재되는 화장품 제조업체(INDUTY: 화장품제조)는 자사 브랜드 수출뿐만 아니라
+OEM/ODM 방식으로 바이어·셀러에게 제조 서비스를 제공할 수 있는 잠재 공급사입니다.
+
+### 구현 예정 항목
+
+**① beauty_suppliers 테이블 확장**
+- manufacturer_type 컬럼 추가:
+  'brand' | 'oem' | 'odm' | 'brand_oem' | 'brand_odm' | 'oem_odm'
+- license_type 컬럼 활용: '화장품제조' / '화장품책임판매' 구분
+
+**② 공급사 프로필 페이지**
+- 제조 유형 선택 UI 추가 (브랜드사 / OEM 가능 / ODM 가능)
+- MOQ, 제조 가능 카테고리, 최소 리드타임 입력 필드
+
+**③ 바이어 공급사 탐색 페이지**
+- 필터 추가: "OEM/ODM 제조사만 보기" 토글
+- 카드에 OEM/ODM 배지 표시
+
+**④ 셀러 Discover Suppliers 섹션**
+- "Looking for OEM/ODM manufacturer?" 별도 섹션 추가
+- 제조 가능 성분·카테고리 기반 매칭
+
+**⑤ Market Intelligence 페이지**
+- OEM/ODM 매칭 서비스 소개 섹션 추가
+- "Source your own formula" CTA
+
+### 구현 시점
+- beauty_suppliers manufacturer_type 컬럼: MFDS 파이프라인 완료 후
+- UI 구현: 공급사 DB 100개 이상 적재 후
