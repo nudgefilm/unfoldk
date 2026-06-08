@@ -4,6 +4,73 @@
 
 ---
 
+## 현재 상태 (2026-06-08 세션 57 기준)
+
+### UnfoldK Beauty (kbeauty) — 파이프라인 어드민 UI 개선 + 번역 파이프라인 실행
+
+**완료 항목**
+
+- **파이프라인 탭 스테이징 목록 아코디언 통합** (`app/kbeauty/admin/page.tsx`)
+  - 공급사 아코디언 펼침 시: 현황 카드 + 실행 버튼 + 스테이징 목록(필터·테이블·페이지네이션) 한 블록
+  - 바이어·셀러 아코디언: "스테이징 목록 — 준비중입니다" placeholder
+  - 외부 스테이징 섹션 + 파이프라인 필터 탭(공급사/바이어/셀러) 완전 제거
+  - `stagingListPipeline` state, `switchStagingPipeline` 함수 제거
+
+- **`scripts/translate-pipeline.ts` 백그라운드 실행**
+  - 대상: `translate_status='pending'` 28,879건
+  - `Start-Process cmd` + `> translate.log 2>&1` 로 세션 종료 후에도 계속 실행
+  - 재실행 안전성 확인: 두 쿼리 모두 `.eq("translate_status", "pending")` 필터 → completed/failed 행 건드리지 않음
+  - 로그 확인: `Get-Content translate.log -Wait -Tail 5 -Encoding UTF8`
+
+**다음 세션**
+- 번역 완료 후 translate.log 결과 확인
+- Apollo.io 매핑 파이프라인 구현
+
+---
+
+## 현재 상태 (2026-06-08 세션 56 기준)
+
+### UnfoldK Beauty (kbeauty) — BeautyNavbar 표시명 + Market Intelligence 배지 문구 수정
+
+**완료 항목**
+
+- **Step 01 배지 문구 수정** (`app/kbeauty/market-intelligence/page.tsx`)
+  - "Trend Radar · 1 vote/user/day" → "Trend Radar · Daily Vote Limit Applied"
+
+- **BeautyNavbar 네비 표시명 수정** (`components/kbeauty/BeautyNavbar.tsx`)
+  - 데스크톱·모바일 모두 "Trend Radar" → "Market Intelligence" (href `/kbeauty/market-intelligence` 유지)
+
+---
+
+## 현재 상태 (2026-06-08 세션 55 기준)
+
+### UnfoldK Beauty (kbeauty) — 공통 BeautyNavbar + AdBanner 빈 슬롯 + Market Intelligence 신규
+
+**완료 항목**
+
+- **HallyuCalendar 가로 스크롤 제거** (`app/calendar/page.tsx`)
+  - 루트 `<div>`에 `overflow-x-hidden` 추가
+
+- **AdBanner 빈 슬롯 UI** (`components/kbeauty/AdBanner.tsx`)
+  - 광고 없을 때 `return null` → 점선 테두리 + "Advertise Here · Reach verified K-beauty partners" + "Apply →" 플레이스홀더 표시
+  - `SLOT_EMPTY_HEIGHT` 맵으로 슬롯별 높이 분기
+
+- **공통 BeautyNavbar 컴포넌트** (`components/kbeauty/BeautyNavbar.tsx`) 신규
+  - 인증 상태 내부 관리, 3 variant (light / dark / black), 골드 아바타 드롭다운
+  - 9개 kbeauty 페이지 일괄 적용, 860줄 중복 코드 제거
+  - 네비 표시명 "Trend Radar" (href `/kbeauty/market-intelligence` 유지)
+
+- **Data Sources → Market Intelligence 전환**
+  - `app/kbeauty/data-sources/page.tsx`: `redirect("/kbeauty/market-intelligence")` 리다이렉트만
+  - `app/kbeauty/market-intelligence/page.tsx` 신규 (3섹션: Sourcing Sniper Top 3 / AdBanner / How UnfoldK Works 타임라인)
+  - 사용자 노출 텍스트에서 snake_case DB 식별자 전부 제거
+
+**다음 세션**
+- Paddle 웹훅 실서버 등록 및 실결제 테스트
+- Pro 유저 UX 확인 (proActive=true 상태 대시보드 흐름)
+
+---
+
 ## 현재 상태 (2026-06-08 세션 54 기준)
 
 ### UnfoldK Beauty (kbeauty) — Supplier Pro 결제 + 네비 개선 + Sourcing Sniper Annual
