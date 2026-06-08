@@ -4,6 +4,24 @@
 
 ---
 
+## 현재 상태 (2026-06-09 세션 59 기준)
+
+### UnfoldK Beauty (kbeauty) — 어드민 대시보드 프리뷰 + 기타 수정
+
+**완료 항목**
+
+- **어드민 대시보드 프리뷰 모드** (5개 파일)
+  - `middleware.ts`: `is_admin` RPC 1회 선호출 → 어드민이면 모든 `/kbeauty/dashboard/*` 라우트 통과
+  - `dashboard/supplier/page.tsx`, `buyer/page.tsx`, `seller/page.tsx`: `?preview=<id>` 파라미터 감지 → 해당 유저 데이터 로드, 상단 네이비 프리뷰 배너 + 패널 복귀 링크
+  - `admin/page.tsx`: 공급사·바이어·셀러 테이블 각 행 끝에 "보기" 외부 링크 추가
+  - 사용법: 어드민 패널 → 각 탭 → 행의 **보기** 클릭 → 새 탭에서 해당 유저 대시보드 열림
+
+**다음 세션**
+- Apollo.io 매핑 파이프라인 구현
+- Paddle 웹훅 실서버 등록 및 실결제 테스트
+
+---
+
 ## 현재 상태 (2026-06-09 세션 58 기준)
 
 ### UnfoldK Beauty (kbeauty) — 공급사 가입 서류 필수 해제 + 대시보드 구현 + 인프라
