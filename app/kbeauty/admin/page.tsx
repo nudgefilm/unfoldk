@@ -7,7 +7,7 @@ import {
   Loader2, CheckCircle2, XCircle, Package,
   Users, Store, ShoppingBag, Handshake, FlaskConical,
   ToggleLeft, ToggleRight, ExternalLink, Mail, X, Eye,
-  Megaphone,
+  Megaphone, Database, Play,
 } from "lucide-react"
 import { toast, Toaster } from "sonner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -17,7 +17,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 const NAVY = "#1A3A5C"
 const GOLD = "#C8A882"
 
-type Tab = "suppliers" | "buyers" | "sellers" | "products" | "matches" | "services" | "emails" | "ads"
+type Tab = "suppliers" | "buyers" | "sellers" | "products" | "matches" | "services" | "emails" | "ads" | "pipeline"
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "suppliers", label: "공급사",    icon: Package },
@@ -28,6 +28,7 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "services",  label: "샘플·소싱", icon: FlaskConical },
   { key: "emails",    label: "이메일 발송", icon: Mail },
   { key: "ads",       label: "광고 관리",  icon: Megaphone },
+  { key: "pipeline",  label: "수집 파이프라인", icon: Database },
 ]
 
 // ─── 이메일 템플릿 ─────────────────────────────────────────────────────────
@@ -193,6 +194,23 @@ interface AdminAd {
   users?: { email: string } | null
 }
 
+interface StagingStats {
+  total: number
+  translateCompleted: number
+  apolloMapped: number
+  inviteSent: number
+}
+
+interface StagingRow {
+  id: string
+  company_name_ko: string
+  company_name_en: string | null
+  translate_status: string
+  apollo_status: string
+  invite_status: string
+  created_at: string
+}
+
 // ─── 유틸 ──────────────────────────────────────────────────────────────────
 
 function fmtDate(iso: string) {
@@ -212,6 +230,11 @@ function StatusBadge({ value }: { value: string }) {
     stage2_pending: { bg: "#F5F3FF", color: "#5B21B6", label: "2차 대기" },
     pre_registered: { bg: "#F3F4F6", color: "#374151", label: "사전등록" },
     suspended:      { bg: "#FEF2F2", color: "#991B1B", label: "정지" },
+    sent:           { bg: "#EFF6FF", color: "#1D4ED8", label: "발송완료" },
+    bounced:        { bg: "#FEF2F2", color: "#991B1B", label: "반송" },
+    unsubscribed:   { bg: "#F3F4F6", color: "#374151", label: "수신거부" },
+    mapped:         { bg: "#ECFDF5", color: "#065F46", label: "매핑완료" },
+    not_found:      { bg: "#F3F4F6", color: "#374151", label: "미발견" },
   }
   const s = map[value] ?? { bg: "#F3F4F6", color: "#374151", label: value }
   return (
@@ -254,6 +277,12 @@ export default function KBeautyAdminPage() {
   const [services,  setServices]    = useState<AdminService[]>([])
   const [sourcings, setSourceings]  = useState<AdminSourcing[]>([])
   const [ads,       setAds]         = useState<AdminAd[]>([])
+
+  // 파이프라인 탭 상태
+  const [stagingStats,    setStagingStats]    = useState<StagingStats | null>(null)
+  const [stagingItems,    setStagingItems]    = useState<StagingRow[]>([])
+  const [stagingFilter,   setStagingFilter]   = useState<string>("all")
+  const [pipelineRunning, setPipelineRunning] = useState<Record<string, boolean>>({})
 
   // 광고 관리 상태
   const [adFilter,       setAdFilter]       = useState<string>("all")
@@ -393,6 +422,32 @@ export default function KBeautyAdminPage() {
       setAds((data ?? []) as AdminAd[])
     }
 
+    if (tab === "pipeline") {
+      const [
+        { count: total },
+        { count: translateCompleted },
+        { count: apolloMapped },
+        { count: inviteSent },
+        { data: items },
+      ] = await Promise.all([
+        supabase.from("beauty_suppliers_staging").select("*", { count: "exact", head: true }),
+        supabase.from("beauty_suppliers_staging").select("*", { count: "exact", head: true }).eq("translate_status", "completed"),
+        supabase.from("beauty_suppliers_staging").select("*", { count: "exact", head: true }).eq("apollo_status", "mapped"),
+        supabase.from("beauty_suppliers_staging").select("*", { count: "exact", head: true }).eq("invite_status", "sent"),
+        supabase.from("beauty_suppliers_staging")
+          .select("id, company_name_ko, company_name_en, translate_status, apollo_status, invite_status, created_at")
+          .order("created_at", { ascending: false })
+          .limit(50),
+      ])
+      setStagingStats({
+        total: total ?? 0,
+        translateCompleted: translateCompleted ?? 0,
+        apolloMapped: apolloMapped ?? 0,
+        inviteSent: inviteSent ?? 0,
+      })
+      setStagingItems((items ?? []) as StagingRow[])
+    }
+
     setLoadedTabs(prev => new Set(prev).add(tab))
   }, [loadedTabs, supabase])
 
@@ -501,6 +556,50 @@ export default function KBeautyAdminPage() {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p))
     toast.success(newStatus === "active" ? "상품 승인됨" : "상품 비활성화됨")
     setToggling(null)
+  }
+
+  async function refreshStagingData() {
+    const [
+      { count: total },
+      { count: translateCompleted },
+      { count: apolloMapped },
+      { count: inviteSent },
+      { data: items },
+    ] = await Promise.all([
+      supabase.from("beauty_suppliers_staging").select("*", { count: "exact", head: true }),
+      supabase.from("beauty_suppliers_staging").select("*", { count: "exact", head: true }).eq("translate_status", "completed"),
+      supabase.from("beauty_suppliers_staging").select("*", { count: "exact", head: true }).eq("apollo_status", "mapped"),
+      supabase.from("beauty_suppliers_staging").select("*", { count: "exact", head: true }).eq("invite_status", "sent"),
+      supabase.from("beauty_suppliers_staging")
+        .select("id, company_name_ko, company_name_en, translate_status, apollo_status, invite_status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50),
+    ])
+    setStagingStats({ total: total ?? 0, translateCompleted: translateCompleted ?? 0, apolloMapped: apolloMapped ?? 0, inviteSent: inviteSent ?? 0 })
+    setStagingItems((items ?? []) as StagingRow[])
+  }
+
+  async function runPipeline(endpoint: string, key: string) {
+    setPipelineRunning(prev => ({ ...prev, [key]: true }))
+    try {
+      const res = await fetch(endpoint, { method: "POST" })
+      const result = await res.json() as Record<string, unknown>
+      if (!res.ok) {
+        toast.error(`실패: ${String(result.error ?? "오류 발생")}`)
+      } else {
+        const msg = Object.entries(result)
+          .filter(([k]) => k !== "message")
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(" / ")
+        const message = typeof result.message === "string" ? result.message : msg
+        toast.success(`완료 — ${message}`)
+        await refreshStagingData()
+      }
+    } catch {
+      toast.error("요청 중 오류가 발생했습니다.")
+    } finally {
+      setPipelineRunning(prev => ({ ...prev, [key]: false }))
+    }
   }
 
   // ─── 렌더링 ───────────────────────────────────────────────────────────────
@@ -1221,6 +1320,135 @@ export default function KBeautyAdminPage() {
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ── ⑨ DB 수집 파이프라인 ───────────────────────────────── */}
+            {activeTab === "pipeline" && (
+              <div className="p-6">
+                <h2 className="text-base font-bold text-[#0F0F0F] mb-6">DB 수집 파이프라인</h2>
+
+                {/* 스테이징 현황 카드 4개 */}
+                {stagingStats && (
+                  <div className="grid grid-cols-4 gap-4 mb-7">
+                    {[
+                      { label: "전체 스테이징", value: stagingStats.total },
+                      { label: "번역 완료", value: stagingStats.translateCompleted, sub: "translate_status = completed" },
+                      { label: "Apollo 매핑 완료", value: stagingStats.apolloMapped, sub: "apollo_status = mapped" },
+                      { label: "초대 발송 완료", value: stagingStats.inviteSent, sub: "invite_status = sent" },
+                    ].map(({ label, value, sub }) => (
+                      <div key={label} className="bg-[#F8F7F5] border border-[#E8E2DA] rounded-xl p-4">
+                        <p className="text-xs text-[#6B6B6B] mb-1 leading-snug">{label}</p>
+                        <p className="text-2xl font-bold" style={{ color: NAVY }}>{value.toLocaleString()}</p>
+                        {sub && <p className="text-[10px] text-[#6B6B6B] mt-0.5 font-mono">{sub}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 실행 버튼 3개 */}
+                <div className="flex flex-wrap gap-3 mb-8">
+                  <button
+                    onClick={() => runPipeline("/api/kbeauty/pipeline/mfds", "mfds")}
+                    disabled={pipelineRunning.mfds}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                    style={{ background: NAVY }}
+                  >
+                    {pipelineRunning.mfds
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <Play className="w-4 h-4" />}
+                    식약처 API 조회 실행
+                  </button>
+
+                  <button
+                    onClick={() => runPipeline("/api/kbeauty/pipeline/translate", "translate")}
+                    disabled={pipelineRunning.translate}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                    style={{ background: "#7C3AED" }}
+                  >
+                    {pipelineRunning.translate
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <Play className="w-4 h-4" />}
+                    영문 변환 실행
+                  </button>
+
+                  <button
+                    disabled
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg text-white opacity-40 cursor-not-allowed"
+                    style={{ background: "#6B6B6B" }}
+                    title="추후 구현 예정"
+                  >
+                    <Play className="w-4 h-4" />
+                    Apollo 매핑 실행
+                    <span className="text-[10px] ml-1 opacity-80">(추후)</span>
+                  </button>
+                </div>
+
+                {/* 스테이징 테이블 */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-[#0F0F0F]">스테이징 목록 (최근 50개)</h3>
+                    <div className="flex gap-1.5">
+                      {[
+                        { key: "all",       label: "전체" },
+                        { key: "translate", label: "번역 기준" },
+                        { key: "apollo",    label: "Apollo 기준" },
+                        { key: "invite",    label: "초대 기준" },
+                      ].map(f => (
+                        <button
+                          key={f.key}
+                          onClick={() => setStagingFilter(f.key)}
+                          className="text-xs px-2.5 py-1 rounded-full border transition-colors"
+                          style={
+                            stagingFilter === f.key
+                              ? { background: NAVY, borderColor: NAVY, color: "white" }
+                              : { background: "white", borderColor: "#E8E2DA", color: "#6B6B6B" }
+                          }
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {!loadedTabs.has("pipeline")
+                    ? <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-[#6B6B6B]" /></div>
+                    : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr>
+                            {["업체명 (한글)", "업체명 (영문)", "번역 상태", "Apollo 상태", "초대 상태", "등록일"].map(h => (
+                              <th key={h} className={thCls + " pr-4"}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#F3F4F6]">
+                          {stagingItems
+                            .filter(row => {
+                              if (stagingFilter === "translate") return row.translate_status !== "completed"
+                              if (stagingFilter === "apollo")    return row.apollo_status !== "mapped"
+                              if (stagingFilter === "invite")    return row.invite_status !== "sent"
+                              return true
+                            })
+                            .map(row => (
+                              <tr key={row.id}>
+                                <td className={tdCls + " pr-4 font-medium max-w-[180px] truncate"}>{row.company_name_ko}</td>
+                                <td className={tdCls + " pr-4 text-[#6B6B6B] max-w-[180px] truncate"}>{row.company_name_en ?? "—"}</td>
+                                <td className={tdCls + " pr-4"}><StatusBadge value={row.translate_status} /></td>
+                                <td className={tdCls + " pr-4"}><StatusBadge value={row.apollo_status} /></td>
+                                <td className={tdCls + " pr-4"}><StatusBadge value={row.invite_status} /></td>
+                                <td className={tdCls + " text-[#6B6B6B] text-xs"}>{fmtDate(row.created_at)}</td>
+                              </tr>
+                            ))}
+                          {stagingItems.length === 0 && (
+                            <tr><td colSpan={6} className="text-center py-10 text-sm text-[#6B6B6B]">스테이징 데이터 없음</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
