@@ -285,7 +285,6 @@ export default function KBeautyAdminPage() {
   const [stagingPage,        setStagingPage]        = useState<number>(1)
   const [pipelineRunning,    setPipelineRunning]    = useState<Record<string, boolean>>({})
   const [openSections,       setOpenSections]       = useState<Record<string, boolean>>({ supplier: true, buyer: false, seller: false })
-  const [stagingListPipeline, setStagingListPipeline] = useState<"supplier" | "buyer" | "seller">("supplier")
 
   // 광고 관리 상태
   const [adFilter,       setAdFilter]       = useState<string>("all")
@@ -566,18 +565,6 @@ export default function KBeautyAdminPage() {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  async function switchStagingPipeline(pipeline: "supplier" | "buyer" | "seller") {
-    setStagingListPipeline(pipeline)
-    setStagingPage(1)
-    if (pipeline !== "supplier") { setStagingItems([]); return }
-    const { data: items } = await supabase
-      .from("beauty_suppliers_staging")
-      .select("id, company_name_ko, company_name_en, translate_status, apollo_status, invite_status, created_at")
-      .order("created_at", { ascending: false })
-      .range(0, 49)
-    setStagingItems((items ?? []) as StagingRow[])
-  }
-
   async function refreshStagingData() {
     const [
       { count: total },
@@ -601,7 +588,6 @@ export default function KBeautyAdminPage() {
   }
 
   async function loadStagingPage(page: number) {
-    if (stagingListPipeline !== "supplier") { setStagingPage(page); setStagingItems([]); return }
     const from = (page - 1) * 50
     const { data: items } = await supabase
       .from("beauty_suppliers_staging")
@@ -1362,7 +1348,7 @@ export default function KBeautyAdminPage() {
                 <h2 className="text-base font-bold text-[#0F0F0F] mb-6">DB 수집 파이프라인</h2>
 
                 {/* ── 아코디언 3개 ─────────────────────────────────────── */}
-                <div className="space-y-3 mb-8">
+                <div className="space-y-3">
 
                   {/* ① 공급사 파이프라인 */}
                   <div className="border border-[#E8E2DA] rounded-xl overflow-hidden">
@@ -1430,6 +1416,101 @@ export default function KBeautyAdminPage() {
                             </button>
                           ))}
                         </div>
+
+                        {/* ── 스테이징 목록 ─────────────────────────── */}
+                        <div className="mt-6">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-semibold text-[#0F0F0F]">
+                              {stagingStats
+                                ? `스테이징 목록 (전체 ${stagingStats.total.toLocaleString()}건, 50개씩 표시)`
+                                : "스테이징 목록 (전체 0건)"}
+                            </h3>
+                            <div className="flex gap-1.5">
+                              {[
+                                { key: "all",       label: "전체" },
+                                { key: "translate", label: "번역 기준" },
+                                { key: "apollo",    label: "Apollo 기준" },
+                                { key: "invite",    label: "초대 기준" },
+                              ].map(f => (
+                                <button
+                                  key={f.key}
+                                  onClick={() => setStagingFilter(f.key)}
+                                  className="text-xs px-2.5 py-1 rounded-full border transition-colors"
+                                  style={
+                                    stagingFilter === f.key
+                                      ? { background: NAVY, borderColor: NAVY, color: "white" }
+                                      : { background: "white", borderColor: "#E8E2DA", color: "#6B6B6B" }
+                                  }
+                                >
+                                  {f.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {!loadedTabs.has("pipeline")
+                            ? <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-[#6B6B6B]" /></div>
+                            : (() => {
+                              const totalPages = Math.ceil((stagingStats?.total ?? 0) / 50)
+                              const filtered = stagingItems.filter(row => {
+                                if (stagingFilter === "translate") return row.translate_status !== "completed"
+                                if (stagingFilter === "apollo")    return row.apollo_status !== "mapped"
+                                if (stagingFilter === "invite")    return row.invite_status !== "sent"
+                                return true
+                              })
+                              return (
+                                <>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                      <thead>
+                                        <tr>
+                                          {["업체명 (한글)", "업체명 (영문)", "번역 상태", "Apollo 상태", "초대 상태", "등록일"].map(h => (
+                                            <th key={h} className={thCls + " pr-4"}>{h}</th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-[#F3F4F6]">
+                                        {filtered.map(row => (
+                                          <tr key={row.id}>
+                                            <td className={tdCls + " pr-4 font-medium max-w-[180px] truncate"}>{row.company_name_ko}</td>
+                                            <td className={tdCls + " pr-4 text-[#6B6B6B] max-w-[180px] truncate"}>{row.company_name_en ?? "—"}</td>
+                                            <td className={tdCls + " pr-4"}><StatusBadge value={row.translate_status} /></td>
+                                            <td className={tdCls + " pr-4"}><StatusBadge value={row.apollo_status} /></td>
+                                            <td className={tdCls + " pr-4"}><StatusBadge value={row.invite_status} /></td>
+                                            <td className={tdCls + " text-[#6B6B6B] text-xs"}>{fmtDate(row.created_at)}</td>
+                                          </tr>
+                                        ))}
+                                        {filtered.length === 0 && (
+                                          <tr><td colSpan={6} className="text-center py-10 text-sm text-[#6B6B6B]">
+                                            스테이징 데이터 없음
+                                          </td></tr>
+                                        )}
+                                      </tbody>
+                                    </table>
+                                  </div>
+
+                                  {totalPages > 1 && (
+                                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#F3F4F6]">
+                                      <p className="text-xs text-[#6B6B6B]">{stagingPage} / {totalPages} 페이지</p>
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => loadStagingPage(stagingPage - 1)}
+                                          disabled={stagingPage <= 1}
+                                          className="px-3 py-1.5 text-xs font-medium border border-[#E8E2DA] rounded-lg text-[#0F0F0F] hover:bg-[#F8F7F5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        >이전</button>
+                                        <button
+                                          onClick={() => loadStagingPage(stagingPage + 1)}
+                                          disabled={stagingPage >= totalPages}
+                                          className="px-3 py-1.5 text-xs font-medium border border-[#E8E2DA] rounded-lg text-[#0F0F0F] hover:bg-[#F8F7F5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        >다음</button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              )
+                            })()
+                          }
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1468,6 +1549,9 @@ export default function KBeautyAdminPage() {
                               <span className="text-[9px] bg-[#F3F4F6] text-[#9CA3AF] rounded px-1 py-0.5">추후</span>
                             </button>
                           ))}
+                        </div>
+                        <div className="mt-4 rounded-lg border border-dashed border-[#E8E2DA] py-8 text-center">
+                          <p className="text-xs text-[#9CA3AF]">스테이징 목록 — 준비중입니다</p>
                         </div>
                       </div>
                     )}
@@ -1508,129 +1592,14 @@ export default function KBeautyAdminPage() {
                             </button>
                           ))}
                         </div>
+                        <div className="mt-4 rounded-lg border border-dashed border-[#E8E2DA] py-8 text-center">
+                          <p className="text-xs text-[#9CA3AF]">스테이징 목록 — 준비중입니다</p>
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* ── 스테이징 목록 ─────────────────────────────────────── */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-[#0F0F0F]">
-                      {stagingListPipeline === "supplier" && stagingStats
-                        ? `스테이징 목록 (전체 ${stagingStats.total.toLocaleString()}건, 50개씩 표시)`
-                        : "스테이징 목록 (전체 0건)"}
-                    </h3>
-                    <div className="flex gap-1.5">
-                      {[
-                        { key: "all",       label: "전체" },
-                        { key: "translate", label: "번역 기준" },
-                        { key: "apollo",    label: "Apollo 기준" },
-                        { key: "invite",    label: "초대 기준" },
-                      ].map(f => (
-                        <button
-                          key={f.key}
-                          onClick={() => setStagingFilter(f.key)}
-                          className="text-xs px-2.5 py-1 rounded-full border transition-colors"
-                          style={
-                            stagingFilter === f.key
-                              ? { background: NAVY, borderColor: NAVY, color: "white" }
-                              : { background: "white", borderColor: "#E8E2DA", color: "#6B6B6B" }
-                          }
-                        >
-                          {f.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 파이프라인 필터 탭 */}
-                  <div className="flex gap-2 mb-4">
-                    {([
-                      { key: "supplier" as const, label: "공급사" },
-                      { key: "buyer"    as const, label: "바이어" },
-                      { key: "seller"   as const, label: "셀러"   },
-                    ]).map(p => (
-                      <button
-                        key={p.key}
-                        onClick={() => switchStagingPipeline(p.key)}
-                        className="text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors"
-                        style={
-                          stagingListPipeline === p.key
-                            ? { background: NAVY, borderColor: NAVY, color: "white" }
-                            : { background: "white", borderColor: "#E8E2DA", color: "#6B6B6B" }
-                        }
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {!loadedTabs.has("pipeline")
-                    ? <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-[#6B6B6B]" /></div>
-                    : (() => {
-                      const totalPages = stagingListPipeline === "supplier"
-                        ? Math.ceil((stagingStats?.total ?? 0) / 50)
-                        : 0
-                      const filtered = stagingItems.filter(row => {
-                        if (stagingFilter === "translate") return row.translate_status !== "completed"
-                        if (stagingFilter === "apollo")    return row.apollo_status !== "mapped"
-                        if (stagingFilter === "invite")    return row.invite_status !== "sent"
-                        return true
-                      })
-                      return (
-                        <>
-                          <div className="overflow-x-auto">
-                            <table className="w-full">
-                              <thead>
-                                <tr>
-                                  {["업체명 (한글)", "업체명 (영문)", "번역 상태", "Apollo 상태", "초대 상태", "등록일"].map(h => (
-                                    <th key={h} className={thCls + " pr-4"}>{h}</th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-[#F3F4F6]">
-                                {filtered.map(row => (
-                                  <tr key={row.id}>
-                                    <td className={tdCls + " pr-4 font-medium max-w-[180px] truncate"}>{row.company_name_ko}</td>
-                                    <td className={tdCls + " pr-4 text-[#6B6B6B] max-w-[180px] truncate"}>{row.company_name_en ?? "—"}</td>
-                                    <td className={tdCls + " pr-4"}><StatusBadge value={row.translate_status} /></td>
-                                    <td className={tdCls + " pr-4"}><StatusBadge value={row.apollo_status} /></td>
-                                    <td className={tdCls + " pr-4"}><StatusBadge value={row.invite_status} /></td>
-                                    <td className={tdCls + " text-[#6B6B6B] text-xs"}>{fmtDate(row.created_at)}</td>
-                                  </tr>
-                                ))}
-                                {filtered.length === 0 && (
-                                  <tr><td colSpan={6} className="text-center py-10 text-sm text-[#6B6B6B]">
-                                    {stagingListPipeline !== "supplier" ? "준비중입니다" : "스테이징 데이터 없음"}
-                                  </td></tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-
-                          {totalPages > 1 && (
-                            <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#F3F4F6]">
-                              <p className="text-xs text-[#6B6B6B]">{stagingPage} / {totalPages} 페이지</p>
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => loadStagingPage(stagingPage - 1)}
-                                  disabled={stagingPage <= 1}
-                                  className="px-3 py-1.5 text-xs font-medium border border-[#E8E2DA] rounded-lg text-[#0F0F0F] hover:bg-[#F8F7F5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                >이전</button>
-                                <button
-                                  onClick={() => loadStagingPage(stagingPage + 1)}
-                                  disabled={stagingPage >= totalPages}
-                                  className="px-3 py-1.5 text-xs font-medium border border-[#E8E2DA] rounded-lg text-[#0F0F0F] hover:bg-[#F8F7F5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                >다음</button>
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      )
-                    })()
-                  }
-                </div>
               </div>
             )}
 
