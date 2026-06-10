@@ -4,6 +4,39 @@
 
 ---
 
+## 현재 상태 (2026-06-10 세션 60 기준)
+
+### HallyuCalendar + 공통 UX 개선
+
+**완료 항목**
+
+- **HallyuCalendar 가로 스크롤바 완전 제거** (`app/calendar/page.tsx`)
+  - 필터 탭 컨테이너(`overflow-x-auto`) + 캘린더 그리드 컨테이너(`overflow-x-auto + min-w-[600px]`) 양쪽에 `[&::-webkit-scrollbar]:hidden` + `style={{ scrollbarWidth: "none" }}` 추가
+  - WebKit(Chrome/Safari/Edge)·Firefox 모두 커버
+
+- **HallyuCalendar 이벤트 모달 상단 2문장 설명 추가**
+  - `app/api/calendar/description/route.ts` 신규 — DB 우선 조회 → 없으면 Claude Haiku 2문장 생성 → DB 저장
+  - `app/calendar/page.tsx` `EventDetailModal` — 제목 직후 설명 표시. 로딩 중 skeleton pulse 2줄
+  - 설명 로드 우선순위: ① `event.description`(이벤트 목록 DB 값) → ② 세션 캐시(`descCacheRef`) → ③ API 호출
+  - API 내 DB 저장 확실화: `createSupabaseAdminClient()` 로 교체 + `update()` 에러 로깅 추가
+  - 세션 내 동일 이벤트 재클릭 시 API 미호출 (캐시 히트)
+
+- **quiz·name 페이지 공유 버튼 로그인 유도 모달** (`components/common/login-prompt-modal.tsx` 신규)
+  - `app/quiz/page.tsx` — "Share my result" 클릭 시 비로그인이면 모달 표시
+  - `app/name/page.tsx` — "Share" 클릭 시 비로그인이면 모달 표시 (Copy name은 클립보드라 자유 유지)
+  - 모달: title/message props 커스터마이즈 가능, Log in + Create free account 버튼 → `/login`, `/signup`
+  - 퀴즈·이름 생성 자체는 비로그인 이용 가능 유지
+
+- **어드민 KpopStats "오늘 추가" 수치 버그 수정** (`app/admin/page.tsx`)
+  - 기존: `kpop_stats_daily.date = today` → 매일 cron이 전체 아티스트 upsert하므로 총 수치와 동일
+  - 수정: `kpop_artists.created_at >= startOfDay` → 다른 서비스들과 동일 패턴으로 통일
+
+**다음 세션**
+- Apollo.io 매핑 파이프라인 구현
+- Paddle 웹훅 실서버 등록 및 실결제 테스트
+
+---
+
 ## 현재 상태 (2026-06-09 세션 59 기준)
 
 ### UnfoldK Beauty (kbeauty) — 어드민 대시보드 프리뷰 + 기타 수정
