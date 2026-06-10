@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { FooterSection } from "@/components/footer-section"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { LoginPromptModal } from "@/components/common/login-prompt-modal"
 
 type Gender = "neutral" | "feminine" | "masculine"
 type Vibe = "bright" | "cool" | "strong" | "gentle" | "creative" | "smart"
@@ -173,6 +175,15 @@ export default function NamePage() {
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<VibeResult[] | null>(null)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [showLoginModal, setShowLoginModal] = useState(false)
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user)
+    })
+  }, [])
 
   function toggleVibe(v: Vibe) {
     setSelectedVibes((prev) => {
@@ -207,6 +218,10 @@ export default function NamePage() {
   }
 
   function handleShare(index: number) {
+    if (!isLoggedIn) {
+      setShowLoginModal(true)
+      return
+    }
     const r = results?.[index]
     if (!r || typeof navigator === "undefined") return
     const text = `My Korean name is ${r.name.korean} (${r.name.roman})! Find yours at unfoldk.com/name`
@@ -221,6 +236,12 @@ export default function NamePage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }}>
+      <LoginPromptModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        title="Sign in to share your name"
+        message="Create a free account to save and share your Korean name with the community."
+      />
       <main className="max-w-[680px] mx-auto px-6 py-12">
         <div className="text-center mb-10">
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Korean Name Generator</h1>

@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { FooterSection } from "@/components/footer-section"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { LoginPromptModal } from "@/components/common/login-prompt-modal"
 
 const QUESTIONS = [
   {
@@ -109,6 +111,15 @@ export default function QuizPage() {
   const [scores, setScores] = useState([0, 0, 0, 0])
   const [resultIndex, setResultIndex] = useState(0)
   const [shared, setShared] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [showLoginModal, setShowLoginModal] = useState(false)
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user)
+    })
+  }, [])
 
   const progress = phase === "result" ? 100 : (currentQ / QUESTIONS.length) * 100
 
@@ -139,6 +150,10 @@ export default function QuizPage() {
   }
 
   function handleShare() {
+    if (!isLoggedIn) {
+      setShowLoginModal(true)
+      return
+    }
     const result = RESULTS[resultIndex]
     const text = `I got "${result.type}" on the K-drama character quiz! Take it at unfoldk.com/quiz`
     if (typeof navigator !== "undefined" && navigator.share) {
@@ -153,6 +168,12 @@ export default function QuizPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0d0d0f" }}>
+      <LoginPromptModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        title="Sign in to save your result"
+        message="Create a free account to save and share your K-drama character type."
+      />
       <main className="max-w-[680px] mx-auto px-6 py-12">
         <div className="text-center mb-10">
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
