@@ -58,8 +58,8 @@ async function loadCollectionStats(): Promise<ServiceCollectionStat[]> {
     supabase.from("hallyu_calendar_events").select("created_at").order("created_at", { ascending: false }).limit(1),
     // KpopStats — 총 아티스트
     supabase.from("kpop_artists").select("id", { count: "exact", head: true }),
-    // KpopStats — 오늘 통계 수집된 아티스트
-    supabase.from("kpop_stats_daily").select("artist_id", { count: "exact", head: true }).eq("date", todayUtc),
+    // KpopStats — 오늘 신규 추가된 아티스트 (kpop_artists.created_at 기준)
+    supabase.from("kpop_artists").select("id", { count: "exact", head: true }).gte("created_at", startOfDay),
     // KpopStats — 최신 통계 날짜
     supabase.from("kpop_stats_daily").select("date").order("date", { ascending: false }).limit(1),
     // KdramaMatch — 총 드라마
