@@ -116,13 +116,6 @@ export default function RootLayout({
             </noscript>
           </>
         )}
-        <Script
-          id="crisp-chat"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `window.$crisp=[];window.CRISP_WEBSITE_ID="7b8d0841-0a14-40b8-8501-87cfaaa21bbc";window.CRISP_READY_TRIGGER=function(){window.$crisp.push(["do","chat:hide"]);window.$crisp.push(["on","chat:closed",function(){window.$crisp.push(["do","chat:hide"]);}]);};(function(){var d=document;var s=d.createElement("script");s.src="https://client.crisp.chat/l.js";s.async=1;d.getElementsByTagName("head")[0].appendChild(s);})();`,
-          }}
-        />
       </body>
     </html>
   )
