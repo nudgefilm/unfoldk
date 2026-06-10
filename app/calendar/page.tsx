@@ -1270,7 +1270,7 @@ export default function HallyuCalendarPage() {
         <section className="mb-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-border/30 pb-4">
             {/* Tabs */}
-            <div className="flex items-center gap-1 overflow-x-auto">
+            <div className="flex items-center gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
               {tabs.map((tab) => {
                 const isLocked = !isPro && lockedTabs.includes(tab)
                 return (
@@ -1377,7 +1377,7 @@ export default function HallyuCalendarPage() {
 
         {/* Main Calendar Grid */}
         <section className="mb-12">
-          <div className="relative bg-[#1a1a1a] border border-border/30 rounded-2xl p-4 md:p-6 overflow-x-auto">
+          <div className="relative bg-[#1a1a1a] border border-border/30 rounded-2xl p-4 md:p-6 overflow-x-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
             {eventsLoading && (
               <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-[#1a1a1a]/70">
                 <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
