@@ -142,6 +142,8 @@ function EventDetailModal({
   // 이벤트 설명 — DB 값 또는 Claude 자동 생성
   const [modalDescription, setModalDescription] = useState<string | null>(null)
   const [descLoading, setDescLoading] = useState(false)
+  // 세션 내 설명 캐시 — 동일 이벤트 재클릭 시 API 재호출 방지 (페이지 새로고침 시 초기화)
+  const descCacheRef = useRef<Map<string, string>>(new Map())
 
   // 모달 열릴 때 (event 변경) — 로그인 여부 확인 + 서버에서 리마인더 설정 로드
   useEffect(() => {
@@ -186,17 +188,25 @@ function EventDetailModal({
     }
   }, [event])
 
-  // 이벤트 설명 로드 — DB에 있으면 즉시 표시, 없으면 Claude API로 자동 생성 후 DB 저장
+  // 이벤트 설명 로드 — 우선순위: ① event.description(DB) → ② 세션 캐시 → ③ API 호출(Claude or DB)
   useEffect(() => {
     if (!event) {
       setModalDescription(null)
       setDescLoading(false)
       return
     }
+    // ① 이벤트 객체에 이미 description 있음 (이벤트 목록 fetch 시 DB에서 가져온 값)
     if (event.description) {
       setModalDescription(event.description)
       return
     }
+    // ② 세션 내 캐시 히트 — 이전에 생성한 설명을 재사용 (API 호출 없음)
+    const cached = descCacheRef.current.get(event.id)
+    if (cached) {
+      setModalDescription(cached)
+      return
+    }
+    // ③ DB에 없는 이벤트 — API 호출 (API 내부에서 DB 재확인 → 없으면 Claude 생성 → DB 저장)
     let cancelled = false
     setDescLoading(true)
     setModalDescription(null)
@@ -208,7 +218,14 @@ function EventDetailModal({
 
     fetch(`/api/calendar/description?${params}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (!cancelled) setModalDescription(data?.description ?? null) })
+      .then((data) => {
+        if (!cancelled) {
+          const desc = data?.description ?? null
+          // 생성된 설명을 세션 캐시에도 저장 — 같은 세션 내 재클릭 시 API 미호출
+          if (desc) descCacheRef.current.set(event.id, desc)
+          setModalDescription(desc)
+        }
+      })
       .catch(() => { if (!cancelled) setModalDescription(null) })
       .finally(() => { if (!cancelled) setDescLoading(false) })
 
