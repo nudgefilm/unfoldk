@@ -139,6 +139,9 @@ function EventDetailModal({
   // Share Event 피드백 — "Copied!" 또는 "Copy failed" 2초간 표시 후 원복
   const [icalCopyStatus, setIcalCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
   const icalResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 이벤트 설명 — DB 값 또는 Claude 자동 생성
+  const [modalDescription, setModalDescription] = useState<string | null>(null)
+  const [descLoading, setDescLoading] = useState(false)
 
   // 모달 열릴 때 (event 변경) — 로그인 여부 확인 + 서버에서 리마인더 설정 로드
   useEffect(() => {
@@ -182,6 +185,35 @@ function EventDetailModal({
       if (icalResetTimerRef.current) clearTimeout(icalResetTimerRef.current)
     }
   }, [event])
+
+  // 이벤트 설명 로드 — DB에 있으면 즉시 표시, 없으면 Claude API로 자동 생성 후 DB 저장
+  useEffect(() => {
+    if (!event) {
+      setModalDescription(null)
+      setDescLoading(false)
+      return
+    }
+    if (event.description) {
+      setModalDescription(event.description)
+      return
+    }
+    let cancelled = false
+    setDescLoading(true)
+    setModalDescription(null)
+
+    const eventDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), event.date)
+      .toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+    const params = new URLSearchParams({ event_id: event.id, title: event.title, type: event.type, date: eventDate })
+    if (event.artist) params.set("artist", event.artist)
+
+    fetch(`/api/calendar/description?${params}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (!cancelled) setModalDescription(data?.description ?? null) })
+      .catch(() => { if (!cancelled) setModalDescription(null) })
+      .finally(() => { if (!cancelled) setDescLoading(false) })
+
+    return () => { cancelled = true }
+  }, [event, viewDate])
 
   // Add to Google Calendar — 모듈 레벨 buildGoogleCalendarUrl 헬퍼 재사용
   const handleAddToGoogleCalendar = () => {
@@ -277,9 +309,21 @@ function EventDetailModal({
         </div>
 
         {/* Event Name */}
-        <h2 className="text-2xl font-bold text-white mb-4">
+        <h2 className="text-2xl font-bold text-white mb-3">
           {event.title}
         </h2>
+
+        {/* Description — DB 저장 값 또는 Claude Haiku 자동 생성 2문장 */}
+        {descLoading ? (
+          <div className="mb-4 space-y-1.5">
+            <div className="h-3.5 bg-[#2a2a2a] rounded animate-pulse w-full" />
+            <div className="h-3.5 bg-[#2a2a2a] rounded animate-pulse w-4/5" />
+          </div>
+        ) : modalDescription ? (
+          <p className="text-muted-foreground text-sm leading-relaxed mb-4">
+            {modalDescription}
+          </p>
+        ) : null}
 
         {/* Date & Time Row */}
         <div className="flex items-center gap-4 text-muted-foreground mb-3">
@@ -319,13 +363,6 @@ function EventDetailModal({
                 </span>
               )}
             </span>
-          </p>
-        )}
-
-        {/* Description — Claude 가 생성한 한 줄 설명 (TMDB·YouTube·manual). Ticketmaster 는 비어있음. */}
-        {event.description && (
-          <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-            {event.description}
           </p>
         )}
 
