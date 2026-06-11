@@ -180,19 +180,22 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
 
   useEffect(() => { loadRankings() }, [loadRankings])
 
-  // localStorage 기반 오늘 투표 횟수 복원
+  // localStorage 기반 오늘 투표한 아티스트 ID 배열 복원 — votedIds 상태 초기화
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0]
     if (localStorage.getItem("chart_attack_vote_date") === today) {
-      setVoteCount(parseInt(localStorage.getItem("chart_attack_vote_count") ?? "0", 10))
+      const ids: string[] = JSON.parse(localStorage.getItem("chart_attack_voted_ids") ?? "[]")
+      setVotedIds(new Set(ids))
+      setVoteCount(ids.length)
     }
   }, [])
 
   // 로그인 유저 최초 1회 투표 안내 모달 (하루 1회)
+  // 키 v2: 이전 버전 localStorage 항목 무효화
   useEffect(() => {
     if (!isLoggedIn) return
     const today = new Date().toISOString().split("T")[0]
-    if (localStorage.getItem("chart_attack_modal_date") !== today) {
+    if (localStorage.getItem("chart_attack_modal_v2") !== today) {
       const id = setTimeout(() => setShowVoteModal(true), 800)
       return () => clearTimeout(id)
     }
@@ -203,7 +206,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
     if (!showVoteModal || isModalHovered) return
     const id = setTimeout(() => {
       setShowVoteModal(false)
-      localStorage.setItem("chart_attack_modal_date", new Date().toISOString().split("T")[0])
+      localStorage.setItem("chart_attack_modal_v2", new Date().toISOString().split("T")[0])
     }, 3000)
     return () => clearTimeout(id)
   }, [showVoteModal, isModalHovered])
@@ -286,6 +289,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
   }
 
   // ─── 투표 — 낙관적 업데이트 ──────────────────────────────
+  // 아티스트별 하루 1회, 최대 5명 제한 — chart_attack_voted_ids 배열로 관리
   async function handleVote(artistId: string) {
     if (!isLoggedIn) {
       onSignUp()
@@ -293,17 +297,22 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
     }
     const today = new Date().toISOString().split("T")[0]
     const storedDate = localStorage.getItem("chart_attack_vote_date")
-    const currentCount = storedDate === today
-      ? parseInt(localStorage.getItem("chart_attack_vote_count") ?? "0", 10)
-      : 0
-    if (currentCount >= 5) {
+    const votedToday: string[] = storedDate === today
+      ? (JSON.parse(localStorage.getItem("chart_attack_voted_ids") ?? "[]") as string[])
+      : []
+
+    if (votedToday.includes(artistId)) {
+      toast("이미 이 아티스트에게 투표했습니다 ♡")
+      return
+    }
+    if (votedToday.length >= 5) {
       toast("오늘 투표를 완료했습니다 🎉")
       return
     }
-    const newCount = currentCount + 1
+    const newVoted = [...votedToday, artistId]
     localStorage.setItem("chart_attack_vote_date", today)
-    localStorage.setItem("chart_attack_vote_count", String(newCount))
-    setVoteCount(newCount)
+    localStorage.setItem("chart_attack_voted_ids", JSON.stringify(newVoted))
+    setVoteCount(newVoted.length)
     setVoteAnimate(artistId)
     setTimeout(() => setVoteAnimate(null), 600)
     setVotedIds(prev => new Set(prev).add(artistId))
@@ -351,7 +360,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
 
   function closeVoteModal() {
     setShowVoteModal(false)
-    localStorage.setItem("chart_attack_modal_date", new Date().toISOString().split("T")[0])
+    localStorage.setItem("chart_attack_modal_v2", new Date().toISOString().split("T")[0])
   }
 
   return (
