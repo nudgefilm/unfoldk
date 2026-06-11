@@ -4,9 +4,10 @@
 // 섹션: ① Alert Zone | ② Velocity Tracker | ③ Fan Power Ranking
 //        ④ Share to Attack | ⑤ Next Chart Update
 
-import { useCallback, useEffect, useState } from "react"
-import { AlertTriangle, Flame, Zap, Share2, Trophy, Timer, Lock, Target } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { AlertTriangle, Flame, Zap, Share2, Trophy, Timer, Lock, Target, X } from "lucide-react"
 import Link from "next/link"
+import { toast, Toaster } from "sonner"
 
 // ─── 숫자 포맷 ─────────────────────────────────────────────
 function fmt(n: number | null | undefined): string {
@@ -139,6 +140,10 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
   const [insightLoading, setInsightLoading] = useState(false)
 
   const countdown = useCountdown()
+  const [voteCount, setVoteCount] = useState(0)
+  const [showVoteModal, setShowVoteModal] = useState(false)
+  const [isModalHovered, setIsModalHovered] = useState(false)
+  const fanPowerRef = useRef<HTMLElement>(null)
 
   // 데이터 로드
   useEffect(() => {
@@ -174,6 +179,34 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
   }, [])
 
   useEffect(() => { loadRankings() }, [loadRankings])
+
+  // localStorage 기반 오늘 투표 횟수 복원
+  useEffect(() => {
+    const today = new Date().toISOString().split("T")[0]
+    if (localStorage.getItem("chart_attack_vote_date") === today) {
+      setVoteCount(parseInt(localStorage.getItem("chart_attack_vote_count") ?? "0", 10))
+    }
+  }, [])
+
+  // 로그인 유저 최초 1회 투표 안내 모달 (하루 1회)
+  useEffect(() => {
+    if (!isLoggedIn) return
+    const today = new Date().toISOString().split("T")[0]
+    if (localStorage.getItem("chart_attack_modal_date") !== today) {
+      const id = setTimeout(() => setShowVoteModal(true), 800)
+      return () => clearTimeout(id)
+    }
+  }, [isLoggedIn])
+
+  // 모달 자동 닫힘 — 호버 없으면 3초 후
+  useEffect(() => {
+    if (!showVoteModal || isModalHovered) return
+    const id = setTimeout(() => {
+      setShowVoteModal(false)
+      localStorage.setItem("chart_attack_modal_date", new Date().toISOString().split("T")[0])
+    }, 3000)
+    return () => clearTimeout(id)
+  }, [showVoteModal, isModalHovered])
 
   // ─── Alert Zone 계산 ─────────────────────────────────────
   const top10Listeners = chart[9]?.lastfm_listeners ?? 0
@@ -254,7 +287,23 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
 
   // ─── 투표 — 낙관적 업데이트 ──────────────────────────────
   async function handleVote(artistId: string) {
-    if (!isLoggedIn) return
+    if (!isLoggedIn) {
+      onSignUp()
+      return
+    }
+    const today = new Date().toISOString().split("T")[0]
+    const storedDate = localStorage.getItem("chart_attack_vote_date")
+    const currentCount = storedDate === today
+      ? parseInt(localStorage.getItem("chart_attack_vote_count") ?? "0", 10)
+      : 0
+    if (currentCount >= 5) {
+      toast("오늘 투표를 완료했습니다 🎉")
+      return
+    }
+    const newCount = currentCount + 1
+    localStorage.setItem("chart_attack_vote_date", today)
+    localStorage.setItem("chart_attack_vote_count", String(newCount))
+    setVoteCount(newCount)
     setVoteAnimate(artistId)
     setTimeout(() => setVoteAnimate(null), 600)
     setVotedIds(prev => new Set(prev).add(artistId))
@@ -300,8 +349,45 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
   const isCritical = goldenHoursLeft <= 3   // 3시간 이내: 강조
   const isFinalPush = goldenHoursLeft <= 1  // 1시간 이내: border pulse + FINAL PUSH
 
+  function closeVoteModal() {
+    setShowVoteModal(false)
+    localStorage.setItem("chart_attack_modal_date", new Date().toISOString().split("T")[0])
+  }
+
   return (
     <>
+      <Toaster position="bottom-center" />
+
+      {/* ─── 투표 안내 모달 (로그인 유저 하루 1회) ─────────── */}
+      {showVoteModal && (
+        <div
+          className="fixed bottom-32 right-6 z-40 w-72 bg-[#1a1a1a] border border-primary/40 rounded-2xl shadow-2xl p-5"
+          onMouseEnter={() => setIsModalHovered(true)}
+          onMouseLeave={() => setIsModalHovered(false)}
+        >
+          <button
+            onClick={closeVoteModal}
+            className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <Flame className="w-6 h-6 mb-3" style={{ color: "#FF4B6E" }} />
+          <p className="text-foreground font-semibold mb-1 pr-4">Vote for your artist — every click counts!</p>
+          <p className="text-muted-foreground text-xs mb-4">Power up your favorite to the top</p>
+          <button
+            onClick={() => {
+              closeVoteModal()
+              fanPowerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }}
+            className="w-full py-2 rounded-xl text-sm font-bold text-white transition-colors"
+            style={{ backgroundColor: "#FF4B6E" }}
+          >
+            투표하기
+          </button>
+        </div>
+      )}
+
       {/* ─── CSS 애니메이션 — 투표 바운스 + 파티클 ─────────── */}
       <style>{`
         @keyframes voteBounce {
@@ -507,14 +593,20 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
       </section>
 
       {/* ─── ④ 🔥 Fan Power Ranking ──────────────────────── */}
-      <section>
-        <div className="flex items-center gap-3 mb-4">
+      <section ref={fanPowerRef} id="fan-power-ranking">
+        <div className="flex items-center gap-3 mb-3">
           <Flame className="w-6 h-6" style={{ color: "#FF4B6E" }} />
           <div>
             <h2 className="text-2xl font-semibold text-white">Fan Power Ranking</h2>
             <p className="text-muted-foreground text-sm flex items-center gap-1">Vote for your artist — every <Flame className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} /> counts</p>
           </div>
         </div>
+
+        <p className="text-sm text-muted-foreground mb-4">
+          {isLoggedIn
+            ? "Vote for up to 5 artists per day. Your clicks power the ranking!"
+            : "Sign in to power up your favorite artist's ranking!"}
+        </p>
 
         <div className="flex flex-col gap-4">
           {/* Vote Now — 풀 너비, 4열 그리드, Top 20 전원 */}
@@ -570,9 +662,15 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
 
           {/* Power Ranking TOP 5 — 풀 너비 */}
           <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-border/20 flex items-center gap-2">
+            <div className="px-5 py-3 border-b border-border/20 flex items-center gap-2 flex-wrap">
               <Trophy className="w-4 h-4 text-yellow-400" />
-              <span className="text-sm font-medium text-foreground">Power Ranking TOP 5</span>
+              <span className="text-sm font-medium text-foreground">UnfoldK Fan Power Ranking</span>
+              <span
+                className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                style={{ backgroundColor: "rgba(255,75,110,0.12)", color: "#FF4B6E", border: "1px solid rgba(255,75,110,0.3)" }}
+              >
+                by UnfoldK Fans
+              </span>
             </div>
             {rankings.length === 0 ? (
               <div className="p-6 text-center text-muted-foreground text-sm">
@@ -583,7 +681,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
                 {rankings.map((r, i) => (
                   <div key={r.artist_id} className="flex sm:flex-col items-center gap-3 sm:gap-2 px-4 py-3 sm:py-4 sm:text-center">
                     <span className="flex-shrink-0 sm:flex-shrink text-lg">
-                      {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : <span className="text-muted-foreground text-sm">#{r.rank}</span>}
+                      {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i === 3 ? "4️⃣" : "5️⃣"}
                     </span>
                     <Avatar src={r.thumbnail_url} alt={r.name} size={9} />
                     <div className="min-w-0 flex-1 sm:flex-none">
