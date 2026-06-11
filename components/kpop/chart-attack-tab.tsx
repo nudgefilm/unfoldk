@@ -5,7 +5,7 @@
 //        ④ Share to Attack | ⑤ Next Chart Update
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { AlertTriangle, Flame, Zap, Share2, Trophy, Timer, Lock, Target, X } from "lucide-react"
+import { AlertTriangle, Flame, Zap, Share2, Trophy, Timer, Lock, Target } from "lucide-react"
 import Link from "next/link"
 import { toast, Toaster } from "sonner"
 
@@ -114,18 +114,14 @@ function presetTweet(name: string): string {
   return `🔥 ${name} is surging on global charts! #${name.replace(/\s/g, "")} #Kpop #StreamingAttack unfoldk.com`
 }
 
-// 페이지 진입마다 새 토큰이 내려옴 — 탭 전환은 동일 토큰이므로 모달 재트리거 방지
-let _lastModalNavToken = ""
-
 // ─── Props ─────────────────────────────────────────────────
 interface Props {
   isLoggedIn: boolean
   isPro: boolean
   onSignUp: () => void
-  pageNavToken: string
 }
 
-export function ChartAttackTab({ isLoggedIn, isPro, onSignUp, pageNavToken }: Props) {
+export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
   const [chart, setChart] = useState<LastfmChartItem[]>([])
   const [chartLoading, setChartLoading] = useState(true)
   const [velocity, setVelocity] = useState<VelocityItem[]>([])
@@ -145,8 +141,6 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp, pageNavToken }: Pr
 
   const countdown = useCountdown()
   const [voteCount, setVoteCount] = useState(0)
-  const [showVoteModal, setShowVoteModal] = useState(false)
-  const [isModalHovered, setIsModalHovered] = useState(false)
   const fanPowerRef = useRef<HTMLElement>(null)
 
   // 데이터 로드
@@ -193,30 +187,6 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp, pageNavToken }: Pr
       setVoteCount(ids.length)
     }
   }, [])
-
-  // 로그인 유저 최초 1회 투표 안내 모달 (하루 1회)
-  // 키 v2: 이전 버전 localStorage 항목 무효화
-  useEffect(() => {
-    if (!isLoggedIn) return
-    // 탭 전환으로 마운트된 경우(동일 pageNavToken) 는 모달 미표시
-    if (pageNavToken === _lastModalNavToken) return
-    const today = new Date().toISOString().split("T")[0]
-    if (localStorage.getItem("chart_attack_modal_v2") !== today) {
-      _lastModalNavToken = pageNavToken
-      const id = setTimeout(() => setShowVoteModal(true), 800)
-      return () => clearTimeout(id)
-    }
-  }, [isLoggedIn, pageNavToken])
-
-  // 모달 자동 닫힘 — 호버 없으면 5초 후
-  useEffect(() => {
-    if (!showVoteModal || isModalHovered) return
-    const id = setTimeout(() => {
-      setShowVoteModal(false)
-      localStorage.setItem("chart_attack_modal_v2", new Date().toISOString().split("T")[0])
-    }, 5000)
-    return () => clearTimeout(id)
-  }, [showVoteModal, isModalHovered])
 
   // ─── Alert Zone 계산 ─────────────────────────────────────
   const top10Listeners = chart[9]?.lastfm_listeners ?? 0
@@ -356,7 +326,6 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp, pageNavToken }: Pr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ artist_id: artistId }),
       })
-      loadRankings()   // 서버 값으로 동기화
     } catch { /* PopCat style — no rollback */ }
   }
 
@@ -365,44 +334,9 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp, pageNavToken }: Pr
   const isCritical = goldenHoursLeft <= 3   // 3시간 이내: 강조
   const isFinalPush = goldenHoursLeft <= 1  // 1시간 이내: border pulse + FINAL PUSH
 
-  function closeVoteModal() {
-    setShowVoteModal(false)
-    localStorage.setItem("chart_attack_modal_v2", new Date().toISOString().split("T")[0])
-  }
-
   return (
     <>
       <Toaster position="bottom-center" />
-
-      {/* ─── 투표 안내 모달 (로그인 유저 하루 1회) ─────────── */}
-      {showVoteModal && (
-        <div
-          className="fixed bottom-32 right-6 z-40 w-72 bg-[#1a1a1a] border border-primary/40 rounded-2xl shadow-2xl p-5"
-          onMouseEnter={() => setIsModalHovered(true)}
-          onMouseLeave={() => setIsModalHovered(false)}
-        >
-          <button
-            onClick={closeVoteModal}
-            className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
-          <Flame className="w-6 h-6 mb-3" style={{ color: "#FF4B6E" }} />
-          <p className="text-foreground font-semibold mb-1 pr-4">Vote for your artist — every click counts!</p>
-          <p className="text-muted-foreground text-xs mb-4">Power up your favorite to the top</p>
-          <button
-            onClick={() => {
-              closeVoteModal()
-              fanPowerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-            }}
-            className="w-full py-2 rounded-xl text-sm font-bold text-white transition-colors"
-            style={{ backgroundColor: "#FF4B6E" }}
-          >
-            투표하기
-          </button>
-        </div>
-      )}
 
       {/* ─── CSS 애니메이션 — 투표 바운스 + 파티클 ─────────── */}
       <style>{`
@@ -620,7 +554,9 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp, pageNavToken }: Pr
 
         <p className="text-sm text-muted-foreground mb-4">
           {isLoggedIn
-            ? "Vote for up to 5 artists per day. Your clicks power the ranking!"
+            ? voteCount > 0
+              ? `Today's votes: ${voteCount}/5 — Your clicks power the ranking!`
+              : "Vote for up to 5 artists per day. Your clicks power the ranking!"
             : "Sign in to power up your favorite artist's ranking!"}
         </p>
 
@@ -680,7 +616,7 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp, pageNavToken }: Pr
           <div className="bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden">
             <div className="px-5 py-3 border-b border-border/20 flex items-center gap-2 flex-wrap">
               <Trophy className="w-4 h-4 text-yellow-400" />
-              <span className="text-sm font-medium text-foreground">UnfoldK Fan Power Ranking</span>
+              <span className="text-sm font-medium text-foreground">UnfoldK Fan Power Ranking TOP 5</span>
               <span
                 className="px-2 py-0.5 rounded-full text-[10px] font-bold"
                 style={{ backgroundColor: "rgba(255,75,110,0.12)", color: "#FF4B6E", border: "1px solid rgba(255,75,110,0.3)" }}

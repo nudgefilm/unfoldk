@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { HallyuPassBanner } from "@/components/hallyu-pass-banner"
 import { Button } from "@/components/ui/button"
-import { Search, TrendingUp, TrendingDown, Minus, Flame, BarChart2 } from "lucide-react"
+import { Search, TrendingUp, TrendingDown, Minus, Flame, BarChart2, X } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { ReportButton } from "@/components/common/report-button"
@@ -115,8 +115,8 @@ export default function KpopStatsPage() {
   const [authChecked, setAuthChecked] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isPro, setIsPro] = useState(false)
-  // 페이지 진입 시 생성되는 토큰 — 탭 전환(동일 토큰)과 페이지 재진입(새 토큰)을 구별하는 데 사용
-  const [pageNavToken] = useState(() => Date.now().toString())
+  const [showVoteModal, setShowVoteModal] = useState(false)
+  const [isVoteModalHovered, setIsVoteModalHovered] = useState(false)
 
   // 검색·More Artists 상태 — /api/kpop/artists 로 DB 기반 데이터 (Top 20 외 아티스트 노출용)
   // searchResults === null → 검색 비활성. null 이외이면 검색 결과 모드.
@@ -149,6 +149,25 @@ export default function KpopStatsPage() {
       cancelled = true
     }
   }, [])
+
+  // 투표 안내 모달 — 로그인 유저 하루 1회, 페이지 진입 시 (charts 탭 포함)
+  useEffect(() => {
+    if (!authChecked || !isLoggedIn) return
+    const today = new Date().toISOString().split("T")[0]
+    if (localStorage.getItem("chart_attack_modal_v2") !== today) {
+      const id = setTimeout(() => setShowVoteModal(true), 1500)
+      return () => clearTimeout(id)
+    }
+  }, [authChecked, isLoggedIn])
+
+  useEffect(() => {
+    if (!showVoteModal || isVoteModalHovered) return
+    const id = setTimeout(() => {
+      setShowVoteModal(false)
+      localStorage.setItem("chart_attack_modal_v2", new Date().toISOString().split("T")[0])
+    }, 5000)
+    return () => clearTimeout(id)
+  }, [showVoteModal, isVoteModalHovered])
 
   // 차트 로드
   useEffect(() => {
@@ -465,7 +484,7 @@ export default function KpopStatsPage() {
 
         {/* Chart Attack 탭 */}
         {activeTab === "chart-attack" && (
-          <ChartAttackTab isLoggedIn={isLoggedIn} isPro={isPro} onSignUp={() => setKpopStartOpen(true)} pageNavToken={pageNavToken} />
+          <ChartAttackTab isLoggedIn={isLoggedIn} isPro={isPro} onSignUp={() => setKpopStartOpen(true)} />
         )}
 
         {/* 검색 모드 — searchResults !== null 일 때 차트/Trending 대신 검색 결과만 노출.
@@ -962,6 +981,40 @@ export default function KpopStatsPage() {
           ReportButton 의 submit/error 토스트가 silent no-op 되는 것 방지 (CLAUDE.md §10). */}
       <StartModal open={kpopStartOpen} onOpenChange={setKpopStartOpen} next="/kpop" />
       <Toaster />
+
+      {/* 투표 안내 모달 — 로그인 유저 하루 1회 (charts 탭에서도 표시) */}
+      {showVoteModal && (
+        <div
+          className="fixed bottom-32 right-6 z-40 w-72 bg-[#1a1a1a] border border-primary/40 rounded-2xl shadow-2xl p-5"
+          onMouseEnter={() => setIsVoteModalHovered(true)}
+          onMouseLeave={() => setIsVoteModalHovered(false)}
+        >
+          <button
+            onClick={() => {
+              setShowVoteModal(false)
+              localStorage.setItem("chart_attack_modal_v2", new Date().toISOString().split("T")[0])
+            }}
+            className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <Flame className="w-6 h-6 mb-3" style={{ color: "#FF4B6E" }} />
+          <p className="text-foreground font-semibold mb-1 pr-4">Vote for your artist — every click counts!</p>
+          <p className="text-muted-foreground text-xs mb-4">Power up your favorite to the top</p>
+          <button
+            onClick={() => {
+              setShowVoteModal(false)
+              localStorage.setItem("chart_attack_modal_v2", new Date().toISOString().split("T")[0])
+              handleTabChange("chart-attack")
+            }}
+            className="w-full py-2 rounded-xl text-sm font-bold text-white transition-colors"
+            style={{ backgroundColor: "#FF4B6E" }}
+          >
+            투표하기
+          </button>
+        </div>
+      )}
 
       <HallyuPassBanner isPro={isPro} />
       <FooterSection />
