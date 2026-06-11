@@ -114,14 +114,18 @@ function presetTweet(name: string): string {
   return `🔥 ${name} is surging on global charts! #${name.replace(/\s/g, "")} #Kpop #StreamingAttack unfoldk.com`
 }
 
+// 페이지 진입마다 새 토큰이 내려옴 — 탭 전환은 동일 토큰이므로 모달 재트리거 방지
+let _lastModalNavToken = ""
+
 // ─── Props ─────────────────────────────────────────────────
 interface Props {
   isLoggedIn: boolean
   isPro: boolean
   onSignUp: () => void
+  pageNavToken: string
 }
 
-export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
+export function ChartAttackTab({ isLoggedIn, isPro, onSignUp, pageNavToken }: Props) {
   const [chart, setChart] = useState<LastfmChartItem[]>([])
   const [chartLoading, setChartLoading] = useState(true)
   const [velocity, setVelocity] = useState<VelocityItem[]>([])
@@ -194,20 +198,23 @@ export function ChartAttackTab({ isLoggedIn, isPro, onSignUp }: Props) {
   // 키 v2: 이전 버전 localStorage 항목 무효화
   useEffect(() => {
     if (!isLoggedIn) return
+    // 탭 전환으로 마운트된 경우(동일 pageNavToken) 는 모달 미표시
+    if (pageNavToken === _lastModalNavToken) return
     const today = new Date().toISOString().split("T")[0]
     if (localStorage.getItem("chart_attack_modal_v2") !== today) {
+      _lastModalNavToken = pageNavToken
       const id = setTimeout(() => setShowVoteModal(true), 800)
       return () => clearTimeout(id)
     }
-  }, [isLoggedIn])
+  }, [isLoggedIn, pageNavToken])
 
-  // 모달 자동 닫힘 — 호버 없으면 3초 후
+  // 모달 자동 닫힘 — 호버 없으면 5초 후
   useEffect(() => {
     if (!showVoteModal || isModalHovered) return
     const id = setTimeout(() => {
       setShowVoteModal(false)
       localStorage.setItem("chart_attack_modal_v2", new Date().toISOString().split("T")[0])
-    }, 3000)
+    }, 5000)
     return () => clearTimeout(id)
   }, [showVoteModal, isModalHovered])
 

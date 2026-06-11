@@ -115,6 +115,8 @@ export default function KpopStatsPage() {
   const [authChecked, setAuthChecked] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isPro, setIsPro] = useState(false)
+  // 페이지 진입 시 생성되는 토큰 — 탭 전환(동일 토큰)과 페이지 재진입(새 토큰)을 구별하는 데 사용
+  const [pageNavToken] = useState(() => Date.now().toString())
 
   // 검색·More Artists 상태 — /api/kpop/artists 로 DB 기반 데이터 (Top 20 외 아티스트 노출용)
   // searchResults === null → 검색 비활성. null 이외이면 검색 결과 모드.
@@ -463,7 +465,7 @@ export default function KpopStatsPage() {
 
         {/* Chart Attack 탭 */}
         {activeTab === "chart-attack" && (
-          <ChartAttackTab isLoggedIn={isLoggedIn} isPro={isPro} onSignUp={() => setKpopStartOpen(true)} />
+          <ChartAttackTab isLoggedIn={isLoggedIn} isPro={isPro} onSignUp={() => setKpopStartOpen(true)} pageNavToken={pageNavToken} />
         )}
 
         {/* 검색 모드 — searchResults !== null 일 때 차트/Trending 대신 검색 결과만 노출.
