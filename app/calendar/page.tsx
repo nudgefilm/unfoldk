@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
+import { HallyuPassBanner } from "@/components/hallyu-pass-banner"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronLeft, ChevronRight, Calendar, X, Lock, Plus, Ticket, Play, RefreshCw } from "lucide-react"
 import Link from "next/link"
@@ -1700,6 +1701,7 @@ export default function HallyuCalendarPage() {
         next="/mypage/calendar"
       />
 
+      <HallyuPassBanner isPro={isPro} />
       <FooterSection />
     </div>
   )

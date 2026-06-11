@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { feature } from "topojson-client"
 import { FooterSection } from "@/components/footer-section"
+import { HallyuPassBanner } from "@/components/hallyu-pass-banner"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -2438,6 +2439,7 @@ export default function CurationKPage() {
         onSelectPin={(pin) => setViewState({ type: "pin", pin })}
       />
 
+      <HallyuPassBanner isPro={isPro} />
       <FooterSection />
     </div>
   )

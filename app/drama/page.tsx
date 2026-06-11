@@ -20,6 +20,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
+import { HallyuPassBanner } from "@/components/hallyu-pass-banner"
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
@@ -2040,6 +2041,7 @@ function KdramaMatchPageInner() {
         </section>
       </main>
 
+      <HallyuPassBanner isPro={isPro} />
       <FooterSection />
       <Toaster />
 

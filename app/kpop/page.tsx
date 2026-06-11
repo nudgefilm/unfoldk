@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
+import { HallyuPassBanner } from "@/components/hallyu-pass-banner"
 import { Button } from "@/components/ui/button"
 import { Search, TrendingUp, TrendingDown, Minus, Flame, BarChart2 } from "lucide-react"
 import Link from "next/link"
@@ -960,6 +961,7 @@ export default function KpopStatsPage() {
       <StartModal open={kpopStartOpen} onOpenChange={setKpopStartOpen} next="/kpop" />
       <Toaster />
 
+      <HallyuPassBanner isPro={isPro} />
       <FooterSection />
     </div>
   )

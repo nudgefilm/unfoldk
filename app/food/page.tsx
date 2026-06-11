@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { FooterSection } from "@/components/footer-section"
+import { HallyuPassBanner } from "@/components/hallyu-pass-banner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, Trophy, ChevronRight, ChevronLeft, Lock, Bot, Sparkles, Clock, Flame, Plus, Check, ShoppingCart, X as XIcon, Download, Bookmark, BookmarkCheck } from "lucide-react"
@@ -1067,6 +1068,7 @@ export default function KfoodKitPage() {
       {/* Toaster — root layout 미마운트 (admin 만 마운트). 비-admin 페이지엔 로컬 필요 (CLAUDE.md §7) */}
       <Toaster />
 
+      <HallyuPassBanner isPro={isPro} />
       <FooterSection />
     </div>
   )

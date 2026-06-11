@@ -45,16 +45,20 @@ export function PricingSection() {
   }
 
   const freeFeatures = [
-    "Basic access to all 6 services",
-    "Up to 5 K-drama recommendations",
-    "1 Korean expression per day",
-    "Save up to 5 recipes",
+    "HallyuCalendar — upcoming events & tracking",
+    "K-pop global chart (Top 20)",
+    "K-drama recommendations (all years)",
+    "Beginner Korean expressions daily",
   ]
 
   const proFeatures = [
-    "Full access to all 6 services",
-    "Never miss a comeback — real-time alerts",
-    "Unlimited artist tracking",
+    "Everything you need to live and breathe K-culture",
+    "Never miss a comeback, premiere, or K-beauty drop",
+    "⭐ Exclusive VIP Badge on your Hallyu Profile",
+    "🎬 Unlock Premium K-Drama Recommendations",
+    "🍜 Full K-food Recipe Collection",
+    "🗺️ Exclusive Hallyu Travel Courses",
+    "🎵 Full K-pop Stats & Chart History",
   ]
 
   return (
@@ -188,18 +192,22 @@ export function PricingSection() {
               <div className="self-stretch flex flex-col justify-start items-start gap-1">
                 <div className="flex justify-start items-center gap-2">
                   <div className="text-3xl font-medium leading-10 text-white">
-                    {isAnnual ? "$6" : "$9"}
+                    {isAnnual ? "$3.33" : "$4.99"}
                   </div>
                   <div className="text-sm font-medium leading-tight text-white/70">
                     /month
                   </div>
                   {isAnnual && (
-                    <span className="text-sm text-white/50 line-through">$9</span>
+                    <span className="text-sm text-white/50 line-through">$4.99</span>
                   )}
                 </div>
-                {isAnnual && (
+                {isAnnual ? (
                   <div className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs font-medium">
-                    2 months free
+                    Billed $39.99/year · Save 33%
+                  </div>
+                ) : (
+                  <div className="text-xs text-white/50">
+                    or $39.99/year — save 33%
                   </div>
                 )}
                 <div className="self-stretch text-sm font-medium leading-tight text-white/70 mt-1">

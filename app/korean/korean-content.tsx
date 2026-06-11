@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
+import { HallyuPassBanner } from "@/components/hallyu-pass-banner"
 import { Button } from "@/components/ui/button"
 import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight, X, Film, Bookmark, BookmarkCheck, UtensilsCrossed, MapPin, Calendar } from "lucide-react"
 import Image from "next/image"
@@ -1519,6 +1520,7 @@ export function KoreanContent() {
         </div>
       )}
 
+      <HallyuPassBanner isPro={isPro} />
       <FooterSection />
 
       {/* Toaster — root layout 미마운트 (CLAUDE.md §7). Got it 토스트 살리려 페이지 마운트. */}

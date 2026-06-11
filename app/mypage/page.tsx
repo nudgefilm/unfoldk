@@ -21,6 +21,7 @@ import {
   Flame,
   PartyPopper,
   Newspaper,
+  Crown,
 } from "lucide-react"
 
 const sidebarLinks = [
@@ -266,9 +267,12 @@ export default function MyPage() {
               <div>
                 <p className="text-foreground font-medium">{userName || "—"}</p>
                 <span
-                  className="text-xs font-medium px-2 py-0.5 rounded-full"
+                  className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
                   style={{ backgroundColor: "rgba(255, 75, 110, 0.15)", color: "#FF4B6E" }}
                 >
+                  {(rawPlanType === "monthly" || rawPlanType === "annual") && (
+                    <Crown className="w-3 h-3" />
+                  )}
                   {userPlan}
                 </span>
               </div>
