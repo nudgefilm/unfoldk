@@ -4,6 +4,72 @@
 
 ---
 
+## 현재 상태 (2026-06-11 세션 62 기준)
+
+### KpopStats + 가격 개편 + 공통 UX
+
+**완료 항목**
+
+- **About 페이지 헤드 카피 수정** (`app/about/page.tsx`)
+  - "Built by a solo indie developer" → "Built by an indie developer"
+
+- **메인 우측 하단 캘린더 위젯 동적 월 표시** (`components/floating-calendar-widget.tsx`)
+  - "May 2026" 하드코딩 → `new Date()` 기반 동적 계산 (월명·연도·달력 그리드 모두)
+
+- **KpopStats Chart Attack — Fan Power Ranking 개선**
+  - 타이틀 "UnfoldK Fan Power Ranking" → "UnfoldK Fan Power Ranking TOP 5"
+  - 아티스트 클릭 시 실시간 카운트 복구: 투표 후 `loadRankings()` 재조회가 optimistic update 덮어쓰던 버그 제거
+  - 가이드 텍스트: 투표 후 `"Today's votes: N/5"` 실시간 카운트 표시
+  - 투표 안내 모달 트리거를 `ChartAttackTab` 내부 → `kpop/page.tsx` 최상위로 이동
+    - 기존: chart-attack 탭 전환 시에만 모달 표시 (default "charts" 탭 진입 시 미표시)
+    - 수정: `authChecked && isLoggedIn` 조건으로 페이지 진입 1.5초 후 모달 표시
+    - 모달 "투표하기" 클릭 → chart-attack 탭 자동 전환
+  - 투표 모달 자동 닫힘: 3초 → 5초
+  - 투표 모달: 탭 전환 시 재표시 방지 (`pageNavToken` 패턴 → 페이지 레벨 트리거로 대체)
+
+- **KpopStats Artist 상세 "Report incorrect info" 모달화** (`components/common/report-button.tsx`)
+  - 기존 전체 페이지 이동 → Dialog 모달로 변경, 헤더 위로 올라오던 z-index 버그 수정
+
+- **Pro 플랜 가격 전면 개편** (`components/pricing-section.tsx`)
+  - Monthly: `$9` → `$4.99/월`
+  - Annual: `$6` → `$3.33/월` (연간 $39.99, 33% 절약)
+  - Annual 배지: "2 months free" → "Billed $39.99/year · Save 33%"
+  - Monthly 카드 하단: "or $39.99/year — save 33%" 안내 추가
+  - Free/Pro 기능 목록 카피 전면 교체 (팬덤 감성 카피)
+
+- **HallyuPassBanner 공통 컴포넌트** (`components/hallyu-pass-banner.tsx` 신규)
+  - Free 유저 대상 Pro 업그레이드 배너 (Crown 아이콘 + "Get Hallyu Pass" 링크)
+  - 6개 서비스 페이지 모두 `<FooterSection />` 위에 삽입:
+    calendar · kpop · drama · korean · food · curation-k
+
+- **마이페이지 VIP Crown 배지** (`app/mypage/page.tsx`)
+  - Pro 유저(monthly/annual) 사이드바 프로필에 `Crown` 아이콘 표시
+
+**다음 세션**
+- Apollo.io 매핑 파이프라인 구현
+- Paddle 웹훅 실서버 등록 및 실결제 테스트
+
+---
+
+## 현재 상태 (2026-06-10 세션 61 기준)
+
+### 채팅 위젯 → 텔레그램 버튼 교체
+
+**완료 항목**
+
+- **Crisp 채팅 위젯 완전 제거** (`app/layout.tsx`)
+  - Crisp 스크립트 (`id="crisp-chat"`) 제거
+
+- **메인 사이트 텔레그램 버튼** (`components/floating-calendar-widget.tsx`)
+  - `handleChatOpen` / `$crisp` 참조 제거, `MessageCircle` import 제거
+  - 채팅 버튼 → `<a href="https://t.me/+Mv3BgRXVS94wMzVl" target="_blank">` 텔레그램 아이콘 버튼 (`#FF4B6E` 색상 유지)
+
+- **kbeauty 텔레그램 버튼** (`app/kbeauty/page.tsx`)
+  - `TelegramButton` 컴포넌트 신규 추가 — `fixed bottom-8 right-8`, `#1A3A5C` kbeauty 브랜드 컬러
+  - 기존 `ScrollTopButton` 위치 `bottom-8 → bottom-24`로 이동 (겹침 방지)
+
+---
+
 ## 현재 상태 (2026-06-10 세션 60 기준)
 
 ### HallyuCalendar + 공통 UX 개선
