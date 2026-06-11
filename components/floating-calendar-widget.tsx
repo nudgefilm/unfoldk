@@ -39,7 +39,14 @@ export function FloatingCalendarWidget() {
   // 그리드 하이라이트는 과거·미래 모두 노출 (이벤트 있는 날 = 타입별 색).
   // 하단 태그 목록은 오늘 이후만, 가까운 순 최대 3건.
   // 동월 총 건수(과거 포함)는 footer 에서 events.length 로 별도 표시.
-  const today = new Date().getDate()
+  const now = new Date()
+  const today = now.getDate()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth()
+  const monthName = now.toLocaleString("en-US", { month: "long" })
+  const monthLabel = `${monthName} ${currentYear}`
+  const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay()
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
   // 같은 날 여러 이벤트면 마지막 것이 win (현재 디자인이 일자당 1건만 표시).
   const eventDays: Record<number, { title: string; type: string }> = Object.fromEntries(
     (events ?? []).map((ev) => [ev.date, { title: ev.title, type: ev.type }])
@@ -60,7 +67,7 @@ export function FloatingCalendarWidget() {
         <div className="bg-[#0d0d0d] border border-border/30 rounded-2xl shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: "#FF4B6E" }}>
-            <h3 className="text-white font-semibold text-sm">K-pop Events · May 2026</h3>
+            <h3 className="text-white font-semibold text-sm">K-pop Events · {monthLabel}</h3>
             <button
               onClick={() => setIsOpen(false)}
               className="text-white/80 hover:text-white transition-colors text-lg font-medium leading-none"
@@ -81,13 +88,13 @@ export function FloatingCalendarWidget() {
                 </div>
               ))}
 
-              {/* Empty cells for May 2026 starting on Friday */}
-              {[...Array(5)].map((_, i) => (
+              {/* Empty cells before 1st of the month */}
+              {[...Array(firstDayOfWeek)].map((_, i) => (
                 <div key={`empty-${i}`} className="aspect-square" />
               ))}
 
               {/* Calendar days */}
-              {[...Array(31)].map((_, i) => {
+              {[...Array(daysInMonth)].map((_, i) => {
                 const day = i + 1
                 const event = eventDays[day]
 
@@ -123,7 +130,7 @@ export function FloatingCalendarWidget() {
                     className="px-2 py-0.5 rounded text-[10px] font-medium text-white"
                     style={{ backgroundColor: getEventTypeColor(ev.type) }}
                   >
-                    May {ev.date}
+                    {monthName} {ev.date}
                   </span>
                   <span className="text-foreground text-xs">{ev.title}</span>
                 </div>
