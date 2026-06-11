@@ -92,7 +92,7 @@ export default function AboutPage() {
           />
           
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6 relative z-10">
-            Built by a solo indie developer from Korea, for Hallyu fans around the world.
+            Built by an indie developer from Korea, for Hallyu fans around the world.
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto relative z-10">
             We keep improving to bring you a better experience.
