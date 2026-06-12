@@ -4,6 +4,58 @@
 
 ---
 
+## 현재 상태 (2026-06-12 세션 63 기준)
+
+### 전 서비스 YouTube 영상 섹션
+
+**완료 항목**
+
+- **DB 마이그레이션** (`supabase/migrations/0080_youtube_videos.sql`)
+  - `youtube_videos` 테이블: service / ref_id / ref_type / video_id / title / thumbnail_url / status(pending|published|rejected)
+  - RLS: published → public, admin → full access
+  - 인덱스: service, status, (ref_id, ref_type)
+
+- **YouTube 수집 API** (`app/api/youtube/collect/route.ts`)
+  - POST `{ service, ref_id, ref_type, query }` → YouTube search.list(5건) → youtube_videos upsert(video_id UNIQUE)
+  - 어드민 전용
+
+- **어드민 영상 관리 API**
+  - `app/api/admin/videos/route.ts` — GET 목록 + `count_only=true` pending 카운트
+  - `app/api/admin/videos/[id]/route.ts` — PATCH status / DELETE
+
+- **공개 영상 조회 API** (`app/api/videos/route.ts`)
+  - GET `?service=&ref_id=&ref_type=` → published 영상 반환 (RLS 적용)
+
+- **어드민 영상 관리 페이지** (`app/admin/videos/page.tsx`)
+  - 서비스 탭 + 상태 탭 필터, 카드 그리드, 승인/삭제 버튼
+  - 영상 수집 폼 (service / ref_id / ref_type / query 입력)
+  - 어드민 사이드바 "YouTube 영상" 메뉴 + pending 배지
+
+- **공통 YoutubeVideoSection 컴포넌트** (`components/shared/youtube-video-section.tsx`)
+  - props: service / refId / refType / title
+  - 가로 스크롤 카드(썸네일+제목+Play 오버레이) + YouTube embed 모달(iframe autoplay)
+  - published 영상 없으면 섹션 미노출(null return)
+
+- **5개 서비스 적용**
+  - HallyuCalendar: 이벤트 상세 모달 하단 (`app/calendar/page.tsx`)
+  - KpopStats: 아티스트 상세 페이지 Explore More 앞 (`app/kpop/[id]/page.tsx`)
+  - KdramaMatch: 드라마 상세 모달 하단 (`app/drama/page.tsx`)
+  - HangeulGo: 학습팩 모달 상단 (`app/korean/korean-content.tsx`)
+  - Curation K: SpotDetailDialog NearbyPlaces 뒤 (`app/curation-k/page.tsx`)
+
+**사용자 액션 필요**
+- Supabase SQL 편집기에서 마이그레이션 실행:
+  ```sql
+  -- supabase/migrations/0080_youtube_videos.sql 내용 붙여넣기 후 실행
+  ```
+
+**다음 세션**
+- Apollo.io 매핑 파이프라인 구현
+- Paddle 웹훅 실서버 등록 및 실결제 테스트
+- 어드민에서 서비스별 YouTube 영상 수집 후 승인 테스트
+
+---
+
 ## 현재 상태 (2026-06-11 세션 62 기준)
 
 ### KpopStats + 가격 개편 + 공통 UX
