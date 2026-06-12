@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("hallyu_news")
-    .select("id, source, title, url, thumbnail_url, published_at, category", {
+    .select("id, source, title, url, thumbnail_url, image_url, published_at, category, summary, sources, related_artist, content_type", {
       count: countOnly ? "exact" : undefined,
       head: countOnly,
     })
