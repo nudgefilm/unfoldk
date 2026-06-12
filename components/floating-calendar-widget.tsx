@@ -97,17 +97,22 @@ export function FloatingCalendarWidget() {
               {[...Array(daysInMonth)].map((_, i) => {
                 const day = i + 1
                 const event = eventDays[day]
+                const isToday = day === today
 
                 return (
                   <div
                     key={day}
-                    className={`aspect-square flex flex-col items-center justify-center rounded-lg text-xs transition-all ${
-                      event
-                        ? "font-semibold"
-                        : "text-foreground/70 hover:bg-secondary/30"
+                    className={`aspect-square flex flex-col items-center justify-center rounded-full text-xs transition-all ${
+                      isToday
+                        ? "font-bold"
+                        : event
+                        ? "font-semibold rounded-lg"
+                        : "text-foreground/70 hover:bg-secondary/30 rounded-lg"
                     }`}
                     style={
-                      event
+                      isToday
+                        ? { backgroundColor: "#FF4B6E", color: "#ffffff" }
+                        : event
                         ? {
                             backgroundColor: getEventTypeColorAlpha(event.type, 0.15),
                             color: getEventTypeColor(event.type),
