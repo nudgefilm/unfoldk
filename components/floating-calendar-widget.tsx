@@ -102,12 +102,12 @@ export function FloatingCalendarWidget() {
                 return (
                   <div
                     key={day}
-                    className={`aspect-square flex flex-col items-center justify-center rounded-full text-xs transition-all ${
+                    className={`aspect-square flex flex-col items-center justify-center rounded-lg text-xs transition-all ${
                       isToday
                         ? "font-bold"
                         : event
-                        ? "font-semibold rounded-lg"
-                        : "text-foreground/70 hover:bg-secondary/30 rounded-lg"
+                        ? "font-semibold"
+                        : "text-foreground/70 hover:bg-secondary/30"
                     }`}
                     style={
                       isToday
