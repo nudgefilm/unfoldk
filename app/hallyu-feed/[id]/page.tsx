@@ -15,6 +15,7 @@ interface NewsDetail {
   category: string | null
   summary: string | null
   related_artist: string | null
+  related_link: { href: string; label: string } | null
 }
 
 const CATEGORY_BADGE: Record<string, string> = {
@@ -120,15 +121,15 @@ export default function HallyuFeedDetailPage() {
           )}
         </div>
 
-        {/* 관련 아티스트 링크 */}
-        {news.related_artist && (
+        {/* 관련 링크 (category 기반 해석, 매칭 실패 시 미노출) */}
+        {news.related_link && (
           <div className="mt-8 pt-6 border-t border-border/20">
             <Link
-              href="/kpop"
+              href={news.related_link.href}
               className="inline-flex items-center gap-1.5 text-sm font-medium transition-colors hover:opacity-80"
               style={{ color: "#FF4B6E" }}
             >
-              View {decodeHtml(news.related_artist)} stats →
+              {news.related_link.label}
             </Link>
           </div>
         )}
