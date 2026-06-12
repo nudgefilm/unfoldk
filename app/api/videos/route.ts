@@ -16,12 +16,15 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createSupabaseServerClient()
 
+  // ref_id 없으면 서비스 전체 최신 수집순, 있으면 해당 엔티티 YouTube 발행순
+  const sortColumn = refId ? "published_at" : "created_at"
+
   let query = supabase
     .from("youtube_videos")
     .select("id, video_id, title, thumbnail_url, published_at")
     .eq("service", service)
     .eq("status", "published")
-    .order("published_at", { ascending: false })
+    .order(sortColumn, { ascending: false })
     .limit(10)
 
   if (refId) query = query.eq("ref_id", refId)

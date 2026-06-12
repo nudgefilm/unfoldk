@@ -20,6 +20,7 @@ import { ChartAttackTab } from "@/components/kpop/chart-attack-tab"
 import { AuthGate } from "@/components/auth-gate"
 import { StartModal } from "@/components/start-modal"
 import { hasProAccess } from "@/lib/auth/plan"
+import { YoutubeVideoSection } from "@/components/shared/youtube-video-section"
 
 // ============================================
 // 숫자 포맷터 — 2_400_000_000 → "2.4B"
@@ -600,6 +601,9 @@ export default function KpopStatsPage() {
             </div>
           )}
         </section>
+
+        {/* Latest K-pop Videos — published 영상 없으면 자동 미노출 */}
+        <YoutubeVideoSection service="kpop" title="Latest K-pop Videos" />
 
         {/* This Week's Top Movers — rank_change 상위 3명 자동 선정 */}
         {!chartLoading && topMovers.length > 0 && (

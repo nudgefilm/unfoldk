@@ -13,13 +13,14 @@ interface VideoItem {
 
 interface YoutubeVideoSectionProps {
   service: string
-  refId: string
-  refType: string
+  refId?: string
+  refType?: string
   title?: string
 }
 
-// 서비스별 상세 모달 하단에 삽입되는 YouTube 영상 섹션
+// 서비스별 상세 모달 하단 또는 메인 페이지에 삽입되는 YouTube 영상 섹션
 // published 영상이 없으면 섹션 자체 미노출
+// refId 생략 시 service 전체 published 영상 표시
 export function YoutubeVideoSection({
   service,
   refId,
@@ -32,13 +33,15 @@ export function YoutubeVideoSection({
   const dialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const qs = new URLSearchParams({ service, ref_id: refId, ref_type: refType })
+    const qs = new URLSearchParams({ service })
+    if (refId) qs.set("ref_id", refId)
+    if (refType) qs.set("ref_type", refType)
     fetch(`/api/videos?${qs}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((body: { videos: VideoItem[] }) => setVideos(body.videos ?? []))
       .catch(() => setVideos([]))
       .finally(() => setLoading(false))
-  }, [service, refId, refType])
+  }, [service, refId, refType])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ESC 키로 embed 모달 닫기
   useEffect(() => {
