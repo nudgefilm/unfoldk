@@ -10,11 +10,28 @@ export async function GET(req: NextRequest) {
   const refId = searchParams.get("ref_id")
   const refType = searchParams.get("ref_type")
 
+  const countOnly = searchParams.get("count_only") === "true"
+
   if (!service) {
     return NextResponse.json({ error: "service 필수" }, { status: 400 })
   }
 
   const supabase = await createSupabaseServerClient()
+
+  // count_only=true → ref_id의 published 영상 건수만 반환 (모달 링크 표시 여부 판단용)
+  if (countOnly) {
+    if (!refId) return NextResponse.json({ count: 0 })
+    const { count, error } = await supabase
+      .from("youtube_videos")
+      .select("id", { count: "exact", head: true })
+      .eq("service", service)
+      .eq("status", "published")
+      .eq("ref_id", refId)
+    if (error) return NextResponse.json({ count: 0 })
+    return NextResponse.json({ count: count ?? 0 }, {
+      headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=60" },
+    })
+  }
 
   // ref_id 없으면 서비스 전체 최신 수집순, 있으면 해당 엔티티 YouTube 발행순
   const sortColumn = refId ? "published_at" : "created_at"

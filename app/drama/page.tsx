@@ -636,6 +636,16 @@ function DramaDetailModal({
     description: string | null; purchase_url: string | null
   }[]>([])
   const [shopLoading, setShopLoading] = useState(false)
+  // 이 드라마의 published YouTube 영상 존재 여부 — 메인 페이지 #kdrama-videos 링크 표시 판단
+  const [hasVideos, setHasVideos] = useState(false)
+
+  useEffect(() => {
+    if (!dramaId) { setHasVideos(false); return }
+    fetch(`/api/videos?service=kdrama&ref_id=${dramaId}&count_only=true`)
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((b: { count: number }) => setHasVideos((b.count ?? 0) > 0))
+      .catch(() => setHasVideos(false))
+  }, [dramaId])
 
   useEffect(() => {
     if (!dramaId) {
@@ -1065,14 +1075,18 @@ function DramaDetailModal({
                 </div>
               )}
 
-              {/* YouTube 영상 섹션 — published 영상 없으면 미노출 */}
-              {dramaId && (
-                <YoutubeVideoSection
-                  service="kdrama"
-                  refId={dramaId}
-                  refType="drama"
-                  title="Videos"
-                />
+              {/* 이 드라마 관련 영상이 있으면 메인 페이지 영상 섹션으로 안내 */}
+              {dramaId && hasVideos && (
+                <div className="border-t border-border/20 pt-4 mt-2">
+                  <a
+                    href="#kdrama-videos"
+                    onClick={onClose}
+                    className="text-sm font-medium hover:underline"
+                    style={{ color: "#FF4B6E" }}
+                  >
+                    ▶ Watch related videos
+                  </a>
+                </div>
               )}
 
               {/* Shop this drama — Explore more 아래 표시. 카테고리별 그룹핑. */}
@@ -2025,6 +2039,13 @@ function KdramaMatchPageInner() {
             )}
           </div>
         </section>
+
+        {/* Latest K-drama Videos — published 영상 없으면 자동 미노출 */}
+        <YoutubeVideoSection
+          service="kdrama"
+          title="Latest K-drama Videos"
+          id="kdrama-videos"
+        />
 
         {/* ─── 8. /mypage/dramas CTA ──────────────── */}
         <section className="mb-16">

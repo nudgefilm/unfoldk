@@ -144,8 +144,19 @@ function EventDetailModal({
   // 이벤트 설명 — DB 값 또는 Claude 자동 생성
   const [modalDescription, setModalDescription] = useState<string | null>(null)
   const [descLoading, setDescLoading] = useState(false)
+  // 이 이벤트의 published YouTube 영상 존재 여부 — 링크 표시 판단
+  const [hasVideos, setHasVideos] = useState(false)
   // 세션 내 설명 캐시 — 동일 이벤트 재클릭 시 API 재호출 방지 (페이지 새로고침 시 초기화)
   const descCacheRef = useRef<Map<string, string>>(new Map())
+
+  // 이 이벤트의 published 영상 존재 여부 확인 — 메인 페이지 #calendar-videos 링크 표시 판단
+  useEffect(() => {
+    if (!event?.id) { setHasVideos(false); return }
+    fetch(`/api/videos?service=calendar&ref_id=${event.id}&count_only=true`)
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((b: { count: number }) => setHasVideos((b.count ?? 0) > 0))
+      .catch(() => setHasVideos(false))
+  }, [event?.id])
 
   // 모달 열릴 때 (event 변경) — 로그인 여부 확인 + 서버에서 리마인더 설정 로드
   useEffect(() => {
@@ -532,13 +543,19 @@ function EventDetailModal({
           </div>
         </div>
 
-        {/* YouTube 영상 섹션 */}
-        <YoutubeVideoSection
-          service="calendar"
-          refId={event.id}
-          refType="event"
-          title="Videos"
-        />
+        {/* 이 이벤트 관련 영상이 있으면 메인 페이지 영상 섹션으로 안내 */}
+        {hasVideos && (
+          <div className="mt-4 pt-4 border-t border-border/20">
+            <a
+              href="#calendar-videos"
+              onClick={onClose}
+              className="text-sm font-medium hover:underline"
+              style={{ color: "#FF4B6E" }}
+            >
+              ▶ Watch related videos
+            </a>
+          </div>
+        )}
 
         {/* Report + Artist Stats 링크 */}
         <div className="mt-4 pt-4 border-t border-border/30 flex items-center justify-between">
@@ -1666,6 +1683,13 @@ export default function HallyuCalendarPage() {
             ))}
           </div>
         </section>
+
+        {/* Latest K-pop Videos — published 영상 없으면 자동 미노출 */}
+        <YoutubeVideoSection
+          service="calendar"
+          title="Latest K-pop Videos"
+          id="calendar-videos"
+        />
 
         {/* TMDB attribution — ToS 의무 표기.
             "This product uses the TMDB API but is not endorsed or certified by TMDB."
