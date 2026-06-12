@@ -11,30 +11,33 @@
 **완료 항목**
 
 - **DB 마이그레이션** (`supabase/migrations/0080_youtube_videos.sql`)
-  - `youtube_videos` 테이블: service / ref_id / ref_type / video_id / title / thumbnail_url / status(pending|published|rejected)
+  - `youtube_videos` 테이블: service / ref_id / ref_type / video_id / title / thumbnail_url / **view_count** / status(pending|published|rejected)
+  - UNIQUE: `(service, ref_id, video_id)` — 동일 영상이 서비스별 ref 에 각각 존재 가능
   - RLS: published → public, admin → full access
-  - 인덱스: service, status, (ref_id, ref_type)
 
 - **YouTube 수집 API** (`app/api/youtube/collect/route.ts`)
-  - POST `{ service, ref_id, ref_type, query }` → YouTube search.list(5건) → youtube_videos upsert(video_id UNIQUE)
+  - POST `{ service, ref_id, ref_type, query }` → 2단계: search.list(10건, publishedAfter 1년) → videos.list(통계)
+  - 블랙리스트: 제목에 "reaction", "fan made" 포함 시 제외
+  - 서비스별 최소 조회수: kpop 20만 / calendar·kdrama 10만 / hangeul 5만 / curation 1만
+  - 수집 결과: `{ collected, filtered, videos }` 반환
   - 어드민 전용
 
 - **어드민 영상 관리 API**
-  - `app/api/admin/videos/route.ts` — GET 목록 + `count_only=true` pending 카운트
+  - `app/api/admin/videos/route.ts` — GET 목록(view_count 포함) + `count_only=true` pending 카운트
   - `app/api/admin/videos/[id]/route.ts` — PATCH status / DELETE
 
 - **공개 영상 조회 API** (`app/api/videos/route.ts`)
-  - GET `?service=&ref_id=&ref_type=` → published 영상 반환 (RLS 적용)
+  - GET `?service=&ref_id=&ref_type=` → published 영상 반환 (RLS 적용, Cache-Control 5분)
 
 - **어드민 영상 관리 페이지** (`app/admin/videos/page.tsx`)
   - 서비스 탭 + 상태 탭 필터, 카드 그리드, 승인/삭제 버튼
-  - 영상 수집 폼 (service / ref_id / ref_type / query 입력)
+  - 카드에 조회수(K/M 단위) 표시 + 필터 제외 건수 표시
+  - 서비스별 권장 키워드 힌트 표시
   - 어드민 사이드바 "YouTube 영상" 메뉴 + pending 배지
 
 - **공통 YoutubeVideoSection 컴포넌트** (`components/shared/youtube-video-section.tsx`)
-  - props: service / refId / refType / title
   - 가로 스크롤 카드(썸네일+제목+Play 오버레이) + YouTube embed 모달(iframe autoplay)
-  - published 영상 없으면 섹션 미노출(null return)
+  - published 영상 없으면 null return (섹션 미노출)
 
 - **5개 서비스 적용**
   - HallyuCalendar: 이벤트 상세 모달 하단 (`app/calendar/page.tsx`)
@@ -52,7 +55,7 @@
 **다음 세션**
 - Apollo.io 매핑 파이프라인 구현
 - Paddle 웹훅 실서버 등록 및 실결제 테스트
-- 어드민에서 서비스별 YouTube 영상 수집 후 승인 테스트
+- 어드민 `/admin/videos` → 서비스별 영상 수집 후 승인 테스트
 
 ---
 
