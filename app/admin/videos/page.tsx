@@ -2,10 +2,9 @@
 
 import { useEffect, useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
-import { Youtube } from "lucide-react"
+import { Youtube, RefreshCw } from "lucide-react"
 
 interface VideoRow {
   id: string
@@ -43,13 +42,7 @@ export default function VideosAdminPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending")
   const [page, setPage] = useState(1)
   const [, startTransition] = useTransition()
-
-  // 영상 수집 폼
-  const [collectService, setCollectService] = useState("kpop")
-  const [collectRefId, setCollectRefId] = useState("")
-  const [collectRefType, setCollectRefType] = useState("")
-  const [collectQuery, setCollectQuery] = useState("")
-  const [collecting, setCollecting] = useState(false)
+  const [autoCollecting, setAutoCollecting] = useState(false)
 
   const PAGE_SIZE = 20
 
@@ -111,90 +104,43 @@ export default function VideosAdminPage() {
     })
   }
 
-  async function onCollect() {
-    if (!collectQuery.trim()) {
-      toast({ title: "검색어를 입력하세요" })
-      return
-    }
-    setCollecting(true)
+  async function onAutoCollect() {
+    setAutoCollecting(true)
     try {
-      const res = await fetch("/api/youtube/collect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          service: collectService,
-          ref_id: collectRefId.trim() || undefined,
-          ref_type: collectRefType.trim() || undefined,
-          query: collectQuery.trim(),
-        }),
-      })
+      const res = await fetch("/api/cron/collect-youtube")
       const body = await res.json()
       if (!res.ok) {
         toast({ title: "수집 실패", description: String(body.error ?? "오류") })
         return
       }
-      const filteredMsg = body.filtered > 0 ? ` (${body.filtered}건 조회수·블랙리스트 제외)` : ""
-      toast({ title: `수집 완료 — ${body.collected}건 저장됨${filteredMsg}` })
+      const summary = body.summary as Record<string, { collected: number; filtered: number; entities: number }>
+      const lines = Object.entries(summary)
+        .map(([svc, s]) => `${SERVICE_LABEL[svc] ?? svc} ${s.collected}건`)
+        .join(" · ")
+      toast({ title: `수집 완료 — 총 ${body.total_collected}건`, description: lines })
       fetchVideos()
     } finally {
-      setCollecting(false)
+      setAutoCollecting(false)
     }
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-foreground text-2xl font-semibold mb-1">YouTube 영상 관리</h1>
-        <p className="text-muted-foreground text-sm">
-          미승인 {pendingCount}건 · 전체 {videos.length}건
-        </p>
-      </div>
-
-      {/* 영상 수집 폼 */}
-      <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-foreground text-sm font-medium">YouTube 영상 수집</p>
-          <p className="text-muted-foreground text-xs mt-0.5">
-            kpop: MV/teaser/official/comeback · calendar: MV/showcase/concert · kdrama: trailer/OST · hangeul: clip/scene · curation: travel/vlog/Korea
+          <h1 className="text-foreground text-2xl font-semibold mb-1">YouTube 영상 관리</h1>
+          <p className="text-muted-foreground text-sm">
+            미승인 {pendingCount}건 · 전체 {videos.length}건
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <select
-            value={collectService}
-            onChange={(e) => setCollectService(e.target.value)}
-            className="h-9 rounded-lg px-3 text-sm bg-[#0d0d0f] border border-[#2a2a2a] text-foreground"
-          >
-            {SERVICES.filter((s) => s !== "all").map((s) => (
-              <option key={s} value={s}>{SERVICE_LABEL[s]}</option>
-            ))}
-          </select>
-          <Input
-            placeholder="ref_id (선택)"
-            value={collectRefId}
-            onChange={(e) => setCollectRefId(e.target.value)}
-            className="h-9 text-sm bg-[#0d0d0f] border-[#2a2a2a]"
-          />
-          <Input
-            placeholder="ref_type (선택)"
-            value={collectRefType}
-            onChange={(e) => setCollectRefType(e.target.value)}
-            className="h-9 text-sm bg-[#0d0d0f] border-[#2a2a2a]"
-          />
-          <Input
-            placeholder="검색어 (필수)"
-            value={collectQuery}
-            onChange={(e) => setCollectQuery(e.target.value)}
-            className="h-9 text-sm bg-[#0d0d0f] border-[#2a2a2a]"
-            onKeyDown={(e) => { if (e.key === "Enter") onCollect() }}
-          />
-        </div>
         <Button
-          onClick={onCollect}
-          disabled={collecting}
-          className="h-9 px-4 text-sm text-white"
+          onClick={onAutoCollect}
+          disabled={autoCollecting}
+          className="shrink-0 h-9 px-4 text-sm text-white flex items-center gap-2"
           style={{ backgroundColor: "#FF4B6E" }}
         >
-          {collecting ? "수집 중…" : "영상 수집"}
+          <RefreshCw className={`w-4 h-4 ${autoCollecting ? "animate-spin" : ""}`} />
+          {autoCollecting ? "수집 중…" : "전체 자동 수집 실행"}
         </Button>
       </div>
 
@@ -243,7 +189,6 @@ export default function VideosAdminPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {paged.map((v) => (
             <div key={v.id} className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden">
-              {/* 썸네일 */}
               <a
                 href={`https://www.youtube.com/watch?v=${v.video_id}`}
                 target="_blank"
@@ -272,9 +217,7 @@ export default function VideosAdminPage() {
                   <span className="px-1.5 py-0.5 rounded bg-[#252528] text-foreground/70 uppercase tracking-wide">
                     {v.service}
                   </span>
-                  {v.ref_type && (
-                    <span>{v.ref_type}</span>
-                  )}
+                  {v.ref_type && <span>{v.ref_type}</span>}
                   {v.ref_id && (
                     <span className="truncate max-w-[80px]" title={v.ref_id}>{v.ref_id.slice(0, 8)}…</span>
                   )}

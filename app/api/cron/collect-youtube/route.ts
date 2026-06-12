@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { verifyCronAuth } from "@/lib/cron/auth"
+import { requireAdmin } from "@/lib/admin/auth"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { google } from "googleapis"
 
 // YouTube 영상 자동 수집 — 5개 서비스 대상 주간 수집
 // vercel.json: 매주 월 UTC 02:00 (= KST 월 11:00)
-// 수동 호출: Authorization: Bearer ${CRON_SECRET}
+// 수동 호출: Authorization: Bearer ${CRON_SECRET} 또는 어드민 세션
 //
 // YouTube API 쿼터 계산 (일일 10,000 units):
 // kpop:     10 아티스트 × 3 쿼리 × 100 units = 3,000 units
@@ -135,9 +136,13 @@ async function collectForEntity(
 }
 
 export async function GET(request: Request) {
-  const auth = verifyCronAuth(request)
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.reason, debug: auth.debug }, { status: 401 })
+  // CRON_SECRET 인증 우선, 실패 시 어드민 세션으로 폴백
+  const cronAuth = verifyCronAuth(request)
+  if (!cronAuth.ok) {
+    const adminAuth = await requireAdmin()
+    if (!adminAuth.ok) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+    }
   }
 
   const youtube = getYoutubeClient()
