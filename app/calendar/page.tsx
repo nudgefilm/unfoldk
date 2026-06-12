@@ -13,6 +13,7 @@ import { ReportButton } from "@/components/common/report-button"
 import { getEventTypeColor } from "@/lib/calendar/event-type-colors"
 import { StartModal } from "@/components/start-modal"
 import { AuthGate } from "@/components/auth-gate"
+import { YoutubeVideoSection } from "@/components/shared/youtube-video-section"
 import { toast } from "sonner"
 import { Toaster } from "@/components/ui/sonner"
 
@@ -530,6 +531,14 @@ function EventDetailModal({
             </label>
           </div>
         </div>
+
+        {/* YouTube 영상 섹션 */}
+        <YoutubeVideoSection
+          service="calendar"
+          refId={event.id}
+          refType="event"
+          title="Videos"
+        />
 
         {/* Report + Artist Stats 링크 */}
         <div className="mt-4 pt-4 border-t border-border/30 flex items-center justify-between">

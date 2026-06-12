@@ -73,6 +73,7 @@ import {
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 import { AuthGate } from "@/components/auth-gate"
+import { YoutubeVideoSection } from "@/components/shared/youtube-video-section"
 
 // ─── 지도 인프라 ─────────────────────────────────────────────
 const LNG_MIN = 124.3
@@ -3376,6 +3377,16 @@ function SpotDetailDialog({
             <NearbyPlacesSection
               data={nearbyData}
               loading={nearbyLoading}
+            />
+          )}
+
+          {/* YouTube 영상 섹션 — published 영상 없으면 미노출 */}
+          {spot && (
+            <YoutubeVideoSection
+              service="curation"
+              refId={spot.id}
+              refType="spot"
+              title="Videos"
             />
           )}
         </div>

@@ -25,6 +25,7 @@ import { hasProAccess } from "@/lib/auth/plan"
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/components/ui/use-toast"
 import { AuthGate } from "@/components/auth-gate"
+import { YoutubeVideoSection } from "@/components/shared/youtube-video-section"
 import type { KoreanPhraseApi } from "@/lib/korean/mapper"
 
 interface PackApi {
@@ -1471,6 +1472,7 @@ export function KoreanContent() {
           표현 없으면 "Expressions coming soon" (cron 이 채울 때까지 안내). */}
       {packModalDramaId && (
         <PackDetailModal
+          dramaId={packModalDramaId}
           onClose={() => setPackModalDramaId(null)}
           detail={packDetail}
           loading={packDetailLoading}
@@ -1531,11 +1533,13 @@ export function KoreanContent() {
 
 // Drama Pack 상세 모달 — 표현 카드에 감정 태그·에피소드·장면 설명 추가.
 function PackDetailModal({
+  dramaId,
   onClose,
   detail,
   loading,
   phraseContextMap,
 }: {
+  dramaId: string
   onClose: () => void
   detail: PackDetail | null
   loading: boolean
@@ -1586,6 +1590,14 @@ function PackDetailModal({
             )}
           </div>
         </div>
+
+        {/* YouTube 영상 섹션 — published 영상 없으면 미노출 */}
+        <YoutubeVideoSection
+          service="hangeul"
+          refId={dramaId}
+          refType="expression"
+          title="Videos"
+        />
 
         {/* Body — 표현 리스트 */}
         <div className="overflow-y-auto -mx-2 px-2 flex-1">

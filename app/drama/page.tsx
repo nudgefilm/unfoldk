@@ -58,6 +58,7 @@ import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 import { AuthGate } from "@/components/auth-gate"
+import { YoutubeVideoSection } from "@/components/shared/youtube-video-section"
 import type { DramaApi } from "@/lib/dramas/mapper"
 
 // 필터 칩 옵션
@@ -1062,6 +1063,16 @@ function DramaDetailModal({
                     ))}
                   </div>
                 </div>
+              )}
+
+              {/* YouTube 영상 섹션 — published 영상 없으면 미노출 */}
+              {dramaId && (
+                <YoutubeVideoSection
+                  service="kdrama"
+                  refId={dramaId}
+                  refType="drama"
+                  title="Videos"
+                />
               )}
 
               {/* Shop this drama — Explore more 아래 표시. 카테고리별 그룹핑. */}

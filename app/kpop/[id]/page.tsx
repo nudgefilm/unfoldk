@@ -12,6 +12,7 @@ import { getEventTypeColor, getEventTypeColorAlpha } from "@/lib/calendar/event-
 import { TrackArtistButton } from "./track-artist-button"
 import { ArtistTrendChart } from "@/components/kpop/artist-trend-chart"
 import { ArtistGuideSection } from "@/components/kpop/artist-guide-section"
+import { YoutubeVideoSection } from "@/components/shared/youtube-video-section"
 
 // /kpop/[id] — 아티스트 상세 페이지 (Server Component)
 // 차트 행 / Trending 카드에서 navigation. SEO 친화 + 첫 로드 빠른 SSR.
@@ -467,6 +468,14 @@ export default async function ArtistDetailPage({
 
         {/* 아티스트 입문 가이드 — 최초 온디맨드 생성 후 영구 캐싱 */}
         <ArtistGuideSection artistId={artist.id} artistName={artist.name} />
+
+        {/* YouTube 영상 섹션 — published 영상 없으면 컴포넌트 자체 미노출 */}
+        <YoutubeVideoSection
+          service="kpop"
+          refId={artist.id}
+          refType="artist"
+          title="Videos"
+        />
 
         {/* Explore More — 서비스 간 크로스링크 */}
         <section className="mt-8">
