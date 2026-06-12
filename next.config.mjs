@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async redirects() {
+    return [
+      { source: "/hallyu-news", destination: "/hallyu-feed", permanent: true },
+      { source: "/hallyu-news/:path*", destination: "/hallyu-feed/:path*", permanent: true },
+    ]
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
