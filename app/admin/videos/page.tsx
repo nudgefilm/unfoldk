@@ -15,6 +15,7 @@ interface VideoRow {
   video_id: string
   title: string | null
   thumbnail_url: string | null
+  view_count: number | null
   published_at: string | null
   status: "pending" | "published" | "rejected"
   created_at: string
@@ -132,7 +133,8 @@ export default function VideosAdminPage() {
         toast({ title: "수집 실패", description: String(body.error ?? "오류") })
         return
       }
-      toast({ title: `수집 완료 — ${body.collected}건 저장됨` })
+      const filteredMsg = body.filtered > 0 ? ` (${body.filtered}건 조회수·블랙리스트 제외)` : ""
+      toast({ title: `수집 완료 — ${body.collected}건 저장됨${filteredMsg}` })
       fetchVideos()
     } finally {
       setCollecting(false)
@@ -150,7 +152,12 @@ export default function VideosAdminPage() {
 
       {/* 영상 수집 폼 */}
       <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
-        <p className="text-foreground text-sm font-medium">YouTube 영상 수집</p>
+        <div>
+          <p className="text-foreground text-sm font-medium">YouTube 영상 수집</p>
+          <p className="text-muted-foreground text-xs mt-0.5">
+            kpop: MV/teaser/official/comeback · calendar: MV/showcase/concert · kdrama: trailer/OST · hangeul: clip/scene · curation: travel/vlog/Korea
+          </p>
+        </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <select
             value={collectService}
@@ -270,6 +277,15 @@ export default function VideosAdminPage() {
                   )}
                   {v.ref_id && (
                     <span className="truncate max-w-[80px]" title={v.ref_id}>{v.ref_id.slice(0, 8)}…</span>
+                  )}
+                  {v.view_count !== null && v.view_count > 0 && (
+                    <span className="text-sky-400">
+                      {v.view_count >= 1_000_000
+                        ? `${(v.view_count / 1_000_000).toFixed(1)}M views`
+                        : v.view_count >= 1_000
+                          ? `${(v.view_count / 1_000).toFixed(0)}K views`
+                          : `${v.view_count} views`}
+                    </span>
                   )}
                   {v.status === "published" && (
                     <span className="text-green-400 border border-green-400/30 px-1.5 py-0.5 rounded">승인됨</span>

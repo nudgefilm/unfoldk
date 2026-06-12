@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   let query = admin
     .from("youtube_videos")
-    .select("id, service, ref_id, ref_type, video_id, title, thumbnail_url, published_at, status, created_at")
+    .select("id, service, ref_id, ref_type, video_id, title, thumbnail_url, view_count, published_at, status, created_at")
     .order("created_at", { ascending: false })
 
   if (serviceFilter && serviceFilter !== "all") {

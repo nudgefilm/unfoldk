@@ -3,13 +3,15 @@ CREATE TABLE youtube_videos (
   service text NOT NULL, -- 'calendar' | 'kpop' | 'kdrama' | 'hangeul' | 'curation'
   ref_id text,           -- 연관 엔티티 ID (artist_id, drama_id, spot_id, event_id 등)
   ref_type text,         -- 'artist' | 'drama' | 'expression' | 'spot' | 'event'
-  video_id text NOT NULL UNIQUE,
+  video_id text NOT NULL,
   title text,
   thumbnail_url text,
+  view_count bigint,
   published_at timestamptz,
   status text NOT NULL DEFAULT 'pending', -- 'pending' | 'published' | 'rejected'
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(service, ref_id, video_id)
 );
 
 CREATE INDEX idx_youtube_videos_service ON youtube_videos(service);
