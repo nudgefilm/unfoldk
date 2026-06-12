@@ -36,8 +36,5 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json(
-    { news: data ?? [], limit, offset },
-    { headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=60" } },
-  )
+  return NextResponse.json({ news: data ?? [], limit, offset })
 }
