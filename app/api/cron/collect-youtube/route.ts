@@ -206,6 +206,12 @@ export async function GET(request: Request) {
 
       let sCollected = 0, sFiltered = 0
       for (const artist of artists ?? []) {
+        // ref_id 검증 — artist.id 가 UUID 형식인지 확인 후 수집
+        if (!artist.id || typeof artist.id !== "string") {
+          console.warn(`[collect-youtube] kpop: artist.id 누락 → 건너뜀 (name=${artist.name})`)
+          continue
+        }
+        console.log(`[collect-youtube] kpop: "${artist.name}" id=${artist.id}`)
         const r = await collectForEntity(youtube, admin, "kpop", artist.id, "artist", [
           `${artist.name} kpop MV`,
           `${artist.name} kpop comeback`,
