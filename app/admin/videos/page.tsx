@@ -20,7 +20,7 @@ interface VideoRow {
   created_at: string
 }
 
-const SERVICES = ["all", "calendar", "kpop", "kdrama", "hangeul", "curation"] as const
+const SERVICES = ["all", "calendar", "kpop", "kdrama", "curation"] as const
 type ServiceFilter = (typeof SERVICES)[number]
 const STATUS_FILTERS = ["all", "pending", "published", "rejected"] as const
 type StatusFilter = (typeof STATUS_FILTERS)[number]
@@ -30,7 +30,6 @@ const SERVICE_LABEL: Record<string, string> = {
   calendar: "HallyuCalendar",
   kpop: "KpopStats",
   kdrama: "KdramaMatch",
-  hangeul: "HangeulGo",
   curation: "Curation K",
 }
 

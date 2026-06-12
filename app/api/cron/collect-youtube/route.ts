@@ -11,10 +11,9 @@ import { google } from "googleapis"
 // YouTube API 쿼터 계산 (일일 10,000 units):
 // kpop:     10 아티스트 × 3 쿼리 × 100 units = 3,000 units
 // calendar:  5 이벤트   × 3 쿼리 × 100 units = 1,500 units
-// kdrama:   10 드라마   × 3 쿼리 × 100 units = 3,000 units
-// hangeul:   5 드라마   × 2 쿼리 × 100 units = 1,000 units
+// kdrama:   10 드라마   × 2 쿼리 × 100 units = 2,000 units
 // curation:  5 스팟     × 2 쿼리 × 100 units = 1,000 units
-// 합계: 9,500 units (일일 한도 10,000 이내)
+// 합계: 7,500 units (일일 한도 10,000 이내)
 export const maxDuration = 300
 export const dynamic = "force-dynamic"
 
@@ -30,6 +29,8 @@ const TITLE_BLACKLIST = [
   "reaction", "fan made",
   "#shorts", "shorts",
   "hindi", "vietnam", "tagalog", "malay", "indonesia",
+  "thai", "chinese", "cartoon", "anime",
+  "driving", "lesson", "howto", "teach",
 ]
 
 interface VideoDetail {
@@ -221,47 +222,13 @@ export async function GET(request: Request) {
     let sCollected = 0, sFiltered = 0
     for (const drama of dramas ?? []) {
       const r = await collectForEntity(youtube, admin, "kdrama", drama.id, "drama", [
-        `${drama.title} Korean drama trailer`,
-        `${drama.title} kdrama official`,
-        `${drama.title} Korean drama OST`,
+        `${drama.title} 한국 드라마 공식 예고편`,
+        `${drama.title} kdrama official trailer`,
       ])
       sCollected += r.collected
       sFiltered += r.filtered
     }
     summary.kdrama = { collected: sCollected, filtered: sFiltered, entities: (dramas ?? []).length }
-    totalCollected += sCollected
-    totalFiltered += sFiltered
-  }
-
-  // ── hangeul: korean_phrases (drama_id 기준 중복 제거, LIMIT 5)
-  {
-    const { data: phrases } = await admin
-      .from("korean_phrases")
-      .select("drama_id, drama_name")
-      .not("drama_id", "is", null)
-      .not("drama_name", "is", null)
-      .limit(200)
-
-    // drama_id 기준 중복 제거
-    const seen = new Set<string>()
-    const uniqueDramas: Array<{ drama_id: string; drama_name: string }> = []
-    for (const p of phrases ?? []) {
-      if (!seen.has(p.drama_id) && uniqueDramas.length < 5) {
-        seen.add(p.drama_id)
-        uniqueDramas.push({ drama_id: p.drama_id, drama_name: p.drama_name as string })
-      }
-    }
-
-    let sCollected = 0, sFiltered = 0
-    for (const d of uniqueDramas) {
-      const r = await collectForEntity(youtube, admin, "hangeul", d.drama_id, "expression", [
-        `${d.drama_name} Korean drama trailer`,
-        `${d.drama_name} kdrama clip`,
-      ])
-      sCollected += r.collected
-      sFiltered += r.filtered
-    }
-    summary.hangeul = { collected: sCollected, filtered: sFiltered, entities: uniqueDramas.length }
     totalCollected += sCollected
     totalFiltered += sFiltered
   }
