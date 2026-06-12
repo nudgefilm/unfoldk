@@ -198,8 +198,15 @@ export function Header() {
           <span className="text-foreground text-xl font-semibold">UnfoldK</span>
         </Link>
 
-        {/* Right: Services Dropdown + About + CTA */}
+        {/* Right: Hallyu News + Services Dropdown + About + CTA */}
         <div className="hidden md:flex items-center gap-4">
+          {/* Hallyu News 직접 링크 */}
+          <Link
+            href="/hallyu-news"
+            className="text-[#888888] hover:text-foreground px-4 py-2 rounded-full font-medium transition-colors"
+          >
+            Hallyu News
+          </Link>
           {/* Services Dropdown */}
           <div 
             className="relative"
@@ -372,6 +379,15 @@ export function Header() {
               <SheetTitle className="text-left text-xl font-semibold text-foreground">Menu</SheetTitle>
             </SheetHeader>
             <nav className="flex flex-col gap-2 mt-6">
+              {/* Hallyu News */}
+              <Link
+                href="/hallyu-news"
+                className="text-foreground hover:text-primary px-2 py-3 font-medium"
+                onClick={() => setMobileSheetOpen(false)}
+              >
+                Hallyu News
+              </Link>
+              <div className="border-t border-[#2a2a2a] my-1" />
               {/* Services Section */}
               <div className="text-muted-foreground text-xs font-medium uppercase tracking-wider mb-2 px-2">Services</div>
               {services.map((service) => (

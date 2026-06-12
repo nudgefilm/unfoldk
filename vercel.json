@@ -80,6 +80,10 @@
     {
       "path": "/api/cron/collect-youtube",
       "schedule": "0 2 * * 1"
+    },
+    {
+      "path": "/api/cron/collect-hallyu-news",
+      "schedule": "0 1 * * *"
     }
   ]
 }
