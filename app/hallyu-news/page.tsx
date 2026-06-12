@@ -24,10 +24,10 @@ const CATEGORY_TABS = [
 ] as const
 
 const SOURCE_FILTERS = [
-  { key: "",          label: "All Sources" },
-  { key: "koreaboo", label: "Koreaboo" },
-  { key: "allkpop",  label: "Allkpop" },
-  { key: "soompi",   label: "Soompi" },
+  { key: "",            label: "All Sources" },
+  { key: "koreaboo",   label: "Koreaboo" },
+  { key: "seoulbeats", label: "Seoulbeats" },
+  { key: "soompi",     label: "Soompi" },
 ] as const
 
 const CATEGORY_BADGE: Record<string, string> = {
@@ -47,18 +47,18 @@ function formatDate(iso: string | null): string {
 
 function sourceLabel(src: string): string {
   const map: Record<string, string> = {
-    koreaboo: "Koreaboo",
-    allkpop:  "Allkpop",
-    soompi:   "Soompi",
+    koreaboo:   "Koreaboo",
+    seoulbeats: "Seoulbeats",
+    soompi:     "Soompi",
   }
   return map[src] ?? src
 }
 
 // PLACEHOLDER_URL — 출처별 기본 이미지
 const SOURCE_PLACEHOLDER: Record<string, string> = {
-  koreaboo: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=60",
-  allkpop:  "https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=400&q=60",
-  soompi:   "https://images.unsplash.com/photo-1519671845340-8e30b9ed4ce1?w=400&q=60",
+  koreaboo:   "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=60",
+  seoulbeats: "https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=400&q=60",
+  soompi:     "https://images.unsplash.com/photo-1519671845340-8e30b9ed4ce1?w=400&q=60",
 }
 
 export default function HallyuNewsPage() {

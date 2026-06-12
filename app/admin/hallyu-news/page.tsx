@@ -16,9 +16,9 @@ interface NewsRow {
   category: string | null
 }
 
-const SOURCE_FILTERS = ["all", "koreaboo", "allkpop", "soompi"] as const
+const SOURCE_FILTERS = ["all", "koreaboo", "seoulbeats", "soompi"] as const
 const SOURCE_LABEL: Record<string, string> = {
-  all: "전체", koreaboo: "Koreaboo", allkpop: "Allkpop", soompi: "Soompi",
+  all: "전체", koreaboo: "Koreaboo", seoulbeats: "Seoulbeats", soompi: "Soompi",
 }
 const CATEGORY_FILTERS = ["all", "kpop", "kdrama", "kbeauty", "general"] as const
 const CATEGORY_LABEL: Record<string, string> = {
