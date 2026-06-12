@@ -32,7 +32,7 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })
 }
 
-export default function HallyuNewsAdminPage() {
+export default function HallyuFeedAdminPage() {
   const { toast } = useToast()
   const [news, setNews] = useState<NewsRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -46,7 +46,7 @@ export default function HallyuNewsAdminPage() {
     const qs = new URLSearchParams({ limit: "50" })
     if (categoryFilter !== "all") qs.set("category", categoryFilter)
     // content_type 필터는 클라이언트 측 필터링
-    fetch(`/api/hallyu-news?${qs}`)
+    fetch(`/api/admin/hallyu-feed?${qs}`)
       .then((r) => r.json())
       .then((b: { news: NewsRow[] }) => setNews(b.news ?? []))
       .catch(() => {})
@@ -62,7 +62,7 @@ export default function HallyuNewsAdminPage() {
   async function onCollect() {
     setCollecting(true)
     try {
-      const res = await fetch("/api/cron/collect-hallyu-news")
+      const res = await fetch("/api/cron/collect-hallyu-feed")
       const body = await res.json()
       if (!res.ok) { toast({ title: "수집 실패", description: String(body.error ?? "오류") }); return }
       toast({
@@ -78,7 +78,7 @@ export default function HallyuNewsAdminPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-foreground text-2xl font-semibold mb-1">Hallyu News 관리</h1>
+          <h1 className="text-foreground text-2xl font-semibold mb-1">Hallyu Feed 관리</h1>
           <p className="text-muted-foreground text-sm">수집된 뉴스 {filteredNews.length}건</p>
         </div>
         <Button

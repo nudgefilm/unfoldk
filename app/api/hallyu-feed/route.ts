@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 export const dynamic = "force-dynamic"
 
-// GET /api/hallyu-news?category=&source=&limit=20&offset=0
+// GET /api/hallyu-feed?category=&source=&limit=20&offset=0
 // count_only=true → { count: N } 어드민 배지용
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { Newspaper, ChevronLeft, ChevronRight } from "lucide-react"
 import { FooterSection } from "@/components/footer-section"
 import { HallyuPassBanner } from "@/components/hallyu-pass-banner"
-import { NewsCard, type NewsCardProps } from "@/components/hallyu-news/news-card"
+import { NewsCard, type NewsCardProps } from "@/components/hallyu-feed/news-card"
 
 type NewsItem = NewsCardProps
 
@@ -18,7 +18,7 @@ const CATEGORY_TABS = [
 
 const LIMIT = 18
 
-export default function HallyuNewsPage() {
+export default function HallyuFeedPage() {
   const [news, setNews] = useState<NewsItem[]>([])
   const [loading, setLoading] = useState(true)
   const [category, setCategory] = useState("")
@@ -31,7 +31,7 @@ export default function HallyuNewsPage() {
     const qs = new URLSearchParams({ limit: String(LIMIT), offset: String(pg * LIMIT) })
     if (cat) qs.set("category", cat)
     try {
-      const res = await fetch(`/api/hallyu-news?${qs}`)
+      const res = await fetch(`/api/hallyu-feed?${qs}`)
       if (!res.ok) return
       const body = await res.json() as { news: NewsItem[] }
       setNews(body.news ?? [])
@@ -39,7 +39,7 @@ export default function HallyuNewsPage() {
       if (pg === 0) {
         const cqs = new URLSearchParams({ count_only: "true" })
         if (cat) cqs.set("category", cat)
-        fetch(`/api/hallyu-news?${cqs}`)
+        fetch(`/api/hallyu-feed?${cqs}`)
           .then((r) => r.json())
           .then((b: { count: number }) => setTotal(b.count ?? 0))
           .catch(() => {})
@@ -68,7 +68,7 @@ export default function HallyuNewsPage() {
       <section className="text-center py-16 px-4 border-b border-border/20">
         <div className="flex items-center justify-center gap-3 mb-4">
           <Newspaper className="w-7 h-7" style={{ color: "#FF4B6E" }} />
-          <h1 className="text-4xl font-bold text-foreground">Hallyu News</h1>
+          <h1 className="text-4xl font-bold text-foreground">Hallyu Feed</h1>
         </div>
         <p className="text-muted-foreground text-lg max-w-xl mx-auto">
           The latest K-pop, K-drama &amp; K-beauty headlines — curated by UnfoldK.

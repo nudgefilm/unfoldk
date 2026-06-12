@@ -45,7 +45,7 @@ function parseSummary(raw: string | null): SummaryJson | null {
   try { return JSON.parse(raw) as SummaryJson } catch { return null }
 }
 
-export default function HallyuNewsDetailPage() {
+export default function HallyuFeedDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [news, setNews] = useState<NewsDetail | null>(null)
@@ -54,10 +54,10 @@ export default function HallyuNewsDetailPage() {
 
   useEffect(() => {
     if (!id) return
-    fetch(`/api/hallyu-news/${id}`)
+    fetch(`/api/hallyu-feed/${id}`)
       .then((r) => r.ok ? r.json() : Promise.reject())
       .then((b: { news: NewsDetail }) => setNews(b.news))
-      .catch(() => router.replace("/hallyu-news"))
+      .catch(() => router.replace("/hallyu-feed"))
       .finally(() => setLoading(false))
   }, [id, router])
 
@@ -79,11 +79,11 @@ export default function HallyuNewsDetailPage() {
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
         {/* 뒤로가기 */}
         <Link
-          href="/hallyu-news"
+          href="/hallyu-feed"
           className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-sm mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Hallyu News
+          Hallyu Feed
         </Link>
 
         {/* 카테고리 + generated 배지 + 날짜 */}

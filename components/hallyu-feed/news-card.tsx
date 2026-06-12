@@ -50,7 +50,7 @@ export function NewsCard({
 
   return (
     <Link
-      href={`/hallyu-news/${id}`}
+      href={`/hallyu-feed/${id}`}
       className="group block bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden hover:border-[#FF4B6E]/40 transition-all hover:shadow-[0_0_0_1px_rgba(255,75,110,0.15)]"
     >
       {/* 이미지 (있을 때만) */}

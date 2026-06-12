@@ -5,7 +5,7 @@ import { verifyCronAuth } from "@/lib/cron/auth"
 import { requireAdmin } from "@/lib/admin/auth"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
-// Hallyu News RSS 수집 + Claude Sonnet 4.6 AI 큐레이션 — 하루 4회 (01/07/13/19 UTC)
+// Hallyu Feed RSS 수집 + Claude Sonnet 4.6 AI 큐레이션 — 하루 4회 (01/07/13/19 UTC)
 // 흐름: RSS 파싱 → 신규 URL 필터 → Sonnet 즉시 요약 → summary 포함 insert (1회 완료)
 // content_type: 'rss' (원문 기반) | 'generated' (UnfoldK 자체 생성)
 export const maxDuration = 300
@@ -150,7 +150,7 @@ Respond ONLY in JSON:
     const raw = textBlock.text.trim().replace(/^```json\s*/i, "").replace(/\s*```$/, "")
     return JSON.parse(raw) as RssAiResult
   } catch (err) {
-    console.error("[collect-hallyu-news] Sonnet 요약 실패:", err instanceof Error ? err.message : String(err))
+    console.error("[collect-hallyu-feed] Sonnet 요약 실패:", err instanceof Error ? err.message : String(err))
     return null
   }
 }
@@ -202,7 +202,7 @@ Respond ONLY in JSON:
     const raw = textBlock.text.trim().replace(/^```json\s*/i, "").replace(/\s*```$/, "")
     return JSON.parse(raw) as GenAiResult
   } catch (err) {
-    console.error("[collect-hallyu-news] Sonnet generated 실패:", err instanceof Error ? err.message : String(err))
+    console.error("[collect-hallyu-feed] Sonnet generated 실패:", err instanceof Error ? err.message : String(err))
     return null
   }
 }
@@ -296,9 +296,9 @@ export async function GET(request: Request) {
       }
 
       feedSummary[feed.source] = { parsed, new: 0 }
-      console.log(`[collect-hallyu-news] ${feed.source}: ${parsed}개 파싱`)
+      console.log(`[collect-hallyu-feed] ${feed.source}: ${parsed}개 파싱`)
     } catch (err) {
-      console.error(`[collect-hallyu-news] ${feed.source} 수집 실패:`, err)
+      console.error(`[collect-hallyu-feed] ${feed.source} 수집 실패:`, err)
       feedSummary[feed.source] = { parsed: 0, new: 0, error: String(err) }
     }
   }
@@ -316,7 +316,7 @@ export async function GET(request: Request) {
   const existingSet = new Set((existing ?? []).map((r: { url: string }) => r.url))
   const newItems = candidates.filter((c) => !existingSet.has(c.url)).slice(0, CLAUDE_MAX_PER_RUN)
 
-  console.log(`[collect-hallyu-news] 신규 처리 대상: ${newItems.length}건 / 전체 후보: ${candidates.length}건`)
+  console.log(`[collect-hallyu-feed] 신규 처리 대상: ${newItems.length}건 / 전체 후보: ${candidates.length}건`)
 
   if (newItems.length === 0) {
     return NextResponse.json({ ok: true, total_inserted: 0, gen_inserted: 0, feed_summary: feedSummary })
@@ -359,7 +359,7 @@ export async function GET(request: Request) {
     })
 
     feedSummary[item.source].new++
-    console.log(`[collect-hallyu-news] 처리 완료: "${item.title.slice(0, 40)}…"`)
+    console.log(`[collect-hallyu-feed] 처리 완료: "${item.title.slice(0, 40)}…"`)
   }
 
   // ── 4. 완성된 row 일괄 insert ─────────────────────────────────────────────
@@ -368,7 +368,7 @@ export async function GET(request: Request) {
     .insert(rows)
 
   if (insertErr) {
-    console.error("[collect-hallyu-news] insert 실패:", insertErr.code, insertErr.message)
+    console.error("[collect-hallyu-feed] insert 실패:", insertErr.code, insertErr.message)
     return NextResponse.json({
       ok: false,
       error: `${insertErr.code}: ${insertErr.message}`,
@@ -394,7 +394,7 @@ export async function GET(request: Request) {
     const { error: genErr } = await admin.from("hallyu_news").insert({
       source: "unfoldk",
       title: gen.title,
-      url: `https://unfoldk.com/hallyu-news/gen-${Date.now()}-${genInserted}`,
+      url: `https://unfoldk.com/hallyu-feed/gen-${Date.now()}-${genInserted}`,
       thumbnail_url: null,
       image_url: imageUrl,
       published_at: new Date().toISOString(),
@@ -407,7 +407,7 @@ export async function GET(request: Request) {
 
     if (!genErr) {
       genInserted++
-      console.log(`[collect-hallyu-news] Generated 생성: "${gen.title.slice(0, 40)}…"`)
+      console.log(`[collect-hallyu-feed] Generated 생성: "${gen.title.slice(0, 40)}…"`)
     }
   }
 

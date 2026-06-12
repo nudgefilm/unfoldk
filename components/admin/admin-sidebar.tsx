@@ -16,7 +16,7 @@ const links = [
   { href: "/admin/dramas", label: "KdramaMatch", icon: Film },
   { href: "/admin/drama-items", label: "Shop this drama", icon: ShoppingBag },
   { href: "/admin/videos", label: "YouTube 영상", icon: Video },
-  { href: "/admin/hallyu-news", label: "Hallyu News", icon: Newspaper },
+  { href: "/admin/hallyu-feed", label: "Hallyu Feed", icon: Newspaper },
   { href: "/admin/food", label: "KfoodKit", icon: UtensilsCrossed, exact: true },
   { href: "/admin/food/images", label: "이미지 검수", icon: ImageIcon },
   { href: "/admin/korean", label: "HangeulGo", icon: BookOpen },
@@ -30,7 +30,7 @@ export function AdminSidebar() {
   const [newsCount, setNewsCount] = useState<number | null>(null)
 
   useEffect(() => {
-    fetch("/api/hallyu-news?count_only=true")
+    fetch("/api/admin/hallyu-feed?count_only=true")
       .then((r) => r.json())
       .then((json: unknown) => {
         if (json && typeof json === "object" && "count" in json && typeof (json as { count: unknown }).count === "number") {
@@ -101,7 +101,7 @@ export function AdminSidebar() {
                   {videoPendingCount > 99 ? "99+" : videoPendingCount}
                 </span>
               )}
-              {link.href === "/admin/hallyu-news" && newsCount !== null && newsCount > 0 && (
+              {link.href === "/admin/hallyu-feed" && newsCount !== null && newsCount > 0 && (
                 <span className="ml-auto text-[10px] font-medium bg-zinc-600 text-white rounded-full px-1.5 py-0.5 leading-none min-w-[18px] text-center">
                   {newsCount > 999 ? "999+" : newsCount}
                 </span>

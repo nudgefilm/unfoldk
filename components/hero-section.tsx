@@ -446,7 +446,7 @@ export function HeroSection() {
           Your Korean Culture<br /><span className="text-primary">Routine</span>
         </h1>
         <p className="text-muted-foreground text-base md:text-base lg:text-lg font-medium leading-relaxed max-w-xl mx-auto">
-          Hallyu News · Pop · Drama · Language · Food · Travel
+          Hallyu Feed · Pop · Drama · Language · Food · Travel
         </p>
       </div>
 
