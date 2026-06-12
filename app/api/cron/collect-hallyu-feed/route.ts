@@ -17,7 +17,7 @@ const FEEDS = [
   { source: "soompi",     url: "https://www.soompi.com/feed" },
 ] as const
 
-const CLAUDE_MAX_PER_RUN = 30   // 1회 수집 시 Sonnet 최대 처리 건수
+const CLAUDE_MAX_PER_RUN = 5    // 1회 수집 시 Sonnet 최대 처리 건수 (타임아웃 방지)
 const FETCH_TIMEOUT_MS   = 8000
 const GENERATED_RATIO    = 0.3  // 신규 기사 건수의 30% 비중으로 generated 생성
 
