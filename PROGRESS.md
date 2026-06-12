@@ -4,6 +4,61 @@
 
 ---
 
+## 현재 상태 (2026-06-13 세션 64 기준)
+
+### Hallyu Feed 전면 개편
+
+**완료 항목**
+
+- **Hallyu News → Hallyu Feed 전체 명칭 변경**
+  - `git mv` 5개 폴더 이름 변경 (app/hallyu-news → app/hallyu-feed 등)
+  - 내부 문자열 일괄 교체 (hallyu-news / hallyuNews / HallyuNews → feed)
+  - `app/api/admin/hallyu-feed/route.ts` 신규 — `createSupabaseAdminClient()` (service_role 키, 어드민 데이터 미노출 수정)
+  - `next.config.mjs` 301 리다이렉트: `/hallyu-news` → `/hallyu-feed`
+  - `vercel.json` cron 경로 + admin-sidebar API 호출 경로 갱신
+
+- **타임아웃 방지**
+  - `CLAUDE_MAX_PER_RUN` 30 → 5
+  - `vercel.json functions` maxDuration 300 (cron + admin 라우트)
+  - cron 스케줄: 하루 4회 → 매일 01:00 UTC 1회
+
+- **유저 커뮤니티 피드** (`migration 0083`)
+  - `community_feeds` + `community_feed_reports` 테이블 (신고 5회 → 자동 hidden, UNIQUE 1회 제약)
+  - `GET/POST /api/community-feeds` — 목록 조회 / Pro 유저 작성
+  - `GET/DELETE /api/community-feeds/[id]` — 단건 / 본인 삭제
+  - `POST /api/community-feeds/[id]/report` — 신고 (중복 409, 5회→hidden 자동)
+  - `GET /api/admin/community-feeds/list` + `PATCH /api/admin/community-feeds/[id]`
+  - `WriteFeedModal` 컴포넌트 (title / content / artist_keyword)
+  - `/hallyu-feed` **AI Feed / Community / My Feed** 3탭 구조
+  - `/admin/hallyu-feed/community` 신고 피드 관리 (부활/삭제)
+  - `AdminSidebar` 커뮤니티 관리 링크 + 신고 건수 배지
+
+- **콘텐츠 구조 전면 개편** (RSS → Sonnet 4.6 독자 콘텐츠)
+  - RSS: 제목만 파싱 → 키워드 추출 (본문 fetch / og:image / YouTube 썸네일 완전 제거)
+  - RSS 키워드 5건 + 내부 데이터(`kpop_artists` / `hallyu_calendar_events` / `dramas`) 3건 → Sonnet 4.6 독자 콘텐츠 생성
+  - 카드·상세 페이지: 이미지 제거, "Read original" 제거, "Curated by UnfoldK" 단일 표기, HTML 엔티티 디코딩
+  - `/api/hallyu-feed` `Cache-Control` 제거 (빈 응답 5분 캐싱 방지)
+
+- **related_artist 링크 category 기반 내부 연동**
+  - `/api/hallyu-feed/[id]` `resolveRelatedLink()`: kpop → `kpop_artists.name ILIKE` → `/kpop/[id]` / kdrama → `dramas.title ILIKE` → `/drama/[id]` / 매칭 실패·kbeauty·general → 미노출
+
+**사용자 액션 필요**
+- Supabase SQL Editor에서 migration 0083 실행:
+  ```sql
+  -- supabase/migrations/0083_community_feed.sql 내용 붙여넣기 후 실행
+  ```
+- 기존 데이터 정리:
+  ```sql
+  DELETE FROM hallyu_news;
+  ```
+- 어드민 `/admin/hallyu-feed` → "뉴스 수집 실행" 버튼으로 첫 콘텐츠 생성
+
+**다음 세션**
+- Apollo.io 매핑 파이프라인 구현
+- Paddle 웹훅 실서버 등록 및 실결제 테스트
+
+---
+
 ## 현재 상태 (2026-06-12 세션 63 기준)
 
 ### 전 서비스 YouTube 영상 섹션
