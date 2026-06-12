@@ -4,7 +4,8 @@ import { useEffect, useState, useTransition } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, ExternalLink, Newspaper } from "lucide-react"
+import { RefreshCw, ExternalLink, Newspaper, Users } from "lucide-react"
+import Link from "next/link"
 
 interface NewsRow {
   id: string
@@ -81,15 +82,23 @@ export default function HallyuFeedAdminPage() {
           <h1 className="text-foreground text-2xl font-semibold mb-1">Hallyu Feed 관리</h1>
           <p className="text-muted-foreground text-sm">수집된 뉴스 {filteredNews.length}건</p>
         </div>
-        <Button
-          onClick={onCollect}
-          disabled={collecting}
-          className="shrink-0 h-9 px-4 text-sm text-white flex items-center gap-2"
-          style={{ backgroundColor: "#FF4B6E" }}
-        >
-          <RefreshCw className={`w-4 h-4 ${collecting ? "animate-spin" : ""}`} />
-          {collecting ? "수집 중…" : "뉴스 수집 실행"}
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link href="/admin/hallyu-feed/community">
+            <Button variant="outline" className="h-9 px-4 text-sm border-border/40 text-muted-foreground hover:text-foreground flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              커뮤니티 피드 관리
+            </Button>
+          </Link>
+          <Button
+            onClick={onCollect}
+            disabled={collecting}
+            className="h-9 px-4 text-sm text-white flex items-center gap-2"
+            style={{ backgroundColor: "#FF4B6E" }}
+          >
+            <RefreshCw className={`w-4 h-4 ${collecting ? "animate-spin" : ""}`} />
+            {collecting ? "수집 중…" : "뉴스 수집 실행"}
+          </Button>
+        </div>
       </div>
 
       {/* content_type 탭 */}
