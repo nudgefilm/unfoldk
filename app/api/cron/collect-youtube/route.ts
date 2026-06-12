@@ -26,7 +26,11 @@ const MIN_VIEW_COUNT: Record<string, number> = {
   curation:  10_000,
 }
 
-const TITLE_BLACKLIST = ["reaction", "fan made"]
+const TITLE_BLACKLIST = [
+  "reaction", "fan made",
+  "#shorts", "shorts",
+  "hindi", "vietnam", "tagalog", "malay", "indonesia",
+]
 
 interface VideoDetail {
   videoId: string
@@ -64,6 +68,8 @@ async function collectForEntity(
         maxResults: 5,
         order: "viewCount",
         publishedAfter: publishedAfter.toISOString(),
+        relevanceLanguage: "ko",
+        regionCode: "KR",
       })
       for (const item of res.data.items ?? []) {
         if (item.id?.videoId) videoIdSet.add(item.id.videoId)
@@ -163,9 +169,9 @@ export async function GET(request: Request) {
     let sCollected = 0, sFiltered = 0
     for (const artist of artists ?? []) {
       const r = await collectForEntity(youtube, admin, "kpop", artist.id, "artist", [
-        `${artist.name} MV`,
-        `${artist.name} comeback`,
-        `${artist.name} official`,
+        `${artist.name} kpop MV`,
+        `${artist.name} kpop comeback`,
+        `${artist.name} official MV`,
       ])
       sCollected += r.collected
       sFiltered += r.filtered
@@ -191,9 +197,9 @@ export async function GET(request: Request) {
     for (const ev of events ?? []) {
       const artist = ev.artist_or_drama as string
       const r = await collectForEntity(youtube, admin, "calendar", ev.id, "event", [
-        `${artist} MV`,
-        `${artist} comeback`,
-        `${artist} teaser`,
+        `${artist} kpop MV`,
+        `${artist} kpop comeback`,
+        `${artist} kpop teaser`,
       ])
       sCollected += r.collected
       sFiltered += r.filtered
@@ -215,9 +221,9 @@ export async function GET(request: Request) {
     let sCollected = 0, sFiltered = 0
     for (const drama of dramas ?? []) {
       const r = await collectForEntity(youtube, admin, "kdrama", drama.id, "drama", [
-        `${drama.title} trailer`,
-        `${drama.title} official`,
-        `${drama.title} OST`,
+        `${drama.title} Korean drama trailer`,
+        `${drama.title} kdrama official`,
+        `${drama.title} Korean drama OST`,
       ])
       sCollected += r.collected
       sFiltered += r.filtered
@@ -249,8 +255,8 @@ export async function GET(request: Request) {
     let sCollected = 0, sFiltered = 0
     for (const d of uniqueDramas) {
       const r = await collectForEntity(youtube, admin, "hangeul", d.drama_id, "expression", [
-        `${d.drama_name} trailer`,
-        `${d.drama_name} clip`,
+        `${d.drama_name} Korean drama trailer`,
+        `${d.drama_name} kdrama clip`,
       ])
       sCollected += r.collected
       sFiltered += r.filtered
@@ -271,8 +277,8 @@ export async function GET(request: Request) {
     let sCollected = 0, sFiltered = 0
     for (const spot of spots ?? []) {
       const r = await collectForEntity(youtube, admin, "curation", spot.id, "spot", [
-        `${spot.title} Korea travel`,
-        `${spot.title} 여행`,
+        `${spot.title} Korea travel vlog`,
+        `${spot.title} 한국 여행`,
       ])
       sCollected += r.collected
       sFiltered += r.filtered
