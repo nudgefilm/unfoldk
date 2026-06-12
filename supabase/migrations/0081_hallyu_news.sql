@@ -20,3 +20,7 @@ CREATE POLICY "admin full access" ON hallyu_news
   FOR ALL USING (
     EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND is_admin = true)
   );
+
+-- anon / authenticated 롤에 SELECT 권한 부여 (GRANT 없으면 RLS 정책 있어도 permission denied)
+GRANT SELECT ON hallyu_news TO anon, authenticated;
+GRANT ALL ON hallyu_news TO service_role;
