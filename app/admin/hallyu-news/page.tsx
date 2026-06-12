@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, Sparkles, ExternalLink, Newspaper } from "lucide-react"
+import { RefreshCw, ExternalLink, Newspaper } from "lucide-react"
 
 interface NewsRow {
   id: string
@@ -39,7 +39,6 @@ export default function HallyuNewsAdminPage() {
   const [categoryFilter, setCategoryFilter] = useState<typeof CATEGORY_FILTERS[number]>("all")
   const [typeFilter, setTypeFilter] = useState<typeof CONTENT_TYPE_FILTERS[number]>("all")
   const [collecting, setCollecting] = useState(false)
-  const [reprocessing, setReprocessing] = useState(false)
   const [, startTransition] = useTransition()
 
   const fetchNews = () => {
@@ -67,24 +66,11 @@ export default function HallyuNewsAdminPage() {
       const body = await res.json()
       if (!res.ok) { toast({ title: "수집 실패", description: String(body.error ?? "오류") }); return }
       toast({
-        title: `수집 완료 — 총 ${body.total_inserted}건 신규, AI ${body.ai_processed}건, Generated ${body.gen_inserted}건`,
+        title: `수집 완료 — 신규 ${body.total_inserted}건, Generated ${body.gen_inserted}건`,
       })
       startTransition(() => fetchNews())
     } finally {
       setCollecting(false)
-    }
-  }
-
-  async function onReprocess() {
-    setReprocessing(true)
-    try {
-      const res = await fetch("/api/admin/hallyu-news/reprocess", { method: "POST" })
-      const body = await res.json()
-      if (!res.ok) { toast({ title: "재처리 실패", description: String(body.error ?? "오류") }); return }
-      toast({ title: `AI 요약 생성 완료 — ${body.processed}건 처리` })
-      startTransition(() => fetchNews())
-    } finally {
-      setReprocessing(false)
     }
   }
 
@@ -95,26 +81,15 @@ export default function HallyuNewsAdminPage() {
           <h1 className="text-foreground text-2xl font-semibold mb-1">Hallyu News 관리</h1>
           <p className="text-muted-foreground text-sm">수집된 뉴스 {filteredNews.length}건</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button
-            onClick={onReprocess}
-            disabled={reprocessing}
-            variant="outline"
-            className="shrink-0 h-9 px-4 text-sm flex items-center gap-2"
-          >
-            <Sparkles className={`w-4 h-4 ${reprocessing ? "animate-pulse" : ""}`} />
-            {reprocessing ? "AI 처리 중…" : "AI 요약 생성"}
-          </Button>
-          <Button
-            onClick={onCollect}
-            disabled={collecting}
-            className="shrink-0 h-9 px-4 text-sm text-white flex items-center gap-2"
-            style={{ backgroundColor: "#FF4B6E" }}
-          >
-            <RefreshCw className={`w-4 h-4 ${collecting ? "animate-spin" : ""}`} />
-            {collecting ? "수집 중…" : "뉴스 수집 실행"}
-          </Button>
-        </div>
+        <Button
+          onClick={onCollect}
+          disabled={collecting}
+          className="shrink-0 h-9 px-4 text-sm text-white flex items-center gap-2"
+          style={{ backgroundColor: "#FF4B6E" }}
+        >
+          <RefreshCw className={`w-4 h-4 ${collecting ? "animate-spin" : ""}`} />
+          {collecting ? "수집 중…" : "뉴스 수집 실행"}
+        </Button>
       </div>
 
       {/* content_type 탭 */}

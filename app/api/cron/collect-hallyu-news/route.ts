@@ -5,8 +5,8 @@ import { verifyCronAuth } from "@/lib/cron/auth"
 import { requireAdmin } from "@/lib/admin/auth"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
-// Hallyu News RSS 수집 + Claude Haiku AI 큐레이션 — 하루 4회 (01/07/13/19 UTC)
-// 7일 이상 된 뉴스 자동 삭제 / 1회 최대 20건 Claude 처리
+// Hallyu News RSS 수집 + Claude Sonnet 4.6 AI 큐레이션 — 하루 4회 (01/07/13/19 UTC)
+// 흐름: RSS 파싱 → 신규 URL 필터 → Sonnet 즉시 요약 → summary 포함 insert (1회 완료)
 // content_type: 'rss' (원문 기반) | 'generated' (UnfoldK 자체 생성)
 export const maxDuration = 300
 export const dynamic = "force-dynamic"
@@ -17,9 +17,9 @@ const FEEDS = [
   { source: "soompi",     url: "https://www.soompi.com/feed" },
 ] as const
 
-const CLAUDE_MAX_PER_RUN    = 20
-const FETCH_TIMEOUT_MS      = 8000
-const GENERATED_RATIO       = 0.3  // 수집 기사 건수의 30% 비중으로 generated 생성
+const CLAUDE_MAX_PER_RUN = 30   // 1회 수집 시 Sonnet 최대 처리 건수
+const FETCH_TIMEOUT_MS   = 8000
+const GENERATED_RATIO    = 0.3  // 신규 기사 건수의 30% 비중으로 generated 생성
 
 const anthropic = new Anthropic()
 
@@ -72,7 +72,6 @@ async function fetchArticleContent(url: string): Promise<{ image: string | null;
     const ogMatch =
       html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
       html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
-    const image = ogMatch?.[1] ?? null
 
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, "")
@@ -82,7 +81,7 @@ async function fetchArticleContent(url: string): Promise<{ image: string | null;
       .trim()
       .slice(0, 3000)
 
-    return { image, text }
+    return { image: ogMatch?.[1] ?? null, text }
   } catch {
     return { image: null, text: "" }
   }
@@ -103,7 +102,7 @@ async function findYoutubeThumbnail(
   return (data as { thumbnail_url?: string } | null)?.thumbnail_url ?? null
 }
 
-// ── Claude Haiku: RSS 기사 요약 ───────────────────────────────────────────────
+// ── Claude Sonnet 4.6: RSS 기사 요약 ─────────────────────────────────────────
 const RSS_SYSTEM = `You are a K-culture news curator for UnfoldK (unfoldk.com), a platform for global Hallyu fans. Write in engaging English for international K-pop and K-drama fans.
 Only write factual information. Do not fabricate quotes or events.`
 
@@ -118,8 +117,8 @@ interface RssAiResult {
 async function generateRssSummary(title: string, content: string): Promise<RssAiResult | null> {
   try {
     const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 600,
+      model: "claude-sonnet-4-6",
+      max_tokens: 700,
       system: [{ type: "text", text: RSS_SYSTEM, cache_control: { type: "ephemeral" } }],
       messages: [{
         role: "user",
@@ -151,12 +150,12 @@ Respond ONLY in JSON:
     const raw = textBlock.text.trim().replace(/^```json\s*/i, "").replace(/\s*```$/, "")
     return JSON.parse(raw) as RssAiResult
   } catch (err) {
-    console.error("[collect-hallyu-news] RSS Claude 호출 실패:", err instanceof Error ? err.message : String(err))
+    console.error("[collect-hallyu-news] Sonnet 요약 실패:", err instanceof Error ? err.message : String(err))
     return null
   }
 }
 
-// ── Claude Haiku: generated 자체 콘텐츠 생성 ─────────────────────────────────
+// ── Claude Sonnet 4.6: generated 자체 콘텐츠 생성 ────────────────────────────
 const GEN_SYSTEM = `You are a K-culture content writer for UnfoldK (unfoldk.com). Write original, engaging content for global Hallyu fans.
 Only write factual, well-known information about K-pop and K-drama. Do not fabricate quotes, events, or statistics.`
 
@@ -172,8 +171,8 @@ interface GenAiResult {
 async function generateOriginalContent(keyword: string): Promise<GenAiResult | null> {
   try {
     const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 700,
+      model: "claude-sonnet-4-6",
+      max_tokens: 800,
       system: [{ type: "text", text: GEN_SYSTEM, cache_control: { type: "ephemeral" } }],
       messages: [{
         role: "user",
@@ -203,12 +202,22 @@ Respond ONLY in JSON:
     const raw = textBlock.text.trim().replace(/^```json\s*/i, "").replace(/\s*```$/, "")
     return JSON.parse(raw) as GenAiResult
   } catch (err) {
-    console.error("[collect-hallyu-news] Generated Claude 호출 실패:", err instanceof Error ? err.message : String(err))
+    console.error("[collect-hallyu-news] Sonnet generated 실패:", err instanceof Error ? err.message : String(err))
     return null
   }
 }
 
 // ── RSS XML 파싱 ─────────────────────────────────────────────────────────────
+interface RssItem {
+  source: string
+  title: string
+  url: string
+  thumbnail_url: string | null
+  published_at: string | null
+  srcLabel: string
+  dateLabel: string
+}
+
 async function fetchRssFeed(feedUrl: string): Promise<Record<string, unknown>[]> {
   const res = await fetch(feedUrl, {
     headers: { "User-Agent": "UnfoldK News Bot/1.0" },
@@ -216,7 +225,6 @@ async function fetchRssFeed(feedUrl: string): Promise<Record<string, unknown>[]>
   })
   if (!res.ok) throw new Error(`RSS fetch 실패 (${feedUrl}): ${res.status}`)
   const xml = await res.text()
-
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: "@_",
@@ -248,18 +256,18 @@ export async function GET(request: Request) {
   }
 
   const admin = createSupabaseAdminClient()
-  const feedSummary: Record<string, { processed: number; inserted: number; error?: string }> = {}
-  let totalInserted = 0
+  const feedSummary: Record<string, { parsed: number; new: number; error?: string }> = {}
 
-  // ── 1. RSS 수집 + upsert ───────────────────────────────────────────────────
-  const collectedArtists: string[] = []
+  // ── 1. 전체 피드 파싱 → 후보 아이템 수집 ─────────────────────────────────
+  const candidates: RssItem[] = []
 
   for (const feed of FEEDS) {
     try {
       const items = await fetchRssFeed(feed.url)
-      console.log(`[collect-hallyu-news] ${feed.source}: ${items.length}개 항목 파싱`)
+      const srcLabel = feed.source.charAt(0).toUpperCase() + feed.source.slice(1)
+      let parsed = 0
 
-      const rows = items.map((item) => {
+      for (const item of items) {
         const rawLink = item["link"]
         const link =
           typeof rawLink === "object" && rawLink !== null
@@ -270,86 +278,107 @@ export async function GET(request: Request) {
             ? String((item["title"] as Record<string, unknown>)["__cdata"] ?? "")
             : String(item["title"] ?? "")
         const pubDate = item["pubDate"] as string | undefined
-        const dateLabel = formatSourceDate(pubDate)
-        const srcLabel = feed.source.charAt(0).toUpperCase() + feed.source.slice(1)
+        const url = link.trim()
+        const titleTrimmed = title.trim()
 
-        return {
+        if (!url || !titleTrimmed) continue
+
+        candidates.push({
           source: feed.source,
-          title: title.trim(),
-          url: link.trim(),
+          title: titleTrimmed,
+          url,
           thumbnail_url: extractRssThumbnail(item),
           published_at: pubDate ? new Date(pubDate).toISOString() : null,
-          category: classifyCategory(title),
-          content_type: "rss" as const,
-          sources: dateLabel ? [`${srcLabel} · ${dateLabel}`] : [srcLabel],
-        }
-      }).filter((r) => r.url && r.title)
-
-      if (rows.length === 0) {
-        feedSummary[feed.source] = { processed: 0, inserted: 0 }
-        continue
+          srcLabel,
+          dateLabel: formatSourceDate(pubDate),
+        })
+        parsed++
       }
 
-      const { data, error } = await admin
-        .from("hallyu_news")
-        .upsert(rows, { onConflict: "url", ignoreDuplicates: true })
-        .select("id")
-
-      if (error) {
-        console.error(`[collect-hallyu-news] ${feed.source} upsert 실패:`, error.code, error.message)
-        feedSummary[feed.source] = { processed: rows.length, inserted: 0, error: `${error.code}: ${error.message}` }
-      } else {
-        const inserted = data?.length ?? 0
-        feedSummary[feed.source] = { processed: rows.length, inserted }
-        totalInserted += inserted
-        console.log(`[collect-hallyu-news] ${feed.source}: ${rows.length}개 처리, ${inserted}건 신규 저장`)
-      }
+      feedSummary[feed.source] = { parsed, new: 0 }
+      console.log(`[collect-hallyu-news] ${feed.source}: ${parsed}개 파싱`)
     } catch (err) {
       console.error(`[collect-hallyu-news] ${feed.source} 수집 실패:`, err)
-      feedSummary[feed.source] = { processed: 0, inserted: 0, error: String(err) }
+      feedSummary[feed.source] = { parsed: 0, new: 0, error: String(err) }
     }
   }
 
-  // ── 2. RSS 기사 AI 요약 처리 (summary IS NULL, 최대 CLAUDE_MAX_PER_RUN) ────
-  const { data: unprocessed } = await admin
+  if (candidates.length === 0) {
+    return NextResponse.json({ ok: true, total_inserted: 0, gen_inserted: 0, feed_summary: feedSummary })
+  }
+
+  // ── 2. 신규 URL 필터 (기존 DB에 없는 것만) ───────────────────────────────
+  const allUrls = candidates.map((c) => c.url)
+  const { data: existing } = await admin
     .from("hallyu_news")
-    .select("id, title, url, source, published_at")
-    .eq("content_type", "rss")
-    .is("summary", null)
-    .order("published_at", { ascending: false })
-    .limit(CLAUDE_MAX_PER_RUN)
+    .select("url")
+    .in("url", allUrls)
+  const existingSet = new Set((existing ?? []).map((r: { url: string }) => r.url))
+  const newItems = candidates.filter((c) => !existingSet.has(c.url)).slice(0, CLAUDE_MAX_PER_RUN)
 
-  const toProcess = unprocessed ?? []
-  console.log(`[collect-hallyu-news] AI 요약 처리 대상: ${toProcess.length}건`)
-  let aiProcessed = 0
+  console.log(`[collect-hallyu-news] 신규 처리 대상: ${newItems.length}건 / 전체 후보: ${candidates.length}건`)
 
-  for (const row of toProcess) {
-    const { image: ogImage, text: articleText } = await fetchArticleContent(row.url as string)
-    const ai = await generateRssSummary(row.title as string, articleText)
+  if (newItems.length === 0) {
+    return NextResponse.json({ ok: true, total_inserted: 0, gen_inserted: 0, feed_summary: feedSummary })
+  }
+
+  // ── 3. 신규 기사 원문 fetch + Sonnet 즉시 요약 → 완성된 row 생성 ──────────
+  const collectedArtists: string[] = []
+  const rows: Record<string, unknown>[] = []
+
+  for (const item of newItems) {
+    const { image: ogImage, text: articleText } = await fetchArticleContent(item.url)
+    const ai = await generateRssSummary(item.title, articleText)
 
     if (ai?.related_artist) collectedArtists.push(ai.related_artist)
 
+    // 이미지: og:image → YouTube 썸네일 → null
     let imageUrl: string | null = ogImage
     if (!imageUrl && ai?.related_artist) {
       imageUrl = await findYoutubeThumbnail(admin, ai.related_artist)
     }
 
-    const srcLabel = (row.source as string).charAt(0).toUpperCase() + (row.source as string).slice(1)
-    const dateLabel = formatSourceDate(row.published_at as string)
-    const sourcesArr = dateLabel ? [`${srcLabel} · ${dateLabel}`] : [srcLabel]
+    const sourcesArr = item.dateLabel
+      ? [`${item.srcLabel} · ${item.dateLabel}`]
+      : [item.srcLabel]
 
-    await admin.from("hallyu_news").update({
+    rows.push({
+      source: item.source,
+      title: item.title,
+      url: item.url,
+      thumbnail_url: item.thumbnail_url,
       image_url: imageUrl,
+      published_at: item.published_at,
+      content_type: "rss",
       sources: sourcesArr,
-      summary: ai ? JSON.stringify({ p1: ai.paragraph1, p2: ai.paragraph2, p3: ai.paragraph3 }) : null,
+      category: ai?.category ?? classifyCategory(item.title),
       related_artist: ai?.related_artist ?? null,
-      category: ai?.category ?? classifyCategory(row.title as string),
-    }).eq("id", row.id)
+      summary: ai
+        ? JSON.stringify({ p1: ai.paragraph1, p2: ai.paragraph2, p3: ai.paragraph3 })
+        : null,
+    })
 
-    aiProcessed++
+    feedSummary[item.source].new++
+    console.log(`[collect-hallyu-news] 처리 완료: "${item.title.slice(0, 40)}…"`)
   }
 
-  // ── 3. Generated 자체 콘텐츠 생성 (수집 기사 × 30%) ─────────────────────
+  // ── 4. 완성된 row 일괄 insert ─────────────────────────────────────────────
+  const { error: insertErr } = await admin
+    .from("hallyu_news")
+    .insert(rows)
+
+  if (insertErr) {
+    console.error("[collect-hallyu-news] insert 실패:", insertErr.code, insertErr.message)
+    return NextResponse.json({
+      ok: false,
+      error: `${insertErr.code}: ${insertErr.message}`,
+      feed_summary: feedSummary,
+    }, { status: 500 })
+  }
+
+  const totalInserted = rows.length
+
+  // ── 5. Generated 자체 콘텐츠 생성 (신규 기사 × 30%) ─────────────────────
   const genCount = Math.max(1, Math.round(totalInserted * GENERATED_RATIO))
   const keywords = collectedArtists.length > 0
     ? collectedArtists.slice(0, genCount)
@@ -361,7 +390,6 @@ export async function GET(request: Request) {
     if (!gen?.title) continue
 
     const imageUrl = await findYoutubeThumbnail(admin, gen.related_artist || keyword)
-    const now = new Date().toISOString()
 
     const { error: genErr } = await admin.from("hallyu_news").insert({
       source: "unfoldk",
@@ -369,7 +397,7 @@ export async function GET(request: Request) {
       url: `https://unfoldk.com/hallyu-news/gen-${Date.now()}-${genInserted}`,
       thumbnail_url: null,
       image_url: imageUrl,
-      published_at: now,
+      published_at: new Date().toISOString(),
       category: gen.category,
       content_type: "generated",
       sources: ["Curated by UnfoldK"],
@@ -383,7 +411,7 @@ export async function GET(request: Request) {
     }
   }
 
-  // ── 4. 7일 이상 된 뉴스 자동 삭제 ────────────────────────────────────────
+  // ── 6. 7일 이상 된 뉴스 자동 삭제 ────────────────────────────────────────
   await admin
     .from("hallyu_news")
     .delete()
@@ -392,7 +420,6 @@ export async function GET(request: Request) {
   return NextResponse.json({
     ok: true,
     total_inserted: totalInserted,
-    ai_processed: aiProcessed,
     gen_inserted: genInserted,
     feed_summary: feedSummary,
   })
