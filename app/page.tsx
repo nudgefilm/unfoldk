@@ -1,5 +1,18 @@
 import type { Metadata } from "next"
+import Link from "next/link"
+import { ArrowRight } from "lucide-react"
 import { HeroSection } from "@/components/hero-section"
+import { FloatingCalendarWidget } from "@/components/floating-calendar-widget"
+import { BentoSection } from "@/components/bento-section"
+import { FooterSection } from "@/components/footer-section"
+import { AnimatedSection } from "@/components/animated-section"
+import { UnauthorizedToast } from "@/components/unauthorized-toast"
+import { YoutubeVideoSection } from "@/components/shared/youtube-video-section"
+import { HomePhraseCard, type PhraseData } from "@/components/home/home-phrase-card"
+import { HomeCTASection } from "@/components/home/home-cta-section"
+import { createSupabaseAdminClient } from "@/lib/supabase/admin"
+
+export const revalidate = 3600
 
 export const metadata: Metadata = {
   title: "UnfoldK — Your Pass to Korean Culture | K-pop, K-drama & More",
@@ -13,56 +26,482 @@ export const metadata: Metadata = {
     url: "https://www.unfoldk.com",
   },
 }
-import { FloatingCalendarWidget } from "@/components/floating-calendar-widget"
-import { BentoSection } from "@/components/bento-section"
 
-import { PricingSection } from "@/components/pricing-section"
-import { EarlyAccessSection } from "@/components/early-access-section"
-import { FAQSection } from "@/components/faq-section"
-import { CTASection } from "@/components/cta-section"
-import { FooterSection } from "@/components/footer-section"
-import { AnimatedSection } from "@/components/animated-section"
-import { UnauthorizedToast } from "@/components/unauthorized-toast"
+// ── 타입 ──────────────────────────────────────────────────────────────────────
 
-export default function LandingPage() {
+interface NewsPreview {
+  id: string
+  title: string
+  category: string | null
+  summary: string | null
+  published_at: string | null
+}
+
+interface KpopChartItem {
+  rank: number
+  name: string
+  listeners: number | null
+  rankChange: number | null
+}
+
+interface EventPreview {
+  id: string
+  title: string
+  type: string | null
+  event_date: string
+  artist_or_drama: string | null
+}
+
+interface DramaPreview {
+  id: string
+  title: string
+  poster_url: string | null
+  genre: string | null
+}
+
+interface FanStats {
+  totalMembers: number
+  totalCountries: number
+  countries: string[]
+}
+
+// ── 데이터 페치 함수 ──────────────────────────────────────────────────────────
+
+function parseNewsPreview(summary: string | null): string | null {
+  if (!summary) return null
+  try { return (JSON.parse(summary) as { p1?: string }).p1 ?? null } catch { return null }
+}
+
+async function fetchLatestGeneratedNews(): Promise<NewsPreview[]> {
+  const admin = createSupabaseAdminClient()
+  const { data, error } = await admin
+    .from("hallyu_news")
+    .select("id, title, category, summary, published_at")
+    .eq("content_type", "generated")
+    .order("published_at", { ascending: false })
+    .limit(3)
+  if (error) return []
+  return (data ?? []) as NewsPreview[]
+}
+
+async function fetchKpopTop5(): Promise<KpopChartItem[]> {
+  const admin = createSupabaseAdminClient()
+
+  // 최신 날짜 조회
+  const { data: latestRow } = await admin
+    .from("kpop_stats_daily")
+    .select("date")
+    .order("date", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!latestRow) return []
+  const latestDate = (latestRow as { date: string }).date
+
+  // 현재 Top 20
+  const { data: current } = await admin
+    .from("kpop_stats_daily")
+    .select("artist_id, lastfm_listeners")
+    .eq("date", latestDate)
+    .order("lastfm_listeners", { ascending: false })
+    .limit(20)
+  if (!current || current.length === 0) return []
+
+  const artistIds = (current as { artist_id: string }[]).map(r => r.artist_id)
+  const { data: artists } = await admin
+    .from("kpop_artists")
+    .select("id, name")
+    .in("id", artistIds)
+
+  const nameMap = new Map(
+    ((artists ?? []) as { id: string; name: string }[]).map(a => [a.id, a.name])
+  )
+
+  // 7일 전 순위 (±3일 범위)
+  const cutoff = new Date(latestDate)
+  cutoff.setDate(cutoff.getDate() - 7)
+  const cutoffEnd = cutoff.toISOString().split("T")[0]
+  const cutoffStart = new Date(cutoff.getTime() - 3 * 86400_000).toISOString().split("T")[0]
+
+  const { data: oldStats } = await admin
+    .from("kpop_stats_daily")
+    .select("artist_id, lastfm_listeners")
+    .lte("date", cutoffEnd)
+    .gte("date", cutoffStart)
+    .order("lastfm_listeners", { ascending: false })
+    .limit(30)
+
+  const oldSorted = ((oldStats ?? []) as { artist_id: string; lastfm_listeners: number | null }[])
+    .slice()
+    .sort((a, b) => (b.lastfm_listeners ?? 0) - (a.lastfm_listeners ?? 0))
+  const oldRankMap = new Map(oldSorted.map((r, i) => [r.artist_id, i + 1]))
+
+  return (current as { artist_id: string; lastfm_listeners: number | null }[])
+    .slice(0, 5)
+    .map((r, i) => {
+      const currentRank = i + 1
+      const oldRank = oldRankMap.get(r.artist_id)
+      return {
+        rank: currentRank,
+        name: nameMap.get(r.artist_id) ?? "—",
+        listeners: r.lastfm_listeners,
+        rankChange: oldRank != null ? oldRank - currentRank : null,
+      }
+    })
+}
+
+async function fetchUpcomingEvents(): Promise<EventPreview[]> {
+  const admin = createSupabaseAdminClient()
+  const now = new Date().toISOString()
+  const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await admin
+    .from("hallyu_calendar_events")
+    .select("id, title, type, event_date, artist_or_drama")
+    .eq("is_premium", false)
+    .gte("event_date", now)
+    .lte("event_date", sevenDaysLater)
+    .order("event_date", { ascending: true })
+    .limit(3)
+  if (error) return []
+  return (data ?? []) as EventPreview[]
+}
+
+async function fetchTodayPhrase(): Promise<PhraseData | null> {
+  const admin = createSupabaseAdminClient()
+  const seoulNow = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const today = seoulNow.toISOString().split("T")[0]
+
+  const { data: featured } = await admin
+    .from("korean_phrases")
+    .select("id, korean, romanization, english, drama_name")
+    .eq("featured_date", today)
+    .maybeSingle()
+  if (featured) return featured as PhraseData
+
+  // 오늘 featured 없으면 최신 1건
+  const { data: latest } = await admin
+    .from("korean_phrases")
+    .select("id, korean, romanization, english, drama_name")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return latest ? (latest as PhraseData) : null
+}
+
+async function fetchLatestDramas(): Promise<DramaPreview[]> {
+  const admin = createSupabaseAdminClient()
+  const { data, error } = await admin
+    .from("dramas")
+    .select("id, title, poster_url, genre")
+    .order("year", { ascending: false })
+    .order("rating", { ascending: false })
+    .limit(4)
+  if (error) return []
+  return (data ?? []) as DramaPreview[]
+}
+
+async function fetchFanStats(): Promise<FanStats | null> {
+  const admin = createSupabaseAdminClient()
+  const [countRes, countryRes] = await Promise.allSettled([
+    admin.from("users").select("id", { count: "exact", head: true }),
+    admin.from("users").select("country").not("country", "is", null).limit(500),
+  ])
+
+  if (countRes.status === "rejected") return null
+  const totalMembers = countRes.value.count ?? 0
+
+  const uniqueCountries = new Set<string>()
+  if (countryRes.status === "fulfilled") {
+    const rows = (countryRes.value.data ?? []) as { country: string }[]
+    for (const r of rows) { if (r.country) uniqueCountries.add(r.country) }
+  }
+
+  return {
+    totalMembers,
+    totalCountries: uniqueCountries.size,
+    countries: [...uniqueCountries].slice(0, 30),
+  }
+}
+
+// 국가 코드 → 국기 이모지
+function toFlag(code: string): string {
+  return [...code.toUpperCase()].map(c =>
+    String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)
+  ).join("")
+}
+
+// 이벤트 타입 → 배지 표시명
+const EVENT_TYPE_LABEL: Record<string, string> = {
+  comeback: "Comeback", drama: "Drama", concert: "Concert", fanmeet: "Fan Meet",
+}
+
+// 카테고리 배지 스타일
+const CATEGORY_BADGE: Record<string, string> = {
+  kpop:    "bg-purple-500/20 text-purple-300",
+  kdrama:  "bg-blue-500/20 text-blue-300",
+  kbeauty: "bg-pink-500/20 text-pink-300",
+  general: "bg-zinc-500/20 text-zinc-300",
+}
+const CATEGORY_LABEL: Record<string, string> = {
+  kpop: "K-Pop", kdrama: "K-Drama", kbeauty: "K-Beauty", general: "General",
+}
+
+function formatShortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
+// ── 페이지 ────────────────────────────────────────────────────────────────────
+
+export default async function LandingPage() {
+  const [newsRes, kpopRes, eventsRes, phraseRes, dramasRes, statsRes] = await Promise.allSettled([
+    fetchLatestGeneratedNews(),
+    fetchKpopTop5(),
+    fetchUpcomingEvents(),
+    fetchTodayPhrase(),
+    fetchLatestDramas(),
+    fetchFanStats(),
+  ])
+
+  const news   = newsRes.status   === "fulfilled" ? newsRes.value   : []
+  const kpop   = kpopRes.status   === "fulfilled" ? kpopRes.value   : []
+  const events = eventsRes.status === "fulfilled" ? eventsRes.value : []
+  const phrase = phraseRes.status === "fulfilled" ? phraseRes.value : null
+  const dramas = dramasRes.status === "fulfilled" ? dramasRes.value : []
+  const stats  = statsRes.status  === "fulfilled" ? statsRes.value  : null
+
+  const showDataHub = kpop.length > 0 || events.length > 0
+
   return (
     <>
-      {/* 비관리자 /admin 접근 거부 시 middleware 가 ?toast=unauthorized 로 redirect — 감지해 토스트 노출
-          ⚠️ overflow-hidden 래퍼 밖에 두는 이유: position:fixed 는 일반적으로 viewport 기준이지만,
-             상위에 transform/filter/perspective 가 추가되면 containing block 이 바뀌어 클리핑되는
-             케이스가 있어 가장 바깥에 두는 것이 안전. */}
       <UnauthorizedToast />
       <div className="min-h-screen bg-background relative overflow-hidden pb-0">
         <FloatingCalendarWidget />
         <div className="relative z-10">
+
+          {/* 히어로 — 수정 금지 */}
           <main className="max-w-[1320px] mx-auto relative">
             <HeroSection />
           </main>
 
+          {/* 서비스 카드 그리드 — 수정 금지 */}
           <AnimatedSection id="features-section" className="relative z-10 max-w-[1320px] mx-auto mt-12 md:mt-20" delay={0.2}>
             <BentoSection />
           </AnimatedSection>
-          <AnimatedSection
-            id="pricing-section"
-            className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24"
-            delay={0.2}
-          >
-            <PricingSection />
+
+          {/* ── 섹션 A: Hallyu Feed 미리보기 ─────────────────────────────── */}
+          {news.length > 0 && (
+            <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24 px-5" delay={0.2}>
+              <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
+                <h2 className="text-2xl md:text-3xl font-bold text-foreground">
+                  What&apos;s Happening in Hallyu
+                </h2>
+                <Link
+                  href="/hallyu-feed"
+                  className="flex items-center gap-1 text-sm font-medium transition-opacity hover:opacity-80"
+                  style={{ color: "#FF4B6E" }}
+                >
+                  Read more on Hallyu Feed <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {news.map(item => {
+                  const preview = parseNewsPreview(item.summary)
+                  return (
+                    <Link
+                      key={item.id}
+                      href={`/hallyu-feed/${item.id}`}
+                      className="group block bg-[#1a1a1a] border border-border/30 rounded-2xl p-5 hover:border-[#FF4B6E]/40 transition-all hover:shadow-[0_0_0_1px_rgba(255,75,110,0.15)]"
+                    >
+                      <div className="flex flex-col gap-3 h-full">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {item.category && (
+                            <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${CATEGORY_BADGE[item.category] ?? CATEGORY_BADGE.general}`}>
+                              {CATEGORY_LABEL[item.category] ?? item.category}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-foreground text-sm font-semibold leading-snug line-clamp-2 group-hover:text-[#FF4B6E] transition-colors flex-1">
+                          {item.title}
+                        </p>
+                        {preview && (
+                          <p className="text-muted-foreground text-xs leading-relaxed line-clamp-3">
+                            {preview}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground/60 pt-1 border-t border-border/20">
+                          {item.published_at ? formatShortDate(item.published_at) : ""}
+                        </p>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            </AnimatedSection>
+          )}
+
+          {/* ── 섹션 B: 실시간 데이터 허브 ───────────────────────────────── */}
+          {showDataHub && (
+            <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24 px-5" delay={0.2}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                {/* 왼쪽 — K-pop Chart */}
+                {kpop.length > 0 && (
+                  <div className="bg-[#141418] border border-border/30 rounded-2xl p-6">
+                    <div className="flex items-center justify-between mb-5">
+                      <h3 className="text-base font-bold text-foreground">This Week&apos;s Global K-pop Chart</h3>
+                      <Link
+                        href="/kpop"
+                        className="text-xs font-medium transition-opacity hover:opacity-80"
+                        style={{ color: "#FF4B6E" }}
+                      >
+                        View full chart →
+                      </Link>
+                    </div>
+                    <div className="space-y-3">
+                      {kpop.map(item => (
+                        <div key={item.rank} className="flex items-center gap-3">
+                          <span className="w-6 text-center text-sm font-bold text-muted-foreground/70 shrink-0">
+                            {item.rank}
+                          </span>
+                          <span className="flex-1 text-sm font-medium text-foreground truncate">
+                            {item.name}
+                          </span>
+                          {item.rankChange !== null && (
+                            <span className={`text-xs font-semibold shrink-0 ${item.rankChange > 0 ? "text-green-400" : item.rankChange < 0 ? "text-red-400" : "text-muted-foreground/50"}`}>
+                              {item.rankChange > 0 ? `↑${item.rankChange}` : item.rankChange < 0 ? `↓${Math.abs(item.rankChange)}` : "—"}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/40 mt-4">Based on Last.fm global streaming data</p>
+                  </div>
+                )}
+
+                {/* 오른쪽 — 이번 주 이벤트 */}
+                {events.length > 0 && (
+                  <div className="bg-[#141418] border border-border/30 rounded-2xl p-6">
+                    <div className="flex items-center justify-between mb-5">
+                      <h3 className="text-base font-bold text-foreground">Don&apos;t Miss This Week</h3>
+                      <Link
+                        href="/calendar"
+                        className="text-xs font-medium transition-opacity hover:opacity-80"
+                        style={{ color: "#FF4B6E" }}
+                      >
+                        View full calendar →
+                      </Link>
+                    </div>
+                    <div className="space-y-3">
+                      {events.map(evt => (
+                        <div key={evt.id} className="flex items-start gap-3">
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#FF4B6E]/10 text-[#FF4B6E] shrink-0 mt-0.5">
+                            {EVENT_TYPE_LABEL[evt.type ?? ""] ?? evt.type ?? "Event"}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
+                            <p className="text-xs text-muted-foreground/60 mt-0.5">
+                              {formatShortDate(evt.event_date)}
+                              {evt.artist_or_drama && ` · ${evt.artist_or_drama}`}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </AnimatedSection>
+          )}
+
+          {/* ── 섹션 C: Latest K-pop Videos ──────────────────────────────── */}
+          <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24 px-5" delay={0.2}>
+            <YoutubeVideoSection service="kpop" title="Latest K-pop Videos" />
           </AnimatedSection>
-          <AnimatedSection id="faq-section" className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24" delay={0.2}>
-            <FAQSection />
+
+          {/* ── 섹션 D: 오늘의 한국어 표현 ──────────────────────────────── */}
+          {phrase && (
+            <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24" delay={0.2}>
+              <HomePhraseCard phrase={phrase} />
+            </AnimatedSection>
+          )}
+
+          {/* ── 섹션 E: K-dramas You Might Love ─────────────────────────── */}
+          {dramas.length > 0 && (
+            <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24 px-5" delay={0.2}>
+              <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
+                <h2 className="text-2xl md:text-3xl font-bold text-foreground">
+                  K-dramas You Might Love
+                </h2>
+                <Link
+                  href="/drama"
+                  className="flex items-center gap-1 text-sm font-medium transition-opacity hover:opacity-80"
+                  style={{ color: "#FF4B6E" }}
+                >
+                  Find your next K-drama <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {dramas.map(drama => (
+                  <Link
+                    key={drama.id}
+                    href="/drama"
+                    className="group block rounded-2xl overflow-hidden bg-[#1a1a1a] border border-border/30 hover:border-[#FF4B6E]/40 transition-all"
+                  >
+                    {drama.poster_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={drama.poster_url}
+                        alt={drama.title}
+                        className="w-full aspect-[2/3] object-cover"
+                      />
+                    ) : (
+                      <div className="w-full aspect-[2/3] bg-[#252528] flex items-center justify-center">
+                        <span className="text-muted-foreground/30 text-xs">No image</span>
+                      </div>
+                    )}
+                    <div className="p-3">
+                      <p className="text-foreground text-xs font-semibold line-clamp-2 group-hover:text-[#FF4B6E] transition-colors">
+                        {drama.title}
+                      </p>
+                      {drama.genre && (
+                        <p className="text-muted-foreground/60 text-[10px] mt-1 truncate">{drama.genre}</p>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </AnimatedSection>
+          )}
+
+          {/* ── 섹션 F: 글로벌 팬 현황 ──────────────────────────────────── */}
+          {stats && stats.totalMembers > 0 && (
+            <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24 px-5" delay={0.2}>
+              <div className="text-center py-12 rounded-2xl bg-[#141418] border border-border/30">
+                <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
+                  Hallyu Fans Around the World
+                </h2>
+                {stats.countries.length > 0 && (
+                  <div className="flex flex-wrap justify-center gap-2 my-6 max-w-2xl mx-auto px-4">
+                    {stats.countries.map(code => (
+                      <span key={code} className="text-2xl" title={code}>
+                        {toFlag(code)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="text-muted-foreground text-sm">
+                  Fans from {stats.totalCountries} countr{stats.totalCountries === 1 ? "y" : "ies"}
+                  {stats.totalMembers > 1 && ` · ${stats.totalMembers.toLocaleString()} members`}
+                </p>
+              </div>
+            </AnimatedSection>
+          )}
+
+          {/* ── 섹션 G: 하단 CTA ─────────────────────────────────────────── */}
+          <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-20" delay={0.2}>
+            <HomeCTASection />
           </AnimatedSection>
-          <AnimatedSection
-            id="early-access-section"
-            className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24"
-            delay={0.2}
-          >
-            <EarlyAccessSection />
-          </AnimatedSection>
-          <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-16 md:mt-24" delay={0.2}>
-            <CTASection />
-          </AnimatedSection>
-          <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-12 md:mt-16" delay={0.2}>
+
+          <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-4 md:mt-8" delay={0.2}>
             <FooterSection />
           </AnimatedSection>
         </div>

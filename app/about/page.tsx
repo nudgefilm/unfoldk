@@ -16,6 +16,7 @@ import { ContactForm } from "@/components/contact-form"
 import { Languages, GraduationCap } from "lucide-react"
 import { StartModal } from "@/components/start-modal"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
+import { FAQSection } from "@/components/faq-section"
 
 const services = [
   {
@@ -268,6 +269,9 @@ export default function AboutPage() {
         </section>
       </main>
 
+      <div className="max-w-[1320px] mx-auto px-5">
+        <FAQSection />
+      </div>
       <FooterSection />
     </div>
   )
