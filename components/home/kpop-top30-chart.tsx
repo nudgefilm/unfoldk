@@ -96,9 +96,8 @@ export function KpopTop30Chart({ artists }: { artists: Top30Artist[] }) {
               return (
                 <div
                   key={pageIdx}
-                  // items-end: 막대가 컨테이너 바닥에 붙어 위로 솟아오름
-                  className="flex items-end gap-1"
-                  style={{ width: `${100 / totalPages}%`, height: "100%", padding: "20px 12px 0" }}
+                  className="flex gap-1"
+                  style={{ width: `${100 / totalPages}%`, height: "100%", padding: "0 12px" }}
                 >
                   {pageArtists.map(artist => {
                     const heightRatio = artist.listeners / pageMax
@@ -108,52 +107,59 @@ export function KpopTop30Chart({ artists }: { artists: Top30Artist[] }) {
                     const showName = barH >= 36
 
                     return (
-                      <Link
-                        key={artist.id}
-                        href={`/kpop/${artist.id}`}
-                        className="group relative flex-1"
-                        style={{ height: barH }}
-                        onMouseEnter={e => handleBarEnter(e, artist)}
-                        onMouseLeave={() => setTooltip(null)}
-                      >
-                        {/* 순위 번호: 막대 상단 바깥에 표시 */}
-                        <span
-                          className="absolute left-0 right-0 text-center text-[9px] font-bold select-none tabular-nums"
-                          style={{ top: -16, color: "rgba(255,255,255,0.50)" }}
-                        >
-                          {artist.rank}
-                        </span>
+                      // flex-col: 순위 행(고정) + 막대 영역(flex-1) → 순위가 항상 같은 라인
+                      <div key={artist.id} className="flex-1 flex flex-col">
+                        {/* 순위 번호: 모든 막대 동일 상단 라인 */}
+                        <div className="h-5 flex items-center justify-center shrink-0">
+                          <span
+                            className="text-[9px] font-bold select-none tabular-nums"
+                            style={{ color: "rgba(255,255,255,0.50)" }}
+                          >
+                            {artist.rank}
+                          </span>
+                        </div>
 
-                        {/* 막대 본체 */}
-                        <div
-                          className="absolute bottom-0 top-0 rounded-t-sm overflow-hidden flex flex-col justify-end items-center pb-1 transition-opacity group-hover:opacity-75"
-                          style={{
-                            width: `${barWidthPct}%`,
-                            left: "50%",
-                            transform: "translateX(-50%)",
-                            background: getBarBackground(artist.rank, heightRatio),
-                          }}
-                        >
-                          {/* 아티스트명: 막대 내부 하단, 세로 텍스트 (아래→위) */}
-                          {showName && (
-                            <span
-                              className="text-white/90 font-medium block"
+                        {/* 막대 영역: 바닥 기준 절대 위치 */}
+                        <div className="flex-1 relative">
+                          <Link
+                            href={`/kpop/${artist.id}`}
+                            className="group absolute bottom-0 left-0 right-0"
+                            style={{ height: barH }}
+                            onMouseEnter={e => handleBarEnter(e, artist)}
+                            onMouseLeave={() => setTooltip(null)}
+                          >
+                            {/* 막대 본체 */}
+                            <div
+                              className="absolute bottom-0 top-0 rounded-t-sm overflow-hidden flex flex-col justify-end items-center pb-1 transition-opacity group-hover:opacity-75"
                               style={{
-                                writingMode: "vertical-rl",
-                                textOrientation: "mixed",
-                                transform: "rotate(180deg)",
-                                fontSize: 10,
-                                maxHeight: Math.max(barH - 8, 0),
-                                overflow: "hidden",
-                                whiteSpace: "nowrap",
-                                lineHeight: 1,
+                                width: `${barWidthPct}%`,
+                                left: "50%",
+                                transform: "translateX(-50%)",
+                                background: getBarBackground(artist.rank, heightRatio),
                               }}
                             >
-                              {artist.name}
-                            </span>
-                          )}
+                              {/* 아티스트명: 막대 내부 하단, 세로 텍스트 (아래→위) */}
+                              {showName && (
+                                <span
+                                  className="text-white/90 font-medium block"
+                                  style={{
+                                    writingMode: "vertical-rl",
+                                    textOrientation: "mixed",
+                                    transform: "rotate(180deg)",
+                                    fontSize: 10,
+                                    maxHeight: Math.max(barH - 8, 0),
+                                    overflow: "hidden",
+                                    whiteSpace: "nowrap",
+                                    lineHeight: 1,
+                                  }}
+                                >
+                                  {artist.name}
+                                </span>
+                              )}
+                            </div>
+                          </Link>
                         </div>
-                      </Link>
+                      </div>
                     )
                   })}
                 </div>
