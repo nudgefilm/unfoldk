@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ArrowRight, Globe, Users, CalendarDays } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { HeroSection } from "@/components/hero-section"
 import { FloatingCalendarWidget } from "@/components/floating-calendar-widget"
 import { BentoSection, type ServiceStats } from "@/components/bento-section"
@@ -59,11 +59,17 @@ interface DramaPreview {
   genre: string | null
 }
 
-interface FanStats {
-  totalMembers: number
-  totalCountries: number
-  countries: string[]
-  totalEventsThisMonth: number
+interface KpopCountryItem {
+  countryCode: string
+  totalListeners: number
+}
+
+interface TopDramaItem {
+  id: string
+  title: string
+  poster_url: string | null
+  genre: string | null
+  popularity: number | null
 }
 
 interface RawServiceStats {
@@ -204,38 +210,6 @@ async function fetchLatestDramas(): Promise<DramaPreview[]> {
   return (data ?? []) as DramaPreview[]
 }
 
-async function fetchFanStats(): Promise<FanStats | null> {
-  const admin = createSupabaseAdminClient()
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
-
-  const [countRes, countryRes, eventsRes] = await Promise.allSettled([
-    admin.from("users").select("id", { count: "exact", head: true }),
-    admin.from("users").select("country").not("country", "is", null).limit(500),
-    admin.from("hallyu_calendar_events").select("id", { count: "exact", head: true })
-      .gte("event_date", monthStart).lte("event_date", monthEnd),
-  ])
-
-  if (countRes.status === "rejected") return null
-  const totalMembers = countRes.value.count ?? 0
-
-  const uniqueCountries = new Set<string>()
-  if (countryRes.status === "fulfilled") {
-    const rows = (countryRes.value.data ?? []) as { country: string }[]
-    for (const r of rows) { if (r.country) uniqueCountries.add(r.country) }
-  }
-
-  const totalEventsThisMonth = eventsRes.status === "fulfilled" ? (eventsRes.value.count ?? 0) : 0
-
-  return {
-    totalMembers,
-    totalCountries: uniqueCountries.size,
-    countries: [...uniqueCountries].slice(0, 30),
-    totalEventsThisMonth,
-  }
-}
-
 async function fetchServiceStats(): Promise<RawServiceStats | null> {
   const admin = createSupabaseAdminClient()
   const now = new Date().toISOString()
@@ -259,12 +233,73 @@ async function fetchServiceStats(): Promise<RawServiceStats | null> {
   }
 }
 
+async function fetchKpopByCountry(): Promise<KpopCountryItem[]> {
+  const admin = createSupabaseAdminClient()
+
+  // 최신 week_start 조회
+  const { data: latestRow } = await admin
+    .from("kpop_country_charts")
+    .select("week_start")
+    .order("week_start", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!latestRow) return []
+  const latestWeek = (latestRow as { week_start: string }).week_start
+
+  // 해당 주 전체 행 조회
+  const { data, error } = await admin
+    .from("kpop_country_charts")
+    .select("country_code, listeners")
+    .eq("week_start", latestWeek)
+  if (error || !data) return []
+
+  // 국가별 리스너 합산
+  const countryMap = new Map<string, number>()
+  for (const row of (data as { country_code: string; listeners: number | null }[])) {
+    if (!row.listeners || row.listeners <= 0) continue
+    countryMap.set(row.country_code, (countryMap.get(row.country_code) ?? 0) + row.listeners)
+  }
+
+  return [...countryMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([countryCode, totalListeners]) => ({ countryCode, totalListeners }))
+}
+
+async function fetchTopDramas(): Promise<TopDramaItem[]> {
+  const admin = createSupabaseAdminClient()
+  const { data, error } = await admin
+    .from("dramas")
+    .select("id, title, poster_url, genre, popularity")
+    .eq("is_active", true)
+    .not("popularity", "is", null)
+    .order("popularity", { ascending: false })
+    .limit(5)
+  if (error) return []
+  return (data ?? []) as TopDramaItem[]
+}
+
 // ── 헬퍼 ─────────────────────────────────────────────────────────────────────
 
 function toFlag(code: string): string {
   return [...code.toUpperCase()].map(c =>
     String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)
   ).join("")
+}
+
+const COUNTRY_NAMES: Record<string, string> = {
+  KR: "South Korea", US: "United States", JP: "Japan", CN: "China",
+  TH: "Thailand", PH: "Philippines", ID: "Indonesia", MY: "Malaysia",
+  VN: "Vietnam", TW: "Taiwan", GB: "United Kingdom", CA: "Canada",
+  AU: "Australia", FR: "France", DE: "Germany", BR: "Brazil",
+  MX: "Mexico", SG: "Singapore", IN: "India", PL: "Poland",
+  IT: "Italy", ES: "Spain", RU: "Russia", AR: "Argentina",
+  CL: "Chile", PE: "Peru", CO: "Colombia", NL: "Netherlands",
+  SE: "Sweden", NO: "Norway", FI: "Finland", DK: "Denmark",
+}
+
+function getCountryName(code: string): string {
+  return COUNTRY_NAMES[code.toUpperCase()] ?? code.toUpperCase()
 }
 
 const EVENT_TYPE_LABEL: Record<string, string> = {
@@ -288,24 +323,26 @@ function formatShortDate(iso: string): string {
 // ── 페이지 ────────────────────────────────────────────────────────────────────
 
 export default async function LandingPage() {
-  const [newsRes, kpopRes, eventsRes, phraseRes, dramasRes, fanStatsRes, svcStatsRes] =
+  const [newsRes, kpopRes, eventsRes, phraseRes, dramasRes, svcStatsRes, countryRes, topDramasRes] =
     await Promise.allSettled([
       fetchLatestGeneratedNews(),
       fetchKpopTop5(),
       fetchUpcomingEvents(),
       fetchTodayPhrase(),
       fetchLatestDramas(),
-      fetchFanStats(),
       fetchServiceStats(),
+      fetchKpopByCountry(),
+      fetchTopDramas(),
     ])
 
-  const news     = newsRes.status     === "fulfilled" ? newsRes.value     : []
-  const kpop     = kpopRes.status     === "fulfilled" ? kpopRes.value     : []
-  const events   = eventsRes.status   === "fulfilled" ? eventsRes.value   : []
-  const phrase   = phraseRes.status   === "fulfilled" ? phraseRes.value   : null
-  const dramas   = dramasRes.status   === "fulfilled" ? dramasRes.value   : []
-  const fanStats = fanStatsRes.status === "fulfilled" ? fanStatsRes.value : null
-  const rawSvc   = svcStatsRes.status === "fulfilled" ? svcStatsRes.value : null
+  const news         = newsRes.status       === "fulfilled" ? newsRes.value       : []
+  const kpop         = kpopRes.status       === "fulfilled" ? kpopRes.value       : []
+  const events       = eventsRes.status     === "fulfilled" ? eventsRes.value     : []
+  const phrase       = phraseRes.status     === "fulfilled" ? phraseRes.value     : null
+  const dramas       = dramasRes.status     === "fulfilled" ? dramasRes.value     : []
+  const rawSvc       = svcStatsRes.status   === "fulfilled" ? svcStatsRes.value   : null
+  const countryCharts = countryRes.status   === "fulfilled" ? countryRes.value    : []
+  const topDramas    = topDramasRes.status  === "fulfilled" ? topDramasRes.value  : []
 
   const serviceStats: ServiceStats | undefined = rawSvc
     ? {
@@ -319,6 +356,7 @@ export default async function LandingPage() {
     : undefined
 
   const showDataHub = kpop.length > 0 || events.length > 0
+  const showPulse   = countryCharts.length > 0 || topDramas.length > 0
 
   return (
     <>
@@ -353,7 +391,6 @@ export default async function LandingPage() {
                 </Link>
               </div>
 
-              {/* featured + 2 small */}
               <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-3">
                 {/* featured */}
                 {(() => {
@@ -420,16 +457,10 @@ export default async function LandingPage() {
             <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-16 px-5" delay={0.2}>
               <div className="rounded-2xl bg-white/[0.03] border border-border/20 overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-2">
-
-                  {/* 왼쪽 — K-pop Chart */}
                   <div className="p-6 md:border-r border-border/20">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-bold text-foreground">This Week&apos;s Global K-pop Chart</h3>
-                      <Link
-                        href="/kpop"
-                        className="text-xs font-medium transition-opacity hover:opacity-80 shrink-0"
-                        style={{ color: "#FF4B6E" }}
-                      >
+                      <Link href="/kpop" className="text-xs font-medium transition-opacity hover:opacity-80 shrink-0" style={{ color: "#FF4B6E" }}>
                         View full chart →
                       </Link>
                     </div>
@@ -437,12 +468,8 @@ export default async function LandingPage() {
                       <div className="divide-y divide-border/10">
                         {kpop.map(item => (
                           <div key={item.rank} className="flex items-center gap-3 py-2">
-                            <span className="w-5 text-center text-xs font-bold text-muted-foreground/60 shrink-0">
-                              {item.rank}
-                            </span>
-                            <span className="flex-1 text-sm font-medium text-foreground truncate">
-                              {item.name}
-                            </span>
+                            <span className="w-5 text-center text-xs font-bold text-muted-foreground/60 shrink-0">{item.rank}</span>
+                            <span className="flex-1 text-sm font-medium text-foreground truncate">{item.name}</span>
                             {item.rankChange !== null && (
                               <span className={`text-xs font-semibold shrink-0 tabular-nums ${item.rankChange > 0 ? "text-green-400" : item.rankChange < 0 ? "text-red-400" : "text-muted-foreground/40"}`}>
                                 {item.rankChange > 0 ? `↑${item.rankChange}` : item.rankChange < 0 ? `↓${Math.abs(item.rankChange)}` : "—"}
@@ -457,15 +484,10 @@ export default async function LandingPage() {
                     <p className="text-[10px] text-muted-foreground/40 mt-3">Based on global streaming data</p>
                   </div>
 
-                  {/* 오른쪽 — 이번 주 이벤트 */}
                   <div className="p-6 border-t md:border-t-0">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-bold text-foreground">Don&apos;t Miss This Week</h3>
-                      <Link
-                        href="/calendar"
-                        className="text-xs font-medium transition-opacity hover:opacity-80 shrink-0"
-                        style={{ color: "#FF4B6E" }}
-                      >
+                      <Link href="/calendar" className="text-xs font-medium transition-opacity hover:opacity-80 shrink-0" style={{ color: "#FF4B6E" }}>
                         View full calendar →
                       </Link>
                     </div>
@@ -473,10 +495,7 @@ export default async function LandingPage() {
                       <div className="divide-y divide-border/10">
                         {events.map(evt => (
                           <div key={evt.id} className="flex items-start gap-3 py-2">
-                            <span
-                              className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 mt-0.5"
-                              style={{ backgroundColor: "rgba(255,75,110,0.10)", color: "#FF4B6E" }}
-                            >
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: "rgba(255,75,110,0.10)", color: "#FF4B6E" }}>
                               {EVENT_TYPE_LABEL[evt.type ?? ""] ?? evt.type ?? "Event"}
                             </span>
                             <div className="min-w-0">
@@ -517,41 +536,26 @@ export default async function LandingPage() {
                 <h2 className="text-2xl md:text-3xl font-bold text-foreground">
                   K-dramas You Might Love
                 </h2>
-                <Link
-                  href="/drama"
-                  className="flex items-center gap-1 text-sm font-medium transition-opacity hover:opacity-80"
-                  style={{ color: "#FF4B6E" }}
-                >
+                <Link href="/drama" className="flex items-center gap-1 text-sm font-medium transition-opacity hover:opacity-80" style={{ color: "#FF4B6E" }}>
                   Find your next K-drama <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 {dramas.map(drama => (
-                  <Link
-                    key={drama.id}
-                    href="/drama"
-                    className="group relative block rounded-xl overflow-hidden border border-border/30 hover:border-[#FF4B6E]/40 transition-all bg-[#1a1a1a]"
-                  >
+                  <Link key={drama.id} href="/drama" className="group relative block rounded-xl overflow-hidden border border-border/30 hover:border-[#FF4B6E]/40 transition-all bg-[#1a1a1a]">
                     <div className="relative aspect-[2/3]">
                       {drama.poster_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={drama.poster_url}
-                          alt={drama.title}
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={drama.poster_url} alt={drama.title} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full bg-[#252528] flex items-center justify-center">
                           <span className="text-muted-foreground/30 text-[10px]">No image</span>
                         </div>
                       )}
-                      {/* 호버 오버레이 */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end p-3">
                         <div>
                           <p className="text-white text-[11px] font-semibold line-clamp-2">{drama.title}</p>
-                          {drama.genre && (
-                            <p className="text-white/60 text-[9px] mt-0.5">{drama.genre}</p>
-                          )}
+                          {drama.genre && <p className="text-white/60 text-[9px] mt-0.5">{drama.genre}</p>}
                         </div>
                       </div>
                     </div>
@@ -564,41 +568,102 @@ export default async function LandingPage() {
             </AnimatedSection>
           )}
 
-          {/* ── 섹션 F: 글로벌 팬 현황 ──────────────────────────────────── */}
-          {fanStats && fanStats.totalMembers > 0 && (
+          {/* ── 섹션 F: Global Hallyu Pulse ──────────────────────────────── */}
+          {showPulse && (
             <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-16 px-5" delay={0.2}>
-              <div className="rounded-2xl bg-[#141418] border border-border/30 p-8">
-                <h2 className="text-2xl md:text-3xl font-bold text-foreground text-center mb-7">
-                  Hallyu Fans Around the World
-                </h2>
+              <div className="mb-6">
+                <h2 className="text-2xl md:text-3xl font-bold text-foreground">Global Hallyu Pulse</h2>
+                <p className="text-sm text-muted-foreground mt-1">Real-time data from Hallyu fans around the world</p>
+              </div>
 
-                {/* 3개 stat 카드 */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-7">
-                  <div className="text-center py-5 rounded-xl bg-background/50 border border-border/20">
-                    <Globe className="w-6 h-6 mx-auto mb-2" style={{ color: "#FF4B6E" }} />
-                    <p className="text-3xl font-bold text-foreground">{fanStats.totalCountries}</p>
-                    <p className="text-sm text-muted-foreground mt-1">Countries</p>
-                  </div>
-                  <div className="text-center py-5 rounded-xl bg-background/50 border border-border/20">
-                    <Users className="w-6 h-6 mx-auto mb-2" style={{ color: "#FF4B6E" }} />
-                    <p className="text-3xl font-bold text-foreground">{fanStats.totalMembers.toLocaleString()}</p>
-                    <p className="text-sm text-muted-foreground mt-1">Members</p>
-                  </div>
-                  <div className="text-center py-5 rounded-xl bg-background/50 border border-border/20">
-                    <CalendarDays className="w-6 h-6 mx-auto mb-2" style={{ color: "#FF4B6E" }} />
-                    <p className="text-3xl font-bold text-foreground">{fanStats.totalEventsThisMonth}</p>
-                    <p className="text-sm text-muted-foreground mt-1">Events this month</p>
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                {/* 국기 이모지 */}
-                {fanStats.countries.length > 0 && (
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {fanStats.countries.map(code => (
-                      <span key={code} className="text-2xl" title={code}>
-                        {toFlag(code)}
-                      </span>
-                    ))}
+                {/* 왼쪽 — K-pop by Country */}
+                {countryCharts.length > 0 && (
+                  <div className="bg-[#141418] border border-border/30 rounded-2xl p-6">
+                    <div className="mb-4">
+                      <h3 className="text-sm font-bold text-foreground">K-pop by Country</h3>
+                      <p className="text-xs text-muted-foreground/60 mt-0.5">Top countries by K-pop listeners this week</p>
+                    </div>
+                    <div className="space-y-2.5">
+                      {countryCharts.map((item, i) => {
+                        const maxListeners = countryCharts[0].totalListeners
+                        const barPct = maxListeners > 0 ? (item.totalListeners / maxListeners) * 100 : 0
+                        const opacity = Math.max(0.22, 1 - i * 0.086)
+                        return (
+                          <div key={item.countryCode} className="flex items-center gap-2">
+                            <span className="text-base shrink-0 w-6 text-center leading-none">{toFlag(item.countryCode)}</span>
+                            <span className="text-xs text-foreground/80 w-24 shrink-0 truncate">{getCountryName(item.countryCode)}</span>
+                            <div className="flex-1 flex items-center gap-2 min-w-0">
+                              <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all"
+                                  style={{
+                                    width: `${barPct}%`,
+                                    backgroundColor: `rgba(255,75,110,${opacity})`,
+                                  }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-muted-foreground/50 w-14 text-right shrink-0 tabular-nums">
+                                {item.totalListeners >= 1_000_000
+                                  ? `${(item.totalListeners / 1_000_000).toFixed(1)}M`
+                                  : item.totalListeners >= 1_000
+                                    ? `${(item.totalListeners / 1_000).toFixed(0)}K`
+                                    : item.totalListeners.toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/40 mt-4">Powered by Last.fm</p>
+                  </div>
+                )}
+
+                {/* 오른쪽 — K-drama Buzz */}
+                {topDramas.length > 0 && (
+                  <div className="bg-[#141418] border border-border/30 rounded-2xl p-6">
+                    <div className="mb-4">
+                      <h3 className="text-sm font-bold text-foreground">K-dramas The World Is Watching</h3>
+                      <p className="text-xs text-muted-foreground/60 mt-0.5">Most popular right now</p>
+                    </div>
+                    <div className="divide-y divide-border/10">
+                      {topDramas.map((drama, i) => (
+                        <Link
+                          key={drama.id}
+                          href="/drama"
+                          className="group flex items-center gap-3 py-2 hover:opacity-80 transition-opacity"
+                        >
+                          <span
+                            className="text-sm font-bold w-5 text-center shrink-0 tabular-nums"
+                            style={{ color: "#FF4B6E" }}
+                          >
+                            {i + 1}
+                          </span>
+                          {drama.poster_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={drama.poster_url}
+                              alt={drama.title}
+                              className="w-8 h-12 object-cover rounded shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-12 bg-[#252528] rounded shrink-0" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground truncate group-hover:text-[#FF4B6E] transition-colors">
+                              {drama.title}
+                            </p>
+                            {drama.genre && (
+                              <span className="mt-1 inline-block text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-muted-foreground/70">
+                                {drama.genre}
+                              </span>
+                            )}
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/40 mt-4">Powered by TMDB</p>
                   </div>
                 )}
               </div>
