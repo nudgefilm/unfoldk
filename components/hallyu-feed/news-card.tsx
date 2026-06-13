@@ -13,6 +13,7 @@ export interface NewsCardProps {
   summary: string | null
   sources: string[] | null
   content_type: string | null
+  index?: number
 }
 
 const CATEGORY_BADGE: Record<string, string> = {
@@ -23,6 +24,12 @@ const CATEGORY_BADGE: Record<string, string> = {
 }
 const CATEGORY_LABEL: Record<string, string> = {
   kpop: "K-Pop", kdrama: "K-Drama", kbeauty: "K-Beauty", general: "General",
+}
+
+const CLAMP_NO_IMAGE: Record<number, string> = {
+  0: "line-clamp-3",
+  1: "line-clamp-5",
+  2: "line-clamp-4",
 }
 
 function formatDate(iso: string | null): string {
@@ -47,26 +54,33 @@ function decodeHtml(str: string): string {
     .replace(/&nbsp;/g, " ")
 }
 
-export function NewsCard({ id, title, published_at, category, summary }: NewsCardProps) {
+export function NewsCard({ id, title, published_at, category, summary, image_url, thumbnail_url, index = 0 }: NewsCardProps) {
   const preview = parseSummaryPreview(summary)
+  const coverUrl = image_url || thumbnail_url
+  const clampClass = coverUrl ? "line-clamp-2" : (CLAMP_NO_IMAGE[index % 3] ?? "line-clamp-3")
 
   return (
     <Link
       href={`/hallyu-feed/${id}`}
       className="group block bg-[#1a1a1a] border border-border/30 rounded-2xl overflow-hidden hover:border-[#FF4B6E]/40 transition-all hover:shadow-[0_0_0_1px_rgba(255,75,110,0.15)]"
     >
+      {coverUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={coverUrl}
+          alt={title}
+          className="w-full aspect-video object-cover"
+        />
+      )}
       <div className="p-5 flex flex-col gap-3">
         {/* 배지 영역 */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {category && (
+        {category && (
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${CATEGORY_BADGE[category] ?? CATEGORY_BADGE.general}`}>
               {CATEGORY_LABEL[category] ?? category}
             </span>
-          )}
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: "#FF4B6E" }}>
-            Curated by UnfoldK
-          </span>
-        </div>
+          </div>
+        )}
 
         {/* 제목 */}
         <p className="text-foreground text-sm font-semibold leading-snug line-clamp-2 group-hover:text-[#FF4B6E] transition-colors">
@@ -75,14 +89,15 @@ export function NewsCard({ id, title, published_at, category, summary }: NewsCar
 
         {/* 요약 미리보기 */}
         {preview && (
-          <p className="text-muted-foreground text-xs leading-relaxed line-clamp-3">
+          <p className={`text-muted-foreground text-xs leading-relaxed ${clampClass}`}>
             {decodeHtml(preview)}
           </p>
         )}
 
-        {/* 날짜 */}
-        <div className="flex items-center justify-end text-xs text-muted-foreground pt-1 border-t border-border/20">
-          <span>{formatDate(published_at)}</span>
+        {/* 하단: Curated by + 날짜 */}
+        <div className="flex items-center justify-between pt-1 border-t border-border/20">
+          <span className="text-xs text-gray-500">Curated by UnfoldK</span>
+          <span className="text-xs text-muted-foreground">{formatDate(published_at)}</span>
         </div>
       </div>
     </Link>

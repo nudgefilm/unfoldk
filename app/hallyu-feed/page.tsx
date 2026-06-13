@@ -173,7 +173,8 @@ export default function HallyuFeedPage() {
           <h1 className="text-4xl font-bold text-foreground">Hallyu Feed</h1>
         </div>
         <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-          K-pop, K-drama &amp; K-beauty — curated by UnfoldK &amp; global Hallyu fans.
+          K-pop, K-drama &amp; K-beauty<br />
+          curated by UnfoldK &amp; global Hallyu fans.
         </p>
         {activeTab === "ai" && newsTotal > 0 && (
           <p className="text-muted-foreground text-sm mt-3">{newsTotal.toLocaleString()} articles</p>
@@ -241,9 +242,9 @@ export default function HallyuFeedPage() {
               </div>
             ) : (
               <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
-                {news.map(item => (
+                {news.map((item, i) => (
                   <div key={item.id} className="break-inside-avoid mb-4">
-                    <NewsCard {...item} />
+                    <NewsCard {...item} index={i} />
                   </div>
                 ))}
               </div>

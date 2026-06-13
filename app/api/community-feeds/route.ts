@@ -42,6 +42,7 @@ const PostSchema = z.object({
   title:          z.string().min(1).max(200),
   content:        z.string().min(1).max(2000),
   artist_keyword: z.string().max(100).optional(),
+  image_url:      z.string().url().optional(),
 })
 
 // POST /api/community-feeds — Pro 유저만 작성
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
       title:          parsed.data.title,
       content:        parsed.data.content,
       artist_keyword: parsed.data.artist_keyword ?? null,
+      image_url:      parsed.data.image_url ?? null,
     })
     .select("id")
     .single()

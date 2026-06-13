@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useState, useTransition, useRef } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, ExternalLink, Newspaper, Users } from "lucide-react"
+import { RefreshCw, ExternalLink, Newspaper, Users, ImagePlus, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 interface NewsRow {
   id: string
@@ -13,6 +14,7 @@ interface NewsRow {
   title: string
   url: string
   thumbnail_url: string | null
+  image_url: string | null
   published_at: string | null
   category: string | null
   summary: string | null
@@ -42,11 +44,15 @@ export default function HallyuFeedAdminPage() {
   const [collecting, setCollecting] = useState(false)
   const [, startTransition] = useTransition()
 
+  // 이미지 업로드 상태
+  const [activeUploadId, setActiveUploadId] = useState<string | null>(null)
+  const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const fetchNews = () => {
     setLoading(true)
     const qs = new URLSearchParams({ limit: "50" })
     if (categoryFilter !== "all") qs.set("category", categoryFilter)
-    // content_type 필터는 클라이언트 측 필터링
     fetch(`/api/admin/hallyu-feed?${qs}`)
       .then((r) => r.json())
       .then((b: { news: NewsRow[] }) => setNews(b.news ?? []))
@@ -75,8 +81,65 @@ export default function HallyuFeedAdminPage() {
     }
   }
 
+  function triggerUpload(id: string) {
+    setActiveUploadId(id)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+      fileInputRef.current.click()
+    }
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !activeUploadId) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "이미지는 5MB 이하여야 합니다." })
+      return
+    }
+    const rowId = activeUploadId
+    setUploadingId(rowId)
+    setActiveUploadId(null)
+    try {
+      const supabase = createSupabaseBrowserClient()
+      const ext = file.name.split(".").pop() ?? "jpg"
+      const path = `news/${rowId}-${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from("hallyu-news-images")
+        .upload(path, file, { contentType: file.type, upsert: true })
+      if (uploadError) {
+        toast({ title: "업로드 실패", description: uploadError.message })
+        return
+      }
+      const { data: { publicUrl } } = supabase.storage.from("hallyu-news-images").getPublicUrl(path)
+
+      const res = await fetch("/api/admin/hallyu-feed", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: rowId, image_url: publicUrl }),
+      })
+      if (!res.ok) {
+        toast({ title: "DB 업데이트 실패" })
+        return
+      }
+      setNews(prev => prev.map(n => n.id === rowId ? { ...n, image_url: publicUrl } : n))
+      toast({ title: "이미지 업로드 완료" })
+    } finally {
+      setUploadingId(null)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
   return (
     <div className="space-y-6">
+      {/* 숨김 파일 입력 — 전체 공유 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleImageUpload}
+        className="hidden"
+      />
+
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-foreground text-2xl font-semibold mb-1">Hallyu Feed 관리</h1>
@@ -149,6 +212,7 @@ export default function HallyuFeedAdminPage() {
                 <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wide hidden md:table-cell">카테고리</th>
                 <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wide hidden md:table-cell">AI 요약</th>
                 <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wide hidden md:table-cell">발행일</th>
+                <th className="px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wide text-right">이미지</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -186,6 +250,32 @@ export default function HallyuFeedAdminPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs hidden md:table-cell whitespace-nowrap">{fmtDate(row.published_at)}</td>
+                  {/* 이미지 열 */}
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {row.image_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={row.image_url}
+                          alt=""
+                          className="w-10 h-7 object-cover rounded border border-border/30 shrink-0"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => triggerUpload(row.id)}
+                        disabled={uploadingId === row.id}
+                        className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border border-border/40 text-muted-foreground hover:text-foreground hover:border-border/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                        title={row.image_url ? "이미지 교체" : "이미지 추가"}
+                      >
+                        {uploadingId === row.id
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <ImagePlus className="w-3 h-3" />
+                        }
+                        {row.image_url ? "교체" : "추가"}
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-right">
                     {row.content_type !== "generated" && (
                       <a

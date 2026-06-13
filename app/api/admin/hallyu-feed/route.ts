@@ -36,3 +36,13 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ news: data ?? [], limit, offset })
 }
+
+// PATCH /api/admin/hallyu-feed — hallyu_news.image_url 업데이트
+export async function PATCH(req: NextRequest) {
+  const admin = createSupabaseAdminClient()
+  const body = await req.json() as { id?: string; image_url?: string }
+  if (!body.id || !body.image_url) return NextResponse.json({ error: "missing_fields" }, { status: 400 })
+  const { error } = await admin.from("hallyu_news").update({ image_url: body.image_url }).eq("id", body.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
