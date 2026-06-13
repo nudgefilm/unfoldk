@@ -26,10 +26,13 @@ const CATEGORY_LABEL: Record<string, string> = {
   kpop: "K-Pop", kdrama: "K-Drama", kbeauty: "K-Beauty", general: "General",
 }
 
-const CLAMP_NO_IMAGE: Record<number, string> = {
-  0: "line-clamp-3",
-  1: "line-clamp-5",
-  2: "line-clamp-4",
+// index % 5 기준 카드 높이 분기
+const CARD_VARIANTS: Record<number, { title: string; body: string }> = {
+  0: { title: "line-clamp-3", body: "line-clamp-6" },  // 큰 카드
+  1: { title: "line-clamp-2", body: "line-clamp-3" },  // 작은 카드
+  2: { title: "line-clamp-3", body: "line-clamp-8" },  // 가장 큰 카드
+  3: { title: "line-clamp-2", body: "line-clamp-4" },  // 중간 카드
+  4: { title: "line-clamp-1", body: "line-clamp-2" },  // 가장 작은 카드
 }
 
 function formatDate(iso: string | null): string {
@@ -57,7 +60,7 @@ function decodeHtml(str: string): string {
 export function NewsCard({ id, title, published_at, category, summary, image_url, thumbnail_url, index = 0 }: NewsCardProps) {
   const preview = parseSummaryPreview(summary)
   const coverUrl = image_url || thumbnail_url
-  const clampClass = coverUrl ? "line-clamp-2" : (CLAMP_NO_IMAGE[index % 3] ?? "line-clamp-3")
+  const variant = CARD_VARIANTS[index % 5] ?? CARD_VARIANTS[0]
 
   return (
     <Link
@@ -72,8 +75,8 @@ export function NewsCard({ id, title, published_at, category, summary, image_url
           className="w-full aspect-video object-cover"
         />
       )}
-      <div className="p-5 flex flex-col gap-3">
-        {/* 배지 영역 */}
+      <div className="p-4 flex flex-col gap-3">
+        {/* 카테고리 배지 */}
         {category && (
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${CATEGORY_BADGE[category] ?? CATEGORY_BADGE.general}`}>
@@ -83,13 +86,13 @@ export function NewsCard({ id, title, published_at, category, summary, image_url
         )}
 
         {/* 제목 */}
-        <p className="text-foreground text-sm font-semibold leading-snug line-clamp-2 group-hover:text-[#FF4B6E] transition-colors">
+        <p className={`text-foreground text-sm font-semibold leading-snug ${variant.title} group-hover:text-[#FF4B6E] transition-colors`}>
           {decodeHtml(title)}
         </p>
 
-        {/* 요약 미리보기 */}
+        {/* 본문 미리보기 */}
         {preview && (
-          <p className={`text-muted-foreground text-xs leading-relaxed ${clampClass}`}>
+          <p className={`text-muted-foreground text-xs leading-relaxed ${variant.body}`}>
             {decodeHtml(preview)}
           </p>
         )}
