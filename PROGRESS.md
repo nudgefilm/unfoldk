@@ -4,6 +4,31 @@
 
 ---
 
+## 현재 상태 (2026-06-13 세션 65 기준)
+
+### 메인 페이지 K-pop TOP 30 차트 디자인 개선
+
+**완료 항목**
+
+- **`components/home/kpop-top30-chart.tsx` 전면 재설계**
+  - 컨테이너 높이 200px → 240px
+  - 막대 바닥 고정: `flex items-end` → 각 컬럼 `flex-col` (순위 행 + 막대 영역 분리)
+  - 아티스트명 막대 외부 → 막대 내부 하단 세로 텍스트 (`writing-mode: vertical-rl` + `rotate(180deg)`, 36px 이상 막대만 표시)
+  - 순위별 막대 너비 미세 변화: `max(70%, 100% - (rank-1)*0.8%)`
+  - 리스너 비율 기반 opacity: `0.4 + heightRatio * 0.6` (높은 막대 진한 핑크, 낮은 막대 연한 핑크)
+
+- **툴팁 overflow 클리핑 수정**
+  - `outerRef(relative)` + 내부 차트박스(`overflow:hidden`) 2레이어 분리
+  - `onMouseEnter`에서 `getBoundingClientRect()`로 막대 상단 중앙 좌표 계산
+  - 툴팁을 `outerRef` 내부 `z-50`으로 렌더링 → 슬라이더 `overflow:hidden`에 잘리지 않음
+
+- **순위 번호 동일 라인 정렬**
+  - 기존: `position: absolute; top: -16px` → 막대 높이마다 y위치 상이
+  - 수정: 각 컬럼 `flex-col` — 순위 행(`h-5` 20px 고정) + 막대 영역(`flex-1`) → 모든 순위 번호 상단 동일 라인
+  - 순위 폰트: `text-[9px] font-bold rgba(255,255,255,0.50)`
+
+---
+
 ## 현재 상태 (2026-06-13 세션 64 기준)
 
 ### Hallyu Feed 전면 개편
