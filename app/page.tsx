@@ -10,6 +10,7 @@ import { UnauthorizedToast } from "@/components/unauthorized-toast"
 import { YoutubeVideoSection } from "@/components/shared/youtube-video-section"
 import { HomePhraseCard, type PhraseData } from "@/components/home/home-phrase-card"
 import { HomeCTASection } from "@/components/home/home-cta-section"
+import { KpopTop30Chart, type Top30Artist } from "@/components/home/kpop-top30-chart"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 export const revalidate = 3600
@@ -233,6 +234,45 @@ async function fetchServiceStats(): Promise<RawServiceStats | null> {
   }
 }
 
+async function fetchKpopTop30(): Promise<Top30Artist[]> {
+  const admin = createSupabaseAdminClient()
+
+  const { data: latestRow } = await admin
+    .from("kpop_stats_daily")
+    .select("date")
+    .order("date", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!latestRow) return []
+  const latestDate = (latestRow as { date: string }).date
+
+  const { data: stats } = await admin
+    .from("kpop_stats_daily")
+    .select("artist_id, lastfm_listeners")
+    .eq("date", latestDate)
+    .not("lastfm_listeners", "is", null)
+    .order("lastfm_listeners", { ascending: false })
+    .limit(30)
+  if (!stats || stats.length === 0) return []
+
+  const artistIds = (stats as { artist_id: string }[]).map(r => r.artist_id)
+  const { data: artists } = await admin
+    .from("kpop_artists")
+    .select("id, name")
+    .in("id", artistIds)
+
+  const nameMap = new Map(
+    ((artists ?? []) as { id: string; name: string }[]).map(a => [a.id, a.name])
+  )
+
+  return (stats as { artist_id: string; lastfm_listeners: number }[]).map((r, i) => ({
+    id: r.artist_id,
+    name: nameMap.get(r.artist_id) ?? "—",
+    rank: i + 1,
+    listeners: r.lastfm_listeners,
+  }))
+}
+
 async function fetchKpopByCountry(): Promise<KpopCountryItem[]> {
   const admin = createSupabaseAdminClient()
 
@@ -323,7 +363,7 @@ function formatShortDate(iso: string): string {
 // ── 페이지 ────────────────────────────────────────────────────────────────────
 
 export default async function LandingPage() {
-  const [newsRes, kpopRes, eventsRes, phraseRes, dramasRes, svcStatsRes, countryRes, topDramasRes] =
+  const [newsRes, kpopRes, eventsRes, phraseRes, dramasRes, svcStatsRes, countryRes, topDramasRes, top30Res] =
     await Promise.allSettled([
       fetchLatestGeneratedNews(),
       fetchKpopTop5(),
@@ -333,6 +373,7 @@ export default async function LandingPage() {
       fetchServiceStats(),
       fetchKpopByCountry(),
       fetchTopDramas(),
+      fetchKpopTop30(),
     ])
 
   const news         = newsRes.status       === "fulfilled" ? newsRes.value       : []
@@ -343,6 +384,7 @@ export default async function LandingPage() {
   const rawSvc       = svcStatsRes.status   === "fulfilled" ? svcStatsRes.value   : null
   const countryCharts = countryRes.status   === "fulfilled" ? countryRes.value    : []
   const topDramas    = topDramasRes.status  === "fulfilled" ? topDramasRes.value  : []
+  const top30        = top30Res.status      === "fulfilled" ? top30Res.value      : []
 
   const serviceStats: ServiceStats | undefined = rawSvc
     ? {
@@ -369,6 +411,13 @@ export default async function LandingPage() {
           <main className="max-w-[1320px] mx-auto relative">
             <HeroSection />
           </main>
+
+          {/* ── K-pop TOP 30 막대 차트 ──────────────────────────────────── */}
+          {top30.length > 0 && (
+            <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-14 px-5" delay={0.15}>
+              <KpopTop30Chart artists={top30} />
+            </AnimatedSection>
+          )}
 
           {/* ── 서비스 카드 그리드 ──────────────────────────────────────── */}
           <AnimatedSection id="features-section" className="relative z-10 max-w-[1320px] mx-auto mt-12 md:mt-20" delay={0.2}>
