@@ -17,7 +17,13 @@ export function HomeCTASection() {
   }, [])
 
   return (
-    <section className="py-20 px-5 text-center">
+    <section
+      className="mx-5 rounded-2xl py-16 px-6 text-center border border-[#FF4B6E]/20 overflow-hidden"
+      style={{
+        background:
+          "linear-gradient(135deg, rgba(255,75,110,0.12) 0%, rgba(255,75,110,0.04) 50%, rgba(255,75,110,0.10) 100%)",
+      }}
+    >
       <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
         Start Your Hallyu Journey
       </h2>
@@ -27,8 +33,8 @@ export function HomeCTASection() {
       {ready && (
         <Link
           href={isLoggedIn ? "/calendar" : "/signup"}
-          className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-white text-base font-semibold transition-opacity hover:opacity-90"
-          style={{ backgroundColor: "#FF4B6E" }}
+          className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-base font-semibold transition-all hover:opacity-90 hover:shadow-lg"
+          style={{ backgroundColor: "white", color: "#FF4B6E" }}
         >
           Get Started Free
         </Link>

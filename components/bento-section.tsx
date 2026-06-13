@@ -1,6 +1,15 @@
 import { Languages, Briefcase } from "lucide-react"
 import Link from "next/link"
 
+export interface ServiceStats {
+  calendarEventsThisWeek: number
+  kpopTopArtist: string | null
+  dramasCount: number
+  phrasesCount: number
+  recipesCount: number
+  filmingSpotsCount: number
+}
+
 interface FeatureCard {
   icon: string | React.ReactNode
   title: string
@@ -8,11 +17,12 @@ interface FeatureCard {
   highlighted?: boolean
   href: string
   badge?: string
+  liveData?: string
   /** B2B 카드 전용: 단일 href 대신 버튼 2개 표시 */
   dualButtons?: { label: string; href: string }[]
 }
 
-const FeatureCard = ({ icon, title, description, highlighted, href, badge, dualButtons }: FeatureCard) => {
+const FeatureCard = ({ icon, title, description, highlighted, href, badge, dualButtons, liveData }: FeatureCard) => {
   const inner = (
     <div
       className={`overflow-hidden rounded-2xl flex flex-col justify-start items-start relative p-6 h-full transition-all hover:scale-[1.02] hover:shadow-lg ${
@@ -39,6 +49,11 @@ const FeatureCard = ({ icon, title, description, highlighted, href, badge, dualB
         <span className="text-4xl flex items-center justify-center">{icon}</span>
         <h3 className="text-foreground text-xl font-semibold">{title}</h3>
         <p className="text-muted-foreground text-base leading-relaxed">{description}</p>
+        {liveData && (
+          <p className="text-xs font-semibold" style={{ color: "#FF4B6E" }}>
+            {liveData}
+          </p>
+        )}
         {dualButtons && (
           <div className="flex flex-col gap-2 mt-1 w-full">
             {dualButtons.map((btn) => (
@@ -60,7 +75,7 @@ const FeatureCard = ({ icon, title, description, highlighted, href, badge, dualB
   return <Link href={href} className="block">{inner}</Link>
 }
 
-export function BentoSection() {
+export function BentoSection({ serviceStats }: { serviceStats?: ServiceStats }) {
   const cards: FeatureCard[] = [
     {
       icon: "📅",
@@ -68,36 +83,54 @@ export function BentoSection() {
       description: "Never miss a comeback. Auto-syncs to your Google Calendar.",
       highlighted: true,
       href: "/calendar",
+      liveData: serviceStats && serviceStats.calendarEventsThisWeek > 0
+        ? `${serviceStats.calendarEventsThisWeek} events this week`
+        : undefined,
     },
     {
       icon: "🎵",
       title: "KpopStats",
       description: "Real-time charts for every K-pop artist, updated daily.",
       href: "/kpop",
+      liveData: serviceStats?.kpopTopArtist
+        ? `#1 this week: ${serviceStats.kpopTopArtist}`
+        : undefined,
     },
     {
       icon: "🎬",
       title: "KdramaMatch",
       description: "Find your next K-drama in 30 seconds.",
       href: "/drama",
+      liveData: serviceStats && serviceStats.dramasCount > 0
+        ? `${serviceStats.dramasCount.toLocaleString()} K-dramas available`
+        : undefined,
     },
     {
       icon: <Languages className="w-9 h-9 text-primary" />,
       title: "HangeulGo",
       description: "Learn Korean from real drama dialogue.",
       href: "/korean",
+      liveData: serviceStats && serviceStats.phrasesCount > 0
+        ? `${serviceStats.phrasesCount.toLocaleString()} expressions to learn`
+        : undefined,
     },
     {
       icon: "🍜",
       title: "KfoodKit",
       description: "537 authentic Korean recipes, straight from your favorite dramas.",
       href: "/food",
+      liveData: serviceStats && serviceStats.recipesCount > 0
+        ? `${serviceStats.recipesCount.toLocaleString()} Korean recipes`
+        : undefined,
     },
     {
       icon: "🗺️",
       title: "Curation K",
       description: "Filming spots, hidden gems, and 1-day trips across Korea.",
       href: "/curation-k",
+      liveData: serviceStats && serviceStats.filmingSpotsCount > 0
+        ? `${serviceStats.filmingSpotsCount.toLocaleString()} filming locations`
+        : undefined,
     },
     {
       icon: "🎭",
