@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState, useRef } from "react"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
@@ -29,13 +29,36 @@ function getBarBackground(rank: number, heightRatio: number): string {
   return `rgba(255,75,110,${opacity})`
 }
 
+interface TooltipState {
+  artist: Top30Artist
+  left: number  // px from outer div left
+  top: number   // px from outer div top (bar 상단 위치)
+}
+
 export function KpopTop30Chart({ artists }: { artists: Top30Artist[] }) {
   const [page, setPage] = useState(0)
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null)
+  const outerRef = useRef<HTMLDivElement>(null)
 
   const pages = [artists.slice(0, 15), artists.slice(15, 30)].filter(p => p.length > 0)
   const totalPages = pages.length
 
   if (totalPages === 0) return null
+
+  // overflow:hidden 컨테이너 밖(outerRef 기준) 절대 좌표로 툴팁 위치 계산
+  const handleBarEnter = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    artist: Top30Artist,
+  ) => {
+    if (!outerRef.current) return
+    const outerRect = outerRef.current.getBoundingClientRect()
+    const barRect = e.currentTarget.getBoundingClientRect()
+    setTooltip({
+      artist,
+      left: barRect.left + barRect.width / 2 - outerRect.left,
+      top: barRect.top - outerRect.top - 8,  // 막대 상단에서 8px 위
+    })
+  }
 
   return (
     <div>
@@ -53,121 +76,131 @@ export function KpopTop30Chart({ artists }: { artists: Top30Artist[] }) {
         </Link>
       </div>
 
-      {/* 차트 컨테이너 */}
-      <div
-        className="relative rounded-2xl border border-border/20 overflow-hidden"
-        style={{ height: 240, background: "rgba(10,10,14,0.45)" }}
-      >
-        {/* 슬라이딩 래퍼 */}
+      {/* 외부 래퍼: relative + overflow:visible → 툴팁이 차트 밖으로 노출 */}
+      <div ref={outerRef} className="relative">
+        {/* 차트 컨테이너: overflow:hidden은 슬라이더 마스킹 전용 */}
         <div
-          className="flex h-full transition-transform duration-300 ease-in-out"
-          style={{
-            width: `${totalPages * 100}%`,
-            transform: `translateX(-${(page / totalPages) * 100}%)`,
-          }}
+          className="relative rounded-2xl border border-border/20 overflow-hidden"
+          style={{ height: 240, background: "rgba(10,10,14,0.45)" }}
         >
-          {pages.map((pageArtists, pageIdx) => {
-            const pageMax = Math.max(...pageArtists.map(a => a.listeners), 1)
-            return (
-              <div
-                key={pageIdx}
-                // items-end: 막대가 컨테이너 바닥에 붙어 위로 솟아오름
-                className="flex items-end gap-1"
-                style={{ width: `${100 / totalPages}%`, height: "100%", padding: "20px 12px 0" }}
-              >
-                {pageArtists.map(artist => {
-                  const heightRatio = artist.listeners / pageMax
-                  const barH = Math.max(heightRatio * MAX_BAR_HEIGHT, 4)
-                  // 순위에 따라 너비 미세 감소 (1위: 100%, 30위: ~77%)
-                  const barWidthPct = Math.max(70, 100 - (artist.rank - 1) * 0.8)
-                  // 막대 높이가 36px 이상일 때만 이름 표시
-                  const showName = barH >= 36
+          {/* 슬라이딩 래퍼 */}
+          <div
+            className="flex h-full transition-transform duration-300 ease-in-out"
+            style={{
+              width: `${totalPages * 100}%`,
+              transform: `translateX(-${(page / totalPages) * 100}%)`,
+            }}
+          >
+            {pages.map((pageArtists, pageIdx) => {
+              const pageMax = Math.max(...pageArtists.map(a => a.listeners), 1)
+              return (
+                <div
+                  key={pageIdx}
+                  // items-end: 막대가 컨테이너 바닥에 붙어 위로 솟아오름
+                  className="flex items-end gap-1"
+                  style={{ width: `${100 / totalPages}%`, height: "100%", padding: "20px 12px 0" }}
+                >
+                  {pageArtists.map(artist => {
+                    const heightRatio = artist.listeners / pageMax
+                    const barH = Math.max(heightRatio * MAX_BAR_HEIGHT, 4)
+                    // 순위에 따라 너비 미세 감소 (1위: 100%, 30위: ~77%)
+                    const barWidthPct = Math.max(70, 100 - (artist.rank - 1) * 0.8)
+                    const showName = barH >= 36
 
-                  return (
-                    <Link
-                      key={artist.id}
-                      href={`/kpop/${artist.id}`}
-                      className="group relative flex-1"
-                      style={{ height: barH }}
-                    >
-                      {/* 순위 번호: 막대 상단 바깥에 소형 표시 */}
-                      <span
-                        className="absolute left-0 right-0 text-center text-[8px] font-bold text-muted-foreground/40 tabular-nums select-none"
-                        style={{ top: -16 }}
+                    return (
+                      <Link
+                        key={artist.id}
+                        href={`/kpop/${artist.id}`}
+                        className="group relative flex-1"
+                        style={{ height: barH }}
+                        onMouseEnter={e => handleBarEnter(e, artist)}
+                        onMouseLeave={() => setTooltip(null)}
                       >
-                        {artist.rank}
-                      </span>
+                        {/* 순위 번호: 막대 상단 바깥에 표시 */}
+                        <span
+                          className="absolute left-0 right-0 text-center text-[9px] font-bold select-none tabular-nums"
+                          style={{ top: -16, color: "rgba(255,255,255,0.50)" }}
+                        >
+                          {artist.rank}
+                        </span>
 
-                      {/* 막대 본체 */}
-                      <div
-                        className="absolute bottom-0 top-0 rounded-t-sm overflow-hidden flex flex-col justify-end items-center pb-1 transition-opacity group-hover:opacity-75"
-                        style={{
-                          width: `${barWidthPct}%`,
-                          left: "50%",
-                          transform: "translateX(-50%)",
-                          background: getBarBackground(artist.rank, heightRatio),
-                        }}
-                      >
-                        {/* 아티스트명: 막대 내부 하단, 세로 텍스트 (아래→위) */}
-                        {showName && (
-                          <span
-                            className="text-white/90 font-medium overflow-hidden block"
-                            style={{
-                              writingMode: "vertical-rl",
-                              textOrientation: "mixed",
-                              transform: "rotate(180deg)",
-                              fontSize: 10,
-                              maxHeight: Math.max(barH - 8, 0),
-                              overflow: "hidden",
-                              whiteSpace: "nowrap",
-                              lineHeight: 1,
-                            }}
-                          >
-                            {artist.name}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* 호버 툴팁 */}
-                      <div
-                        className="absolute left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20"
-                        style={{ bottom: barH + 6 }}
-                      >
-                        <div className="bg-[#1c1c1f] border border-border/50 rounded-xl px-3 py-2 text-xs whitespace-nowrap shadow-xl">
-                          <p className="font-semibold text-foreground">{artist.rank}. {artist.name}</p>
-                          <p className="text-muted-foreground/70 mt-0.5">{formatListeners(artist.listeners)} listeners</p>
+                        {/* 막대 본체 */}
+                        <div
+                          className="absolute bottom-0 top-0 rounded-t-sm overflow-hidden flex flex-col justify-end items-center pb-1 transition-opacity group-hover:opacity-75"
+                          style={{
+                            width: `${barWidthPct}%`,
+                            left: "50%",
+                            transform: "translateX(-50%)",
+                            background: getBarBackground(artist.rank, heightRatio),
+                          }}
+                        >
+                          {/* 아티스트명: 막대 내부 하단, 세로 텍스트 (아래→위) */}
+                          {showName && (
+                            <span
+                              className="text-white/90 font-medium block"
+                              style={{
+                                writingMode: "vertical-rl",
+                                textOrientation: "mixed",
+                                transform: "rotate(180deg)",
+                                fontSize: 10,
+                                maxHeight: Math.max(barH - 8, 0),
+                                overflow: "hidden",
+                                whiteSpace: "nowrap",
+                                lineHeight: 1,
+                              }}
+                            >
+                              {artist.name}
+                            </span>
+                          )}
                         </div>
-                      </div>
-                    </Link>
-                  )
-                })}
-              </div>
-            )
-          })}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* 이전 버튼 */}
+          {page > 0 && (
+            <button
+              type="button"
+              onClick={() => setPage(p => p - 1)}
+              className="absolute top-1/2 -translate-y-1/2 left-2 w-7 h-7 rounded-full flex items-center justify-center border border-border/40 hover:bg-white/5 transition-colors z-10"
+              style={{ backgroundColor: "rgba(15,15,18,0.9)" }}
+            >
+              <ChevronLeft className="w-4 h-4 text-foreground/60" />
+            </button>
+          )}
+
+          {/* 다음 버튼 */}
+          {page < totalPages - 1 && (
+            <button
+              type="button"
+              onClick={() => setPage(p => p + 1)}
+              className="absolute top-1/2 -translate-y-1/2 right-2 w-7 h-7 rounded-full flex items-center justify-center border border-border/40 hover:bg-white/5 transition-colors z-10"
+              style={{ backgroundColor: "rgba(15,15,18,0.9)" }}
+            >
+              <ChevronRight className="w-4 h-4 text-foreground/60" />
+            </button>
+          )}
         </div>
 
-        {/* 이전 버튼 */}
-        {page > 0 && (
-          <button
-            type="button"
-            onClick={() => setPage(p => p - 1)}
-            className="absolute top-1/2 -translate-y-1/2 left-2 w-7 h-7 rounded-full flex items-center justify-center border border-border/40 hover:bg-white/5 transition-colors z-10"
-            style={{ backgroundColor: "rgba(15,15,18,0.9)" }}
+        {/* 툴팁: overflow:hidden 컨테이너 밖 outerRef 기준 절대 위치 렌더링 */}
+        {tooltip && (
+          <div
+            className="absolute pointer-events-none z-50"
+            style={{
+              left: tooltip.left,
+              top: tooltip.top,
+              transform: "translate(-50%, -100%)",
+            }}
           >
-            <ChevronLeft className="w-4 h-4 text-foreground/60" />
-          </button>
-        )}
-
-        {/* 다음 버튼 */}
-        {page < totalPages - 1 && (
-          <button
-            type="button"
-            onClick={() => setPage(p => p + 1)}
-            className="absolute top-1/2 -translate-y-1/2 right-2 w-7 h-7 rounded-full flex items-center justify-center border border-border/40 hover:bg-white/5 transition-colors z-10"
-            style={{ backgroundColor: "rgba(15,15,18,0.9)" }}
-          >
-            <ChevronRight className="w-4 h-4 text-foreground/60" />
-          </button>
+            <div className="bg-[#1c1c1f] border border-border/50 rounded-xl px-3 py-2 text-xs whitespace-nowrap shadow-xl">
+              <p className="font-semibold text-foreground">{tooltip.artist.rank}. {tooltip.artist.name}</p>
+              <p className="text-muted-foreground/70 mt-0.5">{formatListeners(tooltip.artist.listeners)} listeners</p>
+            </div>
+          </div>
         )}
       </div>
 
