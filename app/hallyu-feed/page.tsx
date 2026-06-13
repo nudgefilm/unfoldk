@@ -246,28 +246,35 @@ export default function HallyuFeedPage() {
               </div>
             ) : (
               <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
-                {news.flatMap((item, i) => {
-                  const cards = [
-                    <div key={item.id} className="break-inside-avoid mb-4">
-                      <NewsCard {...item} index={i} />
-                    </div>,
-                  ]
-                  // 8번째(i=7), 16번째(i=15) 위치에 참여 유도 카드 삽입
-                  if (i === 7 || i === 15) {
-                    const pIdx = i === 7 ? 0 : 1
-                    cards.push(
-                      <div key={`participate-${i}`} className="break-inside-avoid mb-4">
-                        <ParticipateCard
-                          variantIndex={pIdx}
-                          userId={userId}
-                          onWrite={() => setShowWriteModal(true)}
-                          onLoginPrompt={() => toast({ title: "Sign up to share your Hallyu story!", description: "It's free — join fans worldwide." })}
-                        />
-                      </div>
-                    )
+                {(() => {
+                  // 페이지별 참여 유도 카드 삽입 위치 (1-based → 0-based)
+                  const positions: Record<number, [number, number]> = {
+                    1: [5, 16],
+                    2: [8, 19],
+                    3: [3, 13],
                   }
-                  return cards
-                })}
+                  const [pos1, pos2] = positions[newsPage + 1] ?? [6, 17]
+                  return news.flatMap((item, i) => {
+                    const cards = [
+                      <div key={item.id} className="break-inside-avoid mb-4">
+                        <NewsCard {...item} index={i} />
+                      </div>,
+                    ]
+                    if (i === pos1 || i === pos2) {
+                      cards.push(
+                        <div key={`participate-${i}`} className="break-inside-avoid mb-4">
+                          <ParticipateCard
+                            variantIndex={i === pos1 ? 0 : 1}
+                            userId={userId}
+                            onWrite={() => setShowWriteModal(true)}
+                            onLoginPrompt={() => toast({ title: "Sign up to share your Hallyu story!", description: "It's free — join fans worldwide." })}
+                          />
+                        </div>
+                      )
+                    }
+                    return cards
+                  })
+                })()}
               </div>
             )}
 
