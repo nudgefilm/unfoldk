@@ -1,4 +1,14 @@
-import { Languages, Briefcase } from "lucide-react"
+import {
+  CalendarDays,
+  Music2,
+  Clapperboard,
+  Languages,
+  UtensilsCrossed,
+  Map,
+  Sparkles,
+  Flower2,
+  Briefcase,
+} from "lucide-react"
 import Link from "next/link"
 
 export interface ServiceStats {
@@ -78,7 +88,7 @@ const FeatureCard = ({ icon, title, description, highlighted, href, badge, dualB
 export function BentoSection({ serviceStats }: { serviceStats?: ServiceStats }) {
   const cards: FeatureCard[] = [
     {
-      icon: "📅",
+      icon: <CalendarDays className="w-9 h-9 text-primary" />,
       title: "HallyuCalendar",
       description: "Never miss a comeback. Auto-syncs to your Google Calendar.",
       highlighted: true,
@@ -88,7 +98,7 @@ export function BentoSection({ serviceStats }: { serviceStats?: ServiceStats }) 
         : undefined,
     },
     {
-      icon: "🎵",
+      icon: <Music2 className="w-9 h-9 text-foreground/70" />,
       title: "KpopStats",
       description: "Real-time charts for every K-pop artist, updated daily.",
       href: "/kpop",
@@ -97,7 +107,7 @@ export function BentoSection({ serviceStats }: { serviceStats?: ServiceStats }) 
         : undefined,
     },
     {
-      icon: "🎬",
+      icon: <Clapperboard className="w-9 h-9 text-foreground/70" />,
       title: "KdramaMatch",
       description: "Find your next K-drama in 30 seconds.",
       href: "/drama",
@@ -106,7 +116,7 @@ export function BentoSection({ serviceStats }: { serviceStats?: ServiceStats }) 
         : undefined,
     },
     {
-      icon: <Languages className="w-9 h-9 text-primary" />,
+      icon: <Languages className="w-9 h-9 text-foreground/70" />,
       title: "HangeulGo",
       description: "Learn Korean from real drama dialogue.",
       href: "/korean",
@@ -115,7 +125,7 @@ export function BentoSection({ serviceStats }: { serviceStats?: ServiceStats }) 
         : undefined,
     },
     {
-      icon: "🍜",
+      icon: <UtensilsCrossed className="w-9 h-9 text-foreground/70" />,
       title: "KfoodKit",
       description: "537 authentic Korean recipes, straight from your favorite dramas.",
       href: "/food",
@@ -124,7 +134,7 @@ export function BentoSection({ serviceStats }: { serviceStats?: ServiceStats }) 
         : undefined,
     },
     {
-      icon: "🗺️",
+      icon: <Map className="w-9 h-9 text-foreground/70" />,
       title: "Curation K",
       description: "Filming spots, hidden gems, and 1-day trips across Korea.",
       href: "/curation-k",
@@ -133,13 +143,13 @@ export function BentoSection({ serviceStats }: { serviceStats?: ServiceStats }) 
         : undefined,
     },
     {
-      icon: "🎭",
+      icon: <Sparkles className="w-9 h-9 text-foreground/70" />,
       title: "What's your K-drama type?",
       description: "7 questions. Find out which K-drama character you really are.",
       href: "/quiz",
     },
     {
-      icon: "🌸",
+      icon: <Flower2 className="w-9 h-9 text-foreground/70" />,
       title: "Get your Korean name",
       description: "Discover your Korean name based on your vibe.",
       href: "/name",
