@@ -11,16 +11,22 @@ export interface Top30Artist {
   listeners: number
 }
 
+// 240px 컨테이너 - 20px top padding(순위 번호 공간) = 220px 최대 막대 높이
+const MAX_BAR_HEIGHT = 220
+
 function formatListeners(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
   return n.toString()
 }
 
-function getBarBg(rank: number): string {
-  if (rank <= 3) return "linear-gradient(to top, #f43f5e, #ec4899)"
-  if (rank <= 10) return "rgba(255,75,110,0.58)"
-  return "rgba(255,75,110,0.24)"
+// 높이 비율 기반 opacity (높은 막대 → 진한 핑크, 낮은 막대 → 연한 핑크)
+function getBarBackground(rank: number, heightRatio: number): string {
+  const opacity = 0.4 + heightRatio * 0.6
+  if (rank <= 3) {
+    return `linear-gradient(to top, rgba(244,63,94,${opacity}), rgba(236,72,153,${opacity}))`
+  }
+  return `rgba(255,75,110,${opacity})`
 }
 
 export function KpopTop30Chart({ artists }: { artists: Top30Artist[] }) {
@@ -33,7 +39,7 @@ export function KpopTop30Chart({ artists }: { artists: Top30Artist[] }) {
 
   return (
     <div>
-      {/* Header */}
+      {/* 헤더 */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-[11px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
           This Week&apos;s K-pop TOP 30
@@ -47,14 +53,14 @@ export function KpopTop30Chart({ artists }: { artists: Top30Artist[] }) {
         </Link>
       </div>
 
-      {/* Chart box: 200px 고정, overflow-hidden으로 슬라이드 클리핑 */}
+      {/* 차트 컨테이너 */}
       <div
-        className="relative rounded-2xl bg-white/[0.025] border border-border/20 overflow-hidden"
-        style={{ height: 200 }}
+        className="relative rounded-2xl border border-border/20 overflow-hidden"
+        style={{ height: 240, background: "rgba(10,10,14,0.45)" }}
       >
         {/* 슬라이딩 래퍼 */}
         <div
-          className="flex transition-transform duration-300 ease-in-out h-full"
+          className="flex h-full transition-transform duration-300 ease-in-out"
           style={{
             width: `${totalPages * 100}%`,
             transform: `translateX(-${(page / totalPages) * 100}%)`,
@@ -65,61 +71,67 @@ export function KpopTop30Chart({ artists }: { artists: Top30Artist[] }) {
             return (
               <div
                 key={pageIdx}
-                className="flex gap-px"
-                style={{ width: `${100 / totalPages}%`, height: "100%", padding: "8px 12px 0" }}
+                // items-end: 막대가 컨테이너 바닥에 붙어 위로 솟아오름
+                className="flex items-end gap-1"
+                style={{ width: `${100 / totalPages}%`, height: "100%", padding: "20px 12px 0" }}
               >
                 {pageArtists.map(artist => {
-                  // 구획 내 최대값 기준 상대 비율
-                  const barH = Math.max((artist.listeners / pageMax) * 100, 1.5)
+                  const heightRatio = artist.listeners / pageMax
+                  const barH = Math.max(heightRatio * MAX_BAR_HEIGHT, 4)
+                  // 순위에 따라 너비 미세 감소 (1위: 100%, 30위: ~77%)
+                  const barWidthPct = Math.max(70, 100 - (artist.rank - 1) * 0.8)
+                  // 막대 높이가 36px 이상일 때만 이름 표시
+                  const showName = barH >= 36
+
                   return (
                     <Link
                       key={artist.id}
                       href={`/kpop/${artist.id}`}
-                      className="group relative flex-1 flex flex-col"
-                      style={{ height: "100%" }}
+                      className="group relative flex-1"
+                      style={{ height: barH }}
                     >
-                      {/* 순위 번호 */}
-                      <div className="h-4 flex items-center justify-center shrink-0">
-                        <span className="text-[8px] font-bold text-muted-foreground/40 tabular-nums">
-                          {artist.rank}
-                        </span>
-                      </div>
+                      {/* 순위 번호: 막대 상단 바깥에 소형 표시 */}
+                      <span
+                        className="absolute left-0 right-0 text-center text-[8px] font-bold text-muted-foreground/40 tabular-nums select-none"
+                        style={{ top: -16 }}
+                      >
+                        {artist.rank}
+                      </span>
 
-                      {/* 막대 영역 (flex-1) */}
-                      <div className="flex-1 flex flex-col justify-end items-center pb-0.5">
-                        <div
-                          className="rounded-t-sm transition-opacity group-hover:opacity-70"
-                          style={{
-                            height: `${barH}%`,
-                            background: getBarBg(artist.rank),
-                            // 칼럼 너비에 비례하되 최대 36px
-                            width: "clamp(3px, 68%, 36px)",
-                            minHeight: 2,
-                          }}
-                        />
-                      </div>
-
-                      {/* 아티스트명 (세로 텍스트, 아래→위) */}
-                      <div className="h-11 flex justify-center overflow-hidden shrink-0">
-                        <span
-                          className="text-[8px] text-muted-foreground/55 group-hover:text-muted-foreground/85 transition-colors font-medium"
-                          style={{
-                            writingMode: "vertical-rl",
-                            transform: "rotate(180deg)",
-                            display: "block",
-                            maxHeight: 44,
-                            overflow: "hidden",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {artist.name}
-                        </span>
+                      {/* 막대 본체 */}
+                      <div
+                        className="absolute bottom-0 top-0 rounded-t-sm overflow-hidden flex flex-col justify-end items-center pb-1 transition-opacity group-hover:opacity-75"
+                        style={{
+                          width: `${barWidthPct}%`,
+                          left: "50%",
+                          transform: "translateX(-50%)",
+                          background: getBarBackground(artist.rank, heightRatio),
+                        }}
+                      >
+                        {/* 아티스트명: 막대 내부 하단, 세로 텍스트 (아래→위) */}
+                        {showName && (
+                          <span
+                            className="text-white/90 font-medium overflow-hidden block"
+                            style={{
+                              writingMode: "vertical-rl",
+                              textOrientation: "mixed",
+                              transform: "rotate(180deg)",
+                              fontSize: 10,
+                              maxHeight: Math.max(barH - 8, 0),
+                              overflow: "hidden",
+                              whiteSpace: "nowrap",
+                              lineHeight: 1,
+                            }}
+                          >
+                            {artist.name}
+                          </span>
+                        )}
                       </div>
 
                       {/* 호버 툴팁 */}
                       <div
                         className="absolute left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20"
-                        style={{ bottom: 52 }}
+                        style={{ bottom: barH + 6 }}
                       >
                         <div className="bg-[#1c1c1f] border border-border/50 rounded-xl px-3 py-2 text-xs whitespace-nowrap shadow-xl">
                           <p className="font-semibold text-foreground">{artist.rank}. {artist.name}</p>
@@ -140,7 +152,7 @@ export function KpopTop30Chart({ artists }: { artists: Top30Artist[] }) {
             type="button"
             onClick={() => setPage(p => p - 1)}
             className="absolute top-1/2 -translate-y-1/2 left-2 w-7 h-7 rounded-full flex items-center justify-center border border-border/40 hover:bg-white/5 transition-colors z-10"
-            style={{ backgroundColor: "rgba(20,20,24,0.9)" }}
+            style={{ backgroundColor: "rgba(15,15,18,0.9)" }}
           >
             <ChevronLeft className="w-4 h-4 text-foreground/60" />
           </button>
@@ -152,7 +164,7 @@ export function KpopTop30Chart({ artists }: { artists: Top30Artist[] }) {
             type="button"
             onClick={() => setPage(p => p + 1)}
             className="absolute top-1/2 -translate-y-1/2 right-2 w-7 h-7 rounded-full flex items-center justify-center border border-border/40 hover:bg-white/5 transition-colors z-10"
-            style={{ backgroundColor: "rgba(20,20,24,0.9)" }}
+            style={{ backgroundColor: "rgba(15,15,18,0.9)" }}
           >
             <ChevronRight className="w-4 h-4 text-foreground/60" />
           </button>
