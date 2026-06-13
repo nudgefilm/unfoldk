@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const category   = searchParams.get("category")   // 'kpop' | 'kdrama' | 'kbeauty' | 'general'
   const source     = searchParams.get("source")      // 'koreaboo' | 'allkpop' | 'soompi'
-  const limit      = Math.min(Number(searchParams.get("limit") ?? "20"), 50)
+  const limit      = Math.min(Number(searchParams.get("limit") ?? "24"), 50)
   const offset     = Number(searchParams.get("offset") ?? "0")
   const countOnly  = searchParams.get("count_only") === "true"
 

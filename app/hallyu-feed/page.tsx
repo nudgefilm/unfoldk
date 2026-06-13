@@ -5,7 +5,10 @@ import { Newspaper, ChevronLeft, ChevronRight, Flag, Pencil, Trash2, Tag, Calend
 import { FooterSection } from "@/components/footer-section"
 import { HallyuPassBanner } from "@/components/hallyu-pass-banner"
 import { NewsCard, type NewsCardProps } from "@/components/hallyu-feed/news-card"
+import { ParticipateCard } from "@/components/hallyu-feed/participate-card"
 import { WriteFeedModal } from "@/components/hallyu-feed/write-feed-modal"
+import { Toaster } from "@/components/ui/toaster"
+import { useToast } from "@/hooks/use-toast"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 
@@ -20,7 +23,7 @@ const CATEGORY_TABS = [
   { key: "general", label: "General" },
 ] as const
 
-const NEWS_LIMIT = 18
+const NEWS_LIMIT = 24
 
 // ── Community Feed ────────────────────────────────────────────────────────────
 interface CommunityPost {
@@ -46,6 +49,7 @@ function authorLabel(post: CommunityPost) {
 
 // ── 메인 페이지 ───────────────────────────────────────────────────────────────
 export default function HallyuFeedPage() {
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<"ai" | "community" | "my">("ai")
 
   // 인증
@@ -242,11 +246,28 @@ export default function HallyuFeedPage() {
               </div>
             ) : (
               <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
-                {news.map((item, i) => (
-                  <div key={item.id} className="break-inside-avoid mb-4">
-                    <NewsCard {...item} index={i} />
-                  </div>
-                ))}
+                {news.flatMap((item, i) => {
+                  const cards = [
+                    <div key={item.id} className="break-inside-avoid mb-4">
+                      <NewsCard {...item} index={i} />
+                    </div>,
+                  ]
+                  // 8번째(i=7), 16번째(i=15) 위치에 참여 유도 카드 삽입
+                  if (i === 7 || i === 15) {
+                    const pIdx = i === 7 ? 0 : 1
+                    cards.push(
+                      <div key={`participate-${i}`} className="break-inside-avoid mb-4">
+                        <ParticipateCard
+                          variantIndex={pIdx}
+                          userId={userId}
+                          onWrite={() => setShowWriteModal(true)}
+                          onLoginPrompt={() => toast({ title: "Sign up to share your Hallyu story!", description: "It's free — join fans worldwide." })}
+                        />
+                      </div>
+                    )
+                  }
+                  return cards
+                })}
               </div>
             )}
 
@@ -273,10 +294,10 @@ export default function HallyuFeedPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 p-5 bg-[#141418] border border-border/20 rounded-2xl">
               <p className="text-muted-foreground text-sm leading-relaxed max-w-xl">
                 Share your Hallyu story — favorite artists, K-drama reviews,
-                travel experiences &amp; more. Pro members can post.
+                travel experiences &amp; more with fans worldwide.
               </p>
               {authReady && (
-                isPro ? (
+                userId ? (
                   <button
                     type="button"
                     onClick={() => setShowWriteModal(true)}
@@ -289,7 +310,7 @@ export default function HallyuFeedPage() {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => alert("Upgrade to Hallyu Pass to post in the community.")}
+                    onClick={() => toast({ title: "Sign up to share your Hallyu story!", description: "It's free — join fans worldwide." })}
                     className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border border-border/40 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <Pencil className="w-4 h-4" />
@@ -316,7 +337,7 @@ export default function HallyuFeedPage() {
                   {isMyTab ? "No posts yet" : "Be the first to share!"}
                 </p>
                 <p className="text-muted-foreground text-sm">
-                  {isMyTab ? "Your posts will appear here." : "Pro members can share their Hallyu stories."}
+                  {isMyTab ? "Your posts will appear here." : "Sign in and share your Hallyu story with fans worldwide."}
                 </p>
               </div>
             ) : (
@@ -404,6 +425,7 @@ export default function HallyuFeedPage() {
 
       <HallyuPassBanner isPro={isPro} />
       <FooterSection />
+      <Toaster />
     </div>
   )
 }

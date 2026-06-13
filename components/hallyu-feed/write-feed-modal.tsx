@@ -75,7 +75,7 @@ export function WriteFeedModal({ onClose, onSuccess }: WriteFeedModalProps) {
       })
       if (!res.ok) {
         const body = await res.json() as { error?: string }
-        setError(body.error === "pro_required" ? "Hallyu Pass is required to post." : "Failed to post. Please try again.")
+        setError(body.error === "unauthenticated" ? "Please sign in to post." : "Failed to post. Please try again.")
         return
       }
       onSuccess()

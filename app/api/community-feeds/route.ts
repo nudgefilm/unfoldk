@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { hasProAccess } from "@/lib/auth/plan"
 
 export const dynamic = "force-dynamic"
 
@@ -45,23 +44,12 @@ const PostSchema = z.object({
   image_url:      z.string().url().optional(),
 })
 
-// POST /api/community-feeds — Pro 유저만 작성
+// POST /api/community-feeds — 로그인 유저 전체 작성 가능
 export async function POST(req: NextRequest) {
   const supabase = await createSupabaseServerClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 })
-
-  // Pro 유저 확인
-  const { data: profile } = await supabase
-    .from("users")
-    .select("plan_type, is_admin, trial_ends_at")
-    .eq("id", user.id)
-    .maybeSingle()
-  const row = profile as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
-  if (!hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin, trialEndsAt: row?.trial_ends_at })) {
-    return NextResponse.json({ error: "pro_required" }, { status: 403 })
-  }
 
   let raw: unknown
   try { raw = await req.json() } catch { return NextResponse.json({ error: "invalid_json" }, { status: 400 }) }
