@@ -291,6 +291,19 @@ export async function GET(req: Request) {
 
     const flightData = buildFlightData(rawFlight)
 
+    // 한국 공항(출발 또는 도착) 여부 검증
+    const KOREA_AIRPORTS = new Set(["ICN","GMP","PUS","CJU","TAE","KWJ","CJJ"])
+    const isKoreaFlight =
+      KOREA_AIRPORTS.has(flightData.departure.iata) ||
+      KOREA_AIRPORTS.has(flightData.arrival.iata)
+    if (!isKoreaFlight) {
+      const suggestions = await fetchICNSuggestions(apiKey)
+      return NextResponse.json(
+        { error: "Only flights to or from Korea are supported.", suggestions },
+        { status: 404 },
+      )
+    }
+
     if (flightData.status === "Landed" || flightData.status === "Cancelled") {
       cache.delete(flightNumber)
     } else {

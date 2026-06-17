@@ -26,7 +26,7 @@ export function RouteProgressBar({ flight }: Props) {
           <div className="text-[#94a3b8] text-center text-[11px] px-2">
             {flight
               ? `${flight.number} · ${pct}% · ${flight.distanceKm.toLocaleString()} km`
-              : "Search a flight to see the route"}
+              : "Track flights to and from Korea"}
           </div>
 
           <div className="flex items-baseline gap-1.5 justify-end min-w-[90px]">
