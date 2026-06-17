@@ -42,8 +42,9 @@ export function GlobalComms() {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(50)
-      .then(({ data }) => {
-        if (data) setMsgs((data as KMessage[]).reverse())
+      .then(({ data, error }) => {
+        if (error) console.error("[GlobalComms] initial load error:", error)
+        if (data)  setMsgs((data as KMessage[]).reverse())
       })
   }, [supabase])
 
@@ -65,17 +66,34 @@ export function GlobalComms() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [msgs])
 
+  const reload = async () => {
+    const { data, error } = await supabase
+      .from("kinbound_messages")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50)
+    if (error) console.error("[GlobalComms] reload error:", error)
+    if (data)  setMsgs((data as KMessage[]).reverse())
+  }
+
   const send = async () => {
     const text = input.trim()
     if (!text || cooldown || hasBadWord(text)) { setInput(""); return }
     setCooldown(true)
     setInput("")
     setTimeout(() => setCooldown(false), 30_000)
-    await supabase.from("kinbound_messages").insert({
+    const { error } = await supabase.from("kinbound_messages").insert({
       message:      text.slice(0, 100),
       city,
       country_code: ccCode,
     })
+    if (error) {
+      console.error("[GlobalComms] insert error:", error)
+      setCooldown(false)
+      return
+    }
+    // realtime fallback: 전송 후 직접 재조회
+    await reload()
   }
 
   return (
