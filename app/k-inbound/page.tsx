@@ -161,8 +161,8 @@ export default function KInboundPage() {
         <LiveTelemetryPanel flight={flight} />
       </div>
 
-      {/* 하단 경로 바 */}
-      <div className="absolute bottom-0 left-0 right-0 z-20">
+      {/* 하단 경로 바 — 중앙 카드 */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[5]" style={{ width: "600px", maxWidth: "60%" }}>
         <RouteProgressBar flight={flight} />
       </div>
 

@@ -13,8 +13,8 @@ export function RouteProgressBar({ flight }: Props) {
   const pct = flight ? Math.round(flight.progressRatio * 100) : 0
 
   return (
-    <div className="shrink-0 bg-black/75 backdrop-blur-sm border-t border-[#4a9eff]/20 px-4 pt-2 pb-3 font-mono">
-      <div className="max-w-3xl mx-auto">
+    <div className="backdrop-blur-sm px-4 pt-2 pb-3 font-mono rounded-xl" style={{ background: "rgba(0,0,0,0.75)", border: "1px solid rgba(255,255,255,0.15)" }}>
+      <div>
 
         {/* 상단 레이블 행 */}
         <div className="flex items-center justify-between text-[10px] mb-1.5">
