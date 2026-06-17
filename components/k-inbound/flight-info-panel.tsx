@@ -14,9 +14,9 @@ function delayMin(sched: string, actual?: string): number | null {
 }
 function Row({ label, value, cls = "text-white" }: { label: string; value: string; cls?: string }) {
   return (
-    <div className="grid grid-cols-[110px_1fr] gap-1 py-[3px]">
-      <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1 truncate">{label}</span>
-      <span className={`text-[13px] font-semibold ${cls}`}>{value}</span>
+    <div className="grid grid-cols-[110px_1fr] gap-1 py-[3px] group cursor-default">
+      <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1 truncate transition-colors duration-150 group-hover:text-white">{label}</span>
+      <span className={`text-[13px] font-semibold transition-all duration-150 group-hover:brightness-125 ${cls}`}>{value}</span>
     </div>
   )
 }
@@ -26,7 +26,7 @@ export function FlightInfoPanel({ flight }: Props) {
   const ad = flight ? delayMin(flight.arrival.scheduledTime, flight.arrival.estimatedTime) : null
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl p-4 overflow-hidden font-mono text-white">
+    <div className="shrink-0 flex flex-col bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl p-4 font-mono text-white">
 
       {/* 헤더 */}
       {flight ? (
@@ -35,33 +35,33 @@ export function FlightInfoPanel({ flight }: Props) {
             <span className="text-[#FF4B6E] text-base leading-none">✈</span>
             <span className="text-white font-bold tracking-wide text-[14px]">{flight.number}</span>
           </div>
-          <div className="text-[12px] text-[#cbd5e1]/80 mt-0.5">{flight.airline}</div>
+          <div className="text-[12px] text-[#cbd5e1]/80 mt-0.5 hover:text-white transition-colors duration-150 cursor-default">{flight.airline}</div>
         </div>
       ) : (
         <div className="mb-3 pb-2 border-b border-[#4a9eff]/20">
           <div className="text-[#FF4B6E] text-xs font-bold tracking-widest">✈ K-INBOUND</div>
           <div className="text-[11px] text-[#4a9eff]/70 uppercase tracking-wider">FLIGHT SIMULATOR</div>
-          <div className="mt-2 text-[11px] text-[#cbd5e1]/60 leading-relaxed">
-            항공편 번호 입력 시<br />실시간 비행 정보 표시
+          <div className="mt-2 text-[11px] text-[#cbd5e1]/60 leading-relaxed hover:text-[#cbd5e1] transition-colors duration-150 cursor-default">
+            Enter a flight number<br />to see live tracking data
           </div>
-          <div className="text-[11px] text-[#4a9eff]/50 mt-1">KE017 · OZ201 · AA280</div>
+          <div className="text-[11px] text-[#4a9eff]/50 mt-1 hover:text-[#4a9eff] transition-colors duration-150 cursor-default">KE017 · OZ201 · AA280</div>
         </div>
       )}
 
       {/* ROUTE */}
-      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0.5">Route</div>
-      <div className="text-sm font-bold text-[#FF4B6E] mb-1">
+      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0.5 hover:text-white transition-colors duration-150 cursor-default">Route</div>
+      <div className="text-sm font-bold text-[#FF4B6E] mb-1 hover:brightness-125 transition-all duration-150 cursor-default">
         {flight ? `${flight.departure.iata} → ${flight.arrival.iata}` : "—"}
       </div>
       {flight && (
-        <div className="text-[11px] text-[#cbd5e1]/70 mb-3 leading-relaxed">
+        <div className="text-[11px] text-[#cbd5e1]/70 mb-3 leading-relaxed hover:text-[#cbd5e1] transition-colors duration-150 cursor-default">
           {flight.departure.name}<br />{flight.arrival.name}
         </div>
       )}
       {!flight && <div className="text-[11px] text-[#cbd5e1]/30 mb-3">—</div>}
 
       {/* DEPARTURE */}
-      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0.5 mt-1">Departure</div>
+      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0.5 mt-1 hover:text-white transition-colors duration-150 cursor-default">Departure</div>
       <Row label="Scheduled" value={flight ? fmtTime(flight.departure.scheduledTime) : "—"} />
       <Row
         label="Actual"
@@ -72,7 +72,7 @@ export function FlightInfoPanel({ flight }: Props) {
       />
 
       {/* ARRIVAL */}
-      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0.5 mt-2">Arrival</div>
+      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0.5 mt-2 hover:text-white transition-colors duration-150 cursor-default">Arrival</div>
       <Row label="Scheduled" value={flight ? fmtTime(flight.arrival.scheduledTime) : "—"} />
       <Row
         label="Estimated"
@@ -83,7 +83,7 @@ export function FlightInfoPanel({ flight }: Props) {
       />
 
       {/* TERMINAL / GATE */}
-      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0.5 mt-2">Terminal / Gate</div>
+      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0.5 mt-2 hover:text-white transition-colors duration-150 cursor-default">Terminal / Gate</div>
       <Row label="Terminal" value={flight?.departure.terminal ?? "—"} />
       <Row label="Gate" value={flight?.departure.gate ?? "—"} />
     </div>

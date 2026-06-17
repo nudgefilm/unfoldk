@@ -89,7 +89,7 @@ export default function KInboundPage() {
             <div className="text-[#4a9eff] text-3xl mb-4">✈</div>
             <div className="text-white text-sm font-bold tracking-widest uppercase mb-1">K-INBOUND FLIGHT SIMULATOR</div>
             <p className="text-xs text-[#94a3b8]/60 mb-1">Track real-time flights inbound to Korea on a 3D globe.</p>
-            <p className="text-[11px] text-[#94a3b8]/40 mb-6">한국행 항공편을 3D 지구본에서 실시간으로 추적하세요.</p>
+            <p className="text-[11px] text-[#94a3b8]/40 mb-6">Live altitude, speed &amp; route — all on one screen.</p>
             {authState === "unauthenticated" ? (
               <>
                 <Link href="/signup" className="block w-full py-3 rounded-xl bg-[#FF4B6E] hover:bg-[#ff6080] text-white font-semibold text-sm transition-colors mb-2">
@@ -122,7 +122,7 @@ export default function KInboundPage() {
 
         {/* 좌측 패널 열 (md+ 표시) */}
         <div
-          className="hidden md:flex w-[280px] shrink-0 flex-col gap-2 p-2 border-r border-[#4a9eff]/12 overflow-hidden transition-opacity duration-300"
+          className="hidden md:flex w-[280px] shrink-0 flex-col gap-2 p-2 border-r border-[#4a9eff]/12 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-opacity duration-300"
           style={{ opacity: globeHovered ? 0.3 : 1 }}
           onMouseEnter={() => setGlobeHovered(false)}
         >
@@ -148,7 +148,7 @@ export default function KInboundPage() {
 
         {/* 우측 패널 열 (md+ 표시) */}
         <div
-          className="hidden md:flex w-[280px] shrink-0 flex-col gap-2 p-2 border-l border-[#4a9eff]/12 overflow-hidden transition-opacity duration-300"
+          className="hidden md:flex w-[280px] shrink-0 flex-col gap-2 p-2 border-l border-[#4a9eff]/12 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-opacity duration-300"
           style={{ opacity: globeHovered ? 0.3 : 1 }}
           onMouseEnter={() => setGlobeHovered(false)}
         >

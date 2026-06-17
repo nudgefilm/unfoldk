@@ -28,9 +28,9 @@ const STATUS_COLOR: Record<string, string> = {
 
 function Row({ label, value, cls = "text-white" }: { label: string; value: string; cls?: string }) {
   return (
-    <div className="grid grid-cols-[110px_1fr] gap-1 py-[3px]">
-      <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1 truncate">{label}</span>
-      <span className={`text-[13px] font-semibold ${cls}`}>{value}</span>
+    <div className="grid grid-cols-[110px_1fr] gap-1 py-[3px] group cursor-default">
+      <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1 truncate transition-colors duration-150 group-hover:text-white">{label}</span>
+      <span className={`text-[13px] font-semibold transition-all duration-150 group-hover:brightness-125 ${cls}`}>{value}</span>
     </div>
   )
 }
@@ -43,13 +43,13 @@ export function FlightStatusPanel({ flight }: Props) {
   const statusCls = flight ? (STATUS_COLOR[flight.status] ?? "text-[#cbd5e1]") : "text-[#cbd5e1]/40"
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl p-4 overflow-hidden font-mono text-white">
-      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-2">Flight Status</div>
+    <div className="shrink-0 flex flex-col bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl p-4 font-mono text-white">
+      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-2 hover:text-white transition-colors duration-150 cursor-default">Flight Status</div>
 
       {/* STATUS */}
-      <div className="grid grid-cols-[110px_1fr] gap-1 py-[3px] mb-1">
-        <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1">Status</span>
-        <span className={`text-[13px] font-bold ${statusCls}`}>
+      <div className="grid grid-cols-[110px_1fr] gap-1 py-[3px] mb-1 group cursor-default">
+        <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1 transition-colors duration-150 group-hover:text-white">Status</span>
+        <span className={`text-[13px] font-bold transition-all duration-150 group-hover:brightness-125 ${statusCls}`}>
           {flight?.status ?? "◌ STANDBY"}
         </span>
       </div>

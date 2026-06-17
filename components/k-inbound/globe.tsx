@@ -13,20 +13,43 @@ export interface GlobeHandle {
 
 interface Props { className?: string }
 
-// 더미 항공기 글로벌 노선 (출발 lat/lng, 도착 lat/lng)
-const DUMMY_ROUTES: [number, number, number, number][] = [
-  [37.46, 126.44, 35.77, 140.39],  // ICN → NRT
-  [51.50,  -0.12, 40.64, -73.78],  // LHR → JFK
-  [33.94,-118.41, 35.67, 139.65],  // LAX → HND
-  [19.07,  72.87, 48.86,   2.35],  // BOM → CDG
-  [-33.94, 151.18, 1.36, 103.99],  // SYD → SIN
-  [25.25,  55.37, 37.46, 126.44],  // DXB → ICN
-  [52.31,   4.76, 22.31, 113.92],  // AMS → HKG
-  [40.64, -73.78, 37.46, 126.44],  // JFK → ICN (한국행)
+// 세계 주요 항공 경로 12개
+const MAJOR_ROUTES: { from: [number, number]; to: [number, number] }[] = [
+  { from: [37.46, 126.44], to: [40.63,  -73.78] }, // ICN → JFK
+  { from: [37.46, 126.44], to: [51.47,   -0.46] }, // ICN → LHR
+  { from: [37.46, 126.44], to: [33.94, -118.40] }, // ICN → LAX
+  { from: [35.76, 140.38], to: [40.63,  -73.78] }, // NRT → JFK
+  { from: [22.30, 113.91], to: [51.47,   -0.46] }, // HKG → LHR
+  { from: [25.25,  55.36], to: [51.47,   -0.46] }, // DXB → LHR
+  { from: [ 1.35, 103.98], to: [51.47,   -0.46] }, // SIN → LHR
+  { from: [40.63, -73.78], to: [49.00,    2.54] }, // JFK → CDG
+  { from: [-33.94, 151.17], to: [1.35,  103.98] }, // SYD → SIN
+  { from: [37.46, 126.44], to: [49.00,    2.54] }, // ICN → CDG
+  { from: [50.03,   8.57], to: [40.63,  -73.78] }, // FRA → JFK
+  { from: [13.68, 100.74], to: [37.46,  126.44] }, // BKK → ICN
 ]
+
+const TRAIL_LEN   = 20
+const DUMMY_COUNT = 5
+
+interface DummyState {
+  sprite:         THREE.Sprite
+  mat:            THREE.SpriteMaterial
+  trailLine:      THREE.Line
+  trailPositions: Float32Array
+  trailColors:    Float32Array
+  routeIdx:       number
+  t:              number
+  speed:          number
+  history:        THREE.Vector3[]
+}
 
 function easeInOutCubic(t: number) {
   return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2
+}
+
+function randBetween(min: number, max: number) {
+  return min + Math.random() * (max - min)
 }
 
 // 더미 항공기 텍스처 — 배경 없이 ✈ 아이콘만 (#FF4B6E)
@@ -42,7 +65,7 @@ function makeAircraftTexture(size: number): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c)
 }
 
-// 주 항공기 텍스처 — 배경 없이 ✈ 아이콘만, 흰색으로 더미와 구분
+// 주 항공기 텍스처 — 흰색으로 더미와 구분
 function makeMainAircraftTexture(size: number): THREE.CanvasTexture {
   const c = document.createElement("canvas")
   c.width = size; c.height = size
@@ -56,9 +79,9 @@ function makeMainAircraftTexture(size: number): THREE.CanvasTexture {
 }
 
 const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ className }, ref) {
-  const mountRef   = useRef<HTMLDivElement>(null)
-  const flightRef  = useRef<FlightData | null>(null)
-  const flyToRef   = useRef<((lat: number, lng: number, duration: number) => void) | null>(null)
+  const mountRef  = useRef<HTMLDivElement>(null)
+  const flightRef = useRef<FlightData | null>(null)
+  const flyToRef  = useRef<((lat: number, lng: number, duration: number) => void) | null>(null)
 
   useImperativeHandle(ref, () => ({
     setFlight(f) { flightRef.current = f },
@@ -70,33 +93,18 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     if (!mount) return
     const w = mount.clientWidth, h = mount.clientHeight
 
-    // ── 렌더러 ─────────────────────────────────────────────────────
+    // ── 렌더러
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setSize(w, h)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     mount.appendChild(renderer.domElement)
 
-    const scene = new THREE.Scene()
+    const scene  = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100)
-    // 초기 카메라 — 한국(동아시아) 중심
     camera.position.copy(latLngToVec3(37, 127).multiplyScalar(2.8))
 
-    // ── 조명 (중성 백색)
-    scene.add(new THREE.AmbientLight(0xffffff, 1.2))
-    const frontLight = new THREE.DirectionalLight(0xffffff, 0.9)
-    frontLight.position.set(0, 0, 5)
-    scene.add(frontLight)
-    const pl1 = new THREE.PointLight(0xffffff, 0.6)
-    pl1.position.set(-2, 3, 2); scene.add(pl1)
-
-    // ── 지구 구체 (순수 다크, 글로우 없음)
-    scene.add(new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64),
-      new THREE.MeshPhongMaterial({ color: 0x080808, shininess: 20 }),
-    ))
-
-    // ── 위도/경도 격자 (선명) ───────────────────────────────────────
-    const gratMat = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.10, transparent: true })
+    // ── 위도/경도 격자
+    const gratMat = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.12, transparent: true })
     ;([-60, -30, 0, 30, 60] as number[]).forEach(lat => {
       const pts = Array.from({ length: 65 }, (_, i) =>
         latLngToVec3(lat, (i / 64) * 360 - 180, GLOBE_RADIUS + 0.002))
@@ -108,8 +116,8 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gratMat))
     })
 
-    // ── 대륙선 (Ghost War 네온 그린) ───────────────────────────────
-    const landMat = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.35, transparent: true })
+    // ── 대륙선
+    const landMat = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.75, transparent: true })
     fetch("/ne_110m_land.json")
       .then(r => r.json())
       .then((data: { features: Array<{ geometry: { type: string; coordinates: unknown } }> }) => {
@@ -128,7 +136,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       })
       .catch(() => {})
 
-    // ── OrbitControls ───────────────────────────────────────────────
+    // ── OrbitControls
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.autoRotate      = true
     controls.autoRotateSpeed = 0.2
@@ -139,33 +147,50 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     controls.target.set(0, 0, 0)
     controls.update()
 
-    // ── 항공 경로 Arc ───────────────────────────────────────────────
+    // ── 실제 항공편 Arc + 주 항공기
     const arcMat = new THREE.LineBasicMaterial({ color: 0x00e5ff, opacity: 0, transparent: true })
     let arcLine: THREE.Line | null = null
 
-    // ── 주 항공기 스프라이트 (금색 ✈) ──────────────────────────────
-    const mainTex = makeMainAircraftTexture(48)
-    const mainMat = new THREE.SpriteMaterial({ map: mainTex, transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true })
+    const mainTex    = makeMainAircraftTexture(48)
+    const mainMat    = new THREE.SpriteMaterial({ map: mainTex, transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true })
     const mainSprite = new THREE.Sprite(mainMat)
     mainSprite.scale.set(0.07, 0.07, 1)
     scene.add(mainSprite)
 
-    // ── 더미 항공기 ✈ 스프라이트 (8기) ────────────────────────────
+    // ── 더미 항공기 5기 — 각자 랜덤 경로, 꼬리 궤적
     const dummyTex = makeAircraftTexture(36)
-    const dummies = Array.from({ length: 8 }, (_, i) => {
-      const mat = new THREE.SpriteMaterial({ map: dummyTex, transparent: true, opacity: 0.90, depthWrite: false, sizeAttenuation: true })
+
+    const dummies: DummyState[] = Array.from({ length: DUMMY_COUNT }, () => {
+      const mat    = new THREE.SpriteMaterial({ map: dummyTex, transparent: true, opacity: 0.9, depthWrite: false, sizeAttenuation: true })
       const sprite = new THREE.Sprite(mat)
       sprite.scale.set(0.045, 0.045, 1)
       scene.add(sprite)
-      const route = DUMMY_ROUTES[i % DUMMY_ROUTES.length]
-      // 각 기체를 서로 다른 진행도에서 시작
-      const phaseOffset = i / 8
-      const durationMs  = 3_600_000 * 4 + i * 1_200_000  // 4~6.3시간
-      const startTime   = Date.now() - phaseOffset * durationMs
-      return { sprite, route, startTime, durationMs }
+
+      // 꼬리 궤적 — vertexColors 로 앞→뒤 밝기 그라데이션
+      const trailPositions = new Float32Array(TRAIL_LEN * 3)
+      const trailColors    = new Float32Array(TRAIL_LEN * 3)
+      const trailGeo       = new THREE.BufferGeometry()
+      trailGeo.setAttribute("position", new THREE.BufferAttribute(trailPositions, 3))
+      trailGeo.setAttribute("color",    new THREE.BufferAttribute(trailColors,    3))
+      trailGeo.setDrawRange(0, 0)
+      const trailMat  = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false })
+      const trailLine = new THREE.Line(trailGeo, trailMat)
+      scene.add(trailLine)
+
+      return {
+        sprite,
+        mat,
+        trailLine,
+        trailPositions,
+        trailColors,
+        routeIdx: Math.floor(Math.random() * MAJOR_ROUTES.length),
+        t:        Math.random(),                      // 랜덤 시작 진행도
+        speed:    randBetween(0.0003, 0.0008),        // 프레임당 진행 속도
+        history:  [] as THREE.Vector3[],
+      }
     })
 
-    // ── flyTo ───────────────────────────────────────────────────────
+    // ── flyTo
     flyToRef.current = (lat: number, lng: number, duration: number) => {
       controls.autoRotate = false
       const t0       = performance.now()
@@ -184,11 +209,12 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       requestAnimationFrame(tick)
     }
 
-    // ── 애니메이션 루프 ─────────────────────────────────────────────
+    // ── 애니메이션 루프
     let animId: number
     const loop = () => {
       animId = requestAnimationFrame(loop)
       controls.update()
+
       const now    = Date.now()
       const flight = flightRef.current
 
@@ -197,15 +223,18 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         arcMat.opacity  = Math.min(arcMat.opacity + 0.02, 0.85)
         mainMat.opacity = Math.min(mainMat.opacity + 0.02, 1)
         if (!arcLine) {
-          const pts = getArcPoints(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng)
+          const pts = getArcPoints(
+            flight.departure.lat, flight.departure.lng,
+            flight.arrival.lat,   flight.arrival.lng,
+          )
           arcLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), arcMat)
           scene.add(arcLine)
         }
         const elapsed = now - flight.fetchedAt
         const total   = flight.elapsedMs + flight.remainingMs || 1
-        const t       = Math.min(flight.progressRatio + elapsed / total, 1)
+        const ft      = Math.min(flight.progressRatio + elapsed / total, 1)
         mainSprite.position.copy(
-          getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, t)
+          getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, ft)
         )
       } else {
         arcMat.opacity  = Math.max(arcMat.opacity - 0.01, 0)
@@ -213,20 +242,64 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         if (arcLine && arcMat.opacity <= 0) { scene.remove(arcLine); arcLine = null }
       }
 
-      // 더미 항공기 위치 업데이트
+      // 더미 항공기 업데이트
       for (const d of dummies) {
-        const elapsed = now - d.startTime
-        // 0.02 ~ 0.98 범위로 클램핑해서 노선 끝점 근처 z-fighting 방지
-        const t = Math.max(0.02, Math.min(0.98, (elapsed % d.durationMs) / d.durationMs))
-        const [f1, f2, t1, t2] = d.route
-        d.sprite.position.copy(getPointOnArc(f1, f2, t1, t2, t))
+        d.t += d.speed
+        if (d.t >= 1.0) {
+          // 도착 → 새 경로 랜덤 배정, 꼬리 리셋
+          d.t        = 0
+          d.routeIdx = Math.floor(Math.random() * MAJOR_ROUTES.length)
+          d.history  = []
+          ;(d.trailLine.geometry as THREE.BufferGeometry).setDrawRange(0, 0)
+        }
+
+        const { from, to } = MAJOR_ROUTES[d.routeIdx]
+        const [fromLat, fromLng] = from
+        const [toLat,   toLng  ] = to
+
+        // 현재 위치
+        const pos = getPointOnArc(fromLat, fromLng, toLat, toLng, d.t)
+        d.sprite.position.copy(pos)
+
+        // 진행 방향 → 스프라이트 2D 회전 정렬
+        const tNext   = Math.min(d.t + 0.01, 0.99)
+        const posNext = getPointOnArc(fromLat, fromLng, toLat, toLng, tNext)
+        const ndcNow  = pos.clone().project(camera)
+        const ndcNext = posNext.clone().project(camera)
+        const dx = ndcNext.x - ndcNow.x
+        const dy = ndcNext.y - ndcNow.y
+        if (Math.abs(dx) + Math.abs(dy) > 0.0005) {
+          // ✈ 문자가 기본적으로 우상향(~45°)을 향하므로 π/4 오프셋
+          d.mat.rotation = Math.atan2(dy, dx) - Math.PI / 4
+        }
+
+        // 꼬리 history 갱신 (현재 위치를 앞에 추가, 20개 초과 시 제거)
+        d.history.unshift(pos.clone())
+        if (d.history.length > TRAIL_LEN) d.history.pop()
+
+        // 꼬리 버퍼 업데이트 — #FF4B6E (1.0, 0.294, 0.431) 앞→검정 뒤
+        const n = d.history.length
+        for (let j = 0; j < n; j++) {
+          const p     = d.history[j]
+          const alpha = 1.0 - j / TRAIL_LEN
+          d.trailPositions[j * 3]     = p.x
+          d.trailPositions[j * 3 + 1] = p.y
+          d.trailPositions[j * 3 + 2] = p.z
+          d.trailColors[j * 3]        = 1.0   * alpha  // R
+          d.trailColors[j * 3 + 1]    = 0.294 * alpha  // G
+          d.trailColors[j * 3 + 2]    = 0.431 * alpha  // B
+        }
+        const trailGeo = d.trailLine.geometry as THREE.BufferGeometry
+        trailGeo.setDrawRange(0, n)
+        ;(trailGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true
+        ;(trailGeo.attributes.color    as THREE.BufferAttribute).needsUpdate = true
       }
 
       renderer.render(scene, camera)
     }
     loop()
 
-    // ── 리사이즈 ────────────────────────────────────────────────────
+    // ── 리사이즈
     const onResize = () => {
       const w2 = mount.clientWidth, h2 = mount.clientHeight
       camera.aspect = w2 / h2
