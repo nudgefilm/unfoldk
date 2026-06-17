@@ -61,7 +61,7 @@ const content = {
       },
       {
         title: "7. International Transfers",
-        content: `Our infrastructure (Supabase, Vercel, Resend, Lemon Squeezy) processes data in the EU and US. Transfers outside the EEA rely on Standard Contractual Clauses (SCCs) or equivalent safeguards.`,
+        content: `Our infrastructure (Supabase, Vercel, Resend, Paddle) processes data in the EU and US. Transfers outside the EEA rely on Standard Contractual Clauses (SCCs) or equivalent safeguards.`,
       },
       {
         title: "8. Contact",
@@ -121,7 +121,7 @@ const content = {
       },
       {
         title: "7. 국외 이전",
-        content: `이용 인프라(Supabase, Vercel, Resend, Lemon Squeezy)는 EU·미국에서 데이터를 처리합니다. EEA 밖 이전은 표준계약조항(SCC) 등 동등 보호조치를 통해 이루어집니다.`,
+        content: `이용 인프라(Supabase, Vercel, Resend, Paddle)는 EU·미국에서 데이터를 처리합니다. EEA 밖 이전은 표준계약조항(SCC) 등 동등 보호조치를 통해 이루어집니다.`,
       },
       {
         title: "8. 문의",

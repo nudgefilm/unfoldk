@@ -1,7 +1,7 @@
 "use client"
 
-// 결제 실패 화면 — Lemon Squeezy 가 실패 시 redirect 시키는 페이지 (Settings 의 Cancel URL)
-// 다시 시도 → /start (플랜 선택 + LMS 체크아웃 진입)
+// 결제 실패 화면 — Paddle 결제 실패/취소 시 redirect 되는 페이지
+// 다시 시도 → /start (플랜 선택 + Paddle 체크아웃 진입)
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"

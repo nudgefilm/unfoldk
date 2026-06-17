@@ -66,7 +66,7 @@ export default function CookiePage() {
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li>Supabase Auth — sign-in session.</li>
                   <li>Google OAuth — sign-in via Google.</li>
-                  <li>Lemon Squeezy — checkout and subscription management.</li>
+                  <li>Paddle — checkout and subscription management.</li>
                 </ul>
               </Section>
 
@@ -108,7 +108,7 @@ export default function CookiePage() {
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li>Supabase Auth — 로그인 세션</li>
                   <li>Google OAuth — Google 로그인</li>
-                  <li>Lemon Squeezy — 결제·구독 관리</li>
+                  <li>Paddle — 결제·구독 관리</li>
                 </ul>
               </Section>
 

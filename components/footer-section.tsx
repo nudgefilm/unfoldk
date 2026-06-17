@@ -138,7 +138,7 @@ export function FooterSection() {
           </div>
           {/* 결제 처리자 / TMDB 라이선스 표기 — 소셜 아이콘 아래 2줄 배치 */}
           <div className="flex flex-col gap-1 text-muted-foreground/70 text-xs leading-relaxed">
-            <p>Payments processed by Lemon Squeezy.</p>
+            <p>Payments processed by Paddle.</p>
             <p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
           </div>
         </div>

@@ -25,7 +25,7 @@
 | 프론트 | Next.js (App Router) + TypeScript, Vercel 배포 |
 | 백엔드 | Python FastAPI, Railway |
 | DB/Auth | Supabase (Google/Apple OAuth + 이메일) |
-| 결제 | **Lemon Squeezy (MoR)** — TossPayments 영구 제외 |
+| 결제 | **Paddle (MoR, KYB 심사 중 2026-06-17 제출)** — TossPayments 영구 제외 |
 | AI | Claude API Haiku 4.5 ($1/$5 per 1M, 배치 API) |
 | TTS | ElevenLabs Creator ($22/월, HangeulGo 전용) |
 | 이메일 | Resend (무료 3,000건/월) |
@@ -166,7 +166,7 @@ Hallyu Pass   $72/년     Pro + 33% 할인 ($6/월)
 - 나머지 아티스트 상세 → Pro 잠금 (잠금 UI: "Coming with Hallyu Pass")
 
 ### 결제 연동 전 임시 Free 확대 정책 (2026-05-16~ / 결제 연동 시 복원)
-**배경**: Lemon Squeezy 결제 연동 전까지 Free 유저도 핵심 기능을 충분히 체험할 수 있도록 게이팅 완화. 결제 연동 시 아래 표의 "복원 후" 상태로 되돌리는 commit 필요.
+**배경**: Paddle 결제 연동 전까지 Free 유저도 핵심 기능을 충분히 체험할 수 있도록 게이팅 완화. 결제 연동 시 아래 표의 "복원 후" 상태로 되돌리는 commit 필요.
 
 | 기능 | 현재 (임시) | 복원 후 (결제 가동 시) | 비고 |
 |------|------------|---------------------|------|
@@ -584,7 +584,7 @@ Phase 3 — 한국 현지 연계:
 ```
 ❌ YouTube API 를 tubewatch.kr 와 같은 GCP 프로젝트 → 쿼터 초과 시 양쪽 중단
 ❌ Spotify API → 2025.05 부터 법인 전용. Last.fm 대체
-❌ TossPayments → 해외 유저 경험 불량. Lemon Squeezy 확정
+❌ TossPayments → 해외 유저 경험 불량. Paddle 확정 (KYB 심사 중, 2026-06-17 제출)
 ❌ KOPIS API 재가동 → 국내 공연만 제공, 글로벌 유저 대상 서비스 부적합 (2026-05-16 폐기)
    글로벌 공연은 Ticketmaster 가 담당. cron + lib/api/kopis + lib/ingest/kopis 모두 제거.
    DB 잔존 행도 SQL `DELETE FROM hallyu_calendar_events WHERE source_api='kopis'` 로 정리됨.

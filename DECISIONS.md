@@ -21,6 +21,28 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-06-17 결제 수단 Lemon Squeezy → Paddle 전환 (현황 기록)
+
+- 결정 내용:
+  - Hallyu Pass 결제를 Lemon Squeezy에서 Paddle Billing으로 전환.
+  - 구현 완료:
+    - `lib/paddle/constants.ts` — Price ID (Hallyu Pass 월/연, Sourcing Sniper 월/연/일회성, Supplier Pro 월/연)
+    - `components/PaddleProvider.tsx` — `initializePaddle()` + `usePaddle()` hook
+    - `app/api/paddle/webhook/route.ts` — HMAC 서명 검증 + 구독 활성화/취소/일시정지 처리
+    - `components/pricing-section.tsx` — `paddle.Checkout.open()` overlay 방식
+    - `app/layout.tsx` — `<PaddleProvider>` 마운트
+    - `supabase/migrations/0074_paddle_columns.sql` — `paddle_customer_id`, `paddle_subscription_id` 컬럼
+  - 미완료 / 확인 필요:
+    - Vercel 환경변수 등록: `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`, `NEXT_PUBLIC_PADDLE_ENVIRONMENT`, `PADDLE_WEBHOOK_SECRET`
+    - migration `0074` Supabase 실제 실행 여부
+    - Paddle Sandbox → Production 전환 (`PADDLE_ENV` 기본값 현재 `sandbox`)
+    - `/mypage/subscription` 페이지 — Lemon Squeezy checkout 링크 잔존 여부 점검 필요
+    - CLAUDE.md §2 기술 스택 "Lemon Squeezy (MoR)" 표기 → "Paddle (MoR)" 업데이트 필요
+- 이유:
+  - Paddle이 Lemon Squeezy 대비 overlay checkout(인앱 결제 UX), 더 넓은 글로벌 MoR 커버리지, 안정적인 API 제공.
+- 대안으로 고려했던 것:
+  - Lemon Squeezy 유지 — 기존 `app/api/lemonsqueezy/` 라우트 3개 잔존 (checkout/webhook/switch), 추후 정리 가능.
+
 ## 2026-06-08 Supplier Pro 구독 플랜 결제 구조 확정
 
 - 결정 내용:

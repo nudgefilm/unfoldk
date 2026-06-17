@@ -7,10 +7,25 @@ import { BentoSection, type ServiceStats } from "@/components/bento-section"
 import { FooterSection } from "@/components/footer-section"
 import { AnimatedSection } from "@/components/animated-section"
 import { UnauthorizedToast } from "@/components/unauthorized-toast"
-import { YoutubeVideoSection } from "@/components/shared/youtube-video-section"
-import { HomePhraseCard, type PhraseData } from "@/components/home/home-phrase-card"
-import { HomeCTASection } from "@/components/home/home-cta-section"
 import { KpopTop30Chart, type Top30Artist } from "@/components/home/kpop-top30-chart"
+import {
+  ThisMonthHallyu,
+  type ThisMonthHallyuData,
+  type MonthEvent,
+} from "@/components/home/this-month-hallyu"
+import {
+  GlobalHallyuPulse,
+  type RisingArtist,
+  type CountryTopArtist,
+  type TopDrama,
+} from "@/components/home/global-hallyu-pulse"
+import {
+  HallyuThisWeek,
+  type WeekEvent,
+  type WeekDrama,
+  type WeekPhrase,
+  type WeekRecipe,
+} from "@/components/home/hallyu-this-week"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 export const revalidate = 3600
@@ -38,41 +53,6 @@ interface NewsPreview {
   published_at: string | null
 }
 
-interface KpopChartItem {
-  rank: number
-  name: string
-  listeners: number | null
-  rankChange: number | null
-}
-
-interface EventPreview {
-  id: string
-  title: string
-  type: string | null
-  event_date: string
-  artist_or_drama: string | null
-}
-
-interface DramaPreview {
-  id: string
-  title: string
-  poster_url: string | null
-  genre: string | null
-}
-
-interface KpopCountryItem {
-  countryCode: string
-  totalListeners: number
-}
-
-interface TopDramaItem {
-  id: string
-  title: string
-  poster_url: string | null
-  genre: string | null
-  popularity: number | null
-}
-
 interface RawServiceStats {
   calendarEventsThisWeek: number
   dramasCount: number
@@ -81,12 +61,39 @@ interface RawServiceStats {
   filmingSpotsCount: number
 }
 
-// ── 데이터 페치 함수 ──────────────────────────────────────────────────────────
+// ── 헬퍼 ─────────────────────────────────────────────────────────────────────
 
 function parseNewsPreview(summary: string | null): string | null {
   if (!summary) return null
   try { return (JSON.parse(summary) as { p1?: string }).p1 ?? null } catch { return null }
 }
+
+function formatShortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
+const CATEGORY_BADGE: Record<string, string> = {
+  kpop:    "bg-purple-500/20 text-purple-300",
+  kdrama:  "bg-blue-500/20 text-blue-300",
+  kbeauty: "bg-pink-500/20 text-pink-300",
+  general: "bg-zinc-500/20 text-zinc-300",
+}
+const CATEGORY_LABEL: Record<string, string> = {
+  kpop: "K-Pop", kdrama: "K-Drama", kbeauty: "K-Beauty", general: "General",
+}
+
+// ISO week string (e.g. "2026-W25") for food_recipes.featured_week
+function getISOWeekString(): string {
+  const now = new Date()
+  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`
+}
+
+// ── 데이터 페치 함수 ──────────────────────────────────────────────────────────
 
 async function fetchLatestGeneratedNews(): Promise<NewsPreview[]> {
   const admin = createSupabaseAdminClient()
@@ -98,117 +105,6 @@ async function fetchLatestGeneratedNews(): Promise<NewsPreview[]> {
     .limit(3)
   if (error) return []
   return (data ?? []) as NewsPreview[]
-}
-
-async function fetchKpopTop5(): Promise<KpopChartItem[]> {
-  const admin = createSupabaseAdminClient()
-
-  const { data: latestRow } = await admin
-    .from("kpop_stats_daily")
-    .select("date")
-    .order("date", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (!latestRow) return []
-  const latestDate = (latestRow as { date: string }).date
-
-  const { data: current } = await admin
-    .from("kpop_stats_daily")
-    .select("artist_id, lastfm_listeners")
-    .eq("date", latestDate)
-    .order("lastfm_listeners", { ascending: false })
-    .limit(20)
-  if (!current || current.length === 0) return []
-
-  const artistIds = (current as { artist_id: string }[]).map(r => r.artist_id)
-  const { data: artists } = await admin
-    .from("kpop_artists")
-    .select("id, name")
-    .in("id", artistIds)
-
-  const nameMap = new Map(
-    ((artists ?? []) as { id: string; name: string }[]).map(a => [a.id, a.name])
-  )
-
-  const cutoff = new Date(latestDate)
-  cutoff.setDate(cutoff.getDate() - 7)
-  const cutoffEnd = cutoff.toISOString().split("T")[0]
-  const cutoffStart = new Date(cutoff.getTime() - 3 * 86400_000).toISOString().split("T")[0]
-
-  const { data: oldStats } = await admin
-    .from("kpop_stats_daily")
-    .select("artist_id, lastfm_listeners")
-    .lte("date", cutoffEnd)
-    .gte("date", cutoffStart)
-    .order("lastfm_listeners", { ascending: false })
-    .limit(30)
-
-  const oldSorted = ((oldStats ?? []) as { artist_id: string; lastfm_listeners: number | null }[])
-    .slice()
-    .sort((a, b) => (b.lastfm_listeners ?? 0) - (a.lastfm_listeners ?? 0))
-  const oldRankMap = new Map(oldSorted.map((r, i) => [r.artist_id, i + 1]))
-
-  return (current as { artist_id: string; lastfm_listeners: number | null }[])
-    .slice(0, 5)
-    .map((r, i) => {
-      const currentRank = i + 1
-      const oldRank = oldRankMap.get(r.artist_id)
-      return {
-        rank: currentRank,
-        name: nameMap.get(r.artist_id) ?? "—",
-        listeners: r.lastfm_listeners,
-        rankChange: oldRank != null ? oldRank - currentRank : null,
-      }
-    })
-}
-
-async function fetchUpcomingEvents(): Promise<EventPreview[]> {
-  const admin = createSupabaseAdminClient()
-  const now = new Date().toISOString()
-  const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-  const { data, error } = await admin
-    .from("hallyu_calendar_events")
-    .select("id, title, type, event_date, artist_or_drama")
-    .eq("is_premium", false)
-    .gte("event_date", now)
-    .lte("event_date", sevenDaysLater)
-    .order("event_date", { ascending: true })
-    .limit(5)
-  if (error) return []
-  return (data ?? []) as EventPreview[]
-}
-
-async function fetchTodayPhrase(): Promise<PhraseData | null> {
-  const admin = createSupabaseAdminClient()
-  const seoulNow = new Date(Date.now() + 9 * 60 * 60 * 1000)
-  const today = seoulNow.toISOString().split("T")[0]
-
-  const { data: featured } = await admin
-    .from("korean_phrases")
-    .select("id, korean, romanization, english, drama_name")
-    .eq("featured_date", today)
-    .maybeSingle()
-  if (featured) return featured as PhraseData
-
-  const { data: latest } = await admin
-    .from("korean_phrases")
-    .select("id, korean, romanization, english, drama_name")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  return latest ? (latest as PhraseData) : null
-}
-
-async function fetchLatestDramas(): Promise<DramaPreview[]> {
-  const admin = createSupabaseAdminClient()
-  const { data, error } = await admin
-    .from("dramas")
-    .select("id, title, poster_url, genre")
-    .order("year", { ascending: false })
-    .order("rating", { ascending: false })
-    .limit(6)
-  if (error) return []
-  return (data ?? []) as DramaPreview[]
 }
 
 async function fetchServiceStats(): Promise<RawServiceStats | null> {
@@ -273,10 +169,149 @@ async function fetchKpopTop30(): Promise<Top30Artist[]> {
   }))
 }
 
-async function fetchKpopByCountry(): Promise<KpopCountryItem[]> {
+// ── 섹션 A: THIS MONTH IN HALLYU ─────────────────────────────────────────────
+
+async function fetchThisMonthHallyu(): Promise<ThisMonthHallyuData> {
+  const admin = createSupabaseAdminClient()
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+  const monthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+
+  const { data, error } = await admin
+    .from("hallyu_calendar_events")
+    .select("id, title, type, event_date, artist_or_drama, venue_city, venue_country_code")
+    .gte("event_date", monthStart)
+    .lte("event_date", monthEnd)
+    .order("event_date", { ascending: true })
+    .limit(100)
+
+  if (error || !data) {
+    return { countryCount: 0, cityCount: 0, topCities: [], comebacks: [], dramaEvents: [], monthLabel }
+  }
+
+  const rows = data as {
+    id: string; title: string; type: string | null; event_date: string;
+    artist_or_drama: string | null; venue_city: string | null; venue_country_code: string | null
+  }[]
+
+  const countryCodes = new Set<string>()
+  const cities = new Set<string>()
+  const cityCounts = new Map<string, number>()
+
+  for (const r of rows) {
+    if (r.venue_country_code) countryCodes.add(r.venue_country_code)
+    if (r.venue_city) {
+      cities.add(r.venue_city)
+      cityCounts.set(r.venue_city, (cityCounts.get(r.venue_city) ?? 0) + 1)
+    }
+  }
+
+  const topCities = [...cityCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([city]) => city)
+
+  const toMonthEvent = (r: typeof rows[number]): MonthEvent => ({
+    id: r.id,
+    title: r.title,
+    artist_or_drama: r.artist_or_drama ?? r.title,
+    event_date: r.event_date,
+  })
+
+  const comebacks = rows.filter(r => r.type === "comeback").slice(0, 4).map(toMonthEvent)
+  const dramaEvents = rows.filter(r => r.type === "drama").slice(0, 4).map(toMonthEvent)
+
+  return {
+    countryCount: countryCodes.size,
+    cityCount: cities.size,
+    topCities,
+    comebacks,
+    dramaEvents,
+    monthLabel,
+  }
+}
+
+// ── 섹션 B: GLOBAL HALLYU PULSE ──────────────────────────────────────────────
+
+async function fetchRisingArtists(): Promise<RisingArtist[]> {
   const admin = createSupabaseAdminClient()
 
-  // 최신 week_start 조회
+  const { data: latestRow } = await admin
+    .from("kpop_stats_daily")
+    .select("date")
+    .order("date", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!latestRow) return []
+  const latestDate = (latestRow as { date: string }).date
+
+  // 최신 날짜 상위 30개
+  const { data: current } = await admin
+    .from("kpop_stats_daily")
+    .select("artist_id, lastfm_listeners")
+    .eq("date", latestDate)
+    .not("lastfm_listeners", "is", null)
+    .order("lastfm_listeners", { ascending: false })
+    .limit(30)
+  if (!current || current.length === 0) return []
+
+  const currentRows = current as { artist_id: string; lastfm_listeners: number }[]
+  const artistIds = currentRows.map(r => r.artist_id)
+
+  // 7일 전 청취자 수
+  const sevenDaysAgo = new Date(latestDate)
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const pastDate = sevenDaysAgo.toISOString().split("T")[0]
+  const pastDateMinus2 = new Date(sevenDaysAgo.getTime() - 2 * 86400_000).toISOString().split("T")[0]
+
+  const { data: past } = await admin
+    .from("kpop_stats_daily")
+    .select("artist_id, lastfm_listeners")
+    .in("artist_id", artistIds)
+    .lte("date", pastDate)
+    .gte("date", pastDateMinus2)
+    .not("lastfm_listeners", "is", null)
+
+  const pastMap = new Map<string, number>()
+  for (const r of (past ?? []) as { artist_id: string; lastfm_listeners: number }[]) {
+    const prev = pastMap.get(r.artist_id)
+    if (!prev || r.lastfm_listeners > prev) pastMap.set(r.artist_id, r.lastfm_listeners)
+  }
+
+  // 아티스트 이름·이미지
+  const { data: artists } = await admin
+    .from("kpop_artists")
+    .select("id, name, image_url")
+    .in("id", artistIds)
+
+  const artistMap = new Map(
+    ((artists ?? []) as { id: string; name: string; image_url: string | null }[])
+      .map(a => [a.id, a])
+  )
+
+  // 증가량 계산 후 상위 5개
+  return currentRows
+    .map(r => {
+      const pastListeners = pastMap.get(r.artist_id) ?? r.lastfm_listeners
+      const change = r.lastfm_listeners - pastListeners
+      const artist = artistMap.get(r.artist_id)
+      return {
+        id: r.artist_id,
+        name_en: artist?.name ?? "—",
+        image_url: artist?.image_url ?? null,
+        listeners_7d: r.lastfm_listeners,
+        listeners_change: change,
+      }
+    })
+    .filter(a => a.listeners_change > 0)
+    .sort((a, b) => b.listeners_change - a.listeners_change)
+    .slice(0, 5)
+}
+
+async function fetchCountryTopArtists(): Promise<CountryTopArtist[]> {
+  const admin = createSupabaseAdminClient()
+
   const { data: latestRow } = await admin
     .from("kpop_country_charts")
     .select("week_start")
@@ -286,119 +321,182 @@ async function fetchKpopByCountry(): Promise<KpopCountryItem[]> {
   if (!latestRow) return []
   const latestWeek = (latestRow as { week_start: string }).week_start
 
-  // 해당 주 전체 행 조회
   const { data, error } = await admin
     .from("kpop_country_charts")
-    .select("country_code, listeners")
+    .select("country_code, artist_name, listeners")
     .eq("week_start", latestWeek)
+    .eq("rank", 1)
+    .not("artist_name", "is", null)
+    .order("listeners", { ascending: false })
+    .limit(10)
   if (error || !data) return []
 
-  // 국가별 리스너 합산
-  const countryMap = new Map<string, number>()
-  for (const row of (data as { country_code: string; listeners: number | null }[])) {
-    if (!row.listeners || row.listeners <= 0) continue
-    countryMap.set(row.country_code, (countryMap.get(row.country_code) ?? 0) + row.listeners)
-  }
-
-  return [...countryMap.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([countryCode, totalListeners]) => ({ countryCode, totalListeners }))
+  return (data as CountryTopArtist[]).filter(r => r.artist_name)
 }
 
-async function fetchTopDramas(): Promise<TopDramaItem[]> {
+async function fetchTopDramas(): Promise<TopDrama[]> {
   const admin = createSupabaseAdminClient()
   const { data, error } = await admin
     .from("dramas")
-    .select("id, title, poster_url, genre, popularity")
+    .select("id, title, poster_url, year, popularity")
     .eq("is_active", true)
     .not("popularity", "is", null)
     .order("popularity", { ascending: false })
     .limit(5)
   if (error) return []
-  return (data ?? []) as TopDramaItem[]
+  return ((data ?? []) as TopDrama[])
 }
 
-// ── 헬퍼 ─────────────────────────────────────────────────────────────────────
+// ── 섹션 C: HALLYU THIS WEEK ─────────────────────────────────────────────────
 
-function toFlag(code: string): string {
-  return [...code.toUpperCase()].map(c =>
-    String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)
-  ).join("")
+async function fetchUpcomingEvents(): Promise<WeekEvent[]> {
+  const admin = createSupabaseAdminClient()
+  const now = new Date().toISOString()
+  const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await admin
+    .from("hallyu_calendar_events")
+    .select("id, title, type, event_date, artist_or_drama, venue_city, venue_country_code")
+    .eq("is_premium", false)
+    .gte("event_date", now)
+    .lte("event_date", sevenDaysLater)
+    .order("event_date", { ascending: true })
+    .limit(5)
+  if (error) return []
+  return (data ?? []).map(r => ({
+    id: (r as { id: string }).id,
+    title: (r as { title: string }).title,
+    type: (r as { type: string | null }).type ?? "event",
+    event_date: (r as { event_date: string }).event_date,
+    artist_or_drama: (r as { artist_or_drama: string | null }).artist_or_drama ?? "",
+    venue_city: (r as { venue_city: string | null }).venue_city ?? null,
+    venue_country_code: (r as { venue_country_code: string | null }).venue_country_code ?? null,
+  }))
 }
 
-const COUNTRY_NAMES: Record<string, string> = {
-  KR: "South Korea", US: "United States", JP: "Japan", CN: "China",
-  TH: "Thailand", PH: "Philippines", ID: "Indonesia", MY: "Malaysia",
-  VN: "Vietnam", TW: "Taiwan", GB: "United Kingdom", CA: "Canada",
-  AU: "Australia", FR: "France", DE: "Germany", BR: "Brazil",
-  MX: "Mexico", SG: "Singapore", IN: "India", PL: "Poland",
-  IT: "Italy", ES: "Spain", RU: "Russia", AR: "Argentina",
-  CL: "Chile", PE: "Peru", CO: "Colombia", NL: "Netherlands",
-  SE: "Sweden", NO: "Norway", FI: "Finland", DK: "Denmark",
+async function fetchThisWeekDramas(): Promise<WeekDrama[]> {
+  const admin = createSupabaseAdminClient()
+  const now = new Date()
+  const dayOfWeek = now.getDay()
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+  const monday = new Date(now)
+  monday.setDate(now.getDate() + mondayOffset)
+  monday.setHours(0, 0, 0, 0)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  sunday.setHours(23, 59, 59, 999)
+
+  const { data, error } = await admin
+    .from("hallyu_calendar_events")
+    .select("id, title, artist_or_drama, event_date")
+    .eq("type", "drama")
+    .gte("event_date", monday.toISOString())
+    .lte("event_date", sunday.toISOString())
+    .order("event_date", { ascending: true })
+    .limit(5)
+  if (error || !data) return []
+
+  return (data as { id: string; title: string; artist_or_drama: string | null; event_date: string }[])
+    .map(r => ({
+      id: r.id,
+      title: r.artist_or_drama ?? r.title,
+      event_date: r.event_date,
+    }))
 }
 
-function getCountryName(code: string): string {
-  return COUNTRY_NAMES[code.toUpperCase()] ?? code.toUpperCase()
+async function fetchWeeklyPhrase(): Promise<WeekPhrase | null> {
+  const admin = createSupabaseAdminClient()
+  const seoulNow = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const today = seoulNow.toISOString().split("T")[0]
+
+  const { data: featured } = await admin
+    .from("korean_phrases")
+    .select("korean, romanization, english, drama_name")
+    .eq("featured_date", today)
+    .maybeSingle()
+  if (featured) return featured as WeekPhrase
+
+  const { data: latest } = await admin
+    .from("korean_phrases")
+    .select("korean, romanization, english, drama_name")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return latest ? (latest as WeekPhrase) : null
 }
 
-const EVENT_TYPE_LABEL: Record<string, string> = {
-  comeback: "Comeback", drama: "Drama", concert: "Concert", fanmeet: "Fan Meet",
-}
+async function fetchWeeklyRecipe(): Promise<WeekRecipe | null> {
+  const admin = createSupabaseAdminClient()
+  const weekStr = getISOWeekString()
 
-const CATEGORY_BADGE: Record<string, string> = {
-  kpop:    "bg-purple-500/20 text-purple-300",
-  kdrama:  "bg-blue-500/20 text-blue-300",
-  kbeauty: "bg-pink-500/20 text-pink-300",
-  general: "bg-zinc-500/20 text-zinc-300",
-}
-const CATEGORY_LABEL: Record<string, string> = {
-  kpop: "K-Pop", kdrama: "K-Drama", kbeauty: "K-Beauty", general: "General",
-}
+  const { data } = await admin
+    .from("food_recipes")
+    .select("id, title_en, drama_title")
+    .eq("featured_week", weekStr)
+    .limit(1)
+    .maybeSingle()
+  if (data) return data as WeekRecipe
 
-function formatShortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  // 최신 레시피로 폴백
+  const { data: latest } = await admin
+    .from("food_recipes")
+    .select("id, title_en, drama_title")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return latest ? (latest as WeekRecipe) : null
 }
 
 // ── 페이지 ────────────────────────────────────────────────────────────────────
 
 export default async function LandingPage() {
-  const [newsRes, kpopRes, eventsRes, phraseRes, dramasRes, svcStatsRes, countryRes, topDramasRes, top30Res] =
-    await Promise.allSettled([
-      fetchLatestGeneratedNews(),
-      fetchKpopTop5(),
-      fetchUpcomingEvents(),
-      fetchTodayPhrase(),
-      fetchLatestDramas(),
-      fetchServiceStats(),
-      fetchKpopByCountry(),
-      fetchTopDramas(),
-      fetchKpopTop30(),
-    ])
+  const [
+    newsRes,
+    svcStatsRes,
+    top30Res,
+    thisMonthRes,
+    risingRes,
+    countryTopRes,
+    topDramasRes,
+    upcomingRes,
+    weekDramasRes,
+    phraseRes,
+    weekRecipeRes,
+  ] = await Promise.allSettled([
+    fetchLatestGeneratedNews(),
+    fetchServiceStats(),
+    fetchKpopTop30(),
+    fetchThisMonthHallyu(),
+    fetchRisingArtists(),
+    fetchCountryTopArtists(),
+    fetchTopDramas(),
+    fetchUpcomingEvents(),
+    fetchThisWeekDramas(),
+    fetchWeeklyPhrase(),
+    fetchWeeklyRecipe(),
+  ])
 
-  const news         = newsRes.status       === "fulfilled" ? newsRes.value       : []
-  const kpop         = kpopRes.status       === "fulfilled" ? kpopRes.value       : []
-  const events       = eventsRes.status     === "fulfilled" ? eventsRes.value     : []
-  const phrase       = phraseRes.status     === "fulfilled" ? phraseRes.value     : null
-  const dramas       = dramasRes.status     === "fulfilled" ? dramasRes.value     : []
-  const rawSvc       = svcStatsRes.status   === "fulfilled" ? svcStatsRes.value   : null
-  const countryCharts = countryRes.status   === "fulfilled" ? countryRes.value    : []
-  const topDramas    = topDramasRes.status  === "fulfilled" ? topDramasRes.value  : []
-  const top30        = top30Res.status      === "fulfilled" ? top30Res.value      : []
+  const news          = newsRes.status        === "fulfilled" ? newsRes.value        : []
+  const rawSvc        = svcStatsRes.status    === "fulfilled" ? svcStatsRes.value    : null
+  const top30         = top30Res.status       === "fulfilled" ? top30Res.value       : []
+  const thisMonth     = thisMonthRes.status   === "fulfilled" ? thisMonthRes.value   : null
+  const risingArtists = risingRes.status      === "fulfilled" ? risingRes.value      : []
+  const countryTop    = countryTopRes.status  === "fulfilled" ? countryTopRes.value  : []
+  const topDramas     = topDramasRes.status   === "fulfilled" ? topDramasRes.value   : []
+  const upcoming      = upcomingRes.status    === "fulfilled" ? upcomingRes.value    : []
+  const weekDramas    = weekDramasRes.status  === "fulfilled" ? weekDramasRes.value  : []
+  const phrase        = phraseRes.status      === "fulfilled" ? phraseRes.value      : null
+  const weekRecipe    = weekRecipeRes.status  === "fulfilled" ? weekRecipeRes.value  : null
 
   const serviceStats: ServiceStats | undefined = rawSvc
     ? {
         calendarEventsThisWeek: rawSvc.calendarEventsThisWeek,
-        kpopTopArtist: kpop[0]?.name ?? null,
+        kpopTopArtist: risingArtists[0]?.name_en ?? null,
         dramasCount: rawSvc.dramasCount,
         phrasesCount: rawSvc.phrasesCount,
         recipesCount: rawSvc.recipesCount,
         filmingSpotsCount: rawSvc.filmingSpotsCount,
       }
     : undefined
-
-  const showDataHub = kpop.length > 0 || events.length > 0
-  const showPulse   = countryCharts.length > 0 || topDramas.length > 0
 
   return (
     <>
@@ -412,6 +510,32 @@ export default async function LandingPage() {
             <HeroSection />
           </main>
 
+          {/* ── 섹션 A: THIS MONTH IN HALLYU ─────────────────────────────── */}
+          {thisMonth && (
+            <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-14 px-5" delay={0.1}>
+              <ThisMonthHallyu {...thisMonth} />
+            </AnimatedSection>
+          )}
+
+          {/* ── 섹션 B: GLOBAL HALLYU PULSE ──────────────────────────────── */}
+          <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-14 px-5" delay={0.15}>
+            <GlobalHallyuPulse
+              risingArtists={risingArtists}
+              countryTopArtists={countryTop}
+              topDramas={topDramas}
+            />
+          </AnimatedSection>
+
+          {/* ── 섹션 C: HALLYU THIS WEEK ─────────────────────────────────── */}
+          <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-14 px-5" delay={0.15}>
+            <HallyuThisWeek
+              upcomingEvents={upcoming}
+              weeklyDramas={weekDramas}
+              phrase={phrase}
+              weeklyRecipe={weekRecipe}
+            />
+          </AnimatedSection>
+
           {/* ── K-pop TOP 30 막대 차트 ──────────────────────────────────── */}
           {top30.length > 0 && (
             <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-14 px-5" delay={0.15}>
@@ -424,7 +548,7 @@ export default async function LandingPage() {
             <BentoSection serviceStats={serviceStats} />
           </AnimatedSection>
 
-          {/* ── 섹션 A: Hallyu Feed 미리보기 ─────────────────────────────── */}
+          {/* ── Hallyu Feed 미리보기 ──────────────────────────────────────── */}
           {news.length > 0 && (
             <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-16 px-5" delay={0.2}>
               <div className="mb-5 flex items-center justify-between flex-wrap gap-3">
@@ -500,229 +624,6 @@ export default async function LandingPage() {
               </div>
             </AnimatedSection>
           )}
-
-          {/* ── 섹션 B: 실시간 데이터 허브 ───────────────────────────────── */}
-          {showDataHub && (
-            <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-16 px-5" delay={0.2}>
-              <div className="rounded-2xl bg-white/[0.03] border border-border/20 overflow-hidden">
-                <div className="grid grid-cols-1 md:grid-cols-2">
-                  <div className="p-6 md:border-r border-border/20">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-bold text-foreground">This Week&apos;s Global K-pop Chart</h3>
-                      <Link href="/kpop" className="text-xs font-medium transition-opacity hover:opacity-80 shrink-0" style={{ color: "#FF4B6E" }}>
-                        View full chart →
-                      </Link>
-                    </div>
-                    {kpop.length > 0 ? (
-                      <div className="divide-y divide-border/10">
-                        {kpop.map(item => (
-                          <div key={item.rank} className="flex items-center gap-3 py-2">
-                            <span className="w-5 text-center text-xs font-bold text-muted-foreground/60 shrink-0">{item.rank}</span>
-                            <span className="flex-1 text-sm font-medium text-foreground truncate">{item.name}</span>
-                            {item.rankChange !== null && (
-                              <span className={`text-xs font-semibold shrink-0 tabular-nums ${item.rankChange > 0 ? "text-green-400" : item.rankChange < 0 ? "text-red-400" : "text-muted-foreground/40"}`}>
-                                {item.rankChange > 0 ? `↑${item.rankChange}` : item.rankChange < 0 ? `↓${Math.abs(item.rankChange)}` : "—"}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground/50 py-4">Chart data unavailable</p>
-                    )}
-                    <p className="text-[10px] text-muted-foreground/40 mt-3">Based on global streaming data</p>
-                  </div>
-
-                  <div className="p-6 border-t md:border-t-0">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-bold text-foreground">Don&apos;t Miss This Week</h3>
-                      <Link href="/calendar" className="text-xs font-medium transition-opacity hover:opacity-80 shrink-0" style={{ color: "#FF4B6E" }}>
-                        View full calendar →
-                      </Link>
-                    </div>
-                    {events.length > 0 ? (
-                      <div className="divide-y divide-border/10">
-                        {events.map(evt => (
-                          <div key={evt.id} className="flex items-start gap-3 py-2">
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: "rgba(255,75,110,0.10)", color: "#FF4B6E" }}>
-                              {EVENT_TYPE_LABEL[evt.type ?? ""] ?? evt.type ?? "Event"}
-                            </span>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
-                              <p className="text-xs text-muted-foreground/60 mt-0.5">
-                                {formatShortDate(evt.event_date)}
-                                {evt.artist_or_drama && ` · ${evt.artist_or_drama}`}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground/50 py-4">No events this week</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </AnimatedSection>
-          )}
-
-          {/* ── 섹션 C: Latest K-pop Videos ──────────────────────────────── */}
-          <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-16 px-5" delay={0.2}>
-            <YoutubeVideoSection service="kpop" title="Latest K-pop Videos" />
-          </AnimatedSection>
-
-          {/* ── 섹션 D: 오늘의 한국어 표현 ──────────────────────────────── */}
-          {phrase && (
-            <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-16" delay={0.2}>
-              <HomePhraseCard phrase={phrase} />
-            </AnimatedSection>
-          )}
-
-          {/* ── 섹션 E: K-dramas You Might Love ─────────────────────────── */}
-          {dramas.length > 0 && (
-            <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-16 px-5" delay={0.2}>
-              <div className="mb-5 flex items-center justify-between flex-wrap gap-3">
-                <h2 className="text-2xl md:text-3xl font-bold text-foreground">
-                  K-dramas You Might Love
-                </h2>
-                <Link href="/drama" className="flex items-center gap-1 text-sm font-medium transition-opacity hover:opacity-80" style={{ color: "#FF4B6E" }}>
-                  Find your next K-drama <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                {dramas.map(drama => (
-                  <Link key={drama.id} href="/drama" className="group relative block rounded-xl overflow-hidden border border-border/30 hover:border-[#FF4B6E]/40 transition-all bg-[#1a1a1a]">
-                    <div className="relative aspect-[2/3]">
-                      {drama.poster_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={drama.poster_url} alt={drama.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-[#252528] flex items-center justify-center">
-                          <span className="text-muted-foreground/30 text-[10px]">No image</span>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end p-3">
-                        <div>
-                          <p className="text-white text-[11px] font-semibold line-clamp-2">{drama.title}</p>
-                          {drama.genre && <p className="text-white/60 text-[9px] mt-0.5">{drama.genre}</p>}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-2">
-                      <p className="text-foreground text-[11px] font-medium line-clamp-1">{drama.title}</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </AnimatedSection>
-          )}
-
-          {/* ── 섹션 F: Global Hallyu Pulse ──────────────────────────────── */}
-          {showPulse && (
-            <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-16 px-5" delay={0.2}>
-              <div className="mb-6">
-                <h2 className="text-2xl md:text-3xl font-bold text-foreground">Global Hallyu Pulse</h2>
-                <p className="text-sm text-muted-foreground mt-1">Real-time data from Hallyu fans around the world</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                {/* 왼쪽 — K-pop by Country */}
-                {countryCharts.length > 0 && (
-                  <div className="bg-[#141418] border border-border/30 rounded-2xl p-6">
-                    <div className="mb-4">
-                      <h3 className="text-sm font-bold text-foreground">K-pop by Country</h3>
-                      <p className="text-xs text-muted-foreground/60 mt-0.5">Top countries by K-pop listeners this week</p>
-                    </div>
-                    <div className="space-y-2.5">
-                      {countryCharts.map((item, i) => {
-                        const maxListeners = countryCharts[0].totalListeners
-                        const barPct = maxListeners > 0 ? (item.totalListeners / maxListeners) * 100 : 0
-                        const opacity = Math.max(0.22, 1 - i * 0.086)
-                        return (
-                          <div key={item.countryCode} className="flex items-center gap-2">
-                            <span className="text-base shrink-0 w-6 text-center leading-none">{toFlag(item.countryCode)}</span>
-                            <span className="text-xs text-foreground/80 w-24 shrink-0 truncate">{getCountryName(item.countryCode)}</span>
-                            <div className="flex-1 flex items-center gap-2 min-w-0">
-                              <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full rounded-full transition-all"
-                                  style={{
-                                    width: `${barPct}%`,
-                                    backgroundColor: `rgba(255,75,110,${opacity})`,
-                                  }}
-                                />
-                              </div>
-                              <span className="text-[10px] text-muted-foreground/50 w-14 text-right shrink-0 tabular-nums">
-                                {item.totalListeners >= 1_000_000
-                                  ? `${(item.totalListeners / 1_000_000).toFixed(1)}M`
-                                  : item.totalListeners >= 1_000
-                                    ? `${(item.totalListeners / 1_000).toFixed(0)}K`
-                                    : item.totalListeners.toLocaleString()}
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground/40 mt-4">Powered by Last.fm</p>
-                  </div>
-                )}
-
-                {/* 오른쪽 — K-drama Buzz */}
-                {topDramas.length > 0 && (
-                  <div className="bg-[#141418] border border-border/30 rounded-2xl p-6">
-                    <div className="mb-4">
-                      <h3 className="text-sm font-bold text-foreground">K-dramas The World Is Watching</h3>
-                      <p className="text-xs text-muted-foreground/60 mt-0.5">Most popular right now</p>
-                    </div>
-                    <div className="divide-y divide-border/10">
-                      {topDramas.map((drama, i) => (
-                        <Link
-                          key={drama.id}
-                          href="/drama"
-                          className="group flex items-center gap-3 py-2 hover:opacity-80 transition-opacity"
-                        >
-                          <span
-                            className="text-sm font-bold w-5 text-center shrink-0 tabular-nums"
-                            style={{ color: "#FF4B6E" }}
-                          >
-                            {i + 1}
-                          </span>
-                          {drama.poster_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={drama.poster_url}
-                              alt={drama.title}
-                              className="w-8 h-12 object-cover rounded shrink-0"
-                            />
-                          ) : (
-                            <div className="w-8 h-12 bg-[#252528] rounded shrink-0" />
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-foreground truncate group-hover:text-[#FF4B6E] transition-colors">
-                              {drama.title}
-                            </p>
-                            {drama.genre && (
-                              <span className="mt-1 inline-block text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-muted-foreground/70">
-                                {drama.genre}
-                              </span>
-                            )}
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground/40 mt-4">Powered by TMDB</p>
-                  </div>
-                )}
-              </div>
-            </AnimatedSection>
-          )}
-
-          {/* ── 섹션 G: 하단 CTA ─────────────────────────────────────────── */}
-          <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-10 md:mt-16" delay={0.2}>
-            <HomeCTASection />
-          </AnimatedSection>
 
           <AnimatedSection className="relative z-10 max-w-[1320px] mx-auto mt-4 md:mt-8" delay={0.2}>
             <FooterSection />

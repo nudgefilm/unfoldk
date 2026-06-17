@@ -38,6 +38,8 @@ import {
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { PaymentComingSoonModal } from "@/components/payment-coming-soon-modal"
+import { usePaddle } from "@/components/PaddleProvider"
+import { PADDLE_PRICE_IDS } from "@/lib/paddle/constants"
 
 const sidebarLinks = [
   { icon: Home, label: "Dashboard", href: "/mypage" },
@@ -51,14 +53,14 @@ const sidebarLinks = [
   { icon: Settings, label: "Settings", href: "/mypage/settings" },
 ]
 
-// ⚠️ Billing History 는 LMS API 동기화 미구현 — v0 mock 유지 (spec: "현재처럼 표시")
+// ⚠️ Billing History 는 Paddle API 동기화 미구현 — v0 mock 유지 (spec: "현재처럼 표시")
 const billingHistory = [
   { date: "May 7, 2026", description: "Hallyu Pass", amount: "$9.00", status: "Paid" },
   { date: "Apr 7, 2026", description: "Hallyu Pass", amount: "$9.00", status: "Paid" },
   { date: "Mar 7, 2026", description: "Hallyu Pass", amount: "$9.00", status: "Paid" },
 ]
 
-type PlanType = "free" | "monthly" | "annual"
+type PlanType = "free" | "pro" | "monthly" | "annual"
 
 export default function SubscriptionPage() {
   const [isLoaded, setIsLoaded] = useState(false)
@@ -68,6 +70,9 @@ export default function SubscriptionPage() {
   const [userInitial, setUserInitial] = useState<string>("U")
   const [userAvatar, setUserAvatar] = useState<string | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | undefined>()
+  const [userId, setUserId] = useState<string | undefined>()
+  const paddle = usePaddle()
 
   // 인증 + 프로필 + plan_type 로드 — middleware 가 비로그인 가드 처리
   useEffect(() => {
@@ -81,6 +86,8 @@ export default function SubscriptionPage() {
       if (!user || cancelled) return
 
       // 사이드바 프로필
+      setUserEmail(user.email ?? undefined)
+      setUserId(user.id)
       const meta = (user.user_metadata ?? {}) as { full_name?: string; avatar_url?: string }
       const fallbackName = user.email?.split("@")[0] ?? "User"
       const name = meta.full_name?.trim() || fallbackName
@@ -99,7 +106,7 @@ export default function SubscriptionPage() {
 
       const row = profile as { plan_type?: string; plan_expires_at?: string | null } | null
       const pt = row?.plan_type
-      setPlanType(pt === "monthly" || pt === "annual" ? pt : "free")
+      setPlanType(pt === "pro" || pt === "monthly" || pt === "annual" ? pt : "free")
       setPlanExpiresAt(row?.plan_expires_at ?? null)
       setIsLoaded(true)
     }
@@ -111,7 +118,7 @@ export default function SubscriptionPage() {
   }, [])
 
   // 데이터 로드 전엔 본문 영역 비움 (사이드바 골격은 그대로 노출)
-  const isPaid = planType === "monthly" || planType === "annual"
+  const isPaid = planType === "pro" || planType === "monthly" || planType === "annual"
   const planLabel: string = isPaid ? "Hallyu Pass" : "Free"
   const monthlyPriceLabel = planType === "annual" ? "$6.00/month" : "$9.00/month"
   const annualNote = planType === "annual" ? "$72/year, billed annually" : ""
@@ -199,7 +206,7 @@ export default function SubscriptionPage() {
             // ============================================
             // Free 유저 화면
             // ============================================
-            <FreeUserView />
+            <FreeUserView paddle={paddle} userEmail={userEmail} userId={userId} />
           ) : (
             // ============================================
             // 유료 유저 화면 (monthly / annual)
@@ -260,7 +267,7 @@ export default function SubscriptionPage() {
                 </div>
               </section>
 
-              {/* Section 2: Billing History (mock — LMS API 동기화 미구현) */}
+              {/* Section 2: Billing History (mock — Paddle API 동기화 미구현) */}
               <section className="mb-8">
                 <h2 className="text-lg font-semibold text-foreground mb-4">Billing History</h2>
                 <div className="bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden">
@@ -414,11 +421,31 @@ export default function SubscriptionPage() {
 // Free 유저 전용 화면 — Hallyu Pass 업그레이드 유도
 // 페이드인 패턴은 부모와 동일, className·style 도 v0 톤 유지
 // ============================================
-function FreeUserView() {
+interface FreeUserViewProps {
+  paddle: ReturnType<typeof usePaddle>
+  userEmail: string | undefined
+  userId: string | undefined
+}
+
+function FreeUserView({ paddle, userEmail, userId }: FreeUserViewProps) {
   const router = useRouter()
   // Redeem 모달 — 쿠폰 성공 시 닫고 페이지 refresh 로 plan_type 즉시 반영
   const [redeemOpen, setRedeemOpen] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+
+  function openCheckout(annual: boolean) {
+    if (!paddle) {
+      setShowPaymentModal(true)
+      return
+    }
+    const priceId = annual ? PADDLE_PRICE_IDS.hallyu_pass_annual : PADDLE_PRICE_IDS.hallyu_pass_monthly
+    paddle.Checkout.open({
+      items: [{ priceId, quantity: 1 }],
+      customer: userEmail ? { email: userEmail } : undefined,
+      customData: userId ? { userId } : undefined,
+      settings: { displayMode: "overlay", theme: "light" },
+    })
+  }
   return (
     <>
       {/* Section 1: Current Plan — Free */}
@@ -457,7 +484,7 @@ function FreeUserView() {
             <Button
               className="w-full rounded-full font-medium text-white"
               style={{ backgroundColor: "#FF4B6E" }}
-              onClick={() => setShowPaymentModal(true)}
+              onClick={() => openCheckout(false)}
             >
               Upgrade to Monthly — $9/mo
             </Button>
@@ -483,7 +510,7 @@ function FreeUserView() {
             <Button
               className="w-full rounded-full font-medium text-white"
               style={{ backgroundColor: "#FF4B6E" }}
-              onClick={() => setShowPaymentModal(true)}
+              onClick={() => openCheckout(true)}
             >
               Upgrade to Annual — $6/mo
             </Button>

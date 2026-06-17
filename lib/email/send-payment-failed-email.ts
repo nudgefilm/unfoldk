@@ -1,6 +1,6 @@
-// 결제 실패 안내 이메일 — Lemon Squeezy webhook(subscription_payment_failed) 에서 호출
+// 결제 실패 안내 이메일 — Paddle webhook(subscription.payment_failed) 에서 호출
 //
-// ⚠️ 배경: Lemon Squeezy 가 자체적으로도 결제 실패 안내를 보내지만,
+// ⚠️ 배경: Paddle 이 자체적으로도 결제 실패 안내를 보내지만,
 //    UnfoldK 자체 안내 + 다음 청구 시도까지의 간단한 가이드를 함께 전달.
 //    Resend 미설정 / 도메인 verify 전에도 발송 실패는 silent (webhook 200 으로 ack).
 
@@ -34,7 +34,7 @@ export async function sendPaymentFailedEmail(
     `Hi,`,
     ``,
     `We weren't able to process your latest Hallyu Pass payment.`,
-    `Lemon Squeezy will retry automatically over the next few days, but you can`,
+    `Paddle will retry automatically over the next few days, but you can`,
     `also update your card now to avoid any interruption:`,
     ``,
     `   ${SUBSCRIPTION_URL}`,
@@ -63,7 +63,7 @@ export async function sendPaymentFailedEmail(
                 Payment failed
               </h1>
               <p style="font-size:15px;color:#b3b3b3;line-height:1.6;margin:0 0 20px;">
-                We weren't able to process your latest Hallyu Pass payment. Lemon Squeezy will retry automatically over the next few days, but you can also update your card now to avoid any interruption.
+                We weren't able to process your latest Hallyu Pass payment. Paddle will retry automatically over the next few days, but you can also update your card now to avoid any interruption.
               </p>
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">

@@ -25,6 +25,8 @@ import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { PaymentComingSoonModal } from "@/components/payment-coming-soon-modal"
+import { usePaddle } from "@/components/PaddleProvider"
+import { PADDLE_PRICE_IDS } from "@/lib/paddle/constants"
 
 // useSearchParams() 는 Suspense boundary 안에서만 사용 가능 — Next.js 빌드 요구사항
 export default function StartPage() {
@@ -53,6 +55,9 @@ function StartPageInner() {
   const [errorMsg, setErrorMsg] = useState("")
   const [authChecked, setAuthChecked] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | undefined>()
+  const [userId, setUserId] = useState<string | undefined>()
+  const paddle = usePaddle()
 
   // 진입 가드 — 비로그인이면 / 로
   useEffect(() => {
@@ -63,6 +68,8 @@ function StartPageInner() {
         return
       }
       setAuthChecked(true)
+      setUserEmail(user.email ?? undefined)
+      setUserId(user.id)
     })
   }, [router])
 
@@ -79,8 +86,8 @@ function StartPageInner() {
       selectedPlan === "free" ? "free" : isAnnual ? "annual" : "monthly"
 
     // ⚠️ 약관 동의·가입 완료 처리는 plan_type='free' 로 락인 (결제 완료 전엔 무료 상태).
-    //    유료 플랜 선택 시 LMS webhook(order_created) 이 결제 완료 후 plan_type 을
-    //    monthly/annual 로 업그레이드. 결제 도중 이탈해도 유저는 free 로 사용 가능.
+    //    유료 플랜 선택 시 Paddle webhook(subscription.activated) 이 결제 완료 후 plan_type 을
+    //    'pro' 로 업그레이드. 결제 도중 이탈해도 유저는 free 로 사용 가능.
     setIsLoading(true)
     const res = await fetch("/api/auth/complete-signup", {
       method: "POST",
@@ -108,10 +115,22 @@ function StartPageInner() {
       return
     }
 
-    // 유료 플랜 — 결제 시스템 준비 중 안내 모달 표시 (결제 연동 전 임시 정책)
-    // 결제 연동 후: window.open(`/api/lemonsqueezy/checkout?plan=${planChoice}`) 로 복원
+    // 유료 플랜 — Paddle checkout 오버레이
+    const priceId = isAnnual ? PADDLE_PRICE_IDS.hallyu_pass_annual : PADDLE_PRICE_IDS.hallyu_pass_monthly
     setIsLoading(false)
-    setShowPaymentModal(true)
+    if (paddle) {
+      paddle.Checkout.open({
+        items: [{ priceId, quantity: 1 }],
+        customer: userEmail ? { email: userEmail } : undefined,
+        customData: userId ? { userId } : undefined,
+        settings: { displayMode: "overlay", theme: "light" },
+      })
+      router.push(nextPath)
+      router.refresh()
+    } else {
+      // Paddle SDK 미로드 시 폴백
+      setShowPaymentModal(true)
+    }
   }
 
   const handlePaymentModalClose = (open: boolean) => {

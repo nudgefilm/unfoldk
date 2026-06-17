@@ -1,7 +1,7 @@
 "use client"
 
-// 결제 완료 화면 — Lemon Squeezy 가 결제 완료 후 redirect 시키는 receipt URL
-// ⚠️ 이 페이지 진입 시점엔 webhook(order_created) 이 도달하기 전일 수 있음.
+// 결제 완료 화면 — Paddle 결제 완료 후 redirect 되는 receipt URL
+// ⚠️ 이 페이지 진입 시점엔 webhook(subscription.activated) 이 도달하기 전일 수 있음.
 //    실제 plan_type 활성화는 webhook 처리 시점이라 여기선 일반적인 환영 메시지만.
 
 import Link from "next/link"
