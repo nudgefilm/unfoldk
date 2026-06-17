@@ -4,6 +4,101 @@
 
 ---
 
+## 현재 상태 (2026-06-18 세션 67 기준)
+
+### K-Inbound Flight Simulator — 지구본 + UI 전면 개선
+
+**완료 항목**
+
+- **`components/k-inbound/globe.tsx` 전면 재작성**
+  - 12개 주요 항공 경로 실제 비행시간(ms) 기반 시뮬레이션 (`progress = (now - startTime) / duration`)
+  - 지구 자전: `THREE.Clock` + `camera.position.applyAxisAngle` (20분/회전, 방향 보정)
+  - 대륙선 back-face fading: 버텍스별 카메라 dot product → brightness 매핑
+  - trail: 시간 기반 샘플링(60초/점) + 초기화 시 30% 범위 50점 pre-populate + 0.003 gap
+  - 더미 항공기 방향: 카메라 공간 탄젠트 벡터 smoothing
+  - 메인 항공편 방향: `AIRCRAFT_ROTATION_OFFSET = Math.PI` (상수화)
+  - 메인 항공편 스프라이트 크기: 0.07 → 0.042 (40% 축소) → 0.0504 (20% 확대)
+  - 더미 스프라이트 크기: 0.028 → 0.0336 (20% 확대)
+  - **항공편 검색 시 현재 위치 자동 flyTo**: `setFlight`에서 `progressRatio + 경과시간`으로 추정 위치 계산 → vec3 역변환 lat/lng → 1.5초 slerp 애니메이션
+
+- **`components/k-inbound/route-progress-bar.tsx`**
+  - 전체 너비 → 중앙 고정 카드 (`width: 600px, max-width: 60%`, `left: 50%`)
+  - 검정 배경 제거 (다른 패널 카드와 동일 투명 처리)
+  - 폰트: `9~10px` → `11~13px` (사이드 패널 통일)
+  - z-index `z-[5]` (사이드바 z-10보다 낮게)
+
+- **패널 카드 줄간격 일괄 축소** (4개 파일)
+  - `flight-info-panel.tsx` / `aircraft-info-panel.tsx` / `flight-status-panel.tsx` / `live-telemetry-panel.tsx`
+  - `py-px` → `py-0`, 섹션 헤더 `mb-1` → `mb-0.5`, 구분선 `my-1~1.5` → `my-0.5~1`
+
+- **`components/k-inbound/search-bar.tsx`**
+  - Track 버튼: `text-[#4a9eff]` → `text-white`
+  - Placeholder: `/35` → `/40`
+
+- **`components/k-inbound/flight-suggestions-modal.tsx`** (신규)
+  - 항공편 404 시 ICN 도착 FIDS 목록 표시
+  - 유저 국가(ipapi.co) 기준 정렬, 클릭 시 자동 검색어 입력
+
+- **`components/k-inbound/global-comms.tsx`** (신규)
+  - Supabase Realtime 익명 채팅 (kinbound_messages 테이블)
+  - ipapi.co 도시명 표시, 100자 제한, 욕설 필터
+  - 쿨다운 제거 (100자 제한만 유지)
+  - 중복 메시지 버그 수정: reload() fallback 제거, Realtime 이벤트에서 id 중복 체크
+  - expanded/collapsed 토글: expanded=true → ▼, false → ▲
+  - 접힌 상태: 헤더 + 최근 메시지 1줄 미리보기
+  - 위치 `bottom-16` → `bottom-4` (경로 바 카드 제거 후 맞춤)
+
+- **`app/api/k-inbound/flight/route.ts`**
+  - 404 시 `fetchICNSuggestions()` → suggestions 배열 응답에 포함
+  - `FlightData.timestamp` 필드 추가
+
+- **`supabase/migrations/0084_kinbound_messages.sql`** (신규, Supabase 수동 실행 완료)
+
+**다음 세션**
+- Paddle KYB 심사 통과 후: 샌드박스 → 프로덕션 전환, 웹훅 실서버 등록
+- K-Inbound: 실제 항공편 API 검색 추가 테스트
+
+---
+
+## 현재 상태 (2026-06-17 세션 66 기준)
+
+### Paddle 결제 연동 + 메인 페이지 전면 재편
+
+**완료 항목**
+
+- **Paddle 결제 연동 — UI 플로우 완성**
+  - `app/mypage/subscription/page.tsx`: `PaymentComingSoonModal` 업그레이드 버튼 → `paddle.Checkout.open()` 오버레이 전환
+    - `PlanType` 타입에 `"pro"` 추가 (Paddle webhook은 "pro" 로 설정하는데 기존에는 "monthly"/"annual"만 인식하던 버그 수정)
+    - Monthly/Annual 각각 Price ID 분기 (`PADDLE_PRICE_IDS.hallyu_pass_monthly/annual`)
+  - `app/start/page.tsx`: Pro 플랜 선택 시 `PaymentComingSoonModal` → `paddle.Checkout.open()` 직접 진입, 폴백 유지
+  - `app/terms/page.tsx` · `app/cookie/page.tsx` · `app/gdpr/page.tsx` · `components/footer-section.tsx` · `app/payment/fail/page.tsx` · `app/payment/success/page.tsx` · `lib/email/send-payment-failed-email.ts`: LemonSqueezy → Paddle 표기 전면 교체
+  - `CLAUDE.md` 결제 섹션: "Lemon Squeezy 확정" → "Paddle 확정 (KYB 심사 중, 2026-06-17 제출)"
+  - `DECISIONS.md`: "2026-06-17 결제 수단 전환 현황" 신규 항목 추가
+  - 잔존 LemonSqueezy 파일 (`app/api/lemonsqueezy/*`, `lib/lemonsqueezy.ts`) — 의도적 유지 (backward compat)
+
+- **메인 페이지 (`app/page.tsx`) 전면 재편**
+  - **섹션 순서**: 히어로 → A → B → C → TOP30차트 → 서비스허브 → Hallyu Feed → 푸터
+  - **섹션 A — THIS MONTH IN HALLYU** (`components/home/this-month-hallyu.tsx` 신규)
+    - `hallyu_calendar_events` 이달 전체 조회 → 국가 수·도시 수·Top 4 도시 통계
+    - 이달 컴백 / 방영 예정 드라마 최대 4개씩 리스트
+  - **섹션 B — GLOBAL HALLYU PULSE** (`components/home/global-hallyu-pulse.tsx` 신규)
+    - 7일 증가량 기준 Rising 아티스트 Top 5 (`kpop_stats_daily` 7일 전 대비)
+    - 국가별 1위 아티스트 (`kpop_country_charts.rank=1`) 최대 10개국
+    - 인기 드라마 Top 5 (`dramas.popularity DESC`)
+    - "Powered by Last.fm" 출처 표기 포함
+  - **섹션 C — HALLYU THIS WEEK** (`components/home/hallyu-this-week.tsx` 신규)
+    - D-Day 카운트다운 (향후 7일 이내 이벤트 최대 4개)
+    - 이번 주 방영 드라마 (`hallyu_calendar_events type=drama` 이번 주)
+    - 오늘의 한국어 표현 (`korean_phrases.featured_date` 오늘)
+    - 주간 K-Food 레시피 (`food_recipes.featured_week` ISO week)
+  - **제거**: showDataHub(K-pop 차트 미니+이벤트), YoutubeVideoSection, HomePhraseCard, K-dramas 6 카드, 구 GlobalHallyuPulse, HomeCTASection, Pricing 섹션(이전 세션 이미 제거)
+
+**다음 세션**
+- Paddle KYB 심사 통과 후: 샌드박스 → 프로덕션 전환, 웹훅 실서버 등록 확인
+- migration 0074 실행 여부 재확인
+
+---
+
 ## 현재 상태 (2026-06-13 세션 65 기준)
 
 ### 메인 페이지 K-pop TOP 30 차트 디자인 개선
@@ -701,6 +796,6 @@ CREATE POLICY "kpop_albums_select_all" ON public.kpop_albums FOR SELECT TO anon,
 
 ## 블로커
 
-- Paddle 실제 결제 테스트 필요 (샌드박스 환경변수 설정 완료, 웹훅 실서버 연결 확인 필요)
+- Paddle KYB 심사 중 (2026-06-17 제출) — 통과 후 샌드박스→프로덕션 전환 + 웹훅 실서버 등록 필요
 - top.gg 심사 대기
 - r/Korean 포스팅 승인 대기
