@@ -202,11 +202,13 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       const [fromLat, fromLng] = route.from
       const [toLat,   toLng  ] = route.to
 
-      // trail 초기화: 현재 위치 기준 최대 5% 범위만 채워 길이 제한
-      const trailSpan = Math.min(curProg, 0.05)
+      // trail 초기화: 비행기보다 0.003 뒤에서 시작 (겹침 방지), 최대 30% 범위
+      const TRAIL_GAP  = 0.003
+      const trailStart = Math.max(0, curProg - TRAIL_GAP)
+      const trailSpan  = Math.min(trailStart, 0.30)
       const history: THREE.Vector3[] = []
       for (let i = 0; i < TRAIL_LEN; i++) {
-        const t = curProg - (i / TRAIL_LEN) * trailSpan
+        const t = trailStart - (i / TRAIL_LEN) * trailSpan
         if (t < 0) break
         history.push(getPointOnArc(fromLat, fromLng, toLat, toLng, t))
       }
@@ -311,7 +313,9 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         const shouldSave = d.history.length === 0 || (now - d.lastTrailSaveMs) >= TRAIL_SAVE_INTERVAL_MS
         if (shouldSave) {
           d.lastTrailSaveMs = now
-          d.history.unshift(pos.clone())
+          // 비행기 현재 위치보다 0.003 뒤 지점 저장 (비행기와 trail 간격 유지)
+          const behindPos = getPointOnArc(fromLat, fromLng, toLat, toLng, Math.max(0, progress - 0.003))
+          d.history.unshift(behindPos)
           if (d.history.length > TRAIL_LEN) d.history.pop()
         }
 
