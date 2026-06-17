@@ -33,7 +33,7 @@ const TRAIL_LEN   = 50
 const DUMMY_COUNT = 5
 
 // 지구 자전 속도: 5분/회전 (실제 24시간은 시각적으로 멈춘 것처럼 보임)
-const EARTH_ROT_RAD_PER_SEC = (Math.PI * 2) / 300
+const EARTH_ROT_RAD_PER_SEC = (Math.PI * 2) / 1200
 
 // trail 샘플링 간격: 2.5분마다 1점 (TRAIL_LEN 50 → 125분 이력)
 const TRAIL_SAVE_INTERVAL_MS = 150_000
@@ -239,7 +239,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       // 지구 자전 — Clock.getDelta() 기반 실제 자전 속도 (24시간/회전)
       const frameDelta = Math.min(clock.getDelta(), 0.1) // 최대 100ms 클램프
       if (autoRot.enabled) {
-        camera.position.applyAxisAngle(yAxis, EARTH_ROT_RAD_PER_SEC * frameDelta)
+        camera.position.applyAxisAngle(yAxis, -EARTH_ROT_RAD_PER_SEC * frameDelta)
       }
       controls.update()
 
