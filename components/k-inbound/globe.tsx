@@ -265,9 +265,21 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         const elapsed = now - flight.fetchedAt
         const total   = flight.elapsedMs + flight.remainingMs || 1
         const ft      = Math.min(flight.progressRatio + elapsed / total, 1)
-        mainSprite.position.copy(
-          getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, ft)
-        )
+        const mainPos  = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, ft)
+        mainSprite.position.copy(mainPos)
+        // 진행 방향 → 카메라 공간 탄젠트 + 우로 45° 오프셋
+        const ftFwd     = Math.min(ft + 0.05, 0.99)
+        const mainPosFwd = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, ftFwd)
+        const mainTangent = mainPosFwd.clone().sub(mainPos).normalize()
+        mainTangent.transformDirection(camera.matrixWorldInverse)
+        const mainNdcZ = mainPos.clone().project(camera).z
+        if (mainNdcZ < 1.0 && mainTangent.x * mainTangent.x + mainTangent.y * mainTangent.y > 1e-6) {
+          const targetRot = Math.atan2(mainTangent.y, mainTangent.x) - Math.PI / 4
+          let diff = targetRot - mainMat.rotation
+          while (diff >  Math.PI) diff -= Math.PI * 2
+          while (diff < -Math.PI) diff += Math.PI * 2
+          mainMat.rotation += diff * 0.25
+        }
       } else {
         arcMat.opacity  = Math.max(arcMat.opacity - 0.01, 0)
         mainMat.opacity = Math.max(mainMat.opacity - 0.01, 0)
