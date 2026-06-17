@@ -1,110 +1,92 @@
 "use client"
 
-import { Gauge, ArrowUp, Compass, Wifi } from "lucide-react"
 import type { FlightData } from "@/app/api/k-inbound/flight/route"
 
-interface Props { flight: FlightData }
+interface Props { flight: FlightData | null }
 
-function fmtMs(ms: number): string {
+function fmtHHMM(ms: number): string {
+  if (ms <= 0) return "00:00"
   const h = Math.floor(ms / 3_600_000)
   const m = Math.floor((ms % 3_600_000) / 60_000)
-  return h > 0 ? `${h}h ${m}m` : `${m}m`
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`
+}
+function delayMin(sched: string, actual?: string): number | null {
+  if (!actual) return null
+  return Math.round((new Date(actual).getTime() - new Date(sched).getTime()) / 60000)
 }
 
-const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
-  "En Route":   { bg: "bg-emerald-400/20", text: "text-emerald-400" },
-  "Active":     { bg: "bg-emerald-400/20", text: "text-emerald-400" },
-  "Delayed":    { bg: "bg-orange-400/20",  text: "text-orange-400"  },
-  "Landed":     { bg: "bg-blue-400/20",    text: "text-blue-400"    },
-  "Cancelled":  { bg: "bg-red-400/20",     text: "text-red-400"     },
-  "Scheduled":  { bg: "bg-[#4da6ff]/20",   text: "text-[#4da6ff]"  },
+const STATUS_COLOR: Record<string, string> = {
+  "En Route":  "text-[#00ff88]",
+  "Active":    "text-[#00ff88]",
+  "Departed":  "text-[#4a9eff]",
+  "Delayed":   "text-[#ff4b6e]",
+  "Landed":    "text-[#4a9eff]",
+  "Cancelled": "text-[#ff4b6e]",
+  "Scheduled": "text-[#94a3b8]",
+  "Diverted":  "text-[#ff4b6e]",
 }
 
-function statusStyle(s: string) {
-  return STATUS_STYLES[s] ?? { bg: "bg-white/10", text: "text-white/60" }
+function Row({ label, value, cls = "text-[#4a9eff]" }: { label: string; value: string; cls?: string }) {
+  return (
+    <div className="grid grid-cols-[100px_1fr] gap-1 py-[2px]">
+      <span className="text-[9px] uppercase tracking-wider text-[#94a3b8]/55 text-right pr-1 truncate">{label}</span>
+      <span className={`text-[11px] font-semibold ${cls}`}>{value}</span>
+    </div>
+  )
 }
 
 export function FlightStatusPanel({ flight }: Props) {
-  const { bg, text } = statusStyle(flight.status)
-  const pct = Math.round(flight.progressRatio * 100)
+  const now      = Date.now()
+  const dd       = flight ? delayMin(flight.departure.scheduledTime, flight.departure.actualTime) : null
+  const minAgo   = flight ? Math.floor((now - flight.fetchedAt) / 60_000) : null
+  const isLive   = minAgo !== null && minAgo < 15
+  const statusCls = flight ? (STATUS_COLOR[flight.status] ?? "text-[#94a3b8]") : "text-[#94a3b8]/40"
 
   return (
-    <div className="bg-[#020c1b]/80 backdrop-blur-md border border-[#1a4a7a]/50 rounded-2xl p-4 text-white">
-        {/* 상태 뱃지 */}
-        <div className="flex items-center justify-between mb-3 pb-3 border-b border-[#1a4a7a]/40">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#4da6ff]/70">Status</p>
-          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${bg} ${text}`}>
-            {flight.status}
-          </span>
-        </div>
+    <div className="flex-1 min-h-0 flex flex-col bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl p-4 overflow-y-auto font-mono text-white">
+      <div className="text-[9px] uppercase tracking-wider text-[#94a3b8]/50 mb-2">Flight Status</div>
 
-        {/* 경과·잔여 */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <div>
-            <p className="text-[10px] text-[#aac4e0]/60 mb-0.5">Elapsed</p>
-            <p className="text-sm font-semibold tabular-nums">{fmtMs(flight.elapsedMs)}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-[#aac4e0]/60 mb-0.5">Remaining</p>
-            <p className="text-sm font-semibold tabular-nums">{fmtMs(flight.remainingMs)}</p>
-          </div>
-        </div>
+      {/* STATUS */}
+      <div className="grid grid-cols-[100px_1fr] gap-1 py-[2px] mb-1">
+        <span className="text-[9px] uppercase tracking-wider text-[#94a3b8]/55 text-right pr-1">Status</span>
+        <span className={`text-[11px] font-bold ${statusCls}`}>
+          {flight?.status ?? "◌ STANDBY"}
+        </span>
+      </div>
 
-        {/* 거리 */}
-        <div className="mb-3 pb-3 border-b border-[#1a4a7a]/40">
-          <p className="text-[10px] text-[#aac4e0]/60 mb-0.5">Distance</p>
-          <p className="text-sm font-semibold tabular-nums">{flight.distanceKm.toLocaleString()} km</p>
-        </div>
+      <div className="border-t border-[#4a9eff]/15 my-1.5" />
 
-        {/* 고도 */}
-        <div className="flex items-center gap-2 mb-2.5">
-          <ArrowUp className="w-3.5 h-3.5 text-[#4da6ff] shrink-0" />
-          <div>
-            <p className="text-[10px] text-[#aac4e0]/60">Altitude</p>
-            <p className="text-xs font-semibold tabular-nums">
-              {flight.estimatedAltitudeFt.toLocaleString()} ft
-            </p>
-          </div>
-        </div>
+      <Row label="Elapsed" value={flight ? fmtHHMM(flight.elapsedMs) : "—"} />
+      <Row
+        label="Remaining"
+        value={flight ? `${fmtHHMM(flight.remainingMs)} est` : "—"}
+        cls="text-[#4a9eff]/80"
+      />
 
-        {/* 속도 */}
-        <div className="flex items-center gap-2 mb-2.5">
-          <Gauge className="w-3.5 h-3.5 text-[#4da6ff] shrink-0" />
-          <div>
-            <p className="text-[10px] text-[#aac4e0]/60">Speed</p>
-            <p className="text-xs font-semibold tabular-nums">{flight.estimatedSpeedKmh} km/h</p>
-          </div>
-        </div>
+      <div className="border-t border-[#4a9eff]/15 my-1.5" />
 
-        {/* 방위 */}
-        <div className="flex items-center gap-2 mb-3">
-          <Compass className="w-3.5 h-3.5 text-[#4da6ff] shrink-0" />
-          <div>
-            <p className="text-[10px] text-[#aac4e0]/60">Bearing</p>
-            <p className="text-xs font-semibold tabular-nums">{flight.bearingDeg}°</p>
-          </div>
-        </div>
+      {/* DELAY */}
+      {dd !== null && dd > 0 ? (
+        <Row label="Delay" value={`+${dd} min`} cls="text-[#ff4b6e]" />
+      ) : dd !== null ? (
+        <Row label="Delay" value="ON TIME" cls="text-[#00ff88]" />
+      ) : (
+        <Row label="Delay" value="—" cls="text-[#94a3b8]/35" />
+      )}
 
-        {/* 진행도 바 */}
-        <div className="pt-3 border-t border-[#1a4a7a]/40">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] text-[#4da6ff]/70">{flight.departure.iata}</span>
-            <span className="text-[10px] text-[#aac4e0]/50 tabular-nums">{pct}%</span>
-            <span className="text-[10px] text-[#00e5ff]/70">{flight.arrival.iata}</span>
-          </div>
-          <div className="h-1 w-full bg-[#0a2840] rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-[#4da6ff] to-[#00e5ff] rounded-full transition-all"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
+      <div className="border-t border-[#4a9eff]/15 my-1.5" />
 
-        {/* 신호 */}
-        <div className="mt-3 flex items-center gap-1.5">
-          <Wifi className="w-3 h-3 text-emerald-400/70" />
-          <span className="text-[10px] text-emerald-400/70">Live signal</span>
-        </div>
+      {/* SIGNAL */}
+      <Row
+        label="Signal"
+        value={flight ? (isLive ? "● LIVE" : "◌ PREDICTIVE") : "◌ AWAITING INPUT"}
+        cls={flight ? (isLive ? "text-[#00ff88]" : "text-[#94a3b8]/60") : "text-[#94a3b8]/40"}
+      />
+      <Row
+        label="Updated"
+        value={minAgo !== null ? `${minAgo}m ago` : "—"}
+        cls="text-[#94a3b8]/60"
+      />
     </div>
   )
 }

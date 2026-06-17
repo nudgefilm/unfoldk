@@ -1,95 +1,91 @@
 "use client"
 
-import { PlaneTakeoff, PlaneLanding, Clock } from "lucide-react"
 import type { FlightData } from "@/app/api/k-inbound/flight/route"
 
-interface Props { flight: FlightData }
+interface Props { flight: FlightData | null }
 
-function fmtTime(iso?: string): string {
+function fmtTime(iso?: string) {
   if (!iso) return "—"
   return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
 }
-
-function delayMin(scheduled: string, actual?: string): number | null {
+function delayMin(sched: string, actual?: string): number | null {
   if (!actual) return null
-  const diff = (new Date(actual).getTime() - new Date(scheduled).getTime()) / 60000
-  return Math.round(diff)
+  return Math.round((new Date(actual).getTime() - new Date(sched).getTime()) / 60000)
+}
+function Row({ label, value, cls = "text-[#4a9eff]" }: { label: string; value: string; cls?: string }) {
+  return (
+    <div className="grid grid-cols-[100px_1fr] gap-1 py-[2px]">
+      <span className="text-[9px] uppercase tracking-wider text-[#94a3b8]/55 text-right pr-1 truncate">{label}</span>
+      <span className={`text-[11px] font-semibold ${cls}`}>{value}</span>
+    </div>
+  )
 }
 
 export function FlightInfoPanel({ flight }: Props) {
-  const depDelay = delayMin(flight.departure.scheduledTime, flight.departure.actualTime)
-  const arrDelay = delayMin(flight.arrival.scheduledTime, flight.arrival.estimatedTime)
+  const dd = flight ? delayMin(flight.departure.scheduledTime, flight.departure.actualTime) : null
+  const ad = flight ? delayMin(flight.arrival.scheduledTime, flight.arrival.estimatedTime) : null
 
   return (
-    <div className="bg-[#020c1b]/80 backdrop-blur-md border border-[#1a4a7a]/50 rounded-2xl p-4 text-white">
-        {/* 항공편 번호 */}
-        <div className="mb-3 pb-3 border-b border-[#1a4a7a]/40">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#4da6ff]/70 mb-0.5">Flight</p>
-          <p className="text-xl font-bold tracking-wide">{flight.number}</p>
-          <p className="text-xs text-[#aac4e0]/70 mt-0.5">{flight.airline}</p>
-        </div>
+    <div className="flex-1 min-h-0 flex flex-col bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl p-4 overflow-y-auto font-mono text-white">
 
-        {/* 출발 */}
-        <div className="mb-3 flex items-start gap-2">
-          <PlaneTakeoff className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#4da6ff]" />
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#4da6ff]/70">Departure</p>
-            <p className="text-sm font-semibold">{flight.departure.iata}</p>
-            <p className="text-[11px] text-[#aac4e0]/70 leading-tight">{flight.departure.name}</p>
-            <div className="flex items-center gap-1.5 mt-1">
-              <Clock className="w-3 h-3 text-[#aac4e0]/50" />
-              <span className="text-xs tabular-nums">
-                {fmtTime(flight.departure.actualTime ?? flight.departure.scheduledTime)}
-              </span>
-              {depDelay !== null && depDelay > 0 && (
-                <span className="text-[10px] text-orange-400">+{depDelay}m</span>
-              )}
-              {depDelay !== null && depDelay <= 0 && (
-                <span className="text-[10px] text-emerald-400">On time</span>
-              )}
-            </div>
-            {(flight.departure.terminal || flight.departure.gate) && (
-              <p className="text-[10px] text-[#aac4e0]/50 mt-0.5">
-                {flight.departure.terminal && `T${flight.departure.terminal}`}
-                {flight.departure.terminal && flight.departure.gate && " · "}
-                {flight.departure.gate && `Gate ${flight.departure.gate}`}
-              </p>
-            )}
+      {/* 헤더 */}
+      {flight ? (
+        <div className="mb-3 pb-2 border-b border-[#4a9eff]/20">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[#4a9eff] text-base leading-none">✈</span>
+            <span className="text-white font-bold tracking-wide">{flight.number}</span>
           </div>
+          <div className="text-[10px] text-[#94a3b8]/60 mt-0.5">{flight.airline}</div>
         </div>
-
-        {/* 도착 */}
-        <div className="flex items-start gap-2">
-          <PlaneLanding className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#00e5ff]" />
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#00e5ff]/70">Arrival</p>
-            <p className="text-sm font-semibold">{flight.arrival.iata}</p>
-            <p className="text-[11px] text-[#aac4e0]/70 leading-tight">{flight.arrival.name}</p>
-            <div className="flex items-center gap-1.5 mt-1">
-              <Clock className="w-3 h-3 text-[#aac4e0]/50" />
-              <span className="text-xs tabular-nums">
-                {fmtTime(flight.arrival.estimatedTime ?? flight.arrival.scheduledTime)}
-              </span>
-              {arrDelay !== null && arrDelay > 0 && (
-                <span className="text-[10px] text-orange-400">+{arrDelay}m</span>
-              )}
-              {arrDelay !== null && arrDelay <= 0 && (
-                <span className="text-[10px] text-emerald-400">On time</span>
-              )}
-            </div>
+      ) : (
+        <div className="mb-3 pb-2 border-b border-[#4a9eff]/20">
+          <div className="text-[#4a9eff] text-xs font-bold tracking-widest">✈ K-INBOUND</div>
+          <div className="text-[10px] text-[#4a9eff]/50 uppercase tracking-wider">FLIGHT SIMULATOR</div>
+          <div className="mt-2 text-[10px] text-[#94a3b8]/45 leading-relaxed">
+            항공편 번호 입력 시<br />실시간 비행 정보 표시
           </div>
+          <div className="text-[10px] text-[#4a9eff]/35 mt-1">KE017 · OZ201 · AA280</div>
         </div>
+      )}
 
-        {/* 기체 정보 */}
-        {(flight.aircraft || flight.registration) && (
-          <div className="mt-3 pt-3 border-t border-[#1a4a7a]/40">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#4da6ff]/70 mb-1">Aircraft</p>
-            {flight.aircraft && <p className="text-xs text-white/80">{flight.aircraft}</p>}
-            {flight.registration && (
-              <p className="text-[10px] text-[#aac4e0]/50">{flight.registration}</p>
-            )}
-          </div>
-        )}
+      {/* ROUTE */}
+      <div className="text-[9px] uppercase tracking-wider text-[#94a3b8]/50 mb-0.5">Route</div>
+      <div className="text-sm font-bold text-[#4a9eff] mb-1">
+        {flight ? `${flight.departure.iata} → ${flight.arrival.iata}` : "—"}
+      </div>
+      {flight && (
+        <div className="text-[10px] text-[#94a3b8]/50 mb-3 leading-relaxed">
+          {flight.departure.name}<br />{flight.arrival.name}
+        </div>
+      )}
+      {!flight && <div className="text-[10px] text-[#94a3b8]/30 mb-3">—</div>}
+
+      {/* DEPARTURE */}
+      <div className="text-[9px] uppercase tracking-wider text-[#94a3b8]/50 mb-0.5 mt-1">Departure</div>
+      <Row label="Scheduled" value={flight ? fmtTime(flight.departure.scheduledTime) : "—"} />
+      <Row
+        label="Actual"
+        value={flight
+          ? `${fmtTime(flight.departure.actualTime ?? flight.departure.scheduledTime)}${dd !== null && dd > 0 ? ` (+${dd}m)` : ""}`
+          : "—"}
+        cls={dd !== null ? (dd > 0 ? "text-[#ff4b6e]" : "text-[#00ff88]") : "text-[#4a9eff]"}
+      />
+
+      {/* ARRIVAL */}
+      <div className="text-[9px] uppercase tracking-wider text-[#94a3b8]/50 mb-0.5 mt-2">Arrival</div>
+      <Row label="Scheduled" value={flight ? fmtTime(flight.arrival.scheduledTime) : "—"} />
+      <Row
+        label="Estimated"
+        value={flight
+          ? `${fmtTime(flight.arrival.estimatedTime ?? flight.arrival.scheduledTime)}${ad !== null && ad > 0 ? ` (+${ad}m)` : ""}`
+          : "—"}
+        cls={ad !== null ? (ad > 0 ? "text-[#ff4b6e]" : "text-[#00ff88]") : "text-[#4a9eff]"}
+      />
+
+      {/* TERMINAL / GATE */}
+      <div className="text-[9px] uppercase tracking-wider text-[#94a3b8]/50 mb-0.5 mt-2">Terminal / Gate</div>
+      <Row label="Terminal" value={flight?.departure.terminal ?? "—"} />
+      <Row label="Gate" value={flight?.departure.gate ?? "—"} />
     </div>
   )
 }
