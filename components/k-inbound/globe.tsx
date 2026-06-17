@@ -173,7 +173,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     const mainTex    = makeMainAircraftTexture(48)
     const mainMat    = new THREE.SpriteMaterial({ map: mainTex, transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true })
     const mainSprite = new THREE.Sprite(mainMat)
-    mainSprite.scale.set(0.042, 0.042, 1)
+    mainSprite.scale.set(0.0504, 0.0504, 1)
     scene.add(mainSprite)
 
     // ── 더미 항공기 5기 — 실제 비행시간 기준 speed
@@ -183,7 +183,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     const dummies: DummyState[] = Array.from({ length: DUMMY_COUNT }, () => {
       const mat    = new THREE.SpriteMaterial({ map: dummyTex, transparent: true, opacity: 0.9, depthWrite: false, sizeAttenuation: true })
       const sprite = new THREE.Sprite(mat)
-      sprite.scale.set(0.028, 0.028, 1)
+      sprite.scale.set(0.0336, 0.0336, 1)
       scene.add(sprite)
 
       const trailPositions = new Float32Array(TRAIL_LEN * 3)
