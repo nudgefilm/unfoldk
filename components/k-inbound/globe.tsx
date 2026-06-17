@@ -32,18 +32,22 @@ const MAJOR_ROUTES: { from: [number, number]; to: [number, number]; duration: nu
 const TRAIL_LEN   = 50
 const DUMMY_COUNT = 5
 
-// 지구 실제 자전 속도: 24시간 = 2π 라디안
-const EARTH_ROT_RAD_PER_SEC = (Math.PI * 2) / 86400
+// 지구 자전 속도: 5분/회전 (실제 24시간은 시각적으로 멈춘 것처럼 보임)
+const EARTH_ROT_RAD_PER_SEC = (Math.PI * 2) / 300
+
+// trail 샘플링 간격: 2.5분마다 1점 (TRAIL_LEN 50 → 125분 이력)
+const TRAIL_SAVE_INTERVAL_MS = 150_000
 
 interface DummyState {
-  sprite:         THREE.Sprite
-  mat:            THREE.SpriteMaterial
-  trailLine:      THREE.Line
-  trailPositions: Float32Array
-  trailColors:    Float32Array
-  routeIdx:       number
-  startTime:      number        // 출발 기준 ms timestamp
-  history:        THREE.Vector3[]
+  sprite:           THREE.Sprite
+  mat:              THREE.SpriteMaterial
+  trailLine:        THREE.Line
+  trailPositions:   Float32Array
+  trailColors:      Float32Array
+  routeIdx:         number
+  startTime:        number        // 출발 기준 ms timestamp
+  lastTrailSaveMs:  number        // 마지막 trail point 저장 시각
+  history:          THREE.Vector3[]
 }
 
 function easeInOutCubic(t: number) {
@@ -191,11 +195,21 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       const trailLine = new THREE.Line(trailGeo, trailMat)
       scene.add(trailLine)
 
-      const routeIdx = Math.floor(Math.random() * MAJOR_ROUTES.length)
-      // 경로 중간 어딘가에서 시작 (startTime = 과거)
-      const startTime = nowInit - Math.random() * MAJOR_ROUTES[routeIdx].duration
+      const routeIdx  = Math.floor(Math.random() * MAJOR_ROUTES.length)
+      const route     = MAJOR_ROUTES[routeIdx]
+      const startTime = nowInit - Math.random() * route.duration
+      const curProg   = Math.min((nowInit - startTime) / route.duration, 1.0)
+      const [fromLat, fromLng] = route.from
+      const [toLat,   toLng  ] = route.to
 
-      return { sprite, mat, trailLine, trailPositions, trailColors, routeIdx, startTime, history: [] }
+      // 현재까지의 비행 경로를 history에 선 채우기 (trail 즉시 가시화)
+      const history: THREE.Vector3[] = []
+      for (let i = 0; i < TRAIL_LEN; i++) {
+        const t = curProg * (1 - i / TRAIL_LEN) // 현재 → 출발 방향
+        history.push(getPointOnArc(fromLat, fromLng, toLat, toLng, t))
+      }
+
+      return { sprite, mat, trailLine, trailPositions, trailColors, routeIdx, startTime, lastTrailSaveMs: nowInit, history }
     })
 
     // ── flyTo
@@ -262,9 +276,10 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         const progress = (now - d.startTime) / route.duration
 
         if (progress >= 1.0) {
-          d.routeIdx  = Math.floor(Math.random() * MAJOR_ROUTES.length)
-          d.startTime = now
-          d.history   = []
+          d.routeIdx         = Math.floor(Math.random() * MAJOR_ROUTES.length)
+          d.startTime        = now
+          d.lastTrailSaveMs  = now
+          d.history          = []
           ;(d.trailLine.geometry as THREE.BufferGeometry).setDrawRange(0, 0)
           continue
         }
@@ -290,9 +305,10 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
           d.mat.rotation += diff * 0.25
         }
 
-        // 꼬리 — 거리 기반 샘플링 (0.002 이상 이동 시만 저장)
-        const shouldSave = d.history.length === 0 || pos.distanceTo(d.history[0]) > 0.002
+        // 꼬리 — 시간 기반 샘플링 (실제 비행시간에서 거리 기반은 점 미적립 문제)
+        const shouldSave = d.history.length === 0 || (now - d.lastTrailSaveMs) >= TRAIL_SAVE_INTERVAL_MS
         if (shouldSave) {
+          d.lastTrailSaveMs = now
           d.history.unshift(pos.clone())
           if (d.history.length > TRAIL_LEN) d.history.pop()
         }
