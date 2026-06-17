@@ -73,7 +73,8 @@ export interface FlightData {
   estimatedAltitudeFt: number
   estimatedSpeedKmh: number
   bearingDeg: number
-  fetchedAt: number
+  fetchedAt: number    // 마지막 API 호출 시각 (ms) — 캐시 TTL 계산용
+  timestamp: number    // fetchedAt과 동일 — 클라이언트 progress 보간 기준점
 }
 
 interface AeroRaw {
@@ -183,7 +184,7 @@ function buildFlightData(raw: AeroRaw): FlightData {
     elapsedMs, remainingMs, distanceKm: distKm,
     progressRatio, estimatedAltitudeFt: Math.round(altFt),
     estimatedSpeedKmh: speed, bearingDeg: bearing,
-    fetchedAt: now,
+    fetchedAt: now, timestamp: now,
   }
 }
 
