@@ -24,6 +24,7 @@ const HIDE_HEADER_PREFIXES = [
   "/verify-email",
   "/payment",          // /payment/success, /payment/fail
   "/kbeauty",          // B2B 전용 레이아웃 — 자체 Navbar 사용
+  "/k-inbound",        // 풀스크린 3D 시뮬레이터 — 자체 레이아웃
 ]
 
 // status: 'live' = 출시됨 (뱃지 없음) / 'soon' = 출시 예정 (Coming Soon 뱃지).

@@ -13,42 +13,83 @@ export interface GlobeHandle {
 
 interface Props { className?: string }
 
-// 더미 항공기 글로벌 노선
+// 더미 항공기 글로벌 노선 (출발 lat/lng, 도착 lat/lng)
 const DUMMY_ROUTES: [number, number, number, number][] = [
-  [35.67, 139.65,  1.36, 103.99],  // Tokyo → Singapore
-  [51.50,  -0.12, 40.64, -73.78],  // London → New York
-  [19.07,  72.87, 48.86,   2.35],  // Mumbai → Paris
-  [37.45, 126.44, 34.43, 135.24],  // ICN → KIX
-  [-33.94, 151.18, -23.44, -46.47], // Sydney → São Paulo
-  [33.94,-118.41, 25.25,  55.37],  // LAX → Dubai
-  [52.31,   4.76, 22.31, 113.92],  // Amsterdam → Hong Kong
-  [40.64, -73.78, 35.76, 140.39],  // JFK → Tokyo
+  [37.46, 126.44, 35.77, 140.39],  // ICN → NRT
+  [51.50,  -0.12, 40.64, -73.78],  // LHR → JFK
+  [33.94,-118.41, 35.67, 139.65],  // LAX → HND
+  [19.07,  72.87, 48.86,   2.35],  // BOM → CDG
+  [-33.94, 151.18, 1.36, 103.99],  // SYD → SIN
+  [25.25,  55.37, 37.46, 126.44],  // DXB → ICN
+  [52.31,   4.76, 22.31, 113.92],  // AMS → HKG
+  [40.64, -73.78, 37.46, 126.44],  // JFK → ICN (한국행)
 ]
 
 function easeInOutCubic(t: number) {
   return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2
 }
 
-function makeSpriteTexture(color: string, size: number): THREE.CanvasTexture {
+// 비행기 모양 캔버스 텍스처 (✈ 문자 + 글로우 링)
+function makeAircraftTexture(glowColor: string, textColor: string, size: number): THREE.CanvasTexture {
   const c = document.createElement("canvas")
   c.width = size; c.height = size
   const ctx = c.getContext("2d")!
   const half = size / 2
-  const grd = ctx.createRadialGradient(half, half, 0, half, half, half * 0.85)
-  grd.addColorStop(0, color)
-  grd.addColorStop(0.45, color)
-  grd.addColorStop(1, "transparent")
+
+  // 외부 글로우 링
+  const grd = ctx.createRadialGradient(half, half, 0, half, half, half * 0.95)
+  grd.addColorStop(0,   glowColor + "cc")
+  grd.addColorStop(0.4, glowColor + "88")
+  grd.addColorStop(1,   "transparent")
   ctx.fillStyle = grd
   ctx.beginPath()
-  ctx.arc(half, half, half * 0.85, 0, Math.PI * 2)
+  ctx.arc(half, half, half * 0.95, 0, Math.PI * 2)
   ctx.fill()
+
+  // ✈ 아이콘 (약간 회전해서 전진 방향 표시)
+  ctx.save()
+  ctx.translate(half, half)
+  ctx.font = `bold ${Math.round(size * 0.52)}px Arial, sans-serif`
+  ctx.fillStyle = textColor
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  ctx.fillText("✈", 0, 0)
+  ctx.restore()
+
+  return new THREE.CanvasTexture(c)
+}
+
+// 주 항공기 — 금색 글로우 + 흰 ✈
+function makeMainAircraftTexture(size: number): THREE.CanvasTexture {
+  const c = document.createElement("canvas")
+  c.width = size; c.height = size
+  const ctx = c.getContext("2d")!
+  const half = size / 2
+
+  // 강한 금색 글로우
+  const grd = ctx.createRadialGradient(half, half, 0, half, half, half)
+  grd.addColorStop(0,   "#ffd700ff")
+  grd.addColorStop(0.35, "#ffd700cc")
+  grd.addColorStop(0.7,  "#ffd70044")
+  grd.addColorStop(1,   "transparent")
+  ctx.fillStyle = grd
+  ctx.beginPath()
+  ctx.arc(half, half, half, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.font = `bold ${Math.round(size * 0.55)}px Arial, sans-serif`
+  ctx.fillStyle = "#ffffff"
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  ctx.fillText("✈", half, half)
+
   return new THREE.CanvasTexture(c)
 }
 
 const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ className }, ref) {
-  const mountRef = useRef<HTMLDivElement>(null)
-  const flightRef = useRef<FlightData | null>(null)
-  const flyToRef = useRef<((lat: number, lng: number, duration: number) => void) | null>(null)
+  const mountRef   = useRef<HTMLDivElement>(null)
+  const flightRef  = useRef<FlightData | null>(null)
+  const flyToRef   = useRef<((lat: number, lng: number, duration: number) => void) | null>(null)
 
   useImperativeHandle(ref, () => ({
     setFlight(f) { flightRef.current = f },
@@ -68,51 +109,58 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
 
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100)
-
     // 초기 카메라 — 한국(동아시아) 중심
     camera.position.copy(latLngToVec3(37, 127).multiplyScalar(2.8))
 
-    // ── 조명 (밝게 조정) ────────────────────────────────────────────
-    scene.add(new THREE.AmbientLight(0x334466, 0.9))
-    const pl1 = new THREE.PointLight(0x5599ff, 1.1)
-    pl1.position.set(-2, 3, 1); scene.add(pl1)
-    const pl2 = new THREE.PointLight(0xff9900, 0.5)
-    pl2.position.set(2, -2, -1); scene.add(pl2)
-    // 한국 방향 보조 조명
-    const kLight = new THREE.DirectionalLight(0x4488cc, 0.5)
-    kLight.position.copy(latLngToVec3(37, 127)).normalize()
-    scene.add(kLight)
+    // ── 조명 (Ghost War 수준 밝기) ──────────────────────────────────
+    scene.add(new THREE.AmbientLight(0x4466aa, 2.0))
+    // 정면 DirectionalLight
+    const frontLight = new THREE.DirectionalLight(0x88ccff, 1.2)
+    frontLight.position.set(0, 0, 5)
+    scene.add(frontLight)
+    // 우상단 포인트 라이트
+    const pl1 = new THREE.PointLight(0x6699ff, 1.5)
+    pl1.position.set(-2, 3, 2); scene.add(pl1)
+    // 하단 보조
+    const pl2 = new THREE.PointLight(0x3355aa, 0.8)
+    pl2.position.set(1, -2, -1); scene.add(pl2)
 
     // ── 대기 글로우 (강화) ──────────────────────────────────────────
     scene.add(new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS * 1.04, 32, 32),
-      new THREE.MeshBasicMaterial({ color: 0x3366cc, transparent: true, opacity: 0.14, side: THREE.BackSide }),
+      new THREE.SphereGeometry(GLOBE_RADIUS * 1.05, 32, 32),
+      new THREE.MeshBasicMaterial({ color: 0x2255cc, transparent: true, opacity: 0.20, side: THREE.BackSide }),
     ))
-    // 내부 글로우
     scene.add(new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS * 1.01, 32, 32),
-      new THREE.MeshBasicMaterial({ color: 0x224488, transparent: true, opacity: 0.06, side: THREE.BackSide }),
+      new THREE.SphereGeometry(GLOBE_RADIUS * 1.02, 32, 32),
+      new THREE.MeshBasicMaterial({ color: 0x4477ff, transparent: true, opacity: 0.08, side: THREE.BackSide }),
     ))
 
-    // ── 지구 구체 ───────────────────────────────────────────────────
+    // ── 지구 구체 — 내부 발광 포함 ──────────────────────────────────
     scene.add(new THREE.Mesh(
       new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64),
-      new THREE.MeshPhongMaterial({ color: 0x050f22, shininess: 30 }),
+      new THREE.MeshPhongMaterial({
+        color:             0x0d2137,
+        emissive:          new THREE.Color(0x061828),
+        emissiveIntensity: 0.6,
+        shininess:         40,
+      }),
     ))
 
-    // ── 위도/경도 격자 ──────────────────────────────────────────────
-    const gratMat = new THREE.LineBasicMaterial({ color: 0x1e5080, opacity: 0.5, transparent: true })
+    // ── 위도/경도 격자 (선명) ───────────────────────────────────────
+    const gratMat = new THREE.LineBasicMaterial({ color: 0x1e5a8c, opacity: 0.6, transparent: true })
     ;([-60, -30, 0, 30, 60] as number[]).forEach(lat => {
-      const pts = Array.from({ length: 65 }, (_, i) => latLngToVec3(lat, (i / 64) * 360 - 180, GLOBE_RADIUS + 0.002))
+      const pts = Array.from({ length: 65 }, (_, i) =>
+        latLngToVec3(lat, (i / 64) * 360 - 180, GLOBE_RADIUS + 0.002))
       scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gratMat))
     });
     ([-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150, 180] as number[]).forEach(lng => {
-      const pts = Array.from({ length: 33 }, (_, i) => latLngToVec3((i / 32) * 180 - 90, lng, GLOBE_RADIUS + 0.002))
+      const pts = Array.from({ length: 33 }, (_, i) =>
+        latLngToVec3((i / 32) * 180 - 90, lng, GLOBE_RADIUS + 0.002))
       scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gratMat))
     })
 
-    // ── 대륙선 (밝게) ───────────────────────────────────────────────
-    const landMat = new THREE.LineBasicMaterial({ color: 0x4a9eff, opacity: 0.78, transparent: true })
+    // ── 대륙선 (Ghost War 네온 그린) ───────────────────────────────
+    const landMat = new THREE.LineBasicMaterial({ color: 0x00ff88, opacity: 0.90, transparent: true })
     fetch("/ne_110m_land.json")
       .then(r => r.json())
       .then((data: { features: Array<{ geometry: { type: string; coordinates: unknown } }> }) => {
@@ -133,12 +181,12 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
 
     // ── OrbitControls ───────────────────────────────────────────────
     const controls = new OrbitControls(camera, renderer.domElement)
-    controls.autoRotate = true
+    controls.autoRotate      = true
     controls.autoRotateSpeed = 0.2
-    controls.enableDamping = true
-    controls.dampingFactor = 0.05
-    controls.minDistance = 1.5
-    controls.maxDistance = 5
+    controls.enableDamping   = true
+    controls.dampingFactor   = 0.05
+    controls.minDistance     = 1.5
+    controls.maxDistance     = 5
     controls.target.set(0, 0, 0)
     controls.update()
 
@@ -146,37 +194,37 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     const arcMat = new THREE.LineBasicMaterial({ color: 0x00e5ff, opacity: 0, transparent: true })
     let arcLine: THREE.Line | null = null
 
-    // ── 주 항공기 (금색) ────────────────────────────────────────────
-    const mainTex = makeSpriteTexture("#ffd700", 32)
-    const mainMat = new THREE.SpriteMaterial({ map: mainTex, transparent: true, opacity: 0, depthWrite: false })
+    // ── 주 항공기 스프라이트 (금색 ✈) ──────────────────────────────
+    const mainTex = makeMainAircraftTexture(48)
+    const mainMat = new THREE.SpriteMaterial({ map: mainTex, transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true })
     const mainSprite = new THREE.Sprite(mainMat)
-    mainSprite.scale.set(0.06, 0.06, 1)
+    mainSprite.scale.set(0.07, 0.07, 1)
     scene.add(mainSprite)
 
-    // ── 더미 항공기 5기 (청색 발광점) ──────────────────────────────
-    const dummyTex = makeSpriteTexture("#00bfff", 20)
-    const dummies = Array.from({ length: 5 }, (_, i) => {
-      const mat = new THREE.SpriteMaterial({ map: dummyTex, transparent: true, opacity: 0.85, depthWrite: false })
+    // ── 더미 항공기 ✈ 스프라이트 (8기) ────────────────────────────
+    const dummyTex = makeAircraftTexture("#00ccff", "#ffffff", 36)
+    const dummies = Array.from({ length: 8 }, (_, i) => {
+      const mat = new THREE.SpriteMaterial({ map: dummyTex, transparent: true, opacity: 0.90, depthWrite: false, sizeAttenuation: true })
       const sprite = new THREE.Sprite(mat)
-      sprite.scale.set(0.028, 0.028, 1)
+      sprite.scale.set(0.045, 0.045, 1)
       scene.add(sprite)
       const route = DUMMY_ROUTES[i % DUMMY_ROUTES.length]
-      // 각 더미를 다른 진행도에서 시작시켜 골고루 분포
-      const startOffset = (i / 5) * 0.8 + 0.05 // 0.05 ~ 0.85 사이 균등 분포
-      const durationMs = 3_600_000 * 5 + i * 3_600_000 // 5~9시간 간격
-      const startTime = Date.now() - startOffset * durationMs
+      // 각 기체를 서로 다른 진행도에서 시작
+      const phaseOffset = i / 8
+      const durationMs  = 3_600_000 * 4 + i * 1_200_000  // 4~6.3시간
+      const startTime   = Date.now() - phaseOffset * durationMs
       return { sprite, route, startTime, durationMs }
     })
 
     // ── flyTo ───────────────────────────────────────────────────────
     flyToRef.current = (lat: number, lng: number, duration: number) => {
       controls.autoRotate = false
-      const t0 = performance.now()
-      const dist = camera.position.length()
+      const t0       = performance.now()
+      const dist     = camera.position.length()
       const startDir = camera.position.clone().normalize()
-      const endDir = latLngToVec3(lat, lng).normalize()
-      const rotQ = new THREE.Quaternion().setFromUnitVectors(startDir, endDir)
-      const idQ = new THREE.Quaternion()
+      const endDir   = latLngToVec3(lat, lng).normalize()
+      const rotQ     = new THREE.Quaternion().setFromUnitVectors(startDir, endDir)
+      const idQ      = new THREE.Quaternion()
       const tick = (now: number) => {
         const t = Math.min((now - t0) / duration, 1)
         const q = idQ.clone().slerp(rotQ, easeInOutCubic(t))
@@ -192,11 +240,12 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     const loop = () => {
       animId = requestAnimationFrame(loop)
       controls.update()
-      const now = Date.now()
+      const now    = Date.now()
       const flight = flightRef.current
 
+      // 실제 항공편 Arc + 주 항공기
       if (flight) {
-        arcMat.opacity = Math.min(arcMat.opacity + 0.02, 0.85)
+        arcMat.opacity  = Math.min(arcMat.opacity + 0.02, 0.85)
         mainMat.opacity = Math.min(mainMat.opacity + 0.02, 1)
         if (!arcLine) {
           const pts = getArcPoints(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng)
@@ -204,11 +253,13 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
           scene.add(arcLine)
         }
         const elapsed = now - flight.fetchedAt
-        const total = flight.elapsedMs + flight.remainingMs || 1
-        const t = Math.min(flight.progressRatio + elapsed / total, 1)
-        mainSprite.position.copy(getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, t))
+        const total   = flight.elapsedMs + flight.remainingMs || 1
+        const t       = Math.min(flight.progressRatio + elapsed / total, 1)
+        mainSprite.position.copy(
+          getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, t)
+        )
       } else {
-        arcMat.opacity = Math.max(arcMat.opacity - 0.01, 0)
+        arcMat.opacity  = Math.max(arcMat.opacity - 0.01, 0)
         mainMat.opacity = Math.max(mainMat.opacity - 0.01, 0)
         if (arcLine && arcMat.opacity <= 0) { scene.remove(arcLine); arcLine = null }
       }
@@ -216,11 +267,10 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       // 더미 항공기 위치 업데이트
       for (const d of dummies) {
         const elapsed = now - d.startTime
-        const t = (elapsed % d.durationMs) / d.durationMs
+        // 0.02 ~ 0.98 범위로 클램핑해서 노선 끝점 근처 z-fighting 방지
+        const t = Math.max(0.02, Math.min(0.98, (elapsed % d.durationMs) / d.durationMs))
         const [f1, f2, t1, t2] = d.route
-        // 글로브 표면 위 소폭 띄워서 z-fighting 방지
-        const raw = getPointOnArc(f1, f2, t1, t2, Math.max(0.01, Math.min(0.99, t)))
-        d.sprite.position.copy(raw)
+        d.sprite.position.copy(getPointOnArc(f1, f2, t1, t2, t))
       }
 
       renderer.render(scene, camera)

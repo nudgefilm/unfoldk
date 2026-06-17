@@ -150,7 +150,7 @@ export default function KInboundPage() {
         {/* 지구본 영역 */}
         <div className="relative flex-1 min-w-0">
           {/* 검색 바 — 지구본 상단 중앙 고정 오버레이 */}
-          <div className="absolute top-0 left-0 right-0 z-20 flex justify-center pt-4 pointer-events-none">
+          <div className="absolute top-0 left-0 right-0 z-50 flex justify-center pt-4 pointer-events-none">
             <div className="pointer-events-auto w-full max-w-xs px-4">
               <FlightSearchBar onSearch={handleSearch} loading={searching} error={searchError} />
             </div>

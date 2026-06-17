@@ -41,7 +41,7 @@ export function FlightSearchBar({ onSearch, loading = false, error }: Props) {
             placeholder={`e.g. ${EXAMPLES[0]}`}
             maxLength={10}
             spellCheck={false}
-            className="w-full h-10 pl-9 pr-8 text-sm font-mono bg-[#020c1b]/90 backdrop-blur-md border border-[#1a4a7a]/60 rounded-xl text-white placeholder-[#4da6ff]/30 focus:outline-none focus:border-[#4da6ff]/80 transition-colors"
+            className="w-full h-10 pl-9 pr-8 text-sm font-mono bg-[#000000]/80 backdrop-blur-md border border-[#1a4a7a]/80 rounded-xl text-white placeholder-[#4da6ff]/40 focus:outline-none focus:border-[#4da6ff] focus:bg-[#000000]/90 transition-colors shadow-lg"
           />
           {value && (
             <button onClick={clear} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#4da6ff]/40 hover:text-[#4da6ff]/80 transition-colors">
