@@ -15,12 +15,11 @@ const BLOCKED = ["fuck", "shit", "bitch", "cunt", "asshole", "dickhead", "mother
 const hasBadWord = (t: string) => BLOCKED.some(w => t.toLowerCase().includes(w))
 
 export function GlobalComms() {
-  const [msgs, setMsgs]         = useState<KMessage[]>([])
-  const [input, setInput]       = useState("")
-  const [city, setCity]         = useState("Unknown")
-  const [ccCode, setCcCode]     = useState("")
-  const [cooldown, setCooldown] = useState(false)
-  const [mini, setMini]         = useState(false)
+  const [msgs, setMsgs]   = useState<KMessage[]>([])
+  const [input, setInput] = useState("")
+  const [city, setCity]   = useState("Unknown")
+  const [ccCode, setCcCode] = useState("")
+  const [mini, setMini]   = useState(false)
   const bottomRef               = useRef<HTMLDivElement>(null)
   const supabase                = useRef(createSupabaseBrowserClient()).current
 
@@ -78,10 +77,8 @@ export function GlobalComms() {
 
   const send = async () => {
     const text = input.trim()
-    if (!text || cooldown || hasBadWord(text)) { setInput(""); return }
-    setCooldown(true)
+    if (!text || hasBadWord(text)) { setInput(""); return }
     setInput("")
-    setTimeout(() => setCooldown(false), 30_000)
     const { error } = await supabase.from("kinbound_messages").insert({
       message:      text.slice(0, 100),
       city,
@@ -89,7 +86,6 @@ export function GlobalComms() {
     })
     if (error) {
       console.error("[GlobalComms] insert error:", error)
-      setCooldown(false)
       return
     }
     // realtime fallback: 전송 후 직접 재조회
@@ -151,8 +147,7 @@ export function GlobalComms() {
             />
             <button
               onClick={send}
-              disabled={cooldown}
-              className="text-[#FF4B6E] text-[10px] font-bold tracking-widest disabled:opacity-30 hover:text-[#ff6080] transition-colors shrink-0"
+              className="text-[#FF4B6E] text-[10px] font-bold tracking-widest hover:text-[#ff6080] transition-colors shrink-0"
             >
               SEND
             </button>
