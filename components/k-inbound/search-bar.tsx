@@ -27,7 +27,7 @@ export function FlightSearchBar({ onSearch, loading = false, error }: Props) {
   }
 
   return (
-    <div className="absolute top-5 left-1/2 -translate-x-1/2 z-20 w-full max-w-xs px-4 pointer-events-auto">
+    <div className="w-full">
       <div className="relative flex items-center gap-2">
         {/* 입력창 */}
         <div className="relative flex-1">

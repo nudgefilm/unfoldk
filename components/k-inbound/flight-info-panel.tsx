@@ -21,8 +21,7 @@ export function FlightInfoPanel({ flight }: Props) {
   const arrDelay = delayMin(flight.arrival.scheduledTime, flight.arrival.estimatedTime)
 
   return (
-    <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-56 pointer-events-none select-none">
-      <div className="bg-[#020c1b]/80 backdrop-blur-md border border-[#1a4a7a]/50 rounded-2xl p-4 text-white">
+    <div className="bg-[#020c1b]/80 backdrop-blur-md border border-[#1a4a7a]/50 rounded-2xl p-4 text-white">
         {/* 항공편 번호 */}
         <div className="mb-3 pb-3 border-b border-[#1a4a7a]/40">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#4da6ff]/70 mb-0.5">Flight</p>
@@ -91,7 +90,6 @@ export function FlightInfoPanel({ flight }: Props) {
             )}
           </div>
         )}
-      </div>
     </div>
   )
 }

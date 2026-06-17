@@ -29,8 +29,7 @@ export function FlightStatusPanel({ flight }: Props) {
   const pct = Math.round(flight.progressRatio * 100)
 
   return (
-    <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-52 pointer-events-none select-none">
-      <div className="bg-[#020c1b]/80 backdrop-blur-md border border-[#1a4a7a]/50 rounded-2xl p-4 text-white">
+    <div className="bg-[#020c1b]/80 backdrop-blur-md border border-[#1a4a7a]/50 rounded-2xl p-4 text-white">
         {/* 상태 뱃지 */}
         <div className="flex items-center justify-between mb-3 pb-3 border-b border-[#1a4a7a]/40">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#4da6ff]/70">Status</p>
@@ -106,7 +105,6 @@ export function FlightStatusPanel({ flight }: Props) {
           <Wifi className="w-3 h-3 text-emerald-400/70" />
           <span className="text-[10px] text-emerald-400/70">Live signal</span>
         </div>
-      </div>
     </div>
   )
 }

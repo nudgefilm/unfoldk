@@ -1688,7 +1688,7 @@ export default function CurationKPage() {
                     ✈️ K-INBOUND FLIGHT SIMULATOR
                   </Link>
                   <p className="text-muted-foreground/50 text-[11px] mt-1.5">
-                    Track real-time flights inbound to Korea on a 3D globe — Pro
+                    Track real-time flights inbound to Korea on a 3D globe | Hallyu Pass
                   </p>
                 </div>
               </div>
