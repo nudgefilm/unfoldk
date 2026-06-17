@@ -1678,6 +1678,19 @@ export default function CurationKPage() {
                     </div>
                   </div>
                 )}
+
+                {/* K-Inbound 비행 시뮬레이터 진입 버튼 */}
+                <div className="mt-6 pt-5 border-t border-border/30">
+                  <Link
+                    href="/k-inbound"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0a1e30] hover:bg-[#0f2a42] border border-[#1a4a7a]/50 hover:border-[#4da6ff]/60 text-[#4da6ff] text-sm font-semibold transition-all"
+                  >
+                    ✈️ K-INBOUND FLIGHT SIMULATOR
+                  </Link>
+                  <p className="text-muted-foreground/50 text-[11px] mt-1.5">
+                    Track real-time flights inbound to Korea on a 3D globe — Pro
+                  </p>
+                </div>
               </div>
             </div>
           </div>
