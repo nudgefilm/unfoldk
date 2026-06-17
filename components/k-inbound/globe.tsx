@@ -31,6 +31,7 @@ const MAJOR_ROUTES: { from: [number, number]; to: [number, number]; duration: nu
 
 const TRAIL_LEN   = 50
 const DUMMY_COUNT = 5
+const AIRCRAFT_ROTATION_OFFSET = 0 // 조정 필요: 0 → Math.PI/4 → -Math.PI/4 순으로 테스트
 
 // 지구 자전 속도: 5분/회전 (실제 24시간은 시각적으로 멈춘 것처럼 보임)
 const EARTH_ROT_RAD_PER_SEC = (Math.PI * 2) / 1200
@@ -172,7 +173,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     const mainTex    = makeMainAircraftTexture(48)
     const mainMat    = new THREE.SpriteMaterial({ map: mainTex, transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true })
     const mainSprite = new THREE.Sprite(mainMat)
-    mainSprite.scale.set(0.07, 0.07, 1)
+    mainSprite.scale.set(0.042, 0.042, 1)
     scene.add(mainSprite)
 
     // ── 더미 항공기 5기 — 실제 비행시간 기준 speed
@@ -274,7 +275,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         mainTangent.transformDirection(camera.matrixWorldInverse)
         const mainNdcZ = mainPos.clone().project(camera).z
         if (mainNdcZ < 1.0 && mainTangent.x * mainTangent.x + mainTangent.y * mainTangent.y > 1e-6) {
-          const targetRot = Math.atan2(mainTangent.y, mainTangent.x) + Math.PI / 4
+          const targetRot = Math.atan2(mainTangent.y, mainTangent.x) + AIRCRAFT_ROTATION_OFFSET
           let diff = targetRot - mainMat.rotation
           while (diff >  Math.PI) diff -= Math.PI * 2
           while (diff < -Math.PI) diff += Math.PI * 2

@@ -29,7 +29,7 @@ function altPhase(p: number): string {
 
 function Row({ label, value, sub, cls = "text-white" }: { label: string; value: string; sub?: string; cls?: string }) {
   return (
-    <div className="grid grid-cols-[110px_1fr] gap-1 py-px group cursor-default">
+    <div className="grid grid-cols-[110px_1fr] gap-1 py-0 group cursor-default">
       <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1 truncate transition-colors duration-150 group-hover:text-white">{label}</span>
       <span className={`text-[13px] font-semibold transition-all duration-150 group-hover:brightness-[1.12] ${cls}`}>
         {value}
@@ -46,7 +46,7 @@ export function LiveTelemetryPanel({ flight }: Props) {
 
   return (
     <div className="shrink-0 flex flex-col p-3 font-mono text-white">
-      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-1 hover:text-white transition-colors duration-150 cursor-default">Live Telemetry</div>
+      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0.5 hover:text-white transition-colors duration-150 cursor-default">Live Telemetry</div>
 
       <Row
         label="Est Altitude"
@@ -64,7 +64,7 @@ export function LiveTelemetryPanel({ flight }: Props) {
         sub="est"
       />
 
-      <div className="border-t border-[#4a9eff]/15 my-1.5" />
+      <div className="border-t border-[#4a9eff]/15 my-1" />
 
       <Row label="Flight Phase" value={phase} cls={phaseCls} />
       <Row
