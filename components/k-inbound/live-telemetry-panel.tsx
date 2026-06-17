@@ -31,7 +31,7 @@ function Row({ label, value, sub, cls = "text-white" }: { label: string; value: 
   return (
     <div className="grid grid-cols-[110px_1fr] gap-1 py-px group cursor-default">
       <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1 truncate transition-colors duration-150 group-hover:text-white">{label}</span>
-      <span className={`text-[13px] font-semibold transition-all duration-150 group-hover:brightness-125 ${cls}`}>
+      <span className={`text-[13px] font-semibold transition-all duration-150 group-hover:brightness-[1.12] ${cls}`}>
         {value}
         {sub && <span className="text-[10px] text-[#cbd5e1]/55 ml-1 font-normal">{sub}</span>}
       </span>

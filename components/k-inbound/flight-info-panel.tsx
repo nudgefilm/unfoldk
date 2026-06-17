@@ -16,7 +16,7 @@ function Row({ label, value, cls = "text-white" }: { label: string; value: strin
   return (
     <div className="grid grid-cols-[110px_1fr] gap-1 py-px group cursor-default">
       <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1 truncate transition-colors duration-150 group-hover:text-white">{label}</span>
-      <span className={`text-[13px] font-semibold transition-all duration-150 group-hover:brightness-125 ${cls}`}>{value}</span>
+      <span className={`text-[13px] font-semibold transition-all duration-150 group-hover:brightness-[1.12] ${cls}`}>{value}</span>
     </div>
   )
 }
