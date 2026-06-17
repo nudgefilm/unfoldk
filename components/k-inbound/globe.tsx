@@ -274,7 +274,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         mainTangent.transformDirection(camera.matrixWorldInverse)
         const mainNdcZ = mainPos.clone().project(camera).z
         if (mainNdcZ < 1.0 && mainTangent.x * mainTangent.x + mainTangent.y * mainTangent.y > 1e-6) {
-          const targetRot = Math.atan2(mainTangent.y, mainTangent.x) - Math.PI / 4
+          const targetRot = Math.atan2(mainTangent.y, mainTangent.x) + Math.PI / 4
           let diff = targetRot - mainMat.rotation
           while (diff >  Math.PI) diff -= Math.PI * 2
           while (diff < -Math.PI) diff += Math.PI * 2
