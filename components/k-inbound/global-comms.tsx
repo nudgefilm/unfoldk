@@ -80,7 +80,7 @@ export function GlobalComms() {
 
   return (
     <div
-      className="absolute bottom-16 left-2 z-20 w-[280px] font-mono"
+      className="absolute bottom-4 left-2 z-20 w-[280px] font-mono"
       style={{
         background:   "rgba(0,0,0,0.75)",
         border:       "1px solid rgba(255,75,110,0.3)",
