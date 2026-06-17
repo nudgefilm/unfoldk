@@ -17,20 +17,20 @@ export function RouteProgressBar({ flight }: Props) {
       <div>
 
         {/* 상단 레이블 행 */}
-        <div className="flex items-center justify-between text-[10px] mb-1.5">
-          <div className="flex items-baseline gap-1.5 min-w-[80px]">
+        <div className="flex items-center justify-between text-[13px] mb-1.5">
+          <div className="flex items-baseline gap-1.5 min-w-[90px]">
             <span className="text-[#4a9eff] font-bold">{flight?.departure.iata ?? "—"}</span>
-            {flight && <span className="text-[#94a3b8]">{fmtTime(flight.departure.scheduledTime)}</span>}
+            {flight && <span className="text-[#94a3b8] text-[11px]">{fmtTime(flight.departure.scheduledTime)}</span>}
           </div>
 
-          <div className="text-[#94a3b8] text-center text-[9px] px-2">
+          <div className="text-[#94a3b8] text-center text-[11px] px-2">
             {flight
               ? `${flight.number} · ${pct}% · ${flight.distanceKm.toLocaleString()} km`
               : "Search a flight to see the route"}
           </div>
 
-          <div className="flex items-baseline gap-1.5 justify-end min-w-[80px]">
-            {flight && <span className="text-[#94a3b8]">{fmtTime(flight.arrival.scheduledTime)}</span>}
+          <div className="flex items-baseline gap-1.5 justify-end min-w-[90px]">
+            {flight && <span className="text-[#94a3b8] text-[11px]">{fmtTime(flight.arrival.scheduledTime)}</span>}
             <span className="text-[#4a9eff] font-bold">{flight?.arrival.iata ?? "—"}</span>
           </div>
         </div>
@@ -64,7 +64,7 @@ export function RouteProgressBar({ flight }: Props) {
         </div>
 
         {/* 공항명 */}
-        <div className="flex justify-between text-[9px] text-[#94a3b8] mt-0.5">
+        <div className="flex justify-between text-[11px] text-[#94a3b8] mt-0.5">
           <span className="truncate max-w-[45%]">{flight?.departure.name ?? ""}</span>
           <span className="truncate max-w-[45%] text-right">{flight?.arrival.name ?? ""}</span>
         </div>
