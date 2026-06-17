@@ -17,7 +17,7 @@ import type { FlightData } from "@/app/api/k-inbound/flight/route"
 
 const KInboundGlobe = dynamic(
   () => import("@/components/k-inbound/globe"),
-  { ssr: false, loading: () => <div className="w-full h-full bg-[#020c1b]" /> },
+  { ssr: false, loading: () => <div className="w-full h-full bg-black" /> },
 )
 
 type AuthState = "loading" | "unauthenticated" | "free" | "pro"
@@ -72,7 +72,7 @@ export default function KInboundPage() {
   // ── 로딩 ─────────────────────────────────────────────────────────
   if (authState === "loading") {
     return (
-      <div className="fixed top-16 left-0 right-0 bottom-0 bg-[#020c1b] flex items-center justify-center font-mono">
+      <div className="fixed top-16 left-0 right-0 bottom-0 bg-black flex items-center justify-center font-mono">
         <div className="text-[#4a9eff]/60 text-sm animate-pulse">INITIALIZING…</div>
       </div>
     )
@@ -81,7 +81,7 @@ export default function KInboundPage() {
   // ── Pro 전용 잠금 ─────────────────────────────────────────────────
   if (authState === "unauthenticated" || authState === "free") {
     return (
-      <div className="fixed top-16 left-0 right-0 bottom-0 bg-[#020c1b] flex flex-col">
+      <div className="fixed top-16 left-0 right-0 bottom-0 bg-black flex flex-col">
         <KInboundGlobe className="absolute inset-0 opacity-25 pointer-events-none" />
         <div className="relative z-10 flex items-center justify-center h-full px-6">
           <div className="bg-black/80 backdrop-blur-xl border border-[#4a9eff]/40 rounded-3xl p-10 max-w-md w-full text-center font-mono">
@@ -114,7 +114,7 @@ export default function KInboundPage() {
 
   // ── Pro 메인 — 4패널 레이아웃 ────────────────────────────────────
   return (
-    <div className="fixed top-16 left-0 right-0 bottom-0 flex flex-col bg-[#020c1b] overflow-hidden font-mono">
+    <div className="fixed top-16 left-0 right-0 bottom-0 flex flex-col bg-black overflow-hidden font-mono">
 
       {/* ── 메인 행: 좌패널 열 | 지구본 | 우패널 열 ── */}
       <div className="flex flex-1 min-h-0">

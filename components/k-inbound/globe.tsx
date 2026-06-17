@@ -112,42 +112,22 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     // 초기 카메라 — 한국(동아시아) 중심
     camera.position.copy(latLngToVec3(37, 127).multiplyScalar(2.8))
 
-    // ── 조명 (Ghost War 수준 밝기) ──────────────────────────────────
-    scene.add(new THREE.AmbientLight(0x4466aa, 2.0))
-    // 정면 DirectionalLight
-    const frontLight = new THREE.DirectionalLight(0x88ccff, 1.2)
+    // ── 조명 (중성 백색)
+    scene.add(new THREE.AmbientLight(0xffffff, 1.2))
+    const frontLight = new THREE.DirectionalLight(0xffffff, 0.9)
     frontLight.position.set(0, 0, 5)
     scene.add(frontLight)
-    // 우상단 포인트 라이트
-    const pl1 = new THREE.PointLight(0x6699ff, 1.5)
+    const pl1 = new THREE.PointLight(0xffffff, 0.6)
     pl1.position.set(-2, 3, 2); scene.add(pl1)
-    // 하단 보조
-    const pl2 = new THREE.PointLight(0x3355aa, 0.8)
-    pl2.position.set(1, -2, -1); scene.add(pl2)
 
-    // ── 대기 글로우 (강화) ──────────────────────────────────────────
-    scene.add(new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS * 1.05, 32, 32),
-      new THREE.MeshBasicMaterial({ color: 0x2255cc, transparent: true, opacity: 0.20, side: THREE.BackSide }),
-    ))
-    scene.add(new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS * 1.02, 32, 32),
-      new THREE.MeshBasicMaterial({ color: 0x4477ff, transparent: true, opacity: 0.08, side: THREE.BackSide }),
-    ))
-
-    // ── 지구 구체 — 내부 발광 포함 ──────────────────────────────────
+    // ── 지구 구체 (순수 다크, 글로우 없음)
     scene.add(new THREE.Mesh(
       new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64),
-      new THREE.MeshPhongMaterial({
-        color:             0x0d2137,
-        emissive:          new THREE.Color(0x061828),
-        emissiveIntensity: 0.6,
-        shininess:         40,
-      }),
+      new THREE.MeshPhongMaterial({ color: 0x080808, shininess: 20 }),
     ))
 
     // ── 위도/경도 격자 (선명) ───────────────────────────────────────
-    const gratMat = new THREE.LineBasicMaterial({ color: 0x1e5a8c, opacity: 0.6, transparent: true })
+    const gratMat = new THREE.LineBasicMaterial({ color: 0x1a2a1a, opacity: 0.7, transparent: true })
     ;([-60, -30, 0, 30, 60] as number[]).forEach(lat => {
       const pts = Array.from({ length: 65 }, (_, i) =>
         latLngToVec3(lat, (i / 64) * 360 - 180, GLOBE_RADIUS + 0.002))
