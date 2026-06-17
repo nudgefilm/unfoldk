@@ -27,13 +27,13 @@ function altPhase(p: number): string {
   return "DESCENDING ↓"
 }
 
-function Row({ label, value, sub, cls = "text-[#4a9eff]" }: { label: string; value: string; sub?: string; cls?: string }) {
+function Row({ label, value, sub, cls = "text-white" }: { label: string; value: string; sub?: string; cls?: string }) {
   return (
-    <div className="grid grid-cols-[100px_1fr] gap-1 py-[2px]">
-      <span className="text-[9px] uppercase tracking-wider text-[#94a3b8]/55 text-right pr-1 truncate">{label}</span>
-      <span className={`text-[11px] font-semibold ${cls}`}>
+    <div className="grid grid-cols-[110px_1fr] gap-1 py-[3px]">
+      <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1 truncate">{label}</span>
+      <span className={`text-[13px] font-semibold ${cls}`}>
         {value}
-        {sub && <span className="text-[9px] text-[#94a3b8]/45 ml-1 font-normal">{sub}</span>}
+        {sub && <span className="text-[10px] text-[#cbd5e1]/55 ml-1 font-normal">{sub}</span>}
       </span>
     </div>
   )
@@ -42,11 +42,11 @@ function Row({ label, value, sub, cls = "text-[#4a9eff]" }: { label: string; val
 export function LiveTelemetryPanel({ flight }: Props) {
   const p     = flight?.progressRatio ?? 0
   const phase = flight ? flightPhase(p, flight.status) : "GROUND"
-  const phaseCls = phase === "CRUISE" || phase === "LANDED" ? "text-[#00ff88]" : "text-[#4a9eff]"
+  const phaseCls = phase === "CRUISE" || phase === "LANDED" ? "text-[#4ade80]" : "text-white"
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl p-4 overflow-y-auto font-mono text-white">
-      <div className="text-[9px] uppercase tracking-wider text-[#94a3b8]/50 mb-2">Live Telemetry</div>
+    <div className="flex-1 min-h-0 flex flex-col bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl p-4 overflow-hidden font-mono text-white">
+      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-2">Live Telemetry</div>
 
       <Row
         label="Est Altitude"

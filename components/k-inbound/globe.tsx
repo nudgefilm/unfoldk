@@ -29,60 +29,29 @@ function easeInOutCubic(t: number) {
   return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2
 }
 
-// 비행기 모양 캔버스 텍스처 (✈ 문자 + 글로우 링)
-function makeAircraftTexture(glowColor: string, textColor: string, size: number): THREE.CanvasTexture {
+// 더미 항공기 텍스처 — 배경 없이 ✈ 아이콘만 (#FF4B6E)
+function makeAircraftTexture(size: number): THREE.CanvasTexture {
   const c = document.createElement("canvas")
   c.width = size; c.height = size
   const ctx = c.getContext("2d")!
-  const half = size / 2
-
-  // 외부 글로우 링
-  const grd = ctx.createRadialGradient(half, half, 0, half, half, half * 0.95)
-  grd.addColorStop(0,   glowColor + "cc")
-  grd.addColorStop(0.4, glowColor + "88")
-  grd.addColorStop(1,   "transparent")
-  ctx.fillStyle = grd
-  ctx.beginPath()
-  ctx.arc(half, half, half * 0.95, 0, Math.PI * 2)
-  ctx.fill()
-
-  // ✈ 아이콘 (약간 회전해서 전진 방향 표시)
-  ctx.save()
-  ctx.translate(half, half)
-  ctx.font = `bold ${Math.round(size * 0.52)}px Arial, sans-serif`
-  ctx.fillStyle = textColor
+  ctx.font = `bold ${Math.round(size * 0.72)}px Arial, sans-serif`
+  ctx.fillStyle = "#FF4B6E"
   ctx.textAlign = "center"
   ctx.textBaseline = "middle"
-  ctx.fillText("✈", 0, 0)
-  ctx.restore()
-
+  ctx.fillText("✈", size / 2, size / 2)
   return new THREE.CanvasTexture(c)
 }
 
-// 주 항공기 — 금색 글로우 + 흰 ✈
+// 주 항공기 텍스처 — 배경 없이 ✈ 아이콘만, 흰색으로 더미와 구분
 function makeMainAircraftTexture(size: number): THREE.CanvasTexture {
   const c = document.createElement("canvas")
   c.width = size; c.height = size
   const ctx = c.getContext("2d")!
-  const half = size / 2
-
-  // 강한 금색 글로우
-  const grd = ctx.createRadialGradient(half, half, 0, half, half, half)
-  grd.addColorStop(0,   "#ffd700ff")
-  grd.addColorStop(0.35, "#ffd700cc")
-  grd.addColorStop(0.7,  "#ffd70044")
-  grd.addColorStop(1,   "transparent")
-  ctx.fillStyle = grd
-  ctx.beginPath()
-  ctx.arc(half, half, half, 0, Math.PI * 2)
-  ctx.fill()
-
-  ctx.font = `bold ${Math.round(size * 0.55)}px Arial, sans-serif`
+  ctx.font = `bold ${Math.round(size * 0.72)}px Arial, sans-serif`
   ctx.fillStyle = "#ffffff"
   ctx.textAlign = "center"
   ctx.textBaseline = "middle"
-  ctx.fillText("✈", half, half)
-
+  ctx.fillText("✈", size / 2, size / 2)
   return new THREE.CanvasTexture(c)
 }
 
@@ -127,7 +96,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     ))
 
     // ── 위도/경도 격자 (선명) ───────────────────────────────────────
-    const gratMat = new THREE.LineBasicMaterial({ color: 0x1a2a1a, opacity: 0.7, transparent: true })
+    const gratMat = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.10, transparent: true })
     ;([-60, -30, 0, 30, 60] as number[]).forEach(lat => {
       const pts = Array.from({ length: 65 }, (_, i) =>
         latLngToVec3(lat, (i / 64) * 360 - 180, GLOBE_RADIUS + 0.002))
@@ -140,7 +109,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     })
 
     // ── 대륙선 (Ghost War 네온 그린) ───────────────────────────────
-    const landMat = new THREE.LineBasicMaterial({ color: 0x00ff88, opacity: 0.90, transparent: true })
+    const landMat = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.35, transparent: true })
     fetch("/ne_110m_land.json")
       .then(r => r.json())
       .then((data: { features: Array<{ geometry: { type: string; coordinates: unknown } }> }) => {
@@ -182,7 +151,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     scene.add(mainSprite)
 
     // ── 더미 항공기 ✈ 스프라이트 (8기) ────────────────────────────
-    const dummyTex = makeAircraftTexture("#00ccff", "#ffffff", 36)
+    const dummyTex = makeAircraftTexture(36)
     const dummies = Array.from({ length: 8 }, (_, i) => {
       const mat = new THREE.SpriteMaterial({ map: dummyTex, transparent: true, opacity: 0.90, depthWrite: false, sizeAttenuation: true })
       const sprite = new THREE.Sprite(mat)

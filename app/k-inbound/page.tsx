@@ -23,10 +23,11 @@ const KInboundGlobe = dynamic(
 type AuthState = "loading" | "unauthenticated" | "free" | "pro"
 
 export default function KInboundPage() {
-  const [authState, setAuthState] = useState<AuthState>("loading")
-  const [flight, setFlight]       = useState<FlightData | null>(null)
-  const [searching, setSearching] = useState(false)
+  const [authState, setAuthState]     = useState<AuthState>("loading")
+  const [flight, setFlight]           = useState<FlightData | null>(null)
+  const [searching, setSearching]     = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const [globeHovered, setGlobeHovered] = useState(false)
   const globeRef = useRef<GlobeHandle>(null)
 
   useEffect(() => {
@@ -120,13 +121,21 @@ export default function KInboundPage() {
       <div className="flex flex-1 min-h-0">
 
         {/* 좌측 패널 열 (md+ 표시) */}
-        <div className="hidden md:flex w-[280px] shrink-0 flex-col gap-2 p-2 border-r border-[#4a9eff]/12 overflow-hidden">
+        <div
+          className="hidden md:flex w-[280px] shrink-0 flex-col gap-2 p-2 border-r border-[#4a9eff]/12 overflow-hidden transition-opacity duration-300"
+          style={{ opacity: globeHovered ? 0.3 : 1 }}
+          onMouseEnter={() => setGlobeHovered(false)}
+        >
           <FlightInfoPanel    flight={flight} />
           <AircraftInfoPanel  flight={flight} />
         </div>
 
         {/* 중앙 지구본 */}
-        <div className="relative flex-1 min-w-0">
+        <div
+          className="relative flex-1 min-w-0"
+          onMouseEnter={() => setGlobeHovered(true)}
+          onMouseLeave={() => setGlobeHovered(false)}
+        >
           {/* 검색 바 — 상단 중앙 오버레이 */}
           <div className="absolute top-3 left-0 right-0 z-50 flex justify-center pointer-events-none">
             <div className="pointer-events-auto w-full max-w-sm px-4">
@@ -138,7 +147,11 @@ export default function KInboundPage() {
         </div>
 
         {/* 우측 패널 열 (md+ 표시) */}
-        <div className="hidden md:flex w-[280px] shrink-0 flex-col gap-2 p-2 border-l border-[#4a9eff]/12 overflow-hidden">
+        <div
+          className="hidden md:flex w-[280px] shrink-0 flex-col gap-2 p-2 border-l border-[#4a9eff]/12 overflow-hidden transition-opacity duration-300"
+          style={{ opacity: globeHovered ? 0.3 : 1 }}
+          onMouseEnter={() => setGlobeHovered(false)}
+        >
           <FlightStatusPanel   flight={flight} />
           <LiveTelemetryPanel  flight={flight} />
         </div>

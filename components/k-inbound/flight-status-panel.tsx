@@ -16,21 +16,21 @@ function delayMin(sched: string, actual?: string): number | null {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  "En Route":  "text-[#00ff88]",
-  "Active":    "text-[#00ff88]",
-  "Departed":  "text-[#4a9eff]",
-  "Delayed":   "text-[#ff4b6e]",
-  "Landed":    "text-[#4a9eff]",
-  "Cancelled": "text-[#ff4b6e]",
-  "Scheduled": "text-[#94a3b8]",
-  "Diverted":  "text-[#ff4b6e]",
+  "En Route":  "text-[#4ade80]",
+  "Active":    "text-[#4ade80]",
+  "Departed":  "text-white",
+  "Delayed":   "text-[#FF4B6E]",
+  "Landed":    "text-white",
+  "Cancelled": "text-[#FF4B6E]",
+  "Scheduled": "text-[#cbd5e1]",
+  "Diverted":  "text-[#FF4B6E]",
 }
 
-function Row({ label, value, cls = "text-[#4a9eff]" }: { label: string; value: string; cls?: string }) {
+function Row({ label, value, cls = "text-white" }: { label: string; value: string; cls?: string }) {
   return (
-    <div className="grid grid-cols-[100px_1fr] gap-1 py-[2px]">
-      <span className="text-[9px] uppercase tracking-wider text-[#94a3b8]/55 text-right pr-1 truncate">{label}</span>
-      <span className={`text-[11px] font-semibold ${cls}`}>{value}</span>
+    <div className="grid grid-cols-[110px_1fr] gap-1 py-[3px]">
+      <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1 truncate">{label}</span>
+      <span className={`text-[13px] font-semibold ${cls}`}>{value}</span>
     </div>
   )
 }
@@ -40,16 +40,16 @@ export function FlightStatusPanel({ flight }: Props) {
   const dd       = flight ? delayMin(flight.departure.scheduledTime, flight.departure.actualTime) : null
   const minAgo   = flight ? Math.floor((now - flight.fetchedAt) / 60_000) : null
   const isLive   = minAgo !== null && minAgo < 15
-  const statusCls = flight ? (STATUS_COLOR[flight.status] ?? "text-[#94a3b8]") : "text-[#94a3b8]/40"
+  const statusCls = flight ? (STATUS_COLOR[flight.status] ?? "text-[#cbd5e1]") : "text-[#cbd5e1]/40"
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl p-4 overflow-y-auto font-mono text-white">
-      <div className="text-[9px] uppercase tracking-wider text-[#94a3b8]/50 mb-2">Flight Status</div>
+    <div className="flex-1 min-h-0 flex flex-col bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl p-4 overflow-hidden font-mono text-white">
+      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-2">Flight Status</div>
 
       {/* STATUS */}
-      <div className="grid grid-cols-[100px_1fr] gap-1 py-[2px] mb-1">
-        <span className="text-[9px] uppercase tracking-wider text-[#94a3b8]/55 text-right pr-1">Status</span>
-        <span className={`text-[11px] font-bold ${statusCls}`}>
+      <div className="grid grid-cols-[110px_1fr] gap-1 py-[3px] mb-1">
+        <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1">Status</span>
+        <span className={`text-[13px] font-bold ${statusCls}`}>
           {flight?.status ?? "◌ STANDBY"}
         </span>
       </div>
@@ -60,18 +60,18 @@ export function FlightStatusPanel({ flight }: Props) {
       <Row
         label="Remaining"
         value={flight ? `${fmtHHMM(flight.remainingMs)} est` : "—"}
-        cls="text-[#4a9eff]/80"
+        cls="text-[#cbd5e1]/80"
       />
 
       <div className="border-t border-[#4a9eff]/15 my-1.5" />
 
       {/* DELAY */}
       {dd !== null && dd > 0 ? (
-        <Row label="Delay" value={`+${dd} min`} cls="text-[#ff4b6e]" />
+        <Row label="Delay" value={`+${dd} min`} cls="text-[#FF4B6E]" />
       ) : dd !== null ? (
-        <Row label="Delay" value="ON TIME" cls="text-[#00ff88]" />
+        <Row label="Delay" value="ON TIME" cls="text-[#4ade80]" />
       ) : (
-        <Row label="Delay" value="—" cls="text-[#94a3b8]/35" />
+        <Row label="Delay" value="—" cls="text-[#cbd5e1]/40" />
       )}
 
       <div className="border-t border-[#4a9eff]/15 my-1.5" />
@@ -80,12 +80,12 @@ export function FlightStatusPanel({ flight }: Props) {
       <Row
         label="Signal"
         value={flight ? (isLive ? "● LIVE" : "◌ PREDICTIVE") : "◌ AWAITING INPUT"}
-        cls={flight ? (isLive ? "text-[#00ff88]" : "text-[#94a3b8]/60") : "text-[#94a3b8]/40"}
+        cls={flight ? (isLive ? "text-[#4ade80]" : "text-[#cbd5e1]/70") : "text-[#cbd5e1]/40"}
       />
       <Row
         label="Updated"
         value={minAgo !== null ? `${minAgo}m ago` : "—"}
-        cls="text-[#94a3b8]/60"
+        cls="text-[#cbd5e1]/70"
       />
     </div>
   )
