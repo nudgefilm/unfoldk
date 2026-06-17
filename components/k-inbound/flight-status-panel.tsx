@@ -43,7 +43,7 @@ export function FlightStatusPanel({ flight }: Props) {
   const statusCls = flight ? (STATUS_COLOR[flight.status] ?? "text-[#cbd5e1]") : "text-[#cbd5e1]/40"
 
   return (
-    <div className="shrink-0 flex flex-col bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl p-3 font-mono text-white">
+    <div className="shrink-0 flex flex-col p-3 font-mono text-white">
       <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-1 hover:text-white transition-colors duration-150 cursor-default">Flight Status</div>
 
       {/* STATUS */}

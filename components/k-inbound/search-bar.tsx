@@ -29,7 +29,7 @@ export function FlightSearchBar({ onSearch, loading = false, error }: Props) {
   return (
     <div className="w-full">
       {/* 입력창 + Track 버튼 — 패널 카드와 동일한 반투명 컨테이너 */}
-      <div className="flex items-center bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl overflow-hidden">
+      <div className="flex items-center rounded-xl overflow-hidden">
         <Search className="shrink-0 ml-3 w-4 h-4 text-[#4a9eff]/50 pointer-events-none" />
 
         <input

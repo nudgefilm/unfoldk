@@ -26,7 +26,7 @@ export function FlightInfoPanel({ flight }: Props) {
   const ad = flight ? delayMin(flight.arrival.scheduledTime, flight.arrival.estimatedTime) : null
 
   return (
-    <div className="shrink-0 flex flex-col bg-black/75 backdrop-blur-sm border border-[#4a9eff]/30 rounded-xl p-3 font-mono text-white">
+    <div className="shrink-0 flex flex-col p-3 font-mono text-white">
 
       {/* 헤더 */}
       {flight ? (

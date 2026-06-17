@@ -22,11 +22,10 @@ const KInboundGlobe = dynamic(
 type AuthState = "loading" | "unauthenticated" | "free" | "pro"
 
 export default function KInboundPage() {
-  const [authState, setAuthState]       = useState<AuthState>("loading")
-  const [flight, setFlight]             = useState<FlightData | null>(null)
-  const [searching, setSearching]       = useState(false)
-  const [searchError, setSearchError]   = useState<string | null>(null)
-  const [globeHovered, setGlobeHovered] = useState(false)
+  const [authState, setAuthState]     = useState<AuthState>("loading")
+  const [flight, setFlight]           = useState<FlightData | null>(null)
+  const [searching, setSearching]     = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const globeRef = useRef<GlobeHandle>(null)
 
   useEffect(() => {
@@ -114,10 +113,7 @@ export default function KInboundPage() {
 
   // ── Pro 메인 — 지구본 전체 배경 + 패널 overlay
   return (
-    <div
-      className="fixed top-16 left-0 right-0 bottom-0 overflow-hidden font-mono"
-      onMouseLeave={() => setGlobeHovered(false)}
-    >
+    <div className="fixed top-16 left-0 right-0 bottom-0 overflow-hidden font-mono">
       {/* 지구본 — 전체 배경 */}
       <KInboundGlobe ref={globeRef} className="absolute inset-0" />
 
@@ -128,24 +124,14 @@ export default function KInboundPage() {
         </div>
       </div>
 
-      {/* 좌측 패널 — 지구본 위 overlay */}
-      <div
-        className="absolute top-2 left-2 bottom-16 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-opacity duration-300"
-        style={{ opacity: globeHovered ? 0.3 : 1 }}
-        onMouseEnter={() => setGlobeHovered(false)}
-        onMouseLeave={() => setGlobeHovered(true)}
-      >
+      {/* 좌측 패널 — 지구본 위 overlay, 항상 full opacity */}
+      <div className="absolute top-2 left-2 bottom-16 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <FlightInfoPanel   flight={flight} />
         <AircraftInfoPanel flight={flight} />
       </div>
 
-      {/* 우측 패널 — 지구본 위 overlay */}
-      <div
-        className="absolute top-2 right-2 bottom-16 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-opacity duration-300"
-        style={{ opacity: globeHovered ? 0.3 : 1 }}
-        onMouseEnter={() => setGlobeHovered(false)}
-        onMouseLeave={() => setGlobeHovered(true)}
-      >
+      {/* 우측 패널 — 지구본 위 overlay, 항상 full opacity */}
+      <div className="absolute top-2 right-2 bottom-16 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <FlightStatusPanel  flight={flight} />
         <LiveTelemetryPanel flight={flight} />
       </div>

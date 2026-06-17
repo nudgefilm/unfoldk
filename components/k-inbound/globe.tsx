@@ -29,7 +29,7 @@ const MAJOR_ROUTES: { from: [number, number]; to: [number, number] }[] = [
   { from: [13.68, 100.74], to: [37.46,  126.44] }, // BKK → ICN
 ]
 
-const TRAIL_LEN   = 60
+const TRAIL_LEN   = 300
 const DUMMY_COUNT = 5
 
 interface DummyState {
@@ -261,37 +261,37 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         const pos = getPointOnArc(fromLat, fromLng, toLat, toLng, d.t)
         d.sprite.position.copy(pos)
 
-        // 진행 방향 → 스프라이트 2D 회전 정렬
-        // step 0.04로 안정적인 방향 벡터 확보, 카메라 뒤 점(z≥1) 제외
-        const tFwd   = Math.min(d.t + 0.04, 0.99)
-        const posFwd = getPointOnArc(fromLat, fromLng, toLat, toLng, tFwd)
-        const ndcCur = pos.clone().project(camera)
-        const ndcFwd = posFwd.clone().project(camera)
-        if (ndcCur.z < 1.0 && ndcFwd.z < 1.0) {
-          const dx = ndcFwd.x - ndcCur.x
-          const dy = ndcFwd.y - ndcCur.y
-          if (dx * dx + dy * dy > 1e-6) {
-            // ✈ 문자가 기본적으로 우상향(~45°)을 향하므로 π/4 오프셋
-            d.mat.rotation = Math.atan2(dy, dx) - Math.PI / 4
-          }
+        // 진행 방향 → 카메라 공간 탄젠트 벡터로 안정적인 2D 방향 계산
+        // NDC 차분 방식은 원근 왜곡으로 90° 오차 발생 가능 → 카메라 공간 접선 사용
+        const tFwd    = Math.min(d.t + 0.05, 0.99)
+        const posFwd  = getPointOnArc(fromLat, fromLng, toLat, toLng, tFwd)
+        const tangent = posFwd.clone().sub(pos).normalize()
+        tangent.transformDirection(camera.matrixWorldInverse) // 카메라 공간(X=우, Y=상)으로 변환
+        const ndcZ = pos.clone().project(camera).z
+        if (ndcZ < 1.0 && tangent.x * tangent.x + tangent.y * tangent.y > 1e-6) {
+          const targetRot = Math.atan2(tangent.y, tangent.x) - Math.PI / 4
+          // 각도 정규화 [-π, π] 후 스무딩 → 갑작스런 뒤집힘 방지
+          let diff = targetRot - d.mat.rotation
+          while (diff >  Math.PI) diff -= Math.PI * 2
+          while (diff < -Math.PI) diff += Math.PI * 2
+          d.mat.rotation += diff * 0.25
         }
 
         // 꼬리 history 갱신 (현재 위치를 앞에 추가, TRAIL_LEN 초과 시 제거)
         d.history.unshift(pos.clone())
         if (d.history.length > TRAIL_LEN) d.history.pop()
 
-        // 꼬리 버퍼 업데이트 — #FF4B6E (1.0, 0.294, 0.431) 앞→뒤 파워커브 페이드
-        // 파워커브(0.45)로 꼬리 끝도 최소 0.18 이상 밝기 유지
+        // 꼬리 버퍼 업데이트 — 흰색(1.0, 1.0, 1.0) 파워커브 페이드, 꼬리 끝 min 0.15
         const n = d.history.length
         for (let j = 0; j < n; j++) {
           const p     = d.history[j]
-          const alpha = Math.max(0.18, Math.pow(1.0 - j / TRAIL_LEN, 0.45))
+          const alpha = Math.max(0.15, Math.pow(1.0 - j / TRAIL_LEN, 0.45))
           d.trailPositions[j * 3]     = p.x
           d.trailPositions[j * 3 + 1] = p.y
           d.trailPositions[j * 3 + 2] = p.z
-          d.trailColors[j * 3]        = 1.0   * alpha  // R
-          d.trailColors[j * 3 + 1]    = 0.294 * alpha  // G
-          d.trailColors[j * 3 + 2]    = 0.431 * alpha  // B
+          d.trailColors[j * 3]        = alpha  // R
+          d.trailColors[j * 3 + 1]    = alpha  // G
+          d.trailColors[j * 3 + 2]    = alpha  // B
         }
         const trailGeo = d.trailLine.geometry as THREE.BufferGeometry
         trailGeo.setDrawRange(0, n)
