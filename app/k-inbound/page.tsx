@@ -11,8 +11,10 @@ import { FlightStatusPanel } from "@/components/k-inbound/flight-status-panel"
 import { LiveTelemetryPanel } from "@/components/k-inbound/live-telemetry-panel"
 import { RouteProgressBar } from "@/components/k-inbound/route-progress-bar"
 import { FlightSearchBar } from "@/components/k-inbound/search-bar"
+import { FlightSuggestionsModal } from "@/components/k-inbound/flight-suggestions-modal"
+import { GlobalComms } from "@/components/k-inbound/global-comms"
 import type { GlobeHandle } from "@/components/k-inbound/globe"
-import type { FlightData } from "@/app/api/k-inbound/flight/route"
+import type { FlightData, FIDSSuggestion } from "@/app/api/k-inbound/flight/route"
 
 const KInboundGlobe = dynamic(
   () => import("@/components/k-inbound/globe"),
@@ -22,11 +24,21 @@ const KInboundGlobe = dynamic(
 type AuthState = "loading" | "unauthenticated" | "free" | "pro"
 
 export default function KInboundPage() {
-  const [authState, setAuthState]     = useState<AuthState>("loading")
-  const [flight, setFlight]           = useState<FlightData | null>(null)
-  const [searching, setSearching]     = useState(false)
-  const [searchError, setSearchError] = useState<string | null>(null)
+  const [authState, setAuthState]       = useState<AuthState>("loading")
+  const [flight, setFlight]             = useState<FlightData | null>(null)
+  const [searching, setSearching]       = useState(false)
+  const [searchError, setSearchError]   = useState<string | null>(null)
+  const [suggestions, setSuggestions]   = useState<FIDSSuggestion[]>([])
+  const [userCountry, setUserCountry]   = useState("")
   const globeRef = useRef<GlobeHandle>(null)
+
+  // IP → 국가 코드 (검색 제안 정렬용)
+  useEffect(() => {
+    fetch("https://ipapi.co/json/")
+      .then(r => r.json())
+      .then((d: { country_code?: string }) => { if (d.country_code) setUserCountry(d.country_code) })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
@@ -51,8 +63,16 @@ export default function KInboundPage() {
     setSearchError(null)
     try {
       const res = await fetch(`/api/k-inbound/flight?number=${encodeURIComponent(flightNumber)}`)
-      if (res.status === 404) { setSearchError("Flight not found."); return }
-      if (!res.ok)            { setSearchError("Service unavailable."); return }
+      if (res.status === 404) {
+        const body = await res.json() as { error: string; suggestions?: FIDSSuggestion[] }
+        if (body.suggestions?.length) {
+          setSuggestions(body.suggestions)
+        } else {
+          setSearchError("Flight not found.")
+        }
+        return
+      }
+      if (!res.ok) { setSearchError("Service unavailable."); return }
       const { flight: f } = await res.json() as { flight: FlightData }
       setFlight(f)
       globeRef.current?.setFlight(f)
@@ -124,10 +144,15 @@ export default function KInboundPage() {
         </div>
       </div>
 
-      {/* 좌측 패널 — 지구본 위 overlay, 항상 full opacity */}
-      <div className="absolute top-2 left-2 bottom-16 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* 좌측 패널 — GlobalComms 높이(240px) + 하단바(64px) 위 공간 */}
+      <div className="absolute top-2 left-2 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ bottom: "calc(4rem + 248px)" }}>
         <FlightInfoPanel   flight={flight} />
         <AircraftInfoPanel flight={flight} />
+      </div>
+
+      {/* GLOBAL COMMS — 좌측 하단 */}
+      <div className="hidden md:block">
+        <GlobalComms />
       </div>
 
       {/* 우측 패널 — 지구본 위 overlay, 항상 full opacity */}
@@ -140,6 +165,16 @@ export default function KInboundPage() {
       <div className="absolute bottom-0 left-0 right-0 z-20">
         <RouteProgressBar flight={flight} />
       </div>
+
+      {/* 항공편 검색 실패 시 ICN 도착 편 제안 모달 */}
+      {suggestions.length > 0 && (
+        <FlightSuggestionsModal
+          suggestions={suggestions}
+          userCountry={userCountry}
+          onSelect={handleSearch}
+          onClose={() => setSuggestions([])}
+        />
+      )}
     </div>
   )
 }

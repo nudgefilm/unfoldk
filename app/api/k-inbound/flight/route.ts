@@ -49,6 +49,13 @@ const AIRPORT_COORDS: Record<string, { lat: number; lng: number }> = {
 }
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
+export interface FIDSSuggestion {
+  number: string
+  airline: string
+  origin: string           // 출발 공항 IATA
+  scheduledArrival: string // 현지 시각 ISO 문자열
+}
+
 export interface FlightData {
   number: string
   airline: string
@@ -188,6 +195,42 @@ function buildFlightData(raw: AeroRaw): FlightData {
   }
 }
 
+// ── ICN 당일 도착 편 목록 (검색 실패 시 제안용) ──────────────────────────────
+async function fetchICNSuggestions(apiKey: string): Promise<FIDSSuggestion[]> {
+  try {
+    const today = new Date().toISOString().split("T")[0]
+    const url   = `https://aerodatabox.p.rapidapi.com/flights/airports/iata/ICN` +
+                  `?withLeg=true&direction=Arrival&dateFrom=${today}&dateTo=${today}` +
+                  `&withCancelled=false&withLocation=false`
+    const res = await fetch(url, {
+      headers: {
+        "X-RapidAPI-Key":  apiKey,
+        "X-RapidAPI-Host": "aerodatabox.p.rapidapi.com",
+      },
+      cache: "no-store",
+    })
+    if (!res.ok) return []
+    const body = await res.json() as { arrivals?: unknown[] }
+    if (!Array.isArray(body.arrivals)) return []
+    return body.arrivals
+      .slice(0, 15)
+      .map((f: unknown) => {
+        const fl  = f as Record<string, unknown>
+        const dep = fl.departure as Record<string, unknown> | undefined
+        const arr = fl.arrival   as Record<string, unknown> | undefined
+        return {
+          number:           (fl.number  as string) ?? "",
+          airline:          ((fl.airline as Record<string, unknown>)?.name as string) ?? "",
+          origin:           ((dep?.airport as Record<string, unknown>)?.iata as string) ?? "",
+          scheduledArrival: ((arr?.scheduledTime as Record<string, unknown>)?.local as string) ?? "",
+        } satisfies FIDSSuggestion
+      })
+      .filter(s => s.number && s.origin)
+  } catch {
+    return []
+  }
+}
+
 function recompute(data: FlightData): FlightData {
   const now = Date.now()
   const depMs = data.departure.actualTime
@@ -236,7 +279,10 @@ export async function GET(req: Request) {
       cache: "no-store",
     })
 
-    if (res.status === 404) return NextResponse.json({ error: "Flight not found" }, { status: 404 })
+    if (res.status === 404) {
+      const suggestions = await fetchICNSuggestions(apiKey)
+      return NextResponse.json({ error: "Flight not found", suggestions }, { status: 404 })
+    }
     if (!res.ok) return NextResponse.json({ error: `AeroDataBox ${res.status}` }, { status: res.status })
 
     const body = await res.json()
