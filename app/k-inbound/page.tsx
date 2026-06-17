@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { Lock } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 import { FlightInfoPanel } from "@/components/k-inbound/flight-info-panel"
@@ -23,10 +22,10 @@ const KInboundGlobe = dynamic(
 type AuthState = "loading" | "unauthenticated" | "free" | "pro"
 
 export default function KInboundPage() {
-  const [authState, setAuthState]     = useState<AuthState>("loading")
-  const [flight, setFlight]           = useState<FlightData | null>(null)
-  const [searching, setSearching]     = useState(false)
-  const [searchError, setSearchError] = useState<string | null>(null)
+  const [authState, setAuthState]       = useState<AuthState>("loading")
+  const [flight, setFlight]             = useState<FlightData | null>(null)
+  const [searching, setSearching]       = useState(false)
+  const [searchError, setSearchError]   = useState<string | null>(null)
   const [globeHovered, setGlobeHovered] = useState(false)
   const globeRef = useRef<GlobeHandle>(null)
 
@@ -41,8 +40,8 @@ export default function KInboundPage() {
         .single()
       if (!user) { setAuthState("free"); return }
       setAuthState(hasProAccess({
-        planType: user.plan_type as string,
-        isAdmin:  user.is_admin  as boolean,
+        planType:    user.plan_type    as string,
+        isAdmin:     user.is_admin     as boolean,
         trialEndsAt: user.trial_ends_at as string | null,
       }) ? "pro" : "free")
     })
@@ -70,7 +69,7 @@ export default function KInboundPage() {
     }
   }, [])
 
-  // ── 로딩 ─────────────────────────────────────────────────────────
+  // ── 로딩
   if (authState === "loading") {
     return (
       <div className="fixed top-16 left-0 right-0 bottom-0 bg-black flex items-center justify-center font-mono">
@@ -79,7 +78,7 @@ export default function KInboundPage() {
     )
   }
 
-  // ── Pro 전용 잠금 ─────────────────────────────────────────────────
+  // ── Pro 잠금
   if (authState === "unauthenticated" || authState === "free") {
     return (
       <div className="fixed top-16 left-0 right-0 bottom-0 bg-black flex flex-col">
@@ -93,9 +92,9 @@ export default function KInboundPage() {
             {authState === "unauthenticated" ? (
               <>
                 <Link href="/signup" className="block w-full py-3 rounded-xl bg-[#FF4B6E] hover:bg-[#ff6080] text-white font-semibold text-sm transition-colors mb-2">
-                  Sign up — it's free
+                  Sign up — it&apos;s free
                 </Link>
-                <Link href="/login" className="block w-full py-2.5 rounded-xl border border-[#4a9eff]/40 hover:bg-[#0a1e30] text-[#4a9eff] text-sm transition-colors">
+                <Link href="/login" className="block w-full py-2.5 rounded-xl border border-[#4a9eff]/40 hover:bg-white/5 text-[#4a9eff] text-sm transition-colors">
                   Already have an account
                 </Link>
               </>
@@ -113,52 +112,48 @@ export default function KInboundPage() {
     )
   }
 
-  // ── Pro 메인 — 4패널 레이아웃 ────────────────────────────────────
+  // ── Pro 메인 — 지구본 전체 배경 + 패널 overlay
   return (
-    <div className="fixed top-16 left-0 right-0 bottom-0 flex flex-col bg-black overflow-hidden font-mono">
+    <div
+      className="fixed top-16 left-0 right-0 bottom-0 overflow-hidden font-mono"
+      onMouseLeave={() => setGlobeHovered(false)}
+    >
+      {/* 지구본 — 전체 배경 */}
+      <KInboundGlobe ref={globeRef} className="absolute inset-0" />
 
-      {/* ── 메인 행: 좌패널 열 | 지구본 | 우패널 열 ── */}
-      <div className="flex flex-1 min-h-0">
-
-        {/* 좌측 패널 열 (md+ 표시) */}
-        <div
-          className="hidden md:flex w-[280px] shrink-0 flex-col gap-2 p-2 border-r border-[#4a9eff]/12 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-opacity duration-300"
-          style={{ opacity: globeHovered ? 0.3 : 1 }}
-          onMouseEnter={() => setGlobeHovered(false)}
-        >
-          <FlightInfoPanel    flight={flight} />
-          <AircraftInfoPanel  flight={flight} />
-        </div>
-
-        {/* 중앙 지구본 */}
-        <div
-          className="relative flex-1 min-w-0"
-          onMouseEnter={() => setGlobeHovered(true)}
-          onMouseLeave={() => setGlobeHovered(false)}
-        >
-          {/* 검색 바 — 상단 중앙 오버레이 */}
-          <div className="absolute top-3 left-0 right-0 z-50 flex justify-center pointer-events-none">
-            <div className="pointer-events-auto w-full max-w-sm px-4">
-              <FlightSearchBar onSearch={handleSearch} loading={searching} error={searchError} />
-            </div>
-          </div>
-
-          <KInboundGlobe ref={globeRef} className="w-full h-full" />
-        </div>
-
-        {/* 우측 패널 열 (md+ 표시) */}
-        <div
-          className="hidden md:flex w-[280px] shrink-0 flex-col gap-2 p-2 border-l border-[#4a9eff]/12 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-opacity duration-300"
-          style={{ opacity: globeHovered ? 0.3 : 1 }}
-          onMouseEnter={() => setGlobeHovered(false)}
-        >
-          <FlightStatusPanel   flight={flight} />
-          <LiveTelemetryPanel  flight={flight} />
+      {/* 검색 바 — 상단 중앙 overlay */}
+      <div className="absolute top-3 left-0 right-0 z-50 flex justify-center pointer-events-none">
+        <div className="pointer-events-auto w-full max-w-sm px-4">
+          <FlightSearchBar onSearch={handleSearch} loading={searching} error={searchError} />
         </div>
       </div>
 
-      {/* ── 하단 경로 바 ── */}
-      <RouteProgressBar flight={flight} />
+      {/* 좌측 패널 — 지구본 위 overlay */}
+      <div
+        className="absolute top-2 left-2 bottom-16 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-opacity duration-300"
+        style={{ opacity: globeHovered ? 0.3 : 1 }}
+        onMouseEnter={() => setGlobeHovered(false)}
+        onMouseLeave={() => setGlobeHovered(true)}
+      >
+        <FlightInfoPanel   flight={flight} />
+        <AircraftInfoPanel flight={flight} />
+      </div>
+
+      {/* 우측 패널 — 지구본 위 overlay */}
+      <div
+        className="absolute top-2 right-2 bottom-16 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-opacity duration-300"
+        style={{ opacity: globeHovered ? 0.3 : 1 }}
+        onMouseEnter={() => setGlobeHovered(false)}
+        onMouseLeave={() => setGlobeHovered(true)}
+      >
+        <FlightStatusPanel  flight={flight} />
+        <LiveTelemetryPanel flight={flight} />
+      </div>
+
+      {/* 하단 경로 바 */}
+      <div className="absolute bottom-0 left-0 right-0 z-20">
+        <RouteProgressBar flight={flight} />
+      </div>
     </div>
   )
 }

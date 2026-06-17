@@ -26,7 +26,7 @@ export function RouteProgressBar({ flight }: Props) {
           <div className="text-[#94a3b8]/45 text-center text-[9px] px-2">
             {flight
               ? `${flight.number} · ${pct}% · ${flight.distanceKm.toLocaleString()} km`
-              : "항공편을 검색하면 비행 경로가 표시됩니다"}
+              : "Search a flight to see the route"}
           </div>
 
           <div className="flex items-baseline gap-1.5 justify-end min-w-[80px]">
