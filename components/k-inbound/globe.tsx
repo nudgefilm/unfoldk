@@ -29,7 +29,7 @@ const MAJOR_ROUTES: { from: [number, number]; to: [number, number] }[] = [
   { from: [13.68, 100.74], to: [37.46,  126.44] }, // BKK → ICN
 ]
 
-const TRAIL_LEN   = 20
+const TRAIL_LEN   = 60
 const DUMMY_COUNT = 5
 
 interface DummyState {
@@ -139,7 +139,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     // ── OrbitControls
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.autoRotate      = true
-    controls.autoRotateSpeed = 0.2
+    controls.autoRotateSpeed = 0.06
     controls.enableDamping   = true
     controls.dampingFactor   = 0.05
     controls.minDistance     = 1.5
@@ -163,7 +163,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     const dummies: DummyState[] = Array.from({ length: DUMMY_COUNT }, () => {
       const mat    = new THREE.SpriteMaterial({ map: dummyTex, transparent: true, opacity: 0.9, depthWrite: false, sizeAttenuation: true })
       const sprite = new THREE.Sprite(mat)
-      sprite.scale.set(0.045, 0.045, 1)
+      sprite.scale.set(0.028, 0.028, 1)
       scene.add(sprite)
 
       // 꼬리 궤적 — vertexColors 로 앞→뒤 밝기 그라데이션
@@ -173,7 +173,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       trailGeo.setAttribute("position", new THREE.BufferAttribute(trailPositions, 3))
       trailGeo.setAttribute("color",    new THREE.BufferAttribute(trailColors,    3))
       trailGeo.setDrawRange(0, 0)
-      const trailMat  = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false })
+      const trailMat  = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false })
       const trailLine = new THREE.Line(trailGeo, trailMat)
       scene.add(trailLine)
 
@@ -185,7 +185,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         trailColors,
         routeIdx: Math.floor(Math.random() * MAJOR_ROUTES.length),
         t:        Math.random(),                      // 랜덤 시작 진행도
-        speed:    randBetween(0.0003, 0.0008),        // 프레임당 진행 속도
+        speed:    randBetween(0.00008, 0.00016),       // 프레임당 진행 속도 (사실적 저속)
         history:  [] as THREE.Vector3[],
       }
     })
@@ -262,26 +262,30 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         d.sprite.position.copy(pos)
 
         // 진행 방향 → 스프라이트 2D 회전 정렬
-        const tNext   = Math.min(d.t + 0.01, 0.99)
-        const posNext = getPointOnArc(fromLat, fromLng, toLat, toLng, tNext)
-        const ndcNow  = pos.clone().project(camera)
-        const ndcNext = posNext.clone().project(camera)
-        const dx = ndcNext.x - ndcNow.x
-        const dy = ndcNext.y - ndcNow.y
-        if (Math.abs(dx) + Math.abs(dy) > 0.0005) {
-          // ✈ 문자가 기본적으로 우상향(~45°)을 향하므로 π/4 오프셋
-          d.mat.rotation = Math.atan2(dy, dx) - Math.PI / 4
+        // step 0.04로 안정적인 방향 벡터 확보, 카메라 뒤 점(z≥1) 제외
+        const tFwd   = Math.min(d.t + 0.04, 0.99)
+        const posFwd = getPointOnArc(fromLat, fromLng, toLat, toLng, tFwd)
+        const ndcCur = pos.clone().project(camera)
+        const ndcFwd = posFwd.clone().project(camera)
+        if (ndcCur.z < 1.0 && ndcFwd.z < 1.0) {
+          const dx = ndcFwd.x - ndcCur.x
+          const dy = ndcFwd.y - ndcCur.y
+          if (dx * dx + dy * dy > 1e-6) {
+            // ✈ 문자가 기본적으로 우상향(~45°)을 향하므로 π/4 오프셋
+            d.mat.rotation = Math.atan2(dy, dx) - Math.PI / 4
+          }
         }
 
-        // 꼬리 history 갱신 (현재 위치를 앞에 추가, 20개 초과 시 제거)
+        // 꼬리 history 갱신 (현재 위치를 앞에 추가, TRAIL_LEN 초과 시 제거)
         d.history.unshift(pos.clone())
         if (d.history.length > TRAIL_LEN) d.history.pop()
 
-        // 꼬리 버퍼 업데이트 — #FF4B6E (1.0, 0.294, 0.431) 앞→검정 뒤
+        // 꼬리 버퍼 업데이트 — #FF4B6E (1.0, 0.294, 0.431) 앞→뒤 파워커브 페이드
+        // 파워커브(0.45)로 꼬리 끝도 최소 0.18 이상 밝기 유지
         const n = d.history.length
         for (let j = 0; j < n; j++) {
           const p     = d.history[j]
-          const alpha = 1.0 - j / TRAIL_LEN
+          const alpha = Math.max(0.18, Math.pow(1.0 - j / TRAIL_LEN, 0.45))
           d.trailPositions[j * 3]     = p.x
           d.trailPositions[j * 3 + 1] = p.y
           d.trailPositions[j * 3 + 2] = p.z
