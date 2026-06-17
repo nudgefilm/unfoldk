@@ -31,7 +31,7 @@ const MAJOR_ROUTES: { from: [number, number]; to: [number, number]; duration: nu
 
 const TRAIL_LEN   = 50
 const DUMMY_COUNT = 5
-const AIRCRAFT_ROTATION_OFFSET = Math.PI / 2 // 조정 필요: 0 → Math.PI/4 → -Math.PI/4 순으로 테스트
+const AIRCRAFT_ROTATION_OFFSET = Math.PI // 조정 필요: 0 → Math.PI/4 → -Math.PI/4 순으로 테스트
 
 // 지구 자전 속도: 5분/회전 (실제 24시간은 시각적으로 멈춘 것처럼 보임)
 const EARTH_ROT_RAD_PER_SEC = (Math.PI * 2) / 1200
