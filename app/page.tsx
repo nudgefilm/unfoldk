@@ -219,8 +219,29 @@ async function fetchThisMonthHallyu(): Promise<ThisMonthHallyuData> {
     event_date: r.event_date,
   })
 
-  const comebacks = rows.filter(r => r.type === "comeback").slice(0, 4).map(toMonthEvent)
   const dramaEvents = rows.filter(r => r.type === "drama").slice(0, 4).map(toMonthEvent)
+
+  // Comebacks: 이번 달에 없으면 60일 앞까지 upcoming 검색
+  const monthComebacks = rows.filter(r => r.type === "comeback").slice(0, 4).map(toMonthEvent)
+  let comebacks = monthComebacks
+  if (comebacks.length === 0) {
+    const sixtyDaysLater = new Date(now.getTime() + 60 * 86400_000).toISOString()
+    const { data: upcomingData } = await admin
+      .from("hallyu_calendar_events")
+      .select("id, title, artist_or_drama, event_date")
+      .eq("type", "comeback")
+      .gte("event_date", now.toISOString())
+      .lte("event_date", sixtyDaysLater)
+      .order("event_date", { ascending: true })
+      .limit(4)
+    type ComingRow = { id: string; title: string; artist_or_drama: string | null; event_date: string }
+    comebacks = ((upcomingData ?? []) as ComingRow[]).map(r => ({
+      id: r.id,
+      title: r.title,
+      artist_or_drama: r.artist_or_drama ?? r.title,
+      event_date: r.event_date,
+    }))
+  }
 
   return {
     countryCount: countryCodes.size,
@@ -279,14 +300,14 @@ async function fetchRisingArtists(): Promise<RisingArtist[]> {
     if (!prev || r.lastfm_listeners > prev) pastMap.set(r.artist_id, r.lastfm_listeners)
   }
 
-  // 아티스트 이름·이미지
+  // 아티스트 이름·이미지 (thumbnail_url: kpop_artists 실제 컬럼명)
   const { data: artists } = await admin
     .from("kpop_artists")
-    .select("id, name, image_url")
+    .select("id, name, thumbnail_url")
     .in("id", artistIds)
 
   const artistMap = new Map(
-    ((artists ?? []) as { id: string; name: string; image_url: string | null }[])
+    ((artists ?? []) as { id: string; name: string; thumbnail_url: string | null }[])
       .map(a => [a.id, a])
   )
 
@@ -299,7 +320,7 @@ async function fetchRisingArtists(): Promise<RisingArtist[]> {
       return {
         id: r.artist_id,
         name_en: artist?.name ?? "—",
-        image_url: artist?.image_url ?? null,
+        image_url: artist?.thumbnail_url ?? null,
         listeners_7d: r.lastfm_listeners,
         listeners_change: change,
       }
@@ -328,10 +349,20 @@ async function fetchCountryTopArtists(): Promise<CountryTopArtist[]> {
     .eq("rank", 1)
     .not("artist_name", "is", null)
     .order("listeners", { ascending: false })
-    .limit(10)
+    .limit(20)  // dedup 전 여유 확보
   if (error || !data) return []
 
-  return (data as CountryTopArtist[]).filter(r => r.artist_name)
+  // 같은 아티스트가 여러 국가에서 1위일 경우 청취자 수 최대인 국가 하나만 노출
+  const seenArtists = new Set<string>()
+  return (data as CountryTopArtist[])
+    .filter(r => r.artist_name)
+    .filter(r => {
+      const key = r.artist_name.toLowerCase()
+      if (seenArtists.has(key)) return false
+      seenArtists.add(key)
+      return true
+    })
+    .slice(0, 10)
 }
 
 async function fetchTopDramas(): Promise<TopDrama[]> {
