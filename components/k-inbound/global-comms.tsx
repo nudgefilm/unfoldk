@@ -15,13 +15,13 @@ const BLOCKED = ["fuck", "shit", "bitch", "cunt", "asshole", "dickhead", "mother
 const hasBadWord = (t: string) => BLOCKED.some(w => t.toLowerCase().includes(w))
 
 export function GlobalComms() {
-  const [msgs, setMsgs]   = useState<KMessage[]>([])
-  const [input, setInput] = useState("")
-  const [city, setCity]   = useState("Unknown")
+  const [msgs, setMsgs]     = useState<KMessage[]>([])
+  const [input, setInput]   = useState("")
+  const [city, setCity]     = useState("Unknown")
   const [ccCode, setCcCode] = useState("")
-  const [mini, setMini]   = useState(false)
-  const bottomRef               = useRef<HTMLDivElement>(null)
-  const supabase                = useRef(createSupabaseBrowserClient()).current
+  const [expanded, setExpanded] = useState(true)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const supabase  = useRef(createSupabaseBrowserClient()).current
 
   // IP → 도시/국가 코드
   useEffect(() => {
@@ -64,10 +64,10 @@ export function GlobalComms() {
     return () => { supabase.removeChannel(ch) }
   }, [supabase])
 
-  // 새 메시지 자동 스크롤
+  // 새 메시지 자동 스크롤 (펼친 상태에서만)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [msgs])
+    if (expanded) bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [msgs, expanded])
 
   const send = async () => {
     const text = input.trim()
@@ -82,6 +82,8 @@ export function GlobalComms() {
     // 로컬 즉시 추가 없음 — Realtime INSERT 이벤트로만 표시
   }
 
+  const lastMsg = msgs[msgs.length - 1]
+
   return (
     <div
       className="absolute bottom-4 left-2 z-20 w-[280px] font-mono"
@@ -92,26 +94,40 @@ export function GlobalComms() {
         overflow:     "hidden",
       }}
     >
-      {/* 헤더 — 클릭으로 접기/펼치기 */}
+      {/* 헤더 */}
       <div
         className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
-        style={{ borderBottom: mini ? "none" : "1px solid rgba(255,75,110,0.2)" }}
-        onClick={() => setMini(m => !m)}
+        style={{ borderBottom: "1px solid rgba(255,75,110,0.2)" }}
+        onClick={() => setExpanded(e => !e)}
       >
         <span className="text-[#FF4B6E] text-[11px] font-bold tracking-widest">✈ GLOBAL COMMS</span>
-        <span className="text-[#FF4B6E]/50 text-[9px]">{mini ? "▼" : "▲"}</span>
+        <span className="text-[#FF4B6E] text-[9px]">{expanded ? "▼" : "▲"}</span>
       </div>
 
-      {!mini && (
+      {/* 접힌 상태 — 최근 메시지 1줄 미리보기 */}
+      {!expanded && (
+        <div className="px-3 py-1.5">
+          {lastMsg ? (
+            <div className="text-[11px] leading-relaxed truncate">
+              <span className="text-[#4a9eff]/80 mr-1">[{lastMsg.city || "?"}]</span>
+              <span className="text-white/80">{lastMsg.message}</span>
+            </div>
+          ) : (
+            <p className="text-[#94a3b8] text-[11px]">No messages yet...</p>
+          )}
+        </div>
+      )}
+
+      {/* 펼친 상태 — 메시지 7줄 + 입력창 */}
+      {expanded && (
         <>
-          {/* 메시지 목록 */}
-          <div className="h-[160px] overflow-y-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="h-[140px] overflow-y-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {msgs.length === 0 ? (
-              <p className="text-[#94a3b8]/40 text-[11px] text-center pt-6">
+              <p className="text-[#94a3b8] text-[11px] text-center pt-4">
                 No messages yet... Say hello! 👋
               </p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {msgs.map(m => (
                   <div key={m.id} className="text-[11px] leading-relaxed">
                     <span className="text-[#4a9eff]/80 mr-1">[{m.city || "?"}]</span>
@@ -133,7 +149,7 @@ export function GlobalComms() {
               onChange={e => setInput(e.target.value.slice(0, 100))}
               onKeyDown={e => e.key === "Enter" && send()}
               placeholder="Send a message..."
-              className="flex-1 bg-transparent text-white text-[11px] placeholder-[#94a3b8]/30 focus:outline-none"
+              className="flex-1 bg-transparent text-white text-[11px] placeholder-[#94a3b8]/50 focus:outline-none"
             />
             <button
               onClick={send}
