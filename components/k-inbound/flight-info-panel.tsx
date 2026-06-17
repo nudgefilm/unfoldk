@@ -14,7 +14,7 @@ function delayMin(sched: string, actual?: string): number | null {
 }
 function Row({ label, value, cls = "text-white" }: { label: string; value: string; cls?: string }) {
   return (
-    <div className="grid grid-cols-[110px_1fr] gap-1 py-px group cursor-default">
+    <div className="grid grid-cols-[110px_1fr] gap-1 py-0 group cursor-default">
       <span className="text-[11px] uppercase tracking-wider text-[#cbd5e1] text-right pr-1 truncate transition-colors duration-150 group-hover:text-white">{label}</span>
       <span className={`text-[13px] font-semibold transition-all duration-150 group-hover:brightness-[1.12] ${cls}`}>{value}</span>
     </div>
@@ -54,14 +54,14 @@ export function FlightInfoPanel({ flight }: Props) {
         {flight ? `${flight.departure.iata} → ${flight.arrival.iata}` : "—"}
       </div>
       {flight && (
-        <div className="text-[11px] text-[#cbd5e1]/70 mb-1.5 leading-snug hover:text-[#cbd5e1] transition-colors duration-150 cursor-default">
+        <div className="text-[11px] text-[#cbd5e1]/70 mb-1 leading-snug hover:text-[#cbd5e1] transition-colors duration-150 cursor-default">
           {flight.departure.name}<br />{flight.arrival.name}
         </div>
       )}
       {!flight && <div className="text-[11px] text-[#cbd5e1]/30 mb-1.5">—</div>}
 
       {/* DEPARTURE */}
-      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0.5 mt-1 hover:text-white transition-colors duration-150 cursor-default">Departure</div>
+      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0 mt-0.5 hover:text-white transition-colors duration-150 cursor-default">Departure</div>
       <Row label="Scheduled" value={flight ? fmtTime(flight.departure.scheduledTime) : "—"} />
       <Row
         label="Actual"
@@ -72,7 +72,7 @@ export function FlightInfoPanel({ flight }: Props) {
       />
 
       {/* ARRIVAL */}
-      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0.5 mt-1.5 hover:text-white transition-colors duration-150 cursor-default">Arrival</div>
+      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0 mt-1 hover:text-white transition-colors duration-150 cursor-default">Arrival</div>
       <Row label="Scheduled" value={flight ? fmtTime(flight.arrival.scheduledTime) : "—"} />
       <Row
         label="Estimated"
@@ -83,7 +83,7 @@ export function FlightInfoPanel({ flight }: Props) {
       />
 
       {/* TERMINAL / GATE */}
-      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0.5 mt-1.5 hover:text-white transition-colors duration-150 cursor-default">Terminal / Gate</div>
+      <div className="text-[11px] uppercase tracking-wider text-[#cbd5e1] mb-0 mt-1 hover:text-white transition-colors duration-150 cursor-default">Terminal / Gate</div>
       <Row label="Terminal" value={flight?.departure.terminal ?? "—"} />
       <Row label="Gate" value={flight?.departure.gate ?? "—"} />
     </div>
