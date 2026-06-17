@@ -35,8 +35,8 @@ const DUMMY_COUNT = 5
 // 지구 자전 속도: 5분/회전 (실제 24시간은 시각적으로 멈춘 것처럼 보임)
 const EARTH_ROT_RAD_PER_SEC = (Math.PI * 2) / 1200
 
-// trail 샘플링 간격: 2.5분마다 1점 (TRAIL_LEN 50 → 125분 이력)
-const TRAIL_SAVE_INTERVAL_MS = 150_000
+// trail 샘플링 간격: 1분마다 1점 (TRAIL_LEN 50 → 경로의 ~6% 이내)
+const TRAIL_SAVE_INTERVAL_MS = 60_000
 
 interface DummyState {
   sprite:           THREE.Sprite
@@ -202,10 +202,12 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       const [fromLat, fromLng] = route.from
       const [toLat,   toLng  ] = route.to
 
-      // 현재까지의 비행 경로를 history에 선 채우기 (trail 즉시 가시화)
+      // trail 초기화: 현재 위치 기준 최대 5% 범위만 채워 길이 제한
+      const trailSpan = Math.min(curProg, 0.05)
       const history: THREE.Vector3[] = []
       for (let i = 0; i < TRAIL_LEN; i++) {
-        const t = curProg * (1 - i / TRAIL_LEN) // 현재 → 출발 방향
+        const t = curProg - (i / TRAIL_LEN) * trailSpan
+        if (t < 0) break
         history.push(getPointOnArc(fromLat, fromLng, toLat, toLng, t))
       }
 
