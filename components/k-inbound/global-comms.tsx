@@ -121,7 +121,7 @@ export function GlobalComms() {
       {/* 펼친 상태 — 메시지 7줄 + 입력창 */}
       {expanded && (
         <>
-          <div className="h-[140px] overflow-y-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="h-[180px] overflow-y-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {msgs.length === 0 ? (
               <p className="text-[#94a3b8] text-[11px] text-center pt-4">
                 No messages yet... Say hello! 👋

@@ -139,7 +139,7 @@ export default function KInboundPage() {
         </div>
       </div>
 
-      {/* 좌측 패널 — GlobalComms 높이(240px) + 하단바(64px) 위 공간 */}
+      {/* 좌측 패널 — GlobalComms 높이(248px) 위 공간 */}
       <div className="absolute top-2 left-2 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ bottom: "calc(1rem + 248px)" }}>
         <FlightInfoPanel   flight={flight} />
         <AircraftInfoPanel flight={flight} />
