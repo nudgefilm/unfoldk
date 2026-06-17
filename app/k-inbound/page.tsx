@@ -75,12 +75,7 @@ export default function KInboundPage() {
       if (!res.ok) { setSearchError("Service unavailable."); return }
       const { flight: f } = await res.json() as { flight: FlightData }
       setFlight(f)
-      globeRef.current?.setFlight(f)
-      globeRef.current?.flyTo(
-        (f.departure.lat + f.arrival.lat) / 2,
-        (f.departure.lng + f.arrival.lng) / 2,
-        1400,
-      )
+      globeRef.current?.setFlight(f) // 내부에서 현재 위치 계산 후 자동 flyTo
     } catch {
       setSearchError("Network error. Please try again.")
     } finally {

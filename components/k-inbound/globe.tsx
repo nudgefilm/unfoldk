@@ -85,7 +85,25 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
   const flyToRef  = useRef<((lat: number, lng: number, duration: number) => void) | null>(null)
 
   useImperativeHandle(ref, () => ({
-    setFlight(f) { flightRef.current = f },
+    setFlight(f) {
+      flightRef.current = f
+      if (f && flyToRef.current) {
+        // 현재 추정 위치 계산 — fetchedAt 기준 경과 시간 보정
+        const elapsed = Date.now() - f.fetchedAt
+        const total   = f.elapsedMs + f.remainingMs || 1
+        const ft      = Math.min(f.progressRatio + elapsed / total, 1)
+        const pos     = getPointOnArc(
+          f.departure.lat, f.departure.lng,
+          f.arrival.lat,   f.arrival.lng,
+          ft,
+        )
+        // vec3 → lat/lng 역변환
+        const r   = pos.length()
+        const lat = 90 - Math.acos(Math.max(-1, Math.min(1, pos.y / r))) * (180 / Math.PI)
+        const lng = Math.atan2(pos.z, -pos.x) * (180 / Math.PI) - 180
+        flyToRef.current(lat, lng, 1500)
+      }
+    },
     flyTo(lat, lng, duration = 1200) { flyToRef.current?.(lat, lng, duration) },
   }))
 
