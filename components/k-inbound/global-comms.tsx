@@ -54,7 +54,11 @@ export function GlobalComms() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "kinbound_messages" },
-        payload => setMsgs(prev => [...prev, payload.new as KMessage].slice(-50)),
+        payload => setMsgs(prev => {
+          const msg = payload.new as KMessage
+          if (prev.some(m => m.id === msg.id)) return prev
+          return [...prev, msg].slice(-50)
+        }),
       )
       .subscribe()
     return () => { supabase.removeChannel(ch) }
@@ -65,16 +69,6 @@ export function GlobalComms() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [msgs])
 
-  const reload = async () => {
-    const { data, error } = await supabase
-      .from("kinbound_messages")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50)
-    if (error) console.error("[GlobalComms] reload error:", error)
-    if (data)  setMsgs((data as KMessage[]).reverse())
-  }
-
   const send = async () => {
     const text = input.trim()
     if (!text || hasBadWord(text)) { setInput(""); return }
@@ -84,12 +78,8 @@ export function GlobalComms() {
       city,
       country_code: ccCode,
     })
-    if (error) {
-      console.error("[GlobalComms] insert error:", error)
-      return
-    }
-    // realtime fallback: 전송 후 직접 재조회
-    await reload()
+    if (error) console.error("[GlobalComms] insert error:", error)
+    // 로컬 즉시 추가 없음 — Realtime INSERT 이벤트로만 표시
   }
 
   return (
