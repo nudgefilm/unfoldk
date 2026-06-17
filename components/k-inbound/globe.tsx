@@ -300,7 +300,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         tangent.transformDirection(camera.matrixWorldInverse)
         const ndcZ = pos.clone().project(camera).z
         if (ndcZ < 1.0 && tangent.x * tangent.x + tangent.y * tangent.y > 1e-6) {
-          const targetRot = Math.atan2(tangent.y, tangent.x) - Math.PI / 4
+          const targetRot = Math.atan2(tangent.y, tangent.x)
           let diff = targetRot - d.mat.rotation
           while (diff >  Math.PI) diff -= Math.PI * 2
           while (diff < -Math.PI) diff += Math.PI * 2
