@@ -29,7 +29,7 @@ const MAJOR_ROUTES: { from: [number, number]; to: [number, number] }[] = [
   { from: [13.68, 100.74], to: [37.46,  126.44] }, // BKK → ICN
 ]
 
-const TRAIL_LEN   = 300
+const TRAIL_LEN   = 50
 const DUMMY_COUNT = 5
 
 interface DummyState {
@@ -269,7 +269,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         tangent.transformDirection(camera.matrixWorldInverse) // 카메라 공간(X=우, Y=상)으로 변환
         const ndcZ = pos.clone().project(camera).z
         if (ndcZ < 1.0 && tangent.x * tangent.x + tangent.y * tangent.y > 1e-6) {
-          const targetRot = Math.atan2(tangent.y, tangent.x) - Math.PI / 4
+          const targetRot = Math.atan2(tangent.y, tangent.x) + Math.PI / 4
           // 각도 정규화 [-π, π] 후 스무딩 → 갑작스런 뒤집힘 방지
           let diff = targetRot - d.mat.rotation
           while (diff >  Math.PI) diff -= Math.PI * 2
@@ -277,15 +277,20 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
           d.mat.rotation += diff * 0.25
         }
 
-        // 꼬리 history 갱신 (현재 위치를 앞에 추가, TRAIL_LEN 초과 시 제거)
-        d.history.unshift(pos.clone())
-        if (d.history.length > TRAIL_LEN) d.history.pop()
+        // 꼬리 history 갱신 — 거리 기반 샘플링 (0.002 이상 이동 시만 저장)
+        // 매 프레임 저장 시 느린 속도로 인해 포인트가 밀집되어 꼬리가 짧아 보임
+        const shouldSave = d.history.length === 0 ||
+          pos.distanceTo(d.history[0]) > 0.002
+        if (shouldSave) {
+          d.history.unshift(pos.clone())
+          if (d.history.length > TRAIL_LEN) d.history.pop()
+        }
 
-        // 꼬리 버퍼 업데이트 — 흰색(1.0, 1.0, 1.0) 파워커브 페이드, 꼬리 끝 min 0.15
+        // 꼬리 버퍼 업데이트 — 흰색, 앞 1.0 → 뒤 0.0 선형 그라데이션
         const n = d.history.length
         for (let j = 0; j < n; j++) {
           const p     = d.history[j]
-          const alpha = Math.max(0.15, Math.pow(1.0 - j / TRAIL_LEN, 0.45))
+          const alpha = n > 1 ? 1.0 - j / (n - 1) : 1.0
           d.trailPositions[j * 3]     = p.x
           d.trailPositions[j * 3 + 1] = p.y
           d.trailPositions[j * 3 + 2] = p.z
