@@ -30,7 +30,7 @@ export function FlightSearchBar({ onSearch, loading = false, error }: Props) {
     <div className="w-full">
       {/* 입력창 + Track 버튼 — 패널 카드와 동일한 반투명 컨테이너 */}
       <div className="flex items-center rounded-xl overflow-hidden">
-        <Search className="shrink-0 ml-3 w-4 h-4 text-[#4a9eff]/50 pointer-events-none" />
+        <Search className="shrink-0 ml-3 w-4 h-4 text-[#4a9eff]/70 pointer-events-none" />
 
         <input
           ref={inputRef}
@@ -41,7 +41,7 @@ export function FlightSearchBar({ onSearch, loading = false, error }: Props) {
           placeholder={`e.g. ${EXAMPLES[0]}`}
           maxLength={10}
           spellCheck={false}
-          className="flex-1 h-10 pl-2.5 pr-2 text-sm font-mono bg-transparent text-white placeholder-[#4a9eff]/35 focus:outline-none"
+          className="flex-1 h-10 pl-2.5 pr-2 text-sm font-mono bg-transparent text-white placeholder-white/40 focus:outline-none"
         />
 
         {value && (
@@ -60,7 +60,7 @@ export function FlightSearchBar({ onSearch, loading = false, error }: Props) {
         <button
           onClick={submit}
           disabled={loading || !value.trim()}
-          className="shrink-0 h-10 px-4 bg-transparent hover:bg-white/5 disabled:opacity-35 disabled:cursor-not-allowed text-sm font-semibold text-[#4a9eff] hover:text-white transition-colors flex items-center gap-1.5"
+          className="shrink-0 h-10 px-4 bg-transparent hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-sm font-semibold text-white hover:text-white/80 transition-colors flex items-center gap-1.5"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Track"}
         </button>
