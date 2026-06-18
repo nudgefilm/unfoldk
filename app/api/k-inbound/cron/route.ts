@@ -42,7 +42,7 @@ export async function GET() {
     const now = Date.now()
 
     // EnRoute 또는 Departed 상태 편만 추출
-    const active = body.arrivals.filter(f => f.status === "EnRoute" || f.status === "Departed")
+    const active = body.arrivals.filter(f => f.status === "Active" || f.status === "EnRoute" || f.status === "Departed")
     if (active.length === 0) {
       return NextResponse.json({ error: "No active flights" }, { status: 404 })
     }
