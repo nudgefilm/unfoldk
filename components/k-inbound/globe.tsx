@@ -1,5 +1,15 @@
 "use client"
 
+// ⚠️ 임의 수정 금지 — 아래 항목은 개선 작업으로 확정된 사항임
+// 변경이 필요하다고 판단되는 경우 반드시 먼저 확인 요청할 것
+//
+// 반영 완료 항목:
+// - Three.js ShapeGeometry Mesh (✈ Unicode Sprite 완전 제거)
+// - calcAircraftQuaternion: 구면 정방위 basis matrix {forward, left=normal×forward, normal}
+// - 더미 항공기 색상 #FF4B6E / 검색(메인) 항공기 흰색 — 색상 스왑 금지
+// - 항공기 크기: 메인 0.0504 / 더미 0.0336 — 임의 변경 금지
+// - MAJOR_ROUTES: 한국 출발/도착(ICN/GMP) 노선 제외
+
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"

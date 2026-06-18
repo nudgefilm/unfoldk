@@ -1,5 +1,15 @@
 "use client"
 
+// ⚠️ 임의 수정 금지 — 아래 항목은 개선 작업으로 확정된 사항임
+// 변경이 필요하다고 판단되는 경우 반드시 먼저 확인 요청할 것
+//
+// 반영 완료 항목:
+// - IATA_TZ 매핑 + getTzAbbr: Intl.DateTimeFormat DST 자동 적용
+// - extractTime: T/공백 구분자 양쪽 처리, 추출 실패 시 "—" 폴백
+// - getStatusBadge: SCHEDULED / GROUND HOLD / EN ROUTE / ARRIVED / CANCELLED 5단계
+// - 2줄 레이아웃: Row1(IATA+TZ | 항공편정보+뱃지 | TZ+IATA) / Row2(🛫시각 | 공항명 | 시각🛬)
+// - 텍스트 색상 30% 밝게 (mix-with-white 30%) 적용
+
 import type { FlightData } from "@/app/api/k-inbound/flight/route"
 
 interface Props { flight: FlightData | null }

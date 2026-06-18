@@ -1,5 +1,13 @@
 "use client"
 
+// ⚠️ 임의 수정 금지 — 아래 항목은 개선 작업으로 확정된 사항임
+// 변경이 필요하다고 판단되는 경우 반드시 먼저 확인 요청할 것
+//
+// 반영 완료 항목:
+// - isCommsExpanded 상태 — 채팅 펼침/접힘을 page.tsx 에서 관리
+// - 좌측 flex 컬럼: 카드(상, flex-1 min-h-0 overflow-hidden) + 채팅(하, 50vh/auto)
+// - 스크롤 절대 없음 — 카드 넘침은 overflow-hidden 처리
+
 import { useCallback, useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"

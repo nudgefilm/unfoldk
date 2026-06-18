@@ -1,3 +1,11 @@
+// ⚠️ 임의 수정 금지 — 아래 항목은 개선 작업으로 확정된 사항임
+// 변경이 필요하다고 판단되는 경우 반드시 먼저 확인 요청할 것
+//
+// 반영 완료 항목:
+// - actualTime 기반 이륙 감지: actualTime 없으면 GROUND HOLD + progressRatio=0
+// - FlightData: scheduledTime/actualTime/estimatedTime → flat string (AeroDataBox .local 추출)
+// - buildFlightData / recompute: cache export로 cron route 와 공유
+
 import { NextResponse } from "next/server"
 
 // ── 공항 좌표 테이블 ──────────────────────────────────────────────────────────

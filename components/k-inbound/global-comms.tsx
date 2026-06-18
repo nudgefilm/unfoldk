@@ -1,5 +1,15 @@
 "use client"
 
+// ⚠️ 임의 수정 금지 — 아래 항목은 개선 작업으로 확정된 사항임
+// 변경이 필요하다고 판단되는 경우 반드시 먼저 확인 요청할 것
+//
+// 반영 완료 항목:
+// - 1시간 rotating 시스템 메시지 (SYSTEM_MESSAGES, setInterval 3_600_000, 로컬 상태만)
+// - isExpanded / onToggle props — 펼침/접힘 상태는 page.tsx 에서 관리 (controlled)
+// - 접힌 상태: 헤더 1줄만 표시 (lastMsg 미리보기 제거)
+// - 펼친 상태: 메시지 영역 flex-1 min-h-0 (부모 50vh 기준 자동 채움)
+// - backdrop-blur-md + rgba(0,0,0,0.45) 반투명 처리
+
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
