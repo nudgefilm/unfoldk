@@ -128,9 +128,9 @@ export function GlobalComms({ isExpanded, onToggle }: GlobalCommsProps) {
 
   return (
     <div
-      className="w-full h-full font-mono flex flex-col"
+      className="w-full h-full font-mono flex flex-col backdrop-blur-md"
       style={{
-        background:   "rgba(0,0,0,0.75)",
+        background:   "rgba(0,0,0,0.45)",
         border:       "1px solid rgba(255,75,110,0.3)",
         borderRadius: "12px",
         overflow:     "hidden",
