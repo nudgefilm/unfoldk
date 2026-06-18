@@ -18,9 +18,10 @@ const IATA_TZ: Record<string, string> = {
 }
 
 // scheduledTime은 이미 공항 현지 시각(local) — 브라우저 TZ 변환 없이 HH:MM 직접 추출
+// T 구분자(ISO 8601) 또는 공백 구분자(일부 API) 모두 처리
 function extractTime(iso?: string): string {
   if (!iso) return ""
-  const m = iso.match(/T(\d{2}:\d{2})/)
+  const m = iso.match(/[T ](\d{2}:\d{2})/)
   return m ? m[1] : ""
 }
 
@@ -49,10 +50,10 @@ export function RouteProgressBar({ flight }: Props) {
   const depTz   = getTzAbbr(flight?.departure.iata)
   const arrTz   = getTzAbbr(flight?.arrival.iata)
   const badge   = flight ? getStatusBadge(flight.status, pct) : null
-  // 출발: actualTime 우선, 없으면 scheduledTime
-  const depTime = extractTime(flight?.departure.actualTime ?? flight?.departure.scheduledTime)
-  // 도착: estimatedTime 우선, 없으면 scheduledTime
-  const arrTime = extractTime(flight?.arrival.estimatedTime ?? flight?.arrival.scheduledTime)
+  // 출발: actualTime 우선, 없으면 scheduledTime — 추출 실패 시 "—" 폴백
+  const depTime = extractTime(flight?.departure.actualTime ?? flight?.departure.scheduledTime) || "—"
+  // 도착: estimatedTime 우선, 없으면 scheduledTime — 추출 실패 시 "—" 폴백
+  const arrTime = extractTime(flight?.arrival.estimatedTime ?? flight?.arrival.scheduledTime) || "—"
 
   return (
     <div className="backdrop-blur-sm px-4 pt-2 pb-3 font-mono rounded-xl" style={{ border: "1px solid rgba(255,255,255,0.15)" }}>
@@ -73,7 +74,7 @@ export function RouteProgressBar({ flight }: Props) {
         {/* Row 2: 출발·도착 시각 — actualTime / estimatedTime 우선, 아이콘 포함 */}
         <div className="flex items-center justify-between text-[11px] mb-1">
           <div className="flex items-center gap-1 text-[#94a3b8]">
-            {flight && depTime && (
+            {flight && (
               <>
                 <span>🛫</span>
                 <span>{depTime}</span>
@@ -82,7 +83,7 @@ export function RouteProgressBar({ flight }: Props) {
             )}
           </div>
           <div className="flex items-center gap-1 text-[#94a3b8] justify-end">
-            {flight && arrTime && (
+            {flight && (
               <>
                 <span>🛬</span>
                 <span>{arrTime}</span>
