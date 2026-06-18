@@ -33,10 +33,22 @@ function getTzAbbr(iata?: string): string {
   return parts.find(p => p.type === "timeZoneName")?.value ?? ""
 }
 
+interface StatusBadge { icon: string; label: string; color: string }
+
+// progress(%)와 API status 기준 비행 단계 판단
+function getStatusBadge(status: string, pct: number): StatusBadge | null {
+  if (status === "Cancelled")                                    return { icon: "❌", label: "CANCELLED",   color: "#ef4444" }
+  if (status === "Scheduled" || pct === 0)                      return { icon: "🕐", label: "SCHEDULED",   color: "#94a3b8" }
+  if (status === "Departed" || pct < 2)                         return { icon: "🛫", label: "GROUND HOLD", color: "#facc15" }
+  if (pct >= 98 || status === "Arrived" || status === "Landed") return { icon: "🛬", label: "ARRIVED",     color: "#60a5fa" }
+  return                                                               { icon: "✈",  label: "EN ROUTE",    color: "#4ade80" }
+}
+
 export function RouteProgressBar({ flight }: Props) {
   const pct    = flight ? Math.round(flight.progressRatio * 100) : 0
   const depTz  = getTzAbbr(flight?.departure.iata)
   const arrTz  = getTzAbbr(flight?.arrival.iata)
+  const badge  = flight ? getStatusBadge(flight.status, pct) : null
 
   return (
     <div className="backdrop-blur-sm px-4 pt-2 pb-3 font-mono rounded-xl" style={{ border: "1px solid rgba(255,255,255,0.15)" }}>
@@ -50,10 +62,20 @@ export function RouteProgressBar({ flight }: Props) {
             {flight && depTz && <span className="text-[#94a3b8]/60 text-[10px]">({depTz})</span>}
           </div>
 
-          <div className="text-[#94a3b8] text-center text-[11px] px-2">
-            {flight
-              ? `${flight.number} · ${pct}% · ${flight.distanceKm.toLocaleString()} km`
-              : "Track flights to and from Korea"}
+          <div className="text-[#94a3b8] text-center text-[11px] px-2 flex items-center gap-1.5 justify-center">
+            {flight ? (
+              <>
+                <span>{flight.number} · {pct}% · {flight.distanceKm.toLocaleString()} km</span>
+                {badge && (
+                  <span
+                    className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold shrink-0"
+                    style={{ color: badge.color, border: `1px solid ${badge.color}40`, background: `${badge.color}12` }}
+                  >
+                    {badge.icon} {badge.label}
+                  </span>
+                )}
+              </>
+            ) : "Track flights to and from Korea"}
           </div>
 
           <div className="flex items-baseline gap-1.5 justify-end min-w-[90px]">
