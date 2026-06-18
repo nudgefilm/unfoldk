@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Search, Loader2, X } from "lucide-react"
 
 interface Props {
@@ -14,14 +14,25 @@ export function FlightSearchBar({ onSearch, loading = false, error }: Props) {
   const [placeholderFlight, setPlaceholderFlight] = useState("KE017")
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // 마운트 시 + 매시간 cron 캐시에서 추천 항공편 가져오기
+  useEffect(() => {
+    const fetchSuggest = () => {
+      fetch("/api/k-inbound/suggest")
+        .then(r => r.json())
+        .then((d: { flight?: string }) => { if (d.flight) setPlaceholderFlight(d.flight) })
+        .catch(() => {})
+    }
+    fetchSuggest()
+    const timer = setInterval(fetchSuggest, 3_600_000)
+    return () => clearInterval(timer)
+  }, [])
+
   const submit = () => {
     if (loading) return
     const trimmed = value.trim().toUpperCase()
     // 입력 비어있으면 현재 placeholder 항공편으로 자동 검색
     onSearch(trimmed || placeholderFlight)
   }
-
-  void setPlaceholderFlight // 향후 cron 자동 선택 항공편 연동용
 
   const clear = () => {
     setValue("")
