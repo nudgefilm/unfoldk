@@ -146,11 +146,11 @@ export function buildFlightData(raw: AeroRaw): FlightData {
   const distKm = Math.round(haversineKm(depC.lat, depC.lng, arrC.lat, arrC.lng))
   const bearing = Math.round(initialBearing(depC.lat, depC.lng, arrC.lat, arrC.lng))
 
-  const actualDepMs = raw.departure?.actualTime?.local
-    ? new Date(raw.departure.actualTime.local).getTime()
-    : raw.departure?.scheduledTime?.local
-    ? new Date(raw.departure.scheduledTime.local).getTime()
-    : null
+  // actualTime.local 있어야 실제 이륙 완료 — 없으면 아직 지상
+  const hasActualDep = !!raw.departure?.actualTime?.local
+  const actualDepMs  = hasActualDep
+    ? new Date(raw.departure!.actualTime!.local!).getTime()
+    : null   // scheduledTime fallback 금지 — 이륙 전임
 
   const estArrMs = raw.arrival?.estimatedTime?.local
     ? new Date(raw.arrival.estimatedTime.local).getTime()
@@ -158,15 +158,21 @@ export function buildFlightData(raw: AeroRaw): FlightData {
     ? new Date(raw.arrival.scheduledTime.local).getTime()
     : null
 
-  const totalMs = actualDepMs && estArrMs ? estArrMs - actualDepMs : (distKm / speed) * 3_600_000
-  const elapsedMs = actualDepMs ? Math.max(0, now - actualDepMs) : 0
-  const remainingMs = estArrMs ? Math.max(0, estArrMs - now) : Math.max(0, totalMs - elapsedMs)
-  const progressRatio = totalMs > 0 ? Math.min(elapsedMs / totalMs, 1) : 0
+  const totalMs      = actualDepMs && estArrMs ? estArrMs - actualDepMs : (distKm / speed) * 3_600_000
+  const elapsedMs    = actualDepMs ? Math.max(0, now - actualDepMs) : 0
+  const remainingMs  = estArrMs ? Math.max(0, estArrMs - now) : Math.max(0, totalMs - elapsedMs)
+  // actualTime 없으면 이륙 전 → progress 0 강제
+  const progressRatio = actualDepMs && totalMs > 0 ? Math.min(elapsedMs / totalMs, 1) : 0
 
   let altFt = 0
   if (progressRatio < 0.05)      altFt = (progressRatio / 0.05) * 35000
   else if (progressRatio < 0.9)  altFt = 35000
   else                            altFt = ((1 - progressRatio) / 0.1) * 35000
+
+  // 이륙 전 + 취소·착륙 아닌 경우 → GROUND HOLD 반환
+  const rawStatus    = raw.status ?? "Unknown"
+  const isTerminal   = rawStatus === "Cancelled" || rawStatus === "Landed" || rawStatus === "Arrived"
+  const status       = !hasActualDep && !isTerminal ? "GROUND HOLD" : rawStatus
 
   return {
     number: raw.number ?? "",
@@ -187,7 +193,7 @@ export function buildFlightData(raw: AeroRaw): FlightData {
       estimatedTime: raw.arrival?.estimatedTime?.local,
       lat: arrC.lat, lng: arrC.lng,
     },
-    status: raw.status ?? "Unknown",
+    status,
     elapsedMs, remainingMs, distanceKm: distKm,
     progressRatio, estimatedAltitudeFt: Math.round(altFt),
     estimatedSpeedKmh: speed, bearingDeg: bearing,
@@ -233,14 +239,20 @@ async function fetchICNSuggestions(apiKey: string): Promise<FIDSSuggestion[]> {
 
 function recompute(data: FlightData): FlightData {
   const now = Date.now()
-  const depMs = data.departure.actualTime
-    ? new Date(data.departure.actualTime).getTime()
-    : new Date(data.departure.scheduledTime).getTime()
-  const arrMs = data.arrival.estimatedTime
+  // actualTime 없으면 아직 이륙 전 → progress 0 유지 (scheduledTime fallback 금지)
+  if (!data.departure.actualTime) {
+    const arrMs      = data.arrival.estimatedTime
+      ? new Date(data.arrival.estimatedTime).getTime()
+      : new Date(data.arrival.scheduledTime).getTime()
+    const remainingMs = Math.max(0, arrMs - now)
+    return { ...data, elapsedMs: 0, remainingMs, progressRatio: 0, estimatedAltitudeFt: 0 }
+  }
+  const depMs       = new Date(data.departure.actualTime).getTime()
+  const arrMs       = data.arrival.estimatedTime
     ? new Date(data.arrival.estimatedTime).getTime()
     : new Date(data.arrival.scheduledTime).getTime()
-  const totalMs = arrMs - depMs
-  const elapsedMs = Math.max(0, now - depMs)
+  const totalMs     = arrMs - depMs
+  const elapsedMs   = Math.max(0, now - depMs)
   const remainingMs = Math.max(0, arrMs - now)
   const progressRatio = totalMs > 0 ? Math.min(elapsedMs / totalMs, 1) : 0
   let altFt = 0
