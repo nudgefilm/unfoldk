@@ -4,13 +4,39 @@ import type { FlightData } from "@/app/api/k-inbound/flight/route"
 
 interface Props { flight: FlightData | null }
 
-function fmtTime(iso?: string) {
+// IATA → IANA 시간대 (서머타임 자동 적용)
+const IATA_TZ: Record<string, string> = {
+  ICN: "Asia/Seoul",    GMP: "Asia/Seoul",
+  LAX: "America/Los_Angeles", SFO: "America/Los_Angeles", SEA: "America/Los_Angeles",
+  JFK: "America/New_York",    MIA: "America/New_York",    ORD: "America/Chicago",
+  NRT: "Asia/Tokyo",   HND: "Asia/Tokyo",
+  LHR: "Europe/London",
+  CDG: "Europe/Paris", FRA: "Europe/Berlin",
+  DXB: "Asia/Dubai",
+  SIN: "Asia/Singapore",
+  SYD: "Australia/Sydney",
+}
+
+// scheduledTime은 이미 공항 현지 시각(local) — 브라우저 TZ 변환 없이 HH:MM 직접 추출
+function extractTime(iso?: string): string {
   if (!iso) return ""
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
+  const m = iso.match(/T(\d{2}:\d{2})/)
+  return m ? m[1] : ""
+}
+
+// 현재 날짜 기준 IATA 공항의 시간대 약어 (PDT/PST, KST 등 서머타임 자동)
+function getTzAbbr(iata?: string): string {
+  if (!iata) return ""
+  const tz = IATA_TZ[iata]
+  if (!tz) return ""
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" }).formatToParts(new Date())
+  return parts.find(p => p.type === "timeZoneName")?.value ?? ""
 }
 
 export function RouteProgressBar({ flight }: Props) {
-  const pct = flight ? Math.round(flight.progressRatio * 100) : 0
+  const pct    = flight ? Math.round(flight.progressRatio * 100) : 0
+  const depTz  = getTzAbbr(flight?.departure.iata)
+  const arrTz  = getTzAbbr(flight?.arrival.iata)
 
   return (
     <div className="backdrop-blur-sm px-4 pt-2 pb-3 font-mono rounded-xl" style={{ border: "1px solid rgba(255,255,255,0.15)" }}>
@@ -20,7 +46,8 @@ export function RouteProgressBar({ flight }: Props) {
         <div className="flex items-center justify-between text-[13px] mb-1.5">
           <div className="flex items-baseline gap-1.5 min-w-[90px]">
             <span className="text-[#4a9eff] font-bold">{flight?.departure.iata ?? "—"}</span>
-            {flight && <span className="text-[#94a3b8] text-[11px]">{fmtTime(flight.departure.scheduledTime)}</span>}
+            {flight && <span className="text-[#94a3b8] text-[11px]">{extractTime(flight.departure.scheduledTime)}</span>}
+            {flight && depTz && <span className="text-[#94a3b8]/60 text-[10px]">({depTz})</span>}
           </div>
 
           <div className="text-[#94a3b8] text-center text-[11px] px-2">
@@ -30,7 +57,8 @@ export function RouteProgressBar({ flight }: Props) {
           </div>
 
           <div className="flex items-baseline gap-1.5 justify-end min-w-[90px]">
-            {flight && <span className="text-[#94a3b8] text-[11px]">{fmtTime(flight.arrival.scheduledTime)}</span>}
+            {flight && arrTz && <span className="text-[#94a3b8]/60 text-[10px]">({arrTz})</span>}
+            {flight && <span className="text-[#94a3b8] text-[11px]">{extractTime(flight.arrival.scheduledTime)}</span>}
             <span className="text-[#4a9eff] font-bold">{flight?.arrival.iata ?? "—"}</span>
           </div>
         </div>
