@@ -38,11 +38,11 @@ interface StatusBadge { icon: string; label: string; color: string }
 
 // progress(%)와 API status 기준 비행 단계 판단
 function getStatusBadge(status: string, pct: number): StatusBadge | null {
-  if (status === "Cancelled")                                    return { icon: "❌", label: "CANCELLED",   color: "#ef4444" }
-  if (status === "Scheduled" || pct === 0)                      return { icon: "🕐", label: "SCHEDULED",   color: "#94a3b8" }
-  if (status === "Departed" || pct < 2)                         return { icon: "🛫", label: "GROUND HOLD", color: "#facc15" }
-  if (pct >= 98 || status === "Arrived" || status === "Landed") return { icon: "🛬", label: "ARRIVED",     color: "#60a5fa" }
-  return                                                               { icon: "✈",  label: "EN ROUTE",    color: "#4ade80" }
+  if (status === "Cancelled")                                    return { icon: "❌", label: "CANCELLED",   color: "#f47c7c" }
+  if (status === "Scheduled" || pct === 0)                      return { icon: "🕐", label: "SCHEDULED",   color: "#b4bfcd" }
+  if (status === "Departed" || pct < 2)                         return { icon: "🛫", label: "GROUND HOLD", color: "#fcdb5b" }
+  if (pct >= 98 || status === "Arrived" || status === "Landed") return { icon: "🛬", label: "ARRIVED",     color: "#90c0fc" }
+  return                                                               { icon: "✈",  label: "EN ROUTE",    color: "#80e8a6" }
 }
 
 export function RouteProgressBar({ flight }: Props) {
@@ -62,10 +62,10 @@ export function RouteProgressBar({ flight }: Props) {
         {/* Row 1: 출발IATA(TZ) | 항공편 정보 + 뱃지 | (TZ)도착IATA */}
         <div className="flex items-center mb-0.5">
           <div className="flex-1 flex items-baseline gap-1 text-[13px]">
-            <span className="text-[#4a9eff] font-bold">{flight?.departure.iata ?? "—"}</span>
-            {flight && depTz && <span className="text-[#94a3b8]/60 text-[10px]">({depTz})</span>}
+            <span className="text-[#80bbff] font-bold">{flight?.departure.iata ?? "—"}</span>
+            {flight && depTz && <span className="text-[#b4bfcd]/60 text-[10px]">({depTz})</span>}
           </div>
-          <div className="shrink-0 flex items-center gap-1.5 text-[11px] text-[#94a3b8] px-1">
+          <div className="shrink-0 flex items-center gap-1.5 text-[11px] text-[#b4bfcd] px-1">
             {flight ? (
               <>
                 <span>{flight.number} · {pct}% · {flight.distanceKm.toLocaleString()} km</span>
@@ -81,14 +81,14 @@ export function RouteProgressBar({ flight }: Props) {
             ) : <span>Track flights to and from Korea</span>}
           </div>
           <div className="flex-1 flex items-baseline gap-1 justify-end text-[13px]">
-            {flight && arrTz && <span className="text-[#94a3b8]/60 text-[10px]">({arrTz})</span>}
-            <span className="text-[#4a9eff] font-bold">{flight?.arrival.iata ?? "—"}</span>
+            {flight && arrTz && <span className="text-[#b4bfcd]/60 text-[10px]">({arrTz})</span>}
+            <span className="text-[#80bbff] font-bold">{flight?.arrival.iata ?? "—"}</span>
           </div>
         </div>
 
         {/* Row 2: 🛫 출발시각 | 공항명 | 도착시각 🛬 */}
         <div className="flex items-center text-[11px] mb-1">
-          <div className="shrink-0 flex items-center gap-1 text-[#94a3b8]">
+          <div className="shrink-0 flex items-center gap-1 text-[#b4bfcd]">
             {flight && (
               <>
                 <span>🛫</span>
@@ -96,14 +96,14 @@ export function RouteProgressBar({ flight }: Props) {
               </>
             )}
           </div>
-          <div className="flex-1 min-w-0 text-center text-[#94a3b8]/70 px-2">
+          <div className="flex-1 min-w-0 text-center text-[#b4bfcd]/70 px-2">
             {flight && (
               <span className="block truncate">
                 {flight.departure.name} — {flight.arrival.name}
               </span>
             )}
           </div>
-          <div className="shrink-0 flex items-center gap-1 text-[#94a3b8]">
+          <div className="shrink-0 flex items-center gap-1 text-[#b4bfcd]">
             {flight && (
               <>
                 <span>{arrTime}</span>
@@ -133,7 +133,7 @@ export function RouteProgressBar({ flight }: Props) {
           {/* ✈ 아이콘 (현재 위치) */}
           {flight && pct > 0 && (
             <div
-              className="absolute text-[#ffd700] text-xs leading-none pointer-events-none transition-all duration-1000"
+              className="absolute text-[#ffe34d] text-xs leading-none pointer-events-none transition-all duration-1000"
               style={{ left: `calc(${pct}% - 6px)`, top: "50%", transform: "translateY(-50%)" }}
             >
               ✈
