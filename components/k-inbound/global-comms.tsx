@@ -138,12 +138,7 @@ export function GlobalComms({ isExpanded, onToggle }: GlobalCommsProps) {
 
   return (
     <div
-      className="w-full h-full font-mono flex flex-col backdrop-blur-sm"
-      style={{
-        border:       "1px solid rgba(255,255,255,0.15)",
-        borderRadius: "12px",
-        overflow:     "hidden",
-      }}
+      className="w-full h-full font-mono flex flex-col"
     >
       {/* 헤더 — 항상 표시, 클릭으로 펼침/접힘 */}
       <div
