@@ -56,58 +56,61 @@ export function RouteProgressBar({ flight }: Props) {
   const arrTime = extractTime(flight?.arrival.estimatedTime ?? flight?.arrival.scheduledTime) || "—"
 
   return (
-    <div className="backdrop-blur-sm px-4 pt-2 pb-3 font-mono rounded-xl" style={{ border: "1px solid rgba(255,255,255,0.15)" }}>
+    <div className="backdrop-blur-sm px-4 pt-1.5 pb-2 font-mono rounded-xl" style={{ border: "1px solid rgba(255,255,255,0.15)" }}>
       <div>
 
-        {/* Row 1: 공항 IATA + 시간대 약어 */}
-        <div className="flex items-center justify-between text-[13px] mb-0.5">
-          <div className="flex items-baseline gap-1 min-w-[90px]">
+        {/* Row 1: 출발IATA(TZ) | 항공편 정보 + 뱃지 | (TZ)도착IATA */}
+        <div className="flex items-center mb-0.5">
+          <div className="flex-1 flex items-baseline gap-1 text-[13px]">
             <span className="text-[#4a9eff] font-bold">{flight?.departure.iata ?? "—"}</span>
             {flight && depTz && <span className="text-[#94a3b8]/60 text-[10px]">({depTz})</span>}
           </div>
-          <div className="flex items-baseline gap-1 justify-end min-w-[90px]">
+          <div className="shrink-0 flex items-center gap-1.5 text-[11px] text-[#94a3b8] px-1">
+            {flight ? (
+              <>
+                <span>{flight.number} · {pct}% · {flight.distanceKm.toLocaleString()} km</span>
+                {badge && (
+                  <span
+                    className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold shrink-0"
+                    style={{ color: badge.color, border: `1px solid ${badge.color}40`, background: `${badge.color}12` }}
+                  >
+                    {badge.icon} {badge.label}
+                  </span>
+                )}
+              </>
+            ) : <span>Track flights to and from Korea</span>}
+          </div>
+          <div className="flex-1 flex items-baseline gap-1 justify-end text-[13px]">
             {flight && arrTz && <span className="text-[#94a3b8]/60 text-[10px]">({arrTz})</span>}
             <span className="text-[#4a9eff] font-bold">{flight?.arrival.iata ?? "—"}</span>
           </div>
         </div>
 
-        {/* Row 2: 출발·도착 시각 — actualTime / estimatedTime 우선, 아이콘 포함 */}
-        <div className="flex items-center justify-between text-[11px] mb-1">
-          <div className="flex items-center gap-1 text-[#94a3b8]">
+        {/* Row 2: 🛫 출발시각 | 공항명 | 도착시각 🛬 */}
+        <div className="flex items-center text-[11px] mb-1">
+          <div className="shrink-0 flex items-center gap-1 text-[#94a3b8]">
             {flight && (
               <>
                 <span>🛫</span>
                 <span>{depTime}</span>
-                {depTz && <span className="text-[#94a3b8]/60">{depTz}</span>}
               </>
             )}
           </div>
-          <div className="flex items-center gap-1 text-[#94a3b8] justify-end">
+          <div className="flex-1 min-w-0 text-center text-[#94a3b8]/70 px-2">
+            {flight && (
+              <span className="block truncate">
+                {flight.departure.name} — {flight.arrival.name}
+              </span>
+            )}
+          </div>
+          <div className="shrink-0 flex items-center gap-1 text-[#94a3b8]">
             {flight && (
               <>
-                <span>🛬</span>
                 <span>{arrTime}</span>
-                {arrTz && <span className="text-[#94a3b8]/60">{arrTz}</span>}
+                <span>🛬</span>
               </>
             )}
           </div>
-        </div>
-
-        {/* Row 3: 항공편 정보 + 상태 뱃지 */}
-        <div className="text-[#94a3b8] text-center text-[11px] px-2 flex items-center gap-1.5 justify-center mb-1.5">
-          {flight ? (
-            <>
-              <span>{flight.number} · {pct}% · {flight.distanceKm.toLocaleString()} km</span>
-              {badge && (
-                <span
-                  className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold shrink-0"
-                  style={{ color: badge.color, border: `1px solid ${badge.color}40`, background: `${badge.color}12` }}
-                >
-                  {badge.icon} {badge.label}
-                </span>
-              )}
-            </>
-          ) : "Track flights to and from Korea"}
         </div>
 
         {/* 진행 바 */}
@@ -138,11 +141,6 @@ export function RouteProgressBar({ flight }: Props) {
           )}
         </div>
 
-        {/* 공항명 */}
-        <div className="flex justify-between text-[11px] text-[#94a3b8] mt-0.5">
-          <span className="truncate max-w-[45%]">{flight?.departure.name ?? ""}</span>
-          <span className="truncate max-w-[45%] text-right">{flight?.arrival.name ?? ""}</span>
-        </div>
       </div>
     </div>
   )
