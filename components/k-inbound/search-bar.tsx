@@ -9,17 +9,19 @@ interface Props {
   error?: string | null
 }
 
-const EXAMPLES = ["KE001", "OZ202", "KE081", "OZ271"]
-
 export function FlightSearchBar({ onSearch, loading = false, error }: Props) {
   const [value, setValue] = useState("")
+  const [placeholderFlight, setPlaceholderFlight] = useState("KE017")
   const inputRef = useRef<HTMLInputElement>(null)
 
   const submit = () => {
+    if (loading) return
     const trimmed = value.trim().toUpperCase()
-    if (!trimmed || loading) return
-    onSearch(trimmed)
+    // 입력 비어있으면 현재 placeholder 항공편으로 자동 검색
+    onSearch(trimmed || placeholderFlight)
   }
+
+  void setPlaceholderFlight // 향후 cron 자동 선택 항공편 연동용
 
   const clear = () => {
     setValue("")
@@ -38,7 +40,7 @@ export function FlightSearchBar({ onSearch, loading = false, error }: Props) {
           value={value}
           onChange={e => setValue(e.target.value.toUpperCase())}
           onKeyDown={e => e.key === "Enter" && submit()}
-          placeholder={`e.g. ${EXAMPLES[0]}`}
+          placeholder={`e.g. ${placeholderFlight}`}
           maxLength={10}
           spellCheck={false}
           className="flex-1 h-10 pl-2.5 pr-2 text-sm font-mono bg-transparent text-white placeholder-white/40 focus:outline-none"
@@ -59,7 +61,7 @@ export function FlightSearchBar({ onSearch, loading = false, error }: Props) {
         {/* Track 버튼 */}
         <button
           onClick={submit}
-          disabled={loading || !value.trim()}
+          disabled={loading}
           className="shrink-0 h-10 px-4 bg-transparent hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed text-sm font-semibold text-white hover:text-white/80 transition-colors flex items-center gap-1.5"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Track"}

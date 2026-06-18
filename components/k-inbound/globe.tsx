@@ -203,7 +203,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
 
     const aircraftShape = makeAircraftShape()
     const mainGeo  = new THREE.ShapeGeometry(aircraftShape)
-    const mainMat  = new THREE.MeshBasicMaterial({ color: 0xFF4B6E, side: THREE.DoubleSide, transparent: true, opacity: 0, depthWrite: false })
+    const mainMat  = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0, depthWrite: false })
     const mainMesh = new THREE.Mesh(mainGeo, mainMat)
     mainMesh.scale.setScalar(0.0504)
     scene.add(mainMesh)
@@ -213,7 +213,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     const nowInit  = Date.now()
 
     const dummies: DummyState[] = Array.from({ length: DUMMY_COUNT }, () => {
-      const mat  = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false })
+      const mat  = new THREE.MeshBasicMaterial({ color: 0xFF4B6E, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false })
       const mesh = new THREE.Mesh(dummyGeo, mat)
       mesh.scale.setScalar(0.0336)
       scene.add(mesh)

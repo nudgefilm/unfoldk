@@ -84,7 +84,7 @@ export interface FlightData {
   timestamp: number    // fetchedAt과 동일 — 클라이언트 progress 보간 기준점
 }
 
-interface AeroRaw {
+export interface AeroRaw {
   number?: string
   airline?: { name?: string }
   aircraft?: { model?: string; reg?: string }
@@ -104,8 +104,8 @@ interface AeroRaw {
 }
 
 // ── 서버 메모리 캐시 ──────────────────────────────────────────────────────────
-interface CacheEntry { data: FlightData; fetchedAt: number }
-const cache = new Map<string, CacheEntry>()
+export interface CacheEntry { data: FlightData; fetchedAt: number }
+export const cache = new Map<string, CacheEntry>()
 const CACHE_TTL = 10 * 60 * 1000 // 10분
 
 // ── 계산 헬퍼 ────────────────────────────────────────────────────────────────
@@ -135,7 +135,7 @@ function getSpeed(model: string): number {
   return 880
 }
 
-function buildFlightData(raw: AeroRaw): FlightData {
+export function buildFlightData(raw: AeroRaw): FlightData {
   const now = Date.now()
   const depIata = raw.departure?.airport?.iata ?? ""
   const arrIata = raw.arrival?.airport?.iata ?? ""

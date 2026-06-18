@@ -88,6 +88,10 @@
     {
       "path": "/api/cron/collect-hallyu-feed",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/k-inbound/cron",
+      "schedule": "0 * * * *"
     }
   ]
 }
