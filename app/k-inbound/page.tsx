@@ -24,12 +24,13 @@ const KInboundGlobe = dynamic(
 type AuthState = "loading" | "unauthenticated" | "free" | "pro"
 
 export default function KInboundPage() {
-  const [authState, setAuthState]       = useState<AuthState>("loading")
-  const [flight, setFlight]             = useState<FlightData | null>(null)
-  const [searching, setSearching]       = useState(false)
-  const [searchError, setSearchError]   = useState<string | null>(null)
-  const [suggestions, setSuggestions]   = useState<FIDSSuggestion[]>([])
-  const [userCountry, setUserCountry]   = useState("")
+  const [authState, setAuthState]           = useState<AuthState>("loading")
+  const [flight, setFlight]                 = useState<FlightData | null>(null)
+  const [searching, setSearching]           = useState(false)
+  const [searchError, setSearchError]       = useState<string | null>(null)
+  const [suggestions, setSuggestions]       = useState<FIDSSuggestion[]>([])
+  const [userCountry, setUserCountry]       = useState("")
+  const [isCommsExpanded, setIsCommsExpanded] = useState(false)
   const globeRef = useRef<GlobeHandle>(null)
 
   // IP → 국가 코드 (검색 제안 정렬용)
@@ -139,15 +140,24 @@ export default function KInboundPage() {
         </div>
       </div>
 
-      {/* 좌측 패널 — GlobalComms 높이(248px) 위 공간 */}
-      <div className="absolute top-2 left-2 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ bottom: "calc(1rem + 248px)" }}>
-        <FlightInfoPanel   flight={flight} />
-        <AircraftInfoPanel flight={flight} />
-      </div>
+      {/* 좌측 패널 — 카드(상) + 채팅(하) 상하 분리, 스크롤 없음 */}
+      <div className="absolute top-2 left-2 bottom-2 z-20 w-[280px] hidden md:flex flex-col gap-2">
+        {/* 카드 영역 — 채팅 위 남은 공간 전체, 넘치면 hidden */}
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-2">
+          <FlightInfoPanel   flight={flight} />
+          <AircraftInfoPanel flight={flight} />
+        </div>
 
-      {/* GLOBAL COMMS — 좌측 하단 */}
-      <div className="hidden md:block">
-        <GlobalComms />
+        {/* 채팅 영역 — 접힘: 헤더 1줄, 펼침: 50vh */}
+        <div
+          className="flex-shrink-0"
+          style={{ height: isCommsExpanded ? "50vh" : "auto" }}
+        >
+          <GlobalComms
+            isExpanded={isCommsExpanded}
+            onToggle={() => setIsCommsExpanded(e => !e)}
+          />
+        </div>
       </div>
 
       {/* 우측 패널 — 지구본 위 overlay, 항상 full opacity */}

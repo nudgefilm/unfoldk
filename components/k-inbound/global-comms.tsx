@@ -31,13 +31,17 @@ const SYSTEM_MESSAGES = [
 const BLOCKED = ["fuck", "shit", "bitch", "cunt", "asshole", "dickhead", "motherfucker"]
 const hasBadWord = (t: string) => BLOCKED.some(w => t.toLowerCase().includes(w))
 
-export function GlobalComms() {
+interface GlobalCommsProps {
+  isExpanded: boolean
+  onToggle:   () => void
+}
+
+export function GlobalComms({ isExpanded, onToggle }: GlobalCommsProps) {
   const [msgs, setMsgs]         = useState<KMessage[]>([])
   const [sysMessages, setSysMessages] = useState<SystemMessage[]>([])
   const [input, setInput]       = useState("")
   const [city, setCity]         = useState("Unknown")
   const [ccCode, setCcCode]     = useState("")
-  const [expanded, setExpanded] = useState(true)
   const bottomRef   = useRef<HTMLDivElement>(null)
   const sysIndexRef = useRef(0)
   const supabase    = useRef(createSupabaseBrowserClient()).current
@@ -106,8 +110,8 @@ export function GlobalComms() {
 
   // 새 메시지 자동 스크롤 (펼친 상태에서만)
   useEffect(() => {
-    if (expanded) bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [allMessages, expanded])
+    if (isExpanded) bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [allMessages, isExpanded])
 
   const send = async () => {
     const text = input.trim()
@@ -122,11 +126,9 @@ export function GlobalComms() {
     // 로컬 즉시 추가 없음 — Realtime INSERT 이벤트로만 표시
   }
 
-  const lastMsg = allMessages[allMessages.length - 1]
-
   return (
     <div
-      className="absolute bottom-4 left-2 z-20 w-[280px] font-mono"
+      className="w-full h-full font-mono flex flex-col"
       style={{
         background:   "rgba(0,0,0,0.75)",
         border:       "1px solid rgba(255,75,110,0.3)",
@@ -134,41 +136,20 @@ export function GlobalComms() {
         overflow:     "hidden",
       }}
     >
-      {/* 헤더 */}
+      {/* 헤더 — 항상 표시, 클릭으로 펼침/접힘 */}
       <div
-        className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
+        className="shrink-0 flex items-center justify-between px-3 py-2 cursor-pointer select-none"
         style={{ borderBottom: "1px solid rgba(255,75,110,0.2)" }}
-        onClick={() => setExpanded(e => !e)}
+        onClick={onToggle}
       >
         <span className="text-[#FF4B6E] text-[11px] font-bold tracking-widest">✈ GLOBAL COMMS</span>
-        <span className="text-[#FF4B6E] text-[9px]">{expanded ? "▼" : "▲"}</span>
+        <span className="text-[#FF4B6E] text-[9px]">{isExpanded ? "▼" : "▲"}</span>
       </div>
 
-      {/* 접힌 상태 — 최근 메시지 1줄 미리보기 */}
-      {!expanded && (
-        <div className="px-3 py-1.5">
-          {lastMsg ? (
-            lastMsg.type === "system" ? (
-              <div className="text-[11px] leading-relaxed truncate">
-                <span className="font-bold mr-1" style={{ color: "#4ade80" }}>[SYSTEM]</span>
-                <span className="italic truncate" style={{ color: "#94a3b8" }}>{lastMsg.message}</span>
-              </div>
-            ) : (
-              <div className="text-[11px] leading-relaxed truncate">
-                <span className="text-[#4a9eff]/80 mr-1">[{lastMsg.city || "?"}]</span>
-                <span className="text-white/80">{lastMsg.message}</span>
-              </div>
-            )
-          ) : (
-            <p className="text-[#94a3b8] text-[11px]">No messages yet...</p>
-          )}
-        </div>
-      )}
-
-      {/* 펼친 상태 — 메시지 7줄 + 입력창 */}
-      {expanded && (
+      {/* 펼친 상태 — 메시지 영역 flex-1 (부모 50vh 기준) + 입력창 */}
+      {isExpanded && (
         <>
-          <div className="h-[180px] overflow-y-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {allMessages.length === 0 ? (
               <p className="text-[#94a3b8] text-[11px] text-center pt-4">
                 No messages yet... Say hello! 👋
@@ -199,7 +180,7 @@ export function GlobalComms() {
 
           {/* 입력 */}
           <div
-            className="flex items-center gap-2 px-3 py-2"
+            className="shrink-0 flex items-center gap-2 px-3 py-2"
             style={{ borderTop: "1px solid rgba(255,75,110,0.15)" }}
           >
             <input
