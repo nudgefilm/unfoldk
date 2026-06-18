@@ -29,54 +29,70 @@ const MAJOR_ROUTES: { from: [number, number]; to: [number, number]; duration: nu
   { from: [13.68, 100.74], to: [37.46,  126.44], duration:  5 * 3600000 }, // BKK → ICN
 ]
 
-const TRAIL_LEN   = 50
-const DUMMY_COUNT = 5
-const AIRCRAFT_ROTATION_OFFSET = Math.PI // 조정 필요: 0 → Math.PI/4 → -Math.PI/4 순으로 테스트
-
-// 지구 자전 속도: 5분/회전 (실제 24시간은 시각적으로 멈춘 것처럼 보임)
+const TRAIL_LEN             = 50
+const DUMMY_COUNT           = 5
 const EARTH_ROT_RAD_PER_SEC = (Math.PI * 2) / 1200
-
-// trail 샘플링 간격: 1분마다 1점 (TRAIL_LEN 50 → 경로의 ~6% 이내)
 const TRAIL_SAVE_INTERVAL_MS = 60_000
 
+// 비행기 앞방향 명시적 정의: Three.js Shape 로컬 +X축 = 기수
+const AIRCRAFT_FORWARD = new THREE.Vector3(1, 0, 0)
+
 interface DummyState {
-  sprite:           THREE.Sprite
-  mat:              THREE.SpriteMaterial
-  trailLine:        THREE.Line
-  trailPositions:   Float32Array
-  trailColors:      Float32Array
-  routeIdx:         number
-  startTime:        number        // 출발 기준 ms timestamp
-  lastTrailSaveMs:  number        // 마지막 trail point 저장 시각
-  history:          THREE.Vector3[]
+  mesh:            THREE.Mesh
+  mat:             THREE.MeshBasicMaterial
+  trailLine:       THREE.Line
+  trailPositions:  Float32Array
+  trailColors:     Float32Array
+  routeIdx:        number
+  startTime:       number
+  lastTrailSaveMs: number
+  history:         THREE.Vector3[]
 }
 
 function easeInOutCubic(t: number) {
   return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2
 }
 
-function makeAircraftTexture(size: number): THREE.CanvasTexture {
-  const c = document.createElement("canvas")
-  c.width = size; c.height = size
-  const ctx = c.getContext("2d")!
-  ctx.font = `bold ${Math.round(size * 0.72)}px Arial, sans-serif`
-  ctx.fillStyle = "#FF4B6E"
-  ctx.textAlign = "center"
-  ctx.textBaseline = "middle"
-  ctx.fillText("✈", size / 2, size / 2)
-  return new THREE.CanvasTexture(c)
+// Three.js Shape으로 비행기 실루엣 생성 (XY 평면)
+// 기수: +X(AIRCRAFT_FORWARD), 날개: ±Y, 꼬리: -X
+// 정규화 길이 1.0 [-0.5, +0.5] — mesh.scale로 실 크기 조절
+function makeAircraftShape(): THREE.Shape {
+  const s = new THREE.Shape()
+  s.moveTo( 0.50,  0.00)   // 기수 끝 (+X)
+  s.lineTo( 0.00,  0.06)   // 동체 상단 앞
+  s.lineTo( 0.05,  0.06)
+  s.lineTo(-0.10,  0.38)   // 주익 끝
+  s.lineTo(-0.20,  0.08)   // 주익 후연
+  s.lineTo(-0.38,  0.06)   // 동체 후미 상단
+  s.lineTo(-0.42,  0.18)   // 꼬리날개 끝
+  s.lineTo(-0.50,  0.04)   // 꼬리 후연
+  s.lineTo(-0.50,  0.00)   // 꼬리 중심선 (-X)
+  s.lineTo(-0.50, -0.04)
+  s.lineTo(-0.42, -0.18)
+  s.lineTo(-0.38, -0.06)
+  s.lineTo(-0.20, -0.08)
+  s.lineTo(-0.10, -0.38)
+  s.lineTo( 0.05, -0.06)
+  s.lineTo( 0.00, -0.06)
+  s.lineTo( 0.50,  0.00)
+  return s
 }
 
-function makeMainAircraftTexture(size: number): THREE.CanvasTexture {
-  const c = document.createElement("canvas")
-  c.width = size; c.height = size
-  const ctx = c.getContext("2d")!
-  ctx.font = `bold ${Math.round(size * 0.72)}px Arial, sans-serif`
-  ctx.fillStyle = "#ffffff"
-  ctx.textAlign = "center"
-  ctx.textBaseline = "middle"
-  ctx.fillText("✈", size / 2, size / 2)
-  return new THREE.CanvasTexture(c)
+// 구 표면 위 비행기 Quaternion 계산
+// AIRCRAFT_FORWARD(로컬 +X) → 진행방향, 로컬 +Z → 구 외향 법선
+// 우수 기저: X=forward, Y=normal×forward, Z=normal
+function calcAircraftQuaternion(pos: THREE.Vector3, nextPos: THREE.Vector3): THREE.Quaternion | null {
+  // AIRCRAFT_FORWARD 방향(로컬 +X)을 world forward로 정렬할 회전 계산
+  const forward = nextPos.clone().sub(pos)
+  if (forward.lengthSq() < 1e-10) return null
+  forward.normalize()
+  const normal = pos.clone().normalize()                                     // 구 외향 법선 (로컬 +Z 대응)
+  const left   = new THREE.Vector3().crossVectors(normal, forward)           // 우수 기저 Y축
+  if (left.lengthSq() < 1e-8) return null
+  left.normalize()
+  // makeBasis(xWorld, yWorld, zWorld): 로컬 X→forward, Y→left, Z→normal
+  const m = new THREE.Matrix4().makeBasis(forward, left, normal)
+  return new THREE.Quaternion().setFromRotationMatrix(m)
 }
 
 const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ className }, ref) {
@@ -88,7 +104,6 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     setFlight(f) {
       flightRef.current = f
       if (f && flyToRef.current) {
-        // 현재 추정 위치 계산 — fetchedAt 기준 경과 시간 보정
         const elapsed = Date.now() - f.fetchedAt
         const total   = f.elapsedMs + f.remainingMs || 1
         const ft      = Math.min(f.progressRatio + elapsed / total, 1)
@@ -97,7 +112,6 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
           f.arrival.lat,   f.arrival.lng,
           ft,
         )
-        // vec3 → lat/lng 역변환
         const r   = pos.length()
         const lat = 90 - Math.acos(Math.max(-1, Math.min(1, pos.y / r))) * (180 / Math.PI)
         const lng = Math.atan2(pos.z, -pos.x) * (180 / Math.PI) - 180
@@ -135,7 +149,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gratMat))
     })
 
-    // ── 대륙선 — 카메라 기준 앞면/뒷면 brightness 매 프레임 갱신
+    // ── 대륙선
     const landLineData: Array<{ colAttr: THREE.BufferAttribute; positions: Float32Array }> = []
     fetch("/ne_110m_land.json")
       .then(r => r.json())
@@ -169,7 +183,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       })
       .catch(() => {})
 
-    // ── OrbitControls — autoRotate OFF, Clock 기반 지구 자전 적용
+    // ── OrbitControls
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.autoRotate  = false
     controls.enableDamping  = true
@@ -179,30 +193,30 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     controls.target.set(0, 0, 0)
     controls.update()
 
-    // Clock 기반 실시간 자전 (flyTo 중 일시정지 플래그)
     const clock   = new THREE.Clock()
     const yAxis   = new THREE.Vector3(0, 1, 0)
     const autoRot = { enabled: true }
 
-    // ── 실제 항공편 Arc + 주 항공기
+    // ── 실제 항공편 Arc + 주 항공기 Mesh (#FF4B6E)
     const arcMat = new THREE.LineBasicMaterial({ color: 0x00e5ff, opacity: 0, transparent: true })
     let arcLine: THREE.Line | null = null
 
-    const mainTex    = makeMainAircraftTexture(48)
-    const mainMat    = new THREE.SpriteMaterial({ map: mainTex, transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true })
-    const mainSprite = new THREE.Sprite(mainMat)
-    mainSprite.scale.set(0.0504, 0.0504, 1)
-    scene.add(mainSprite)
+    const aircraftShape = makeAircraftShape()
+    const mainGeo  = new THREE.ShapeGeometry(aircraftShape)
+    const mainMat  = new THREE.MeshBasicMaterial({ color: 0xFF4B6E, side: THREE.DoubleSide, transparent: true, opacity: 0, depthWrite: false })
+    const mainMesh = new THREE.Mesh(mainGeo, mainMat)
+    mainMesh.scale.setScalar(0.0504)
+    scene.add(mainMesh)
 
-    // ── 더미 항공기 5기 — 실제 비행시간 기준 speed
-    const dummyTex = makeAircraftTexture(36)
+    // ── 더미 항공기 5기 (#ffffff) — 공유 Geometry
+    const dummyGeo = new THREE.ShapeGeometry(aircraftShape)
     const nowInit  = Date.now()
 
     const dummies: DummyState[] = Array.from({ length: DUMMY_COUNT }, () => {
-      const mat    = new THREE.SpriteMaterial({ map: dummyTex, transparent: true, opacity: 0.9, depthWrite: false, sizeAttenuation: true })
-      const sprite = new THREE.Sprite(mat)
-      sprite.scale.set(0.0336, 0.0336, 1)
-      scene.add(sprite)
+      const mat  = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false })
+      const mesh = new THREE.Mesh(dummyGeo, mat)
+      mesh.scale.setScalar(0.0336)
+      scene.add(mesh)
 
       const trailPositions = new Float32Array(TRAIL_LEN * 3)
       const trailColors    = new Float32Array(TRAIL_LEN * 3)
@@ -221,7 +235,6 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       const [fromLat, fromLng] = route.from
       const [toLat,   toLng  ] = route.to
 
-      // trail 초기화: 비행기보다 0.003 뒤에서 시작 (겹침 방지), 최대 30% 범위
       const TRAIL_GAP  = 0.003
       const trailStart = Math.max(0, curProg - TRAIL_GAP)
       const trailSpan  = Math.min(trailStart, 0.30)
@@ -232,7 +245,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         history.push(getPointOnArc(fromLat, fromLng, toLat, toLng, t))
       }
 
-      return { sprite, mat, trailLine, trailPositions, trailColors, routeIdx, startTime, lastTrailSaveMs: nowInit, history }
+      return { mesh, mat, trailLine, trailPositions, trailColors, routeIdx, startTime, lastTrailSaveMs: nowInit, history }
     })
 
     // ── flyTo
@@ -259,8 +272,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
     const loop = () => {
       animId = requestAnimationFrame(loop)
 
-      // 지구 자전 — Clock.getDelta() 기반 실제 자전 속도 (24시간/회전)
-      const frameDelta = Math.min(clock.getDelta(), 0.1) // 최대 100ms 클램프
+      const frameDelta = Math.min(clock.getDelta(), 0.1)
       if (autoRot.enabled) {
         camera.position.applyAxisAngle(yAxis, -EARTH_ROT_RAD_PER_SEC * frameDelta)
       }
@@ -269,7 +281,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       const now    = Date.now()
       const flight = flightRef.current
 
-      // 실제 항공편 — fetchedAt 기준 progressRatio + 경과 시간 보정으로 현재 위치 추정
+      // 실제 항공편
       if (flight) {
         arcMat.opacity  = Math.min(arcMat.opacity + 0.02, 0.85)
         mainMat.opacity = Math.min(mainMat.opacity + 0.02, 1)
@@ -281,40 +293,32 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
           arcLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), arcMat)
           scene.add(arcLine)
         }
-        const elapsed = now - flight.fetchedAt
-        const total   = flight.elapsedMs + flight.remainingMs || 1
-        const ft      = Math.min(flight.progressRatio + elapsed / total, 1)
-        const mainPos  = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, ft)
-        mainSprite.position.copy(mainPos)
-        // 진행 방향 → 카메라 공간 탄젠트 + 우로 45° 오프셋
-        const ftFwd     = Math.min(ft + 0.05, 0.99)
-        const mainPosFwd = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, ftFwd)
-        const mainTangent = mainPosFwd.clone().sub(mainPos).normalize()
-        mainTangent.transformDirection(camera.matrixWorldInverse)
-        const mainNdcZ = mainPos.clone().project(camera).z
-        if (mainNdcZ < 1.0 && mainTangent.x * mainTangent.x + mainTangent.y * mainTangent.y > 1e-6) {
-          const targetRot = Math.atan2(mainTangent.y, mainTangent.x) + AIRCRAFT_ROTATION_OFFSET
-          let diff = targetRot - mainMat.rotation
-          while (diff >  Math.PI) diff -= Math.PI * 2
-          while (diff < -Math.PI) diff += Math.PI * 2
-          mainMat.rotation += diff * 0.25
-        }
+        const elapsed    = now - flight.fetchedAt
+        const total      = flight.elapsedMs + flight.remainingMs || 1
+        const ft         = Math.min(flight.progressRatio + elapsed / total, 1)
+        const mainPos    = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, ft)
+        const mainNextPos = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, Math.min(ft + 0.01, 0.99))
+
+        mainMesh.position.copy(mainPos)
+        // AIRCRAFT_FORWARD(+X)를 진행방향으로 정렬하는 Quaternion 적용
+        const mainQ = calcAircraftQuaternion(mainPos, mainNextPos)
+        if (mainQ) mainMesh.quaternion.copy(mainQ)
       } else {
         arcMat.opacity  = Math.max(arcMat.opacity - 0.01, 0)
         mainMat.opacity = Math.max(mainMat.opacity - 0.01, 0)
         if (arcLine && arcMat.opacity <= 0) { scene.remove(arcLine); arcLine = null }
       }
 
-      // 더미 항공기 — progress = (now - startTime) / route.duration
+      // 더미 항공기
       for (const d of dummies) {
         const route    = MAJOR_ROUTES[d.routeIdx]
         const progress = (now - d.startTime) / route.duration
 
         if (progress >= 1.0) {
-          d.routeIdx         = Math.floor(Math.random() * MAJOR_ROUTES.length)
-          d.startTime        = now
-          d.lastTrailSaveMs  = now
-          d.history          = []
+          d.routeIdx        = Math.floor(Math.random() * MAJOR_ROUTES.length)
+          d.startTime       = now
+          d.lastTrailSaveMs = now
+          d.history         = []
           ;(d.trailLine.geometry as THREE.BufferGeometry).setDrawRange(0, 0)
           continue
         }
@@ -323,34 +327,24 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         const [fromLat, fromLng] = from
         const [toLat,   toLng  ] = to
 
-        const pos = getPointOnArc(fromLat, fromLng, toLat, toLng, progress)
-        d.sprite.position.copy(pos)
+        const pos     = getPointOnArc(fromLat, fromLng, toLat, toLng, progress)
+        const nextPos = getPointOnArc(fromLat, fromLng, toLat, toLng, Math.min(progress + 0.01, 0.99))
 
-        // 방향 — 카메라 공간 탄젠트 벡터 + 스무딩
-        const tFwd    = Math.min(progress + 0.05, 0.99)
-        const posFwd  = getPointOnArc(fromLat, fromLng, toLat, toLng, tFwd)
-        const tangent = posFwd.clone().sub(pos).normalize()
-        tangent.transformDirection(camera.matrixWorldInverse)
-        const ndcZ = pos.clone().project(camera).z
-        if (ndcZ < 1.0 && tangent.x * tangent.x + tangent.y * tangent.y > 1e-6) {
-          const targetRot = Math.atan2(tangent.y, tangent.x)
-          let diff = targetRot - d.mat.rotation
-          while (diff >  Math.PI) diff -= Math.PI * 2
-          while (diff < -Math.PI) diff += Math.PI * 2
-          d.mat.rotation += diff * 0.25
-        }
+        d.mesh.position.copy(pos)
+        // AIRCRAFT_FORWARD(+X)를 진행방향으로 정렬하는 Quaternion 적용
+        const q = calcAircraftQuaternion(pos, nextPos)
+        if (q) d.mesh.quaternion.copy(q)
 
-        // 꼬리 — 시간 기반 샘플링 (실제 비행시간에서 거리 기반은 점 미적립 문제)
+        // 꼬리 궤적 — 비행기 뒤쪽(-X 연결점) 기준 시간 샘플링
         const shouldSave = d.history.length === 0 || (now - d.lastTrailSaveMs) >= TRAIL_SAVE_INTERVAL_MS
         if (shouldSave) {
           d.lastTrailSaveMs = now
-          // 비행기 현재 위치보다 0.003 뒤 지점 저장 (비행기와 trail 간격 유지)
+          // 비행기 후미(-X) 에 연결: progress 보다 약간 뒤 지점 저장
           const behindPos = getPointOnArc(fromLat, fromLng, toLat, toLng, Math.max(0, progress - 0.003))
           d.history.unshift(behindPos)
           if (d.history.length > TRAIL_LEN) d.history.pop()
         }
 
-        // 꼬리 버퍼 — 흰색, 앞 1.0 → 뒤 0.0 선형
         const n = d.history.length
         for (let j = 0; j < n; j++) {
           const p     = d.history[j]
@@ -368,7 +362,7 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
         ;(trailGeo.attributes.color    as THREE.BufferAttribute).needsUpdate = true
       }
 
-      // 대륙선 앞면/뒷면 brightness — 카메라 방향과 버텍스 내적으로 매 프레임 갱신
+      // 대륙선 앞면/뒷면 brightness
       const camDir = camera.position.clone().normalize()
       for (const { colAttr, positions } of landLineData) {
         const count = colAttr.count
@@ -376,7 +370,6 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
           const vx = positions[i * 3], vy = positions[i * 3 + 1], vz = positions[i * 3 + 2]
           const len = Math.sqrt(vx * vx + vy * vy + vz * vz)
           const dot = (vx * camDir.x + vy * camDir.y + vz * camDir.z) / len
-          // dot  1=정면(밝게)  0=가장자리(중간)  -1=뒷면(어둡게)
           const b = dot > 0 ? 0.3 + dot * 0.45 : 0.3 + dot * 0.25
           colAttr.setXYZ(i, b, b, b)
         }
@@ -400,6 +393,10 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
       cancelAnimationFrame(animId)
       window.removeEventListener("resize", onResize)
       controls.dispose()
+      mainGeo.dispose()
+      mainMat.dispose()
+      dummyGeo.dispose()
+      dummies.forEach(d => { d.mat.dispose(); d.trailLine.geometry.dispose() })
       renderer.dispose()
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement)
     }
