@@ -15,18 +15,13 @@ interface Props { className?: string }
 
 // 세계 주요 항공 경로 12개 + 실제 비행시간(ms)
 const MAJOR_ROUTES: { from: [number, number]; to: [number, number]; duration: number }[] = [
-  { from: [37.46, 126.44], to: [40.63,  -73.78], duration: 14 * 3600000 }, // ICN → JFK
-  { from: [37.46, 126.44], to: [51.47,   -0.46], duration: 12 * 3600000 }, // ICN → LHR
-  { from: [37.46, 126.44], to: [33.94, -118.40], duration: 11 * 3600000 }, // ICN → LAX
   { from: [35.76, 140.38], to: [40.63,  -73.78], duration: 14 * 3600000 }, // NRT → JFK
   { from: [22.30, 113.91], to: [51.47,   -0.46], duration: 13 * 3600000 }, // HKG → LHR
   { from: [25.25,  55.36], to: [51.47,   -0.46], duration:  7 * 3600000 }, // DXB → LHR
   { from: [ 1.35, 103.98], to: [51.47,   -0.46], duration: 13 * 3600000 }, // SIN → LHR
   { from: [40.63, -73.78], to: [49.00,    2.54], duration:  7 * 3600000 }, // JFK → CDG
   { from: [-33.94, 151.17], to: [1.35,  103.98], duration:  8 * 3600000 }, // SYD → SIN
-  { from: [37.46, 126.44], to: [49.00,    2.54], duration: 12 * 3600000 }, // ICN → CDG
   { from: [50.03,   8.57], to: [40.63,  -73.78], duration:  9 * 3600000 }, // FRA → JFK
-  { from: [13.68, 100.74], to: [37.46,  126.44], duration:  5 * 3600000 }, // BKK → ICN
 ]
 
 const TRAIL_LEN             = 50
