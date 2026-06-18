@@ -4,6 +4,62 @@
 
 ---
 
+## 현재 상태 (2026-06-18 세션 68 기준)
+
+### K-Inbound — 세부 기능 개선
+
+**완료 항목**
+
+- **`components/k-inbound/global-comms.tsx`**
+  - 시스템 메시지 자동 표시: 1시간마다 `SYSTEM_MESSAGES` 3개 순환
+  - 로컬 state에만 추가 (Supabase 저장 없음, 다른 유저에 미노출)
+  - `[SYSTEM]` 태그 초록(#4ade80) + 이탤릭 회색 + 연초록 배경
+  - 접힌 상태 미리보기도 시스템/유저 분기 처리
+
+- **`components/k-inbound/route-progress-bar.tsx`**
+  - 출발·도착 시각 표시 → 공항 현지 시각(IATA→IANA) + 시간대 약어
+  - scheduledTime은 이미 로컬 시각 → HH:MM 직접 추출 (브라우저 TZ 변환 없음)
+  - IATA_TZ 매핑 테이블 추가 (ICN/LAX/JFK/NRT/LHR/CDG/DXB/SIN/SYD 등)
+  - Intl.DateTimeFormat 서머타임 자동 반영 (현재 PDT/EDT/BST/CEST 등)
+  - 비행 단계별 상태 뱃지 추가: SCHEDULED(회색)/GROUND HOLD(노란)/EN ROUTE(초록)/ARRIVED(파란)/CANCELLED(빨간)
+  - 상단 레이블 행을 3행으로 분리:
+    - Row1: IATA + 시간대 약어 (ICN(KST) / (PDT)LAX)
+    - Row2: 🛫 출발시각 TZ / 🛬 도착시각 TZ — actualTime/estimatedTime 우선
+    - Row3: 항공편 정보 + 상태 뱃지
+
+- **`components/k-inbound/globe.tsx`**
+  - ✈ 유니코드 캔버스 스프라이트 → `THREE.ShapeGeometry` Mesh 교체
+  - `AIRCRAFT_FORWARD = new THREE.Vector3(1, 0, 0)` 앞방향 명시적 정의
+  - `makeAircraftShape()`: 기체/주익/꼬리날개 실루엣 XY 평면 Shape (길이 정규화 1.0)
+  - `calcAircraftQuaternion()`: 구 법선 + 진행방향으로 우수 기저 행렬 → 매 프레임 정확한 3D 회전
+  - atan2 2D 회전·카메라 공간 탄젠트 변환 완전 제거
+  - 색상: 더미 #FF4B6E, 주 항공편 #ffffff (기존 Sprite와 동일)
+  - 크기: Sprite scale 그대로 유지 (0.0504 / 0.0336)
+  - 더미 항공기 한국(ICN/GMP) 출발·도착 경로 5개 제거 → 7개 비한국 경로만 유지
+
+- **`app/api/k-inbound/flight/route.ts`**
+  - `actualTime.local` 기준 이륙 완료 판단 (scheduledTime fallback 제거)
+  - 이륙 전: `progressRatio=0` 강제, `status='GROUND HOLD'` 반환
+  - `recompute()` 동일 로직 적용 — 캐시 히트 시에도 이륙 전은 progress 0 유지
+  - `cache`, `CacheEntry`, `AeroRaw`, `buildFlightData` export 추가 (cron 공유)
+
+- **`app/api/k-inbound/cron/route.ts`** (신규)
+  - 매시 UTC 정각 실행, ICN 당일 도착 FIDS 조회
+  - EnRoute/Departed 필터 → ETA 기준 현재 시각 가장 가까운 편 선정
+  - 기존 flight API 캐시에 동일 방식으로 저장
+
+- **`vercel.json`** — `/api/k-inbound/cron` `0 * * * *` 추가
+
+- **`components/k-inbound/search-bar.tsx`**
+  - `placeholderFlight='KE017'` 상태 추가
+  - Track 빈 입력 클릭 → placeholder 항공편 자동 검색
+
+**다음 세션**
+- Paddle KYB 심사 통과 후: 샌드박스 → 프로덕션 전환, 웹훅 실서버 등록
+- K-Inbound: 실제 항공편 API 검색 추가 테스트
+
+---
+
 ## 현재 상태 (2026-06-18 세션 67 기준)
 
 ### K-Inbound Flight Simulator — 지구본 + UI 전면 개선
