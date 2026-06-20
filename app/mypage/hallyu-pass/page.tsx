@@ -16,8 +16,9 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Crown, Music, CalendarDays, Sparkles, TrendingUp, Mic2 } from "lucide-react"
+import { Crown, Sparkles, TrendingUp } from "lucide-react"
 import { MypageShell } from "@/components/mypage/mypage-shell"
+import { HallyuPassExclusiveBanner } from "@/components/mypage/hallyu-pass-exclusive-banner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess, isInTrial } from "@/lib/auth/plan"
 
@@ -165,58 +166,8 @@ export default function HallyuPassPage() {
               )}
             </div>
 
-            {/* 서비스 안내 박스 */}
-            <div
-              className="rounded-2xl p-6"
-              style={{
-                background: "rgba(255, 75, 110, 0.04)",
-                border: "1px solid rgba(255, 75, 110, 0.18)",
-              }}
-            >
-              <p
-                className="text-xs font-semibold uppercase tracking-widest mb-5"
-                style={{ color: "#FF4B6E" }}
-              >
-                Hallyu Pass Exclusive
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-                {(
-                  [
-                    {
-                      icon: Music,
-                      title: "Artist Weekly Report",
-                      desc: "Your favorite artists' highlights, auto-compiled every Monday",
-                    },
-                    {
-                      icon: CalendarDays,
-                      title: "Hallyu Routine Planner",
-                      desc: "A personalized K-content routine recommended fresh each week",
-                    },
-                    {
-                      icon: Mic2,
-                      title: "Comeback Guide",
-                      desc: "Streaming strategy auto-delivered starting D-7 before a comeback",
-                    },
-                    {
-                      icon: TrendingUp,
-                      title: "Monthly Trend Report",
-                      desc: "Last month's Hallyu market analysis, published every 1st",
-                    },
-                  ] as const
-                ).map(({ icon: Icon, title, desc }) => (
-                  <div key={title} className="flex flex-col gap-2">
-                    <div
-                      className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: "rgba(255, 75, 110, 0.12)" }}
-                    >
-                      <Icon className="w-4 h-4" style={{ color: "#FF4B6E" }} />
-                    </div>
-                    <p className="text-sm font-semibold text-foreground">{title}</p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* 서비스 안내 박스 (공통 컴포넌트) */}
+            <HallyuPassExclusiveBanner />
 
             {/* 2-column 섹션 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

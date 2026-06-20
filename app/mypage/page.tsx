@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { FooterSection } from "@/components/footer-section"
+import { HallyuPassExclusiveBanner } from "@/components/mypage/hallyu-pass-exclusive-banner"
 import { Button } from "@/components/ui/button"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import {
@@ -320,6 +321,11 @@ export default function MyPage() {
 
         {/* Main Content */}
         <main className="flex-1 min-w-0">
+          {/* Hallyu Pass Exclusive 안내 배너 */}
+          <div className="mb-8">
+            <HallyuPassExclusiveBanner />
+          </div>
+
           {/* Section 1: My Activity Stats */}
           <section className="mb-8">
             <h2 className="text-xl font-semibold text-foreground mb-4">My Activity</h2>
