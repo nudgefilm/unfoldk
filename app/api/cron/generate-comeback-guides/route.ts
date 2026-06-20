@@ -78,14 +78,57 @@ export async function POST(request: Request) {
   const now = new Date()
   const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
-  // 1. 추적 중인 고유 아티스트 목록
+  // ── 소스 A: kpop_artist_follows (KpopStats Track 버튼) ─────────────────────
   const { data: followRows } = await admin
     .from("kpop_artist_follows")
     .select("artist_id")
 
-  const uniqueIds = [
-    ...new Set(((followRows ?? []) as Array<{ artist_id: string }>).map((r) => r.artist_id)),
-  ]
+  const artistIdSet = new Set<string>(
+    ((followRows ?? []) as Array<{ artist_id: string }>).map((r) => r.artist_id)
+  )
+
+  // ── 소스 B: user_calendar_subscriptions → hallyu_calendar_events → kpop_artists ──
+  const { data: subRows } = await admin
+    .from("user_calendar_subscriptions")
+    .select("event_id")
+
+  const calEventIds = [...new Set(
+    ((subRows ?? []) as Array<{ event_id: string }>).map((r) => r.event_id)
+  )]
+
+  if (calEventIds.length > 0) {
+    const { data: calEventRows } = await admin
+      .from("hallyu_calendar_events")
+      .select("artist_or_drama")
+      .in("id", calEventIds)
+
+    const calNames = new Set<string>()
+    for (const row of (calEventRows ?? []) as Array<{ artist_or_drama: string | null }>) {
+      const n = row.artist_or_drama?.trim().toLowerCase()
+      if (n) calNames.add(n)
+    }
+
+    if (calNames.size > 0) {
+      const { data: allArtists } = await admin
+        .from("kpop_artists")
+        .select("id, name, name_ko")
+        .eq("is_active", true)
+        .limit(2000)
+
+      for (const a of (allArtists ?? []) as Array<{ id: string; name: string; name_ko: string | null }>) {
+        const n = a.name.toLowerCase()
+        const nko = a.name_ko?.toLowerCase() ?? null
+        const matched = [...calNames].some((en) => {
+          if (en.includes(n)) return true
+          if (nko && en.includes(nko)) return true
+          return false
+        })
+        if (matched) artistIdSet.add(a.id)
+      }
+    }
+  }
+
+  const uniqueIds = [...artistIdSet]
 
   if (uniqueIds.length === 0) {
     return NextResponse.json({ ok: true, processed: 0, skipped: 0, message: "No tracked artists" })
