@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { hasProAccess } from "@/lib/auth/plan"
+import { getTrackedArtists } from "@/lib/hallyu-pass/get-tracked-artists"
 
 export const dynamic = "force-dynamic"
 
@@ -49,17 +50,14 @@ export async function GET() {
   const admin = createSupabaseAdminClient()
   const weekStart = getWeekStart()
 
-  // 유저 추적 아티스트 + 아티스트 기본 정보 조인
-  const { data: follows } = await admin
-    .from("kpop_artist_follows")
-    .select("artist_id, kpop_artists(id, name)")
-    .eq("user_id", user.id)
+  // 유저 추적 아티스트 — Source A(kpop_artist_follows) + Source B(calendar 구독) 병합
+  const tracked = await getTrackedArtists(admin, user.id)
 
-  if (!follows || follows.length === 0) {
+  if (tracked.length === 0) {
     return NextResponse.json({ artists: [] })
   }
 
-  const artistIds = (follows as Array<{ artist_id: string }>).map((f) => f.artist_id)
+  const artistIds = tracked.map((a) => a.artist_id)
 
   // 이번 주 리포트 일괄 조회
   const { data: reports } = await admin
@@ -74,21 +72,11 @@ export async function GET() {
     ((reports ?? []) as ReportRow[]).map((r) => [r.artist_id, r])
   )
 
-  const artists = (
-    follows as Array<{
-      artist_id: string
-      kpop_artists: { id: string; name: string } | null
-    }>
-  )
-    .map((f) => {
-      if (!f.kpop_artists) return null
-      return {
-        id: f.kpop_artists.id,
-        name: f.kpop_artists.name,
-        report: reportMap.get(f.artist_id) ?? null,
-      }
-    })
-    .filter(Boolean)
+  const artists = tracked.map((a) => ({
+    id: a.artist_id,
+    name: a.name,
+    report: reportMap.get(a.artist_id) ?? null,
+  }))
 
   return NextResponse.json({ artists })
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { verifyCronAuth } from "@/lib/cron/auth"
+import { getTrackedArtists } from "@/lib/hallyu-pass/get-tracked-artists"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -192,75 +193,12 @@ export async function POST(request: Request) {
   const admin = createSupabaseAdminClient()
   const weekStart = getWeekStart()
 
-  // ── 소스 A: kpop_artist_follows (KpopStats Track 버튼) ─────────────────────
-  const { data: followRows, error: followErr } = await admin
-    .from("kpop_artist_follows")
-    .select("artist_id")
+  // 전체 유저의 추적 아티스트 합산 (userId 생략 = 전체 유저)
+  const artists: ArtistRecord[] = await getTrackedArtists(admin)
 
-  if (followErr) return NextResponse.json({ error: followErr.message }, { status: 500 })
-
-  const artistIdSet = new Set<string>(
-    ((followRows ?? []) as Array<{ artist_id: string }>).map((r) => r.artist_id)
-  )
-  const sourceACount = artistIdSet.size
-
-  // ── 소스 B: user_calendar_subscriptions → hallyu_calendar_events → kpop_artists ──
-  // HallyuCalendar Set Reminder 또는 Track 버튼 경유 구독에서 아티스트 추출
-  const { data: subRows } = await admin
-    .from("user_calendar_subscriptions")
-    .select("event_id")
-
-  const eventIds = [...new Set(
-    ((subRows ?? []) as Array<{ event_id: string }>).map((r) => r.event_id)
-  )]
-
-  if (eventIds.length > 0) {
-    const { data: eventRows } = await admin
-      .from("hallyu_calendar_events")
-      .select("artist_or_drama")
-      .in("id", eventIds)
-
-    const eventNames = new Set<string>()
-    for (const row of (eventRows ?? []) as Array<{ artist_or_drama: string | null }>) {
-      const n = row.artist_or_drama?.trim().toLowerCase()
-      if (n) eventNames.add(n)
-    }
-
-    if (eventNames.size > 0) {
-      const { data: allArtists } = await admin
-        .from("kpop_artists")
-        .select("id, name, name_ko")
-        .eq("is_active", true)
-        .limit(2000)
-
-      for (const a of (allArtists ?? []) as Array<{ id: string; name: string; name_ko: string | null }>) {
-        const n = a.name.toLowerCase()
-        const nko = a.name_ko?.toLowerCase() ?? null
-        const matched = [...eventNames].some((en) => {
-          if (en.includes(n)) return true
-          if (nko && en.includes(nko)) return true
-          return false
-        })
-        if (matched) artistIdSet.add(a.id)
-      }
-    }
+  if (artists.length === 0) {
+    return NextResponse.json({ ok: true, weekStart, total: 0, saved: 0, skipped: 0, errors: 0 })
   }
-
-  const uniqueArtistIds = [...artistIdSet]
-
-  if (uniqueArtistIds.length === 0) {
-    return NextResponse.json({ ok: true, weekStart, total: 0, saved: 0, skipped: 0, errors: 0, sourceA: 0, sourceB: 0 })
-  }
-
-  // 아티스트 이름 조회
-  const { data: artistRows } = await admin
-    .from("kpop_artists")
-    .select("id, name")
-    .in("id", uniqueArtistIds)
-
-  const artists: ArtistRecord[] = ((artistRows ?? []) as Array<{ id: string; name: string }>).map(
-    (r) => ({ artist_id: r.id, name: r.name })
-  )
 
   // 5개 단위 병렬 처리 (Claude rate limit 고려)
   const BATCH = 5
@@ -284,8 +222,6 @@ export async function POST(request: Request) {
     saved: details.filter((r) => r.status === "saved").length,
     skipped: details.filter((r) => r.status === "skipped").length,
     errors: details.filter((r) => r.status === "error").length,
-    sourceA: sourceACount,
-    sourceB: artists.length - sourceACount,
     details,
   })
 }

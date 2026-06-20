@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { hasProAccess } from "@/lib/auth/plan"
+import { getTrackedArtists } from "@/lib/hallyu-pass/get-tracked-artists"
 
 export const dynamic = "force-dynamic"
 
@@ -30,17 +31,14 @@ export async function GET() {
   const now = new Date()
   const fourteenDaysLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
 
-  // 유저 추적 아티스트 ID 목록
-  const { data: follows } = await admin
-    .from("kpop_artist_follows")
-    .select("artist_id")
-    .eq("user_id", user.id)
+  // 유저 추적 아티스트 — Source A(kpop_artist_follows) + Source B(calendar 구독) 병합
+  const tracked = await getTrackedArtists(admin, user.id)
 
-  if (!follows || follows.length === 0) {
+  if (tracked.length === 0) {
     return NextResponse.json({ guides: [] })
   }
 
-  const artistIds = (follows as Array<{ artist_id: string }>).map((f) => f.artist_id)
+  const artistIds = tracked.map((a) => a.artist_id)
 
   // 향후 14일 컴백 가이드 + 아티스트 정보 조인
   const { data: guideRows } = await admin
