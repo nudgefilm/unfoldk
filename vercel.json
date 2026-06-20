@@ -104,6 +104,10 @@
     {
       "path": "/api/cron/generate-comeback-guides",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/generate-monthly-report",
+      "schedule": "0 2 1 * *"
     }
   ]
 }
