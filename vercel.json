@@ -96,6 +96,10 @@
     {
       "path": "/api/cron/generate-weekly-routines",
       "schedule": "0 23 * * 0"
+    },
+    {
+      "path": "/api/cron/generate-artist-reports",
+      "schedule": "0 1 * * 1"
     }
   ]
 }
