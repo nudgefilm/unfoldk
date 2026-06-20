@@ -34,6 +34,7 @@ const sidebarLinks = [
   { icon: MapPin, label: "My Curation", href: "/mypage/curation" },
   { icon: PartyPopper, label: "My Fan Events", href: "/mypage/fan-events" },
   { icon: Newspaper, label: "Weekly Reports", href: "/mypage/reports" },
+  { icon: Crown, label: "Hallyu Pass", href: "/mypage/hallyu-pass" },
   { icon: CreditCard, label: "Subscription", href: "/mypage/subscription" },
   { icon: Settings, label: "Settings", href: "/mypage/settings" },
 ]
@@ -301,6 +302,16 @@ export default function MyPage() {
                   )}
                   <link.icon className="w-5 h-5" />
                   <span className="text-sm font-medium">{link.label}</span>
+                  {/* Pro 유저에게만 Crown 뱃지 표시 */}
+                  {link.label === "Hallyu Pass" &&
+                    (rawPlanType === "monthly" || rawPlanType === "annual") && (
+                      <span
+                        className="ml-auto text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                        style={{ backgroundColor: "rgba(255,75,110,0.18)", color: "#FF4B6E" }}
+                      >
+                        PRO
+                      </span>
+                    )}
                 </Link>
               )
             })}
