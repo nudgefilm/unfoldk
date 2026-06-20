@@ -183,8 +183,8 @@ async function processArtist(
 // ─── Cron 핸들러 ──────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
-  const authError = verifyCronAuth(request)
-  if (authError) return authError
+  const auth = verifyCronAuth(request)
+  if (!auth.ok) return NextResponse.json({ error: auth.reason }, { status: 401 })
 
   const admin = createSupabaseAdminClient()
   const weekStart = getWeekStart()
