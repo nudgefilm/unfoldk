@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Music, Film, Languages, UtensilsCrossed, CalendarDays, Check, Flame } from "lucide-react"
+import { Music, Film, Languages, UtensilsCrossed, CalendarDays, Check, Flame, Settings } from "lucide-react"
 import { RoutineOnboardingModal } from "@/components/mypage/routine-onboarding-modal"
 
 interface RoutineItem {
@@ -27,6 +27,11 @@ interface RoutineData {
 }
 
 type Status = "loading" | "onboarding" | "generating" | "ready" | "error"
+
+interface Prefs {
+  interests: string[]
+  daily_minutes: number
+}
 
 const SERVICE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   kpop: Music,
@@ -55,6 +60,8 @@ export function HallyuRoutineCard() {
   const [routine, setRoutine] = useState<RoutineData | null>(null)
   const [completedItems, setCompletedItems] = useState<Record<string, boolean>>({})
   const [togglingIdx, setTogglingIdx] = useState<number | null>(null)
+  const [prefs, setPrefs] = useState<Prefs | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -62,14 +69,19 @@ export function HallyuRoutineCard() {
     const init = async () => {
       try {
         const res = await fetch("/api/hallyu-pass/routine")
-        const data = await res.json() as { hasPrefs: boolean; routine: RoutineData | null }
+        const data = await res.json() as {
+          prefs: Prefs | null
+          routine: RoutineData | null
+        }
 
         if (cancelled) return
 
-        if (!data.hasPrefs) {
+        if (!data.prefs) {
           setStatus("onboarding")
           return
         }
+
+        setPrefs(data.prefs)
 
         if (!data.routine) {
           // preferences 있지만 이번 주 루틴 없음 → 자동 생성
@@ -99,12 +111,17 @@ export function HallyuRoutineCard() {
     return () => { cancelled = true }
   }, [])
 
-  // 온보딩 완료 후 루틴 데이터 수신
-  const handleOnboardingComplete = (routineData: unknown) => {
+  // 온보딩/설정 변경 완료 후 루틴 데이터 수신
+  const handleOnboardingComplete = (
+    routineData: unknown,
+    updatedPrefs: { interests: string[]; daily_minutes: number }
+  ) => {
     const r = routineData as RoutineData
     setRoutine(r)
     setCompletedItems((r.completed_items as Record<string, boolean>) ?? {})
+    setPrefs(updatedPrefs)
     setStatus("ready")
+    setShowSettings(false)
   }
 
   // 체크박스 토글
@@ -159,9 +176,15 @@ export function HallyuRoutineCard() {
 
   return (
     <>
+      {/* key 변경으로 재마운트 → initialInterests/initialDailyMinutes useState 기본값 재적용 */}
       <RoutineOnboardingModal
-        open={status === "onboarding"}
+        key={showSettings ? `settings-${prefs?.interests?.join(",")}-${prefs?.daily_minutes}` : "onboarding"}
+        open={status === "onboarding" || showSettings}
         onComplete={handleOnboardingComplete}
+        onClose={showSettings ? () => setShowSettings(false) : undefined}
+        initialInterests={showSettings ? (prefs?.interests ?? ["kpop"]) : ["kpop"]}
+        initialDailyMinutes={showSettings ? (prefs?.daily_minutes ?? 15) : 15}
+        isUpdate={showSettings}
       />
 
       <div
@@ -171,7 +194,17 @@ export function HallyuRoutineCard() {
         {/* 헤더 */}
         <div className="flex items-center gap-2 mb-4">
           <CalendarDays className="w-5 h-5 text-muted-foreground" />
-          <h2 className="text-base font-semibold text-foreground">My Hallyu Routine</h2>
+          <h2 className="text-base font-semibold text-foreground flex-1">My Hallyu Routine</h2>
+          {status === "ready" && (
+            <button
+              type="button"
+              onClick={() => setShowSettings(true)}
+              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+              aria-label="Edit routine settings"
+            >
+              <Settings className="w-4 h-4 text-muted-foreground" />
+            </button>
+          )}
         </div>
 
         {/* Loading */}

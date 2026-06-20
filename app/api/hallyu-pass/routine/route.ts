@@ -51,8 +51,11 @@ export async function GET() {
       .maybeSingle(),
   ])
 
+  const pd = prefsResult.data as { interests?: string[]; daily_minutes?: number } | null
   return NextResponse.json({
-    hasPrefs: !!prefsResult.data,
+    prefs: pd
+      ? { interests: pd.interests ?? [], daily_minutes: pd.daily_minutes ?? 15 }
+      : null,
     routine: routineResult.data ?? null,
   })
 }

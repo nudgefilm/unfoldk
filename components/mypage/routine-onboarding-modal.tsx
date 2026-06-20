@@ -29,13 +29,26 @@ const TIME_OPTIONS = [
 
 interface Props {
   open: boolean
-  onComplete: (routine: unknown) => void
+  onComplete: (routine: unknown, prefs: { interests: string[]; daily_minutes: number }) => void
+  onClose?: () => void
+  initialInterests?: string[]
+  initialDailyMinutes?: number
+  isUpdate?: boolean
 }
 
-export function RoutineOnboardingModal({ open, onComplete }: Props) {
+export function RoutineOnboardingModal({
+  open,
+  onComplete,
+  onClose,
+  initialInterests,
+  initialDailyMinutes,
+  isUpdate = false,
+}: Props) {
   const [step, setStep] = useState<1 | 2>(1)
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(["kpop"])
-  const [dailyMinutes, setDailyMinutes] = useState(15)
+  const [selectedInterests, setSelectedInterests] = useState<string[]>(
+    initialInterests ?? ["kpop"]
+  )
+  const [dailyMinutes, setDailyMinutes] = useState(initialDailyMinutes ?? 15)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -56,11 +69,15 @@ export function RoutineOnboardingModal({ open, onComplete }: Props) {
       const res = await fetch("/api/hallyu-pass/routine/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interests: selectedInterests, daily_minutes: dailyMinutes }),
+        body: JSON.stringify({
+          interests: selectedInterests,
+          daily_minutes: dailyMinutes,
+          ...(isUpdate && { force: true }),
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Failed to generate routine")
-      onComplete(data.routine)
+      onComplete(data.routine, { interests: selectedInterests, daily_minutes: dailyMinutes })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong")
     } finally {
@@ -73,11 +90,12 @@ export function RoutineOnboardingModal({ open, onComplete }: Props) {
       <DialogContent
         className="max-w-md"
         style={{ backgroundColor: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)" }}
-        onInteractOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => { if (!isUpdate) e.preventDefault(); else onClose?.() }}
+        onEscapeKeyDown={() => { if (isUpdate) onClose?.() }}
       >
         <DialogHeader>
           <DialogTitle className="text-foreground text-lg font-semibold">
-            Set Up Your Hallyu Routine
+            {isUpdate ? "Update Your Hallyu Routine" : "Set Up Your Hallyu Routine"}
           </DialogTitle>
           <p className="text-muted-foreground text-sm">
             Step {step} of 2 — {step === 1 ? "What are you into?" : "How much time do you have?"}
@@ -179,7 +197,9 @@ export function RoutineOnboardingModal({ open, onComplete }: Props) {
                 onClick={handleSubmit}
                 disabled={loading}
               >
-                {loading ? "Creating…" : "Create My Routine"}
+                {loading
+                  ? isUpdate ? "Updating…" : "Creating…"
+                  : isUpdate ? "Update My Routine" : "Create My Routine"}
               </Button>
             </div>
           </div>

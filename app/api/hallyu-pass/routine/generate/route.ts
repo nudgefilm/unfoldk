@@ -101,8 +101,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Pro access required" }, { status: 403 })
   }
 
-  // body 파싱 (온보딩 제출 시 interests+daily_minutes 포함, 자동 갱신 시 빈 body)
-  let body: { interests?: string[]; daily_minutes?: number } = {}
+  // body 파싱 (온보딩/설정 변경 시 interests+daily_minutes+force 포함, 자동 갱신 시 빈 body)
+  let body: { interests?: string[]; daily_minutes?: number; force?: boolean } = {}
   try {
     body = await request.json()
   } catch {
@@ -140,29 +140,34 @@ export async function POST(request: Request) {
     dailyMinutes = pp?.daily_minutes ?? 15
   }
 
-  // 3. 멱등성 — 이번 주 루틴 이미 있으면 반환
-  const { data: existing } = await admin
-    .from("hallyu_routines")
-    .select("id, routine_items, completed_items, streak_count, week_start")
-    .eq("user_id", user.id)
-    .eq("week_start", weekStart)
-    .maybeSingle()
+  // 3. 멱등성 — force=false 일 때만 기존 루틴 반환 (force=true → 덮어쓰기)
+  if (!body.force) {
+    const { data: existing } = await admin
+      .from("hallyu_routines")
+      .select("id, routine_items, completed_items, streak_count, week_start")
+      .eq("user_id", user.id)
+      .eq("week_start", weekStart)
+      .maybeSingle()
 
-  if (existing) {
-    return NextResponse.json({ ok: true, duplicate: true, routine: existing })
+    if (existing) {
+      return NextResponse.json({ ok: true, duplicate: true, routine: existing })
+    }
   }
 
-  // 4. 루틴 생성 + 저장
+  // 4. 루틴 생성 + 저장 (force=true 면 upsert → completed_items 초기화)
   const routineItems = generateRoutineItems(interests, dailyMinutes)
   const { data: newRoutine, error } = await admin
     .from("hallyu_routines")
-    .insert({
-      user_id: user.id,
-      week_start: weekStart,
-      routine_items: routineItems,
-      completed_items: {},
-      streak_count: 0,
-    })
+    .upsert(
+      {
+        user_id: user.id,
+        week_start: weekStart,
+        routine_items: routineItems,
+        completed_items: {},
+        streak_count: 0,
+      },
+      { onConflict: "user_id,week_start" }
+    )
     .select()
     .single()
 
