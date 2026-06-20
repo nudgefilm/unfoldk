@@ -16,7 +16,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Crown, Sparkles, TrendingUp } from "lucide-react"
+import { Crown, Music, CalendarDays, Sparkles, TrendingUp } from "lucide-react"
 import { MypageShell } from "@/components/mypage/mypage-shell"
 import { HallyuPassExclusiveBanner } from "@/components/mypage/hallyu-pass-exclusive-banner"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
