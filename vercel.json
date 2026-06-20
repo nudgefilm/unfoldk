@@ -92,6 +92,10 @@
     {
       "path": "/api/k-inbound/cron",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/generate-weekly-routines",
+      "schedule": "0 23 * * 0"
     }
   ]
 }

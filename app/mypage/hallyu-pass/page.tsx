@@ -16,9 +16,10 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Crown, Music, CalendarDays, Sparkles, TrendingUp } from "lucide-react"
+import { Crown, Music, Sparkles, TrendingUp } from "lucide-react"
 import { MypageShell } from "@/components/mypage/mypage-shell"
 import { HallyuPassExclusiveBanner } from "@/components/mypage/hallyu-pass-exclusive-banner"
+import { HallyuRoutineCard } from "@/components/mypage/hallyu-routine-card"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess, isInTrial } from "@/lib/auth/plan"
 
@@ -188,18 +189,7 @@ export default function HallyuPassPage() {
               </div>
 
               {/* 한류 루틴 */}
-              <div
-                className="rounded-2xl border border-white/10 p-6 min-h-[200px] flex flex-col"
-                style={{ background: "rgba(231,236,235,0.05)" }}
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <CalendarDays className="w-5 h-5 text-muted-foreground" />
-                  <h2 className="text-base font-semibold text-foreground">My Hallyu Routine</h2>
-                </div>
-                <p className="text-muted-foreground text-sm flex-1 flex items-center">
-                  Coming soon
-                </p>
-              </div>
+              {isPro && <HallyuRoutineCard />}
             </div>
 
             {/* 컴백 가이드 */}
