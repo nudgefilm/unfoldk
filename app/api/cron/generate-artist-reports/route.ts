@@ -87,7 +87,7 @@ interface ArtistRecord {
   name: string
 }
 
-type ProcessResult = "saved" | "skipped" | "error"
+type ProcessResult = { status: "saved" | "skipped" | "error"; reason?: string }
 
 async function processArtist(
   artist: ArtistRecord,
@@ -103,7 +103,7 @@ async function processArtist(
       .eq("week_start", weekStart)
       .maybeSingle()
 
-    if (existing) return "skipped"
+    if (existing) return { status: "skipped", reason: "already_exists" }
 
     // 2. 최근 8일 kpop_stats_daily → 리스너 수 + 주간 증감
     const { data: statRows } = await admin
@@ -117,6 +117,7 @@ async function processArtist(
     const listenerCount = rows[0]?.lastfm_listeners ?? 0
     const prevListeners = rows.length > 1 ? rows[rows.length - 1].lastfm_listeners : listenerCount
     const listenerChange = listenerCount - prevListeners
+    const hasListenerData = rows.length > 0
 
     // 3. 최근 국가별 청취자 TOP 3 — kpop_country_charts
     const { data: latestCountryWeek } = await admin
@@ -163,7 +164,7 @@ async function processArtist(
     })
 
     // 6. artist_weekly_reports 저장
-    await admin.from("artist_weekly_reports").insert({
+    const { error: insertErr } = await admin.from("artist_weekly_reports").insert({
       artist_id: artist.artist_id,
       week_start: weekStart,
       listener_count: listenerCount,
@@ -173,9 +174,12 @@ async function processArtist(
       summary_text: summaryText,
     })
 
-    return "saved"
-  } catch {
-    return "error"
+    if (insertErr) return { status: "error", reason: `insert_failed: ${insertErr.message}` }
+
+    return { status: "saved", reason: hasListenerData ? undefined : "no_listener_data" }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { status: "error", reason: msg }
   }
 }
 
@@ -218,22 +222,26 @@ export async function POST(request: Request) {
 
   // 5개 단위 병렬 처리 (Claude rate limit 고려)
   const BATCH = 5
-  const results: ProcessResult[] = []
+  const details: Array<{ name: string; status: string; reason?: string }> = []
 
   for (let i = 0; i < artists.length; i += BATCH) {
     const batch = artists.slice(i, i + BATCH)
     const batchResults = await Promise.all(
       batch.map((a) => processArtist(a, weekStart, admin))
     )
-    results.push(...batchResults)
+    batch.forEach((a, idx) => {
+      const r = batchResults[idx]
+      details.push({ name: a.name, status: r.status, ...(r.reason ? { reason: r.reason } : {}) })
+    })
   }
 
   return NextResponse.json({
     ok: true,
     weekStart,
     total: artists.length,
-    saved: results.filter((r) => r === "saved").length,
-    skipped: results.filter((r) => r === "skipped").length,
-    errors: results.filter((r) => r === "error").length,
+    saved: details.filter((r) => r.status === "saved").length,
+    skipped: details.filter((r) => r.status === "skipped").length,
+    errors: details.filter((r) => r.status === "error").length,
+    details,
   })
 }
