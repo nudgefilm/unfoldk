@@ -92,7 +92,6 @@ type ProcessResult = "saved" | "skipped" | "error"
 async function processArtist(
   artist: ArtistRecord,
   weekStart: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: ReturnType<typeof createSupabaseAdminClient>
 ): Promise<ProcessResult> {
   try {
