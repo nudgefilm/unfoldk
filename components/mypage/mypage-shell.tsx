@@ -35,6 +35,7 @@ import {
 
 const sidebarLinks = [
   { icon: Home, label: "Dashboard", href: "/mypage" },
+  { icon: Crown, label: "Hallyu Pass", href: "/mypage/hallyu-pass" },
   { icon: Calendar, label: "My Calendar", href: "/mypage/calendar" },
   { icon: CalendarDays, label: "My Events", href: "/mypage/events" },
   { icon: Music, label: "My Artists", href: "/mypage/artists" },
@@ -44,7 +45,6 @@ const sidebarLinks = [
   { icon: MapPin, label: "My Curation", href: "/mypage/curation" },
   { icon: PartyPopper, label: "My Fan Events", href: "/mypage/fan-events" },
   { icon: Newspaper, label: "Weekly Reports", href: "/mypage/reports" },
-  { icon: Crown, label: "Hallyu Pass", href: "/mypage/hallyu-pass" },
   { icon: CreditCard, label: "Subscription", href: "/mypage/subscription" },
   { icon: Settings, label: "Settings", href: "/mypage/settings" },
 ]
