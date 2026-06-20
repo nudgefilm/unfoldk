@@ -7,7 +7,6 @@ import {
   Map,
   Sparkles,
   Flower2,
-  Briefcase,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -153,17 +152,6 @@ export function BentoSection({ serviceStats }: { serviceStats?: ServiceStats }) 
       title: "Get your Korean name",
       description: "Discover your Korean name based on your vibe.",
       href: "/name",
-    },
-    {
-      icon: <Briefcase className="w-9 h-9 text-foreground/70" />,
-      title: "UnfoldK Beauty",
-      description: "Connect verified Korean suppliers with global buyers & sellers.",
-      href: "/kbeauty",
-      badge: "B2B",
-      dualButtons: [
-        { label: "Inquire about B2B access →", href: "/contact" },
-        { label: "Explore K-Beauty Trends →", href: "/kbeauty/trend-radar" },
-      ],
     },
   ]
 

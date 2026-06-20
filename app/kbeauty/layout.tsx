@@ -12,6 +12,10 @@ export const metadata: Metadata = {
   title: "UnfoldK Beauty - B2B K-Beauty Platform",
   description:
     "Connect with verified K-Beauty suppliers and buyers. Global customs data backed. FDA-registered Korean manufacturers.",
+  robots: {
+    index: false,
+    follow: false,
+  },
 }
 
 export default function BeautyLayout({
