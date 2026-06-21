@@ -16,7 +16,6 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import Image from "next/image"
 import { Crown } from "lucide-react"
 import { MypageShell } from "@/components/mypage/mypage-shell"
 import { HallyuPassExclusiveBanner } from "@/components/mypage/hallyu-pass-exclusive-banner"
@@ -172,16 +171,13 @@ export default function HallyuPassPage() {
             </div>
 
             {/* 분위기 테스트 배너 */}
-            <div className="relative w-full overflow-hidden rounded-2xl" style={{ height: 200 }}>
-              <Image
-                src="/images/hallyu-pass/routine-banner.jpeg"
-                alt=""
-                fill
-                className="object-cover"
-                style={{ objectPosition: "right center" }}
-                priority
-              />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/images/hallyu-pass/routine-banner.jpeg"
+              alt=""
+              className="w-full rounded-2xl object-cover"
+              style={{ height: 200, objectPosition: "right center" }}
+            />
 
             {/* 서비스 안내 박스 (공통 컴포넌트) */}
             <HallyuPassExclusiveBanner />
