@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { GoogleAnalytics } from '@next/third-parties/google'
 import Script from 'next/script'
 import { Header } from '@/components/header'
 import { PaddleProvider } from '@/components/PaddleProvider'
@@ -8,6 +9,7 @@ import './globals.css'
 import 'flag-icons/css/flag-icons.min.css'
 
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID
+const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
@@ -97,6 +99,7 @@ export default function RootLayout({
         {children}
         </PaddleProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
+        {GA_ID && <GoogleAnalytics gaId={GA_ID} />}
         {PIXEL_ID && (
           <>
             <Script

@@ -3,6 +3,7 @@
 declare global {
   interface Window {
     fbq?: (...args: unknown[]) => void
+    gtag?: (...args: unknown[]) => void
   }
 }
 
@@ -104,6 +105,8 @@ function StartPageInner() {
 
     // Meta Pixel — 가입 완료 이벤트
     window.fbq?.('track', 'CompleteRegistration')
+    // GA4 — 가입 완료 이벤트 (Meta Pixel 과 동일 전환 비교 가능)
+    window.gtag?.('event', 'sign_up', { method: 'google' })
 
     if (planChoice === "free") {
       // 무료 플랜 — next 가 있으면 원래 경로, 없으면 /mypage
