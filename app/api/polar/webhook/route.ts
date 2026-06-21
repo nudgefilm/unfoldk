@@ -29,19 +29,31 @@ async function activateHallyuPass(
   sub: Subscription,
   userId: string
 ) {
-  const { error } = await supabase
+  const periodEnd =
+    sub.currentPeriodEnd instanceof Date
+      ? sub.currentPeriodEnd.toISOString()
+      : String(sub.currentPeriodEnd)
+
+  // 1단계: plan_type / subscription_status — 핵심 권한 컬럼 (반드시 성공해야 함)
+  const { error: planError } = await supabase
     .from("users")
-    .update({
-      plan_type: "pro",
-      subscription_status: "active",
-      polar_customer_id: sub.customerId,
-      polar_subscription_id: sub.id,
-      plan_expires_at: sub.currentPeriodEnd.toISOString(),
-    })
+    .update({ plan_type: "pro", subscription_status: "active", plan_expires_at: periodEnd })
     .eq("id", userId)
 
-  if (error) {
-    console.error("[polar/webhook] users 업데이트 실패:", error.message, { userId, subId: sub.id })
+  if (planError) {
+    console.error("[polar/webhook] plan_type 업데이트 실패:", planError.message, { userId, subId: sub.id })
+    return
+  }
+  console.info("[polar/webhook] plan_type=pro 반영 완료", { userId, subId: sub.id })
+
+  // 2단계: polar_* 컬럼 — migration 0086 적용 후 채워짐 (미적용 시 무시)
+  const { error: polarError } = await supabase
+    .from("users")
+    .update({ polar_customer_id: sub.customerId, polar_subscription_id: sub.id })
+    .eq("id", userId)
+
+  if (polarError) {
+    console.warn("[polar/webhook] polar_* 컬럼 업데이트 실패 (migration 0086 미적용?):", polarError.message, { userId })
   }
 }
 
@@ -67,7 +79,13 @@ export const POST = Webhooks({
   // ── subscription.active ────────────────────────────────────────────────────
   // 구독 첫 결제 완료 또는 연체 후 결제 복구 → Pro 활성화
   onSubscriptionActive: async ({ data }) => {
-    if (!HALLYU_PASS_PRODUCT_ID_SET.has(data.productId)) return
+    if (!HALLYU_PASS_PRODUCT_ID_SET.has(data.productId)) {
+      console.warn("[polar/webhook] subscription.active — 미등록 productId (env var 미설정?):", {
+        productId: data.productId,
+        knownIds: [...HALLYU_PASS_PRODUCT_ID_SET],
+      })
+      return
+    }
 
     const supabase = createSupabaseAdminClient()
     const userId = await resolveUserId(supabase, data)
@@ -86,6 +104,7 @@ export const POST = Webhooks({
   // 플랜 변경(월간→연간 등) 또는 갱신 주기 변경 → plan_expires_at 동기화
   onSubscriptionUpdated: async ({ data }) => {
     if (!HALLYU_PASS_PRODUCT_ID_SET.has(data.productId)) return
+    // status 가 active 가 아니면 무시 (pending/canceled 등)
     if (data.status !== "active") return
 
     const supabase = createSupabaseAdminClient()
@@ -93,17 +112,20 @@ export const POST = Webhooks({
     const userId = await resolveUserId(supabase, data)
     if (!userId) return
 
+    const periodEnd =
+      data.currentPeriodEnd instanceof Date
+        ? data.currentPeriodEnd.toISOString()
+        : String(data.currentPeriodEnd)
+
     const { error } = await supabase
       .from("users")
-      .update({
-        polar_customer_id: data.customerId,
-        polar_subscription_id: data.id,
-        plan_expires_at: data.currentPeriodEnd.toISOString(),
-      })
+      .update({ plan_expires_at: periodEnd })
       .eq("id", userId)
 
     if (error) {
-      console.error("[polar/webhook] subscription.updated — 업데이트 실패:", error.message, { userId })
+      console.error("[polar/webhook] subscription.updated — plan_expires_at 업데이트 실패:", error.message, { userId })
+    } else {
+      console.info("[polar/webhook] subscription.updated — plan_expires_at 갱신:", { userId, periodEnd })
     }
   },
 
