@@ -4,6 +4,55 @@
 
 ---
 
+## 현재 상태 (2026-06-22 세션 74 기준)
+
+### 홈페이지 콜드 트래픽 최적화 + GA4 연동
+
+**완료 항목**
+
+- **홈페이지 구조 단순화** (`app/page.tsx`)
+  - 제거: THIS MONTH IN HALLYU · GLOBAL HALLYU PULSE · HALLYU THIS WEEK · K-pop TOP 30 차트 + 9개 fetch 함수
+  - 최종 구조: Hero → BentoSection(6카드) → Hallyu Feed → Quiz/Name 독립 2카드 → Footer
+  - Quiz(Sparkles)/Name(Flower2) 카드 BentoSection 밖으로 분리, 인라인 JSX로 구현
+
+- **BentoSection 6카드 정리** (`components/bento-section.tsx`)
+  - Quiz·Korean Name 카드 2개 제거 → 서비스 6개만 (HallyuCalendar/KpopStats/KdramaMatch/HangeulGo/KfoodKit/Curation K)
+  - Sparkles·Flower2 미사용 import 제거
+
+- **서비스 페이지 섹션 이관**
+  - `/kpop` (`app/kpop/page.tsx`): Charts 탭 상단 **GLOBAL HALLYU PULSE** + Top 20 아래 **K-pop TOP 30 Bar Chart** 추가
+  - `/calendar` (`app/calendar/page.tsx`): 헤더 아래 **THIS MONTH IN HALLYU** + **Countdown D-day 카드** 4개 추가
+  - `/korean` (`app/korean/korean-content.tsx`): Today's Lesson 위 **This Week's Expression** 컴팩트 카드 추가 (기존 `phrase` 상태 재활용, 신규 API 없음)
+  - `/food` (`app/food/page.tsx`): Weekly Challenge 위 **K-Food Spotlight** 카드 추가
+
+- **신규 API 라우트 5개**
+  - `GET /api/kpop/global-pulse` → risingArtists·countryTopArtists·topDramas
+  - `GET /api/kpop/top30` → lastfm_listeners 기준 TOP 30 아티스트
+  - `GET /api/calendar/this-month` → 이달 컴백·드라마·도시 통계
+  - `GET /api/calendar/countdown` → 7일 이내 D-day 이벤트 (revalidate 600)
+  - `GET /api/food/spotlight` → 이주의 주요 레시피 1건
+
+- **GA4 전체 사이트 연동**
+  - `@next/third-parties 16.2.9` 설치 → `GoogleAnalytics` 컴포넌트 루트 레이아웃에 추가
+  - `NEXT_PUBLIC_GA_MEASUREMENT_ID=G-WZ6NXWCX91` `.env.local` 추가
+  - `GA_ID` 있을 때만 활성화 (production 환경)
+  - `app/start/page.tsx`: 가입 완료 시 `window.gtag?.('event', 'sign_up', { method: 'google' })` 추가
+    - Meta Pixel `CompleteRegistration` 바로 다음 줄 → 두 도구에서 동일 전환 비교 가능
+  - `window.gtag` 타입 선언 추가 (`declare global { interface Window { gtag? } }`)
+
+**사용자 액션 필요**
+- **Vercel 환경변수 추가 후 Redeploy**:
+  ```
+  NEXT_PUBLIC_GA_MEASUREMENT_ID=G-WZ6NXWCX91
+  ```
+  추가 전까지 GA4 스크립트 미렌더 (GA_ID undefined). Redeploy 후 GA4 Realtime 리포트에서 PageView 확인.
+
+**다음 세션**
+- GA4 Realtime 리포트 PageView 확인 (Vercel Redeploy 후)
+- Polar 만료 시 자동 downgrade cron 구현
+
+---
+
 ## 현재 상태 (2026-06-21 세션 73 기준)
 
 ### Polar 결제 전체 라이프사이클 완성 + E2E 검증
