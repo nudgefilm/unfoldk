@@ -173,7 +173,7 @@ export default function HallyuPassPage() {
             {/* 분위기 테스트 배너 */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/images/hallyu-pass/routine-banner.jpeg"
+              src="/images/hallyu-pass/routine-banner.png"
               alt=""
               className="w-full rounded-2xl object-cover"
               style={{ height: 200, objectPosition: "right center" }}
