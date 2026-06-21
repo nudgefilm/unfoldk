@@ -4,6 +4,180 @@
 
 ---
 
+## 현재 상태 (2026-06-21 세션 71 기준)
+
+### Polar.sh 결제 연동 — 완성 + 웹훅 버그 수정
+
+**완료 항목**
+
+- **Polar 결제 인프라 신규** (Paddle KYB 무응답으로 대체)
+  - `lib/polar/constants.ts`: `POLAR_PRODUCT_IDS` (monthly/annual) + `HALLYU_PASS_PRODUCT_ID_SET`
+  - `components/PolarProvider.tsx`: `usePolar()` hook — `/api/polar/checkout?plan=...` GET 리다이렉트
+  - `app/api/polar/checkout/route.ts`: plan → productId 서버 매핑, Polar SDK 호스팅 체크아웃 → 302 리다이렉트
+  - `app/api/polar/webhook/route.ts`: `Webhooks()` 어댑터 — subscription.active/updated/canceled/revoked/uncanceled + order.paid 처리
+  - `supabase/migrations/0086_polar_columns.sql`: `users.polar_customer_id`, `users.polar_subscription_id` 컬럼 추가
+
+- **기존 파일 교체** (Paddle → Polar, Hallyu Pass 한정)
+  - `components/pricing-section.tsx`: `usePaddle` → `usePolar`, disabled 제거
+  - `app/mypage/subscription/page.tsx`: `usePaddle` → `usePolar`, `FreeUserView` paddle prop 제거
+  - `app/start/page.tsx`: `usePaddle` → `usePolar`, `openCheckout()` 직접 호출
+  - `app/layout.tsx`: `PaddleProvider` 유지 (kbeauty 상품은 계속 Paddle 사용)
+
+- **scripts/register-polar-webhook.ts 신규** (1회성 등록 스크립트)
+  - dry-run 기본 / `--force` 플래그로 실제 등록
+  - 중복 URL 감지, 등록 완료 시 `POLAR_WEBHOOK_SECRET` 출력
+  - `pnpm add -D dotenv` 설치 (`.env.local` 명시 로드)
+  - 실행 결과: `https://www.unfoldk.com/api/polar/webhook` 이미 등록 확인, POLAR_WEBHOOK_SECRET 재발급 완료
+
+- **Polar 상품 ID 자동 조회 + `.env.local` 입력**
+  - `POLAR_PRODUCT_ID_MONTHLY`: `ba73deac-6d5d-4dae-b569-aae467a4e2e0` ($9.00)
+  - `POLAR_PRODUCT_ID_ANNUAL`: `6a14e3a3-0deb-4b08-b6f2-dbafb3fe44b4` ($72.00)
+  - `POLAR_WEBHOOK_SECRET` 재발급 후 `.env.local` 입력 완료
+
+- **웹훅 버그 수정 3건** (Vercel 로그로 원인 확인 후 수정)
+  1. `HALLYU_PASS_PRODUCT_ID_SET` 빈 Set 시 warn 로그 추가 — Vercel env var 미설정 시 진단 가능
+  2. `plan_type: "pro"` → DB check constraint 위반 (`'free'|'monthly'|'annual'`만 허용)
+     - `activateHallyuPass`에 `planType: "monthly" | "annual"` 파라미터 추가
+     - `onSubscriptionActive`: `productId === POLAR_PRODUCT_IDS.annual` 비교로 분기
+  3. plan_type 업데이트와 polar_* 컬럼 업데이트 분리 — migration 0086 미적용 시에도 plan_type 반영됨
+
+- **테스트 유저 수동 정정** (`tubewatchlab@gmail.com`, userId `ec21e940-...`)
+  - `plan_type: 'free'` → `'monthly'`, `subscription_status: 'inactive'` → `'active'`
+
+- **Footer 결제 처리자 문구 경로별 분리** (`components/footer-section.tsx`)
+  - `usePathname`으로 런타임 감지
+  - `/kbeauty/*` → "kbeauty service payments are processed by Paddle.com."
+  - 그 외 전체 → "Hallyu Pass payments are processed by Polar Software, Inc."
+
+**사용자 액션 필요**
+- **Vercel 환경변수 추가** (추가 후 Redeploy 필수):
+  ```
+  POLAR_ACCESS_TOKEN=polar_oat_AR0C...
+  POLAR_WEBHOOK_SECRET=polar_whs_SkVw...
+  POLAR_PRODUCT_ID_MONTHLY=ba73deac-6d5d-4dae-b569-aae467a4e2e0
+  POLAR_PRODUCT_ID_ANNUAL=6a14e3a3-0deb-4b08-b6f2-dbafb3fe44b4
+  ```
+- **Supabase SQL Editor** — migration 0086 실행:
+  ```sql
+  ALTER TABLE public.users
+    ADD COLUMN IF NOT EXISTS polar_customer_id TEXT,
+    ADD COLUMN IF NOT EXISTS polar_subscription_id TEXT;
+  ```
+
+**다음 세션**
+- Vercel Redeploy 후 실 결제 → Polar 웹훅 → plan_type='monthly' 반영 E2E 테스트
+- `app/start/page.tsx` 주석 "Paddle webhook(subscription.activated)" → Polar로 업데이트 (마이너)
+
+---
+
+## 현재 상태 (2026-06-21 세션 70 기준)
+
+### Hallyu Pass — 기능 완성 + 추적 아티스트 조회 공통화
+
+**완료 항목**
+
+- **F. 월간 한류 트렌드 리포트 (`app/api/cron/generate-monthly-report/route.ts` 신규)**
+  - cron `0 2 1 * *` (매월 1일 02:00 UTC)
+  - 지난달 집계: kpop_stats_daily 리스너 증가율 TOP 5 / kpop_country_charts 1위 변동 / dramas popularity TOP 5 / 다음달 이벤트
+  - Claude Haiku 3~4문장 인사이트 생성 → `monthly_trend_reports` 저장
+  - `verifyCronAuth` 패턴 수정 (always-truthy 버그 → `!auth.ok` 체크로 교체)
+
+- **GET /api/hallyu-pass/monthly-report (`app/api/hallyu-pass/monthly-report/route.ts` 신규)**
+  - 로그인 + Pro 체크 → 가장 최신 리포트 1건 반환
+
+- **`components/mypage/monthly-trend-report-card.tsx` 신규**
+  - Top Rising Artists / Trending Countries / Most Talked-About Dramas / Coming Up Next Month 4섹션
+  - 데이터 없으면 "First monthly report coming on the 1st." 빈 상태
+
+- **`app/mypage/hallyu-pass/page.tsx` 갱신**
+  - Monthly Hallyu Trend Report 플레이스홀더 → `MonthlyTrendReportCard` 교체
+  - ArtistWeeklyReportsCard / ComebackGuideCard 실제 컴포넌트 사용 확인
+
+- **`vercel.json`**: `generate-monthly-report` cron 추가
+
+- **cron verifyCronAuth 버그 수정** (4개 파일)
+  - `generate-weekly-routines`, `generate-artist-reports`, `generate-comeback-guides`, `generate-monthly-report`
+  - `const authError = verifyCronAuth(request); if (authError) return authError` (객체 항상 truthy → 크론 미실행)
+  - → `const auth = verifyCronAuth(request); if (!auth.ok) return NextResponse.json({ error: auth.reason }, { status: 401 })`
+
+- **ESLint 오류 수정** (`generate-artist-reports/route.ts` 95번 줄)
+  - `@typescript-eslint/no-explicit-any` 플러그인 미설치 프로젝트에 eslint-disable 주석 → 제거
+
+- **추적 아티스트 처리 개선** (`generate-artist-reports` 응답)
+  - `ProcessResult`: `"saved"|"skipped"|"error"` 문자열 → `{ status, reason? }` 객체
+  - 응답에 `details[]` 추가 (아티스트별 name·status·reason 로그)
+
+- **추적 아티스트 Source B 추가** (HallyuCalendar 구독 경유)
+  - 기존 Source A(`kpop_artist_follows`)만 조회 → Stray Kids 1명만 처리
+  - Source B 추가: `user_calendar_subscriptions → hallyu_calendar_events → kpop_artists` 이름 매칭
+  - `generate-artist-reports` cron + `generate-comeback-guides` cron 양쪽에 적용
+
+- **공통 함수 `lib/hallyu-pass/get-tracked-artists.ts` 신규** (커밋 `20b4b0c`)
+  - `getTrackedArtists(admin, userId?)` — Source A+B 병합
+  - `userId` 생략 = 전체 유저 합산 (cron), 제공 = 해당 유저 (표시 API)
+  - `generate-artist-reports` cron, `hallyu-pass/artist-reports`, `hallyu-pass/comeback-guides` 모두 동일 함수 사용
+
+**확인 완료 (수정 없음)**
+- `artist_weekly_reports`: `user_id` 컬럼 없음 — 아티스트 1명 × 주 1개, Pro 유저 전체 공유 구조
+- `comeback-guides` 표시 API: `getTrackedArtists()` 이미 적용 완료 (커밋 동일)
+- 추적 아티스트 4명 (BTS·NewJeans·RM·TWICE/IVE 포함) 정상 반영 확인
+
+**다음 세션**
+- Supabase SQL Editor에서 TWICE·IVE Source B 경유 여부 확인 (위 쿼리 실행)
+- Paddle KYB 심사 통과 후: 샌드박스 → 프로덕션 전환, 웹훅 실서버 등록
+
+---
+
+## 현재 상태 (2026-06-18 세션 69 기준)
+
+### K-Inbound — UI 개선 및 버그 수정
+
+**완료 항목**
+
+- **`components/k-inbound/route-progress-bar.tsx`**
+  - depTime/arrTime 미표시 버그 수정: `{flight && depTime && ...}` 빈 문자열 falsy 차단 제거, `|| "—"` fallback 추가
+  - extractTime 정규식: `/[T ](\d{2}:\d{2})/` (T/공백 구분자 모두 처리)
+  - 레이아웃 2줄 재구성:
+    - Row1 (가운데): `ICN(KST) | KE17 · 0% · 9,627km 🕐 SCHEDULED | (PDT)LAX`
+    - Row2 (가운데): `🛫14:30 Seoul Incheon — Los Angeles 09:40🛬`
+  - 텍스트 색상 30% 밝게 (흰색과 혼합): `#4a9eff→#80bbff`, `#94a3b8→#b4bfcd`, `#ffd700→#ffe34d`, 뱃지 색상 전부 갱신
+  - 컨테이너: `backdrop-blur-sm px-4 pt-1.5 pb-2 font-mono rounded-xl`
+  - do-not-modify 주석 추가 (파일 최상단)
+
+- **`components/k-inbound/global-comms.tsx`**
+  - `GlobalCommsProps { isExpanded: boolean; onToggle: () => void }` 추가 — 펼침/접힘 상태 page.tsx로 끌어올림 (controlled)
+  - 내부 `expanded` state 제거
+  - 컨테이너 최종: `className="w-full h-full font-mono flex flex-col"` — 배경·테두리·overflow 없음, 완전 투명
+  - 메시지 영역: `flex-1 min-h-0 overflow-y-auto` (부모 50vh 자동 채움)
+  - 접힌 상태: 헤더 1줄만 (lastMsg 미리보기 제거)
+  - do-not-modify 주석 추가 (파일 최상단)
+
+- **`app/k-inbound/page.tsx`**
+  - `const [isCommsExpanded, setIsCommsExpanded] = useState(false)` 추가
+  - 좌측 패널 구조 재편 — 상단 카드 영역(`flex-1 min-h-0 overflow-hidden`) + 하단 채팅 영역(펼침 시 50vh)
+  - GlobalComms `isExpanded` / `onToggle` props 전달
+  - do-not-modify 주석 추가 (파일 최상단)
+
+- **`app/api/k-inbound/cron/route.ts`**
+  - FIDS 상태 필터 버그 수정: `"EnRoute" | "Departed"` → `"Active" | "EnRoute" | "Departed"` (AeroDataBox in-flight 실제 상태값 `"Active"` 추가)
+
+- **`app/api/k-inbound/suggest/route.ts`** (신규)
+  - cron 캐시(`cache.entries()`)에서 가장 최근 항공편 번호 반환, 캐시 없으면 `"KE017"` 기본값
+
+- **`components/k-inbound/search-bar.tsx`**
+  - 마운트 + 매시간 `/api/k-inbound/suggest` 호출 → `placeholderFlight` 상태 자동 갱신
+  - `setInterval(3_600_000)` + unmount clearInterval
+
+**진단 완료 (데이터 품질 이슈)**
+- KE017 14:30 + 0%: AeroDataBox `departure.actualTime.local` 필드 미제공 (구독 티어 또는 데이터 갭 추정). 코드 동작은 정상 — actualTime 없으면 GROUND HOLD + progress=0. AeroDataBox 대시보드 구독 티어 확인 필요.
+
+**다음 세션**
+- Paddle KYB 심사 통과 후: 샌드박스 → 프로덕션 전환, 웹훅 실서버 등록
+- cron `"Active"` 필터 수정 Vercel 배포 반영 여부 확인
+- AeroDataBox actualTime 데이터 갭 — 구독 티어 확인
+
+---
+
 ## 현재 상태 (2026-06-18 세션 68 기준)
 
 ### K-Inbound — 세부 기능 개선
@@ -852,6 +1026,8 @@ CREATE POLICY "kpop_albums_select_all" ON public.kpop_albums FOR SELECT TO anon,
 
 ## 블로커
 
-- Paddle KYB 심사 중 (2026-06-17 제출) — 통과 후 샌드박스→프로덕션 전환 + 웹훅 실서버 등록 필요
+- Polar 결제 E2E 미완 — Vercel env var 추가 + Redeploy 후 실 결제 테스트 필요
 - top.gg 심사 대기
 - r/Korean 포스팅 승인 대기
+
+**Paddle KYB** — Hallyu Pass는 Polar로 대체 완료. kbeauty(Sourcing Sniper, Supplier Pro)는 여전히 Paddle 사용 중이므로 KYB 통과 후 프로덕션 전환은 kbeauty 한정으로 필요.
