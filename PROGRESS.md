@@ -4,6 +4,58 @@
 
 ---
 
+## 현재 상태 (2026-06-21 세션 72 기준)
+
+### Billing History — Polar 실 주문 내역 연동
+
+**완료 항목**
+
+- **`app/api/polar/orders/route.ts` 신규**
+  - Supabase JWT 검증 → `polar_customer_id` 조회 → `polar.orders.list({ customerId, limit: 100 })` 호출
+  - `for await` 페이지 순회, `page.result.items` 수집 → 최신순 정렬
+  - `BillingEntry`: id / date / description / amountCents / currency / status / **hasReceipt** (`receiptNumber !== null`)
+  - migration 0086 미적용 시 컬럼 없음 에러 → 경고 후 빈 배열 반환 (graceful fallback)
+  - `orders:read` 스코프 누락 시 `"MISSING_SCOPE_ORDERS_READ"` 에러 반환
+
+- **`app/api/polar/orders/receipt/route.ts` 신규**
+  - Supabase JWT 검증 → `polar.orders.receipt({ id: orderId })` → presigned PDF URL 반환
+  - on-demand 방식 (페이지 로드 시 일괄 fetch 대신 Download 버튼 클릭 시 개별 fetch)
+
+- **`app/mypage/subscription/page.tsx` 개편**
+  - mock 배열 `billingHistory` 완전 제거
+  - `accessToken` 상태 추가 (Supabase `getSession()`에서 Bearer 토큰 추출)
+  - `billingOrders / billingLoading / billingError / receiptLoading` 상태 추가
+  - billing fetch useEffect: `isLoaded && isPaid && accessToken` 트리거
+  - `handleReceiptDownload`: `/api/polar/orders/receipt?orderId=` 호출 → `window.open()` 새 탭
+  - Billing History 테이블: 로딩 스피너 / 에러 표시 / 빈 상태 / 실 데이터 3단계 분기
+  - `formatAmount(cents, currency)` / `formatBillingDate(iso)` / `STATUS_DISPLAY` 헬퍼 추가
+
+- **$0/100% 할인 주문 영수증 없음 정상 처리** (`fix` 커밋)
+  - Polar 동작 확인: `receiptNumber === null` → receipt endpoint 없음 (정상 동작)
+  - Download 버튼: `hasReceipt=false` 시 "—" 표시 (에러 alert 대신 자연스러운 UI)
+  - `hasReceipt=true`인 유료 결제 건만 Download 버튼 활성
+
+**사용자 액션 필요**
+- **migration 0086** (polar_customer_id 컬럼) Supabase SQL Editor 실행:
+  ```sql
+  ALTER TABLE public.users
+    ADD COLUMN IF NOT EXISTS polar_customer_id TEXT,
+    ADD COLUMN IF NOT EXISTS polar_subscription_id TEXT;
+  ```
+- **POLAR_ACCESS_TOKEN `orders:read` 스코프 추가** → Polar 대시보드 토큰 재발급 → `.env.local` + Vercel 교체 + Redeploy
+- **테스트 계정 `polar_customer_id` 설정**: Polar 대시보드 Customers에서 `tubewatchlab@gmail.com` Customer ID 확인 후:
+  ```sql
+  UPDATE public.users SET polar_customer_id = 'YOUR_POLAR_CUSTOMER_ID'
+  WHERE email = 'tubewatchlab@gmail.com';
+  ```
+
+**다음 세션**
+- 위 3단계 완료 후 `/mypage/subscription`에서 실 주문 내역 표시 확인
+- Vercel Redeploy 후 실 결제 → Polar 웹훅 → plan_type='monthly' 반영 E2E 테스트
+- `app/start/page.tsx` 주석 "Paddle webhook(subscription.activated)" → Polar로 업데이트 (마이너)
+
+---
+
 ## 현재 상태 (2026-06-21 세션 71 기준)
 
 ### Polar.sh 결제 연동 — 완성 + 웹훅 버그 수정
