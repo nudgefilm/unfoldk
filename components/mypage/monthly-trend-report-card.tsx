@@ -55,6 +55,55 @@ interface MonthlyReport {
   created_at: string
 }
 
+// 다음 1일까지 남은 일수 계산 (UTC 기준)
+function getDaysUntilNextFirst(): number {
+  const now = new Date()
+  const nextFirst = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+  return Math.ceil((nextFirst.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+// 다음 달 이름 반환
+function getNextMonthName(): string {
+  const now = new Date()
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toLocaleDateString(
+    "en-US",
+    { month: "long", year: "numeric", timeZone: "UTC" }
+  )
+}
+
+function MonthlyReportEmptyState() {
+  const daysLeft = getDaysUntilNextFirst()
+  const nextMonth = getNextMonthName()
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 py-6">
+      <TrendingUp className="w-8 h-8 text-muted-foreground/30" />
+      <div className="space-y-1">
+        <p className="text-foreground/70 text-sm font-medium">
+          {nextMonth} Report
+        </p>
+        <p className="text-muted-foreground text-xs">
+          Publishing on the 1st
+        </p>
+      </div>
+      {/* 발행까지 남은 일수 */}
+      <div
+        className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs"
+        style={{ background: "rgba(255,75,110,0.08)", border: "1px solid rgba(255,75,110,0.15)" }}
+      >
+        <CalendarDays className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
+        <span className="text-muted-foreground">
+          <span className="font-semibold" style={{ color: "#FF4B6E" }}>{daysLeft}</span>
+          {" "}day{daysLeft !== 1 ? "s" : ""} to go
+        </span>
+      </div>
+      <p className="text-[11px] text-muted-foreground/50 max-w-[220px] leading-relaxed">
+        Includes top rising artists, country trends, and upcoming events.
+      </p>
+    </div>
+  )
+}
+
 const COUNTRY_NAMES: Record<string, string> = {
   US: "United States", KR: "South Korea", JP: "Japan", GB: "United Kingdom",
   BR: "Brazil", PH: "Philippines", TH: "Thailand", ID: "Indonesia",
@@ -125,14 +174,7 @@ export function MonthlyTrendReportCard() {
       )}
 
       {/* 데이터 없음 */}
-      {!loading && !report && (
-        <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-4">
-          <TrendingUp className="w-8 h-8 text-muted-foreground/40" />
-          <p className="text-muted-foreground text-sm">
-            First monthly report coming on the 1st.
-          </p>
-        </div>
-      )}
+      {!loading && !report && <MonthlyReportEmptyState />}
 
       {/* 리포트 표시 */}
       {!loading && report && (() => {

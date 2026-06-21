@@ -294,20 +294,33 @@ export function HallyuRoutineCard() {
               ))}
             </div>
 
-            {/* 푸터 — 완료율 + 스트릭 */}
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10">
-              <p className="text-xs text-muted-foreground">
-                This week:{" "}
-                <span className="text-foreground font-medium">
+            {/* 푸터 — 세그먼트 진행 바 + 스트릭 */}
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10 gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                {/* 세그먼트 바 */}
+                <div className="flex items-center gap-0.5">
+                  {Array.from({ length: totalCount }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-2 rounded-sm flex-shrink-0"
+                      style={{
+                        width: totalCount > 10 ? 10 : 12,
+                        backgroundColor: completedItems[String(i)]
+                          ? "#FF4B6E"
+                          : "rgba(255,255,255,0.1)",
+                      }}
+                    />
+                  ))}
+                </div>
+                <span className="text-xs text-muted-foreground flex-shrink-0">
                   {completedCount}/{totalCount}
-                </span>{" "}
-                completed
-              </p>
+                </span>
+              </div>
               {routine.streak_count > 0 && (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-shrink-0">
                   <Flame className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
                   <span className="text-xs font-medium" style={{ color: "#FF4B6E" }}>
-                    {routine.streak_count} week streak
+                    {routine.streak_count}w
                   </span>
                 </div>
               )}

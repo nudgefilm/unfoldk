@@ -109,7 +109,7 @@ export function ComebackGuideCard() {
 
       {/* 가이드 목록 */}
       {!loading && guides.length > 0 && (
-        <div className="space-y-5">
+        <div className="space-y-4">
           {guides.map((guide) => {
             const dday = getDDay(guide.release_date)
             const isUrgent = dday <= 7
@@ -117,16 +117,73 @@ export function ComebackGuideCard() {
             const kstTime = formatTz(guide.release_date, "Asia/Seoul")
             const showKst = userTz !== "Asia/Seoul"
 
+            if (isUrgent) {
+              // D-7 이내 히어로 스타일
+              return (
+                <div
+                  key={guide.id}
+                  className="rounded-xl border overflow-hidden"
+                  style={{
+                    borderColor: "rgba(255,75,110,0.4)",
+                    background: "linear-gradient(135deg, rgba(255,75,110,0.10) 0%, rgba(255,75,110,0.04) 100%)",
+                  }}
+                >
+                  {/* 히어로 상단 — D-Day 카운트다운 */}
+                  <div
+                    className="flex items-center justify-between px-4 py-3 border-b"
+                    style={{ borderColor: "rgba(255,75,110,0.2)" }}
+                  >
+                    <Link
+                      href={`/kpop/${guide.artist_id}`}
+                      className="text-sm font-bold text-foreground hover:text-white hover:underline transition-colors"
+                    >
+                      {guide.artist_name}
+                    </Link>
+                    {/* 대형 D-Day 표시 */}
+                    <div className="flex flex-col items-end">
+                      <span
+                        className="text-2xl font-black leading-none"
+                        style={{ color: "#FF4B6E" }}
+                      >
+                        {dday <= 0 ? "TODAY" : dday === 1 ? "D-1" : `D-${dday}`}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/60 mt-0.5">COMEBACK</span>
+                    </div>
+                  </div>
+
+                  {/* 발매 시각 + 가이드 */}
+                  <div className="px-4 py-3 space-y-2">
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">
+                        <span className="text-foreground/70">Release:</span> {localTime}
+                        {userTz !== "UTC" && (
+                          <span className="ml-1 text-muted-foreground/60">
+                            ({userTz.replace(/_/g, " ")})
+                          </span>
+                        )}
+                      </p>
+                      {showKst && (
+                        <p className="text-xs text-muted-foreground/60">{kstTime} KST</p>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {guide.guide_content}
+                    </p>
+                  </div>
+                </div>
+              )
+            }
+
+            // 일반 카드 (D-8 이상)
             return (
               <div
                 key={guide.id}
                 className="rounded-xl p-4 border"
                 style={{
-                  borderColor: isUrgent ? "rgba(255,75,110,0.35)" : "rgba(255,255,255,0.08)",
-                  background: isUrgent ? "rgba(255,75,110,0.04)" : "transparent",
+                  borderColor: "rgba(255,255,255,0.08)",
+                  background: "transparent",
                 }}
               >
-                {/* 아티스트명 + D-Day */}
                 <div className="flex items-center justify-between mb-2 gap-2">
                   <Link
                     href={`/kpop/${guide.artist_id}`}
@@ -137,7 +194,6 @@ export function ComebackGuideCard() {
                   <DDayLabel dday={dday} />
                 </div>
 
-                {/* 발매 시각 */}
                 <div className="mb-3 space-y-0.5">
                   <p className="text-xs text-muted-foreground">
                     <span className="text-foreground/70">Release:</span> {localTime}
@@ -148,13 +204,10 @@ export function ComebackGuideCard() {
                     )}
                   </p>
                   {showKst && (
-                    <p className="text-xs text-muted-foreground/60">
-                      {kstTime} KST
-                    </p>
+                    <p className="text-xs text-muted-foreground/60">{kstTime} KST</p>
                   )}
                 </div>
 
-                {/* 가이드 본문 */}
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   {guide.guide_content}
                 </p>
