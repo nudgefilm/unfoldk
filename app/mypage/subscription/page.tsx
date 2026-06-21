@@ -37,7 +37,6 @@ import {
   Sparkles,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
-import { PaymentComingSoonModal } from "@/components/payment-coming-soon-modal"
 import { usePolar } from "@/components/PolarProvider"
 
 const sidebarLinks = [
@@ -96,10 +95,13 @@ export default function SubscriptionPage() {
   const [userName, setUserName] = useState<string>("")
   const [userInitial, setUserInitial] = useState<string>("U")
   const [userAvatar, setUserAvatar] = useState<string | null>(null)
-  const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [userEmail, setUserEmail] = useState<string | undefined>()
   const [userId, setUserId] = useState<string | undefined>()
   const [accessToken, setAccessToken] = useState<string | null>(null)
+
+  // Polar Customer Portal (결제수단 변경 / 취소 / 플랜 전환)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [portalError, setPortalError] = useState<string | null>(null)
 
   // Billing History
   const [billingOrders, setBillingOrders] = useState<BillingEntry[] | null>(null)
@@ -183,6 +185,27 @@ export default function SubscriptionPage() {
 
     return () => { cancelled = true }
   }, [isLoaded, planType, accessToken])
+
+  const handlePortal = useCallback(async () => {
+    if (!accessToken) return
+    setPortalLoading(true)
+    setPortalError(null)
+    try {
+      const res = await fetch("/api/polar/customer-portal", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      const body = await res.json() as { url?: string; error?: string }
+      if (!res.ok || !body.url) {
+        setPortalError(body.error ?? "Portal unavailable")
+        return
+      }
+      window.open(body.url, "_blank", "noopener,noreferrer")
+    } catch {
+      setPortalError("Failed to open portal. Please try again.")
+    } finally {
+      setPortalLoading(false)
+    }
+  }, [accessToken])
 
   const handleReceiptDownload = useCallback(async (orderId: string) => {
     if (!accessToken) return
@@ -336,17 +359,22 @@ export default function SubscriptionPage() {
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-3">
+                    {portalError && (
+                      <p className="text-xs text-red-400 mb-1 w-full">{portalError}</p>
+                    )}
                     <Button
                       variant="outline"
                       className="rounded-full border-border/50 hover:bg-secondary/50"
-                      onClick={() => setShowPaymentModal(true)}
+                      onClick={handlePortal}
+                      disabled={portalLoading}
                     >
-                      Change payment method
+                      {portalLoading ? "Opening…" : "Change payment method"}
                     </Button>
                     <Button
                       variant="outline"
                       className="rounded-full border-border/50 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50"
-                      onClick={() => setShowPaymentModal(true)}
+                      onClick={handlePortal}
+                      disabled={portalLoading}
                     >
                       Cancel subscription
                     </Button>
@@ -458,7 +486,8 @@ export default function SubscriptionPage() {
                       <Button
                         className="w-full rounded-full font-medium text-white"
                         style={{ backgroundColor: "#FF4B6E" }}
-                        onClick={() => setShowPaymentModal(true)}
+                        onClick={handlePortal}
+                        disabled={portalLoading}
                       >
                         Switch to Monthly
                       </Button>
@@ -491,7 +520,8 @@ export default function SubscriptionPage() {
                       <Button
                         className="w-full rounded-full font-medium text-white"
                         style={{ backgroundColor: "#FF4B6E" }}
-                        onClick={() => setShowPaymentModal(true)}
+                        onClick={handlePortal}
+                        disabled={portalLoading}
                       >
                         Switch to Annual
                       </Button>
@@ -510,8 +540,9 @@ export default function SubscriptionPage() {
                         <span className="text-foreground">{expiresLabel}</span>.
                       </p>
                       <button
-                        className="text-sm font-medium hover:underline text-red-500"
-                        onClick={() => setShowPaymentModal(true)}
+                        className="text-sm font-medium hover:underline text-red-500 disabled:opacity-50"
+                        onClick={handlePortal}
+                        disabled={portalLoading}
                       >
                         Cancel subscription
                       </button>
@@ -525,7 +556,6 @@ export default function SubscriptionPage() {
       </div>
 
       <FooterSection />
-      <PaymentComingSoonModal open={showPaymentModal} onOpenChange={setShowPaymentModal} />
     </div>
   )
 }
