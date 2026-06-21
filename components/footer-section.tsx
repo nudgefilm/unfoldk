@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import twemoji from "twemoji"
 import { CookieConsentBanner, COOKIE_CONSENT_KEY } from "./cookie-consent-banner"
 
@@ -55,6 +56,8 @@ export function FooterSection() {
   const footerRef = useRef<HTMLElement>(null)
   const [bannerOpen, setBannerOpen] = useState(false)
   const [stats, setStats] = useState<StatsResponse | null>(null)
+  const pathname = usePathname()
+  const isKbeauty = pathname.startsWith("/kbeauty")
 
   // /api/stats — mount 시 1회 fetch. 실패해도 푸터 본체 노출엔 영향 없음.
   useEffect(() => {
@@ -136,9 +139,13 @@ export function FooterSection() {
               </svg>
             </a>
           </div>
-          {/* 결제 처리자 / TMDB 라이선스 표기 — 소셜 아이콘 아래 2줄 배치 */}
+          {/* 결제 처리자 / TMDB 라이선스 표기 — 소셜 아이콘 아래 배치 */}
           <div className="flex flex-col gap-1 text-muted-foreground/70 text-xs leading-relaxed">
-            <p>Payments processed by Paddle.</p>
+            {isKbeauty ? (
+              <p>kbeauty service payments are processed by Paddle.com.</p>
+            ) : (
+              <p>Hallyu Pass payments are processed by Polar Software, Inc.</p>
+            )}
             <p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
           </div>
         </div>
