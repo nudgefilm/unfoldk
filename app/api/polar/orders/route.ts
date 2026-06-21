@@ -12,6 +12,7 @@ export interface BillingEntry {
   amountCents: number
   currency: string    // e.g. "usd"
   status: string      // "paid" | "refunded" | "partially_refunded" | "pending" | "void" | "draft"
+  hasReceipt: boolean // receiptNumber !== null → receipt endpoint 호출 가능
 }
 
 export async function GET(req: NextRequest) {
@@ -63,6 +64,8 @@ export async function GET(req: NextRequest) {
           amountCents: order.totalAmount,
           currency: order.currency,
           status: order.status,
+          // $0/100% 할인 주문은 receiptNumber === null → receipt endpoint 없음
+          hasReceipt: order.receiptNumber !== null,
         })
       }
     }

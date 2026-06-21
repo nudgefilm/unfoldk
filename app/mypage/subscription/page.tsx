@@ -61,6 +61,7 @@ interface BillingEntry {
   amountCents: number
   currency: string
   status: string
+  hasReceipt: boolean
 }
 
 function formatAmount(cents: number, currency: string): string {
@@ -401,15 +402,19 @@ export default function SubscriptionPage() {
                                   </span>
                                 </td>
                                 <td className="px-6 py-4">
-                                  <button
-                                    className="flex items-center gap-1 text-sm hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
-                                    style={{ color: "#FF4B6E" }}
-                                    onClick={() => handleReceiptDownload(item.id)}
-                                    disabled={isDownloading}
-                                  >
-                                    <Download className="w-4 h-4" />
-                                    {isDownloading ? "Loading…" : "Download"}
-                                  </button>
+                                  {item.hasReceipt ? (
+                                    <button
+                                      className="flex items-center gap-1 text-sm hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+                                      style={{ color: "#FF4B6E" }}
+                                      onClick={() => handleReceiptDownload(item.id)}
+                                      disabled={isDownloading}
+                                    >
+                                      <Download className="w-4 h-4" />
+                                      {isDownloading ? "Loading…" : "Download"}
+                                    </button>
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground/50">—</span>
+                                  )}
                                 </td>
                               </tr>
                             )
