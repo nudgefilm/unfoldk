@@ -23,6 +23,8 @@ import { HallyuRoutineCard } from "@/components/mypage/hallyu-routine-card"
 import { ArtistWeeklyReportsCard } from "@/components/mypage/artist-weekly-reports-card"
 import { ComebackGuideCard } from "@/components/mypage/comeback-guide-card"
 import { MonthlyTrendReportCard } from "@/components/mypage/monthly-trend-report-card"
+import { WeeklySnapshotSection } from "@/components/mypage/weekly-snapshot-section"
+import { KInboundPreviewCard } from "@/components/mypage/k-inbound-preview-card"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess, isInTrial } from "@/lib/auth/plan"
 
@@ -182,17 +184,23 @@ export default function HallyuPassPage() {
             {/* 서비스 안내 박스 (공통 컴포넌트) */}
             <HallyuPassExclusiveBanner />
 
+            {/* 위클리 스냅샷 통계 + 팬 분포 도넛 */}
+            {isPro && <WeeklySnapshotSection />}
+
             {/* 2-column 섹션 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* 아티스트 위클리 리포트 */}
+              {/* 아티스트 위클리 리포트 (상단 비교 막대그래프 포함) */}
               {isPro && <ArtistWeeklyReportsCard />}
 
               {/* 한류 루틴 */}
               {isPro && <HallyuRoutineCard />}
             </div>
 
-            {/* 컴백 가이드 */}
+            {/* 컴백 가이드 (빈 상태: 트렌딩 TOP3 막대그래프) */}
             {isPro && <ComebackGuideCard />}
+
+            {/* K-Inbound 프리뷰 */}
+            {isPro && <KInboundPreviewCard />}
 
             {/* 월간 한류 트렌드 리포트 */}
             {isPro && <MonthlyTrendReportCard />}

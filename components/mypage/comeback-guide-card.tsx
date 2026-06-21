@@ -8,6 +8,14 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Sparkles, ExternalLink } from "lucide-react"
+import { BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer, Tooltip } from "recharts"
+
+interface TrendingArtist {
+  rank: number
+  artist_id: string
+  name: string
+  views_delta: number | null
+}
 
 interface GuideData {
   id: string
@@ -54,6 +62,8 @@ export function ComebackGuideCard() {
   const [loading, setLoading] = useState(true)
   const [guides, setGuides] = useState<GuideData[]>([])
   const [userTz, setUserTz] = useState("UTC")
+  const [trending, setTrending] = useState<TrendingArtist[]>([])
+  const [trendingLoading, setTrendingLoading] = useState(false)
 
   useEffect(() => {
     // 브라우저 타임존 감지
@@ -61,7 +71,19 @@ export function ComebackGuideCard() {
 
     fetch("/api/hallyu-pass/comeback-guides")
       .then((r) => r.json())
-      .then((data: { guides?: GuideData[] }) => setGuides(data.guides ?? []))
+      .then((data: { guides?: GuideData[] }) => {
+        const g = data.guides ?? []
+        setGuides(g)
+        // 컴백 없을 때만 트렌딩 조회
+        if (g.length === 0) {
+          setTrendingLoading(true)
+          fetch("/api/kpop/charts/trending?limit=3")
+            .then((r) => r.json())
+            .then((td: { trending?: TrendingArtist[] }) => setTrending(td.trending ?? []))
+            .catch(() => setTrending([]))
+            .finally(() => setTrendingLoading(false))
+        }
+      })
       .catch(() => setGuides([]))
       .finally(() => setLoading(false))
   }, [])
@@ -90,20 +112,88 @@ export function ComebackGuideCard() {
         </div>
       )}
 
-      {/* 예정 컴백 없음 */}
+      {/* 예정 컴백 없음 + 트렌딩 TOP3 막대그래프 */}
       {!loading && guides.length === 0 && (
-        <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 py-4">
-          <p className="text-muted-foreground text-sm">
+        <div className="flex-1 flex flex-col gap-4 py-2">
+          <p className="text-muted-foreground text-sm text-center">
             No upcoming comebacks from your tracked artists.
           </p>
-          <Link
-            href="/kpop"
-            className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline transition-colors"
-            style={{ color: "#FF4B6E" }}
-          >
-            Track artists in KpopStats
-            <ExternalLink className="w-3.5 h-3.5" />
-          </Link>
+
+          {/* 트렌딩 TOP3 가로 막대그래프 */}
+          {trendingLoading && (
+            <div className="flex items-center justify-center py-4">
+              <div
+                className="w-4 h-4 rounded-full border-2 animate-spin"
+                style={{ borderColor: "rgba(255,75,110,0.4)", borderTopColor: "transparent" }}
+              />
+            </div>
+          )}
+          {!trendingLoading && trending.length > 0 && (
+            <div>
+              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wide mb-2">
+                This week&apos;s trending
+              </p>
+              <div style={{ height: trending.length * 32 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    layout="vertical"
+                    data={trending.map((t) => ({
+                      name: t.name.length > 14 ? t.name.slice(0, 14) + "…" : t.name,
+                      delta: t.views_delta ?? 0,
+                    }))}
+                    margin={{ left: 0, right: 12, top: 0, bottom: 0 }}
+                  >
+                    <XAxis type="number" hide />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={90}
+                      tick={{ fontSize: 10, fill: "#888" }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null
+                        const v = payload[0].value as number
+                        return (
+                          <div
+                            className="text-[10px] px-1.5 py-1 rounded"
+                            style={{
+                              background: "rgba(20,20,24,0.95)",
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              color: "#ccc",
+                            }}
+                          >
+                            +{v.toLocaleString()} views
+                          </div>
+                        )
+                      }}
+                    />
+                    <Bar dataKey="delta" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+                      {trending.map((_, i) => (
+                        <Cell
+                          key={i}
+                          fill={i === 0 ? "#FF4B6E" : i === 1 ? "#FF7A94" : "#FFB0C0"}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-center">
+            <Link
+              href="/kpop"
+              className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline transition-colors"
+              style={{ color: "#FF4B6E" }}
+            >
+              Track artists in KpopStats
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </div>
       )}
 

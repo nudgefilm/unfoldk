@@ -76,29 +76,14 @@ function MonthlyReportEmptyState() {
   const nextMonth = getNextMonthName()
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 py-6">
-      <TrendingUp className="w-8 h-8 text-muted-foreground/30" />
-      <div className="space-y-1">
-        <p className="text-foreground/70 text-sm font-medium">
-          {nextMonth} Report
-        </p>
-        <p className="text-muted-foreground text-xs">
-          Publishing on the 1st
-        </p>
-      </div>
-      {/* 발행까지 남은 일수 */}
-      <div
-        className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs"
-        style={{ background: "rgba(255,75,110,0.08)", border: "1px solid rgba(255,75,110,0.15)" }}
-      >
-        <CalendarDays className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
-        <span className="text-muted-foreground">
-          <span className="font-semibold" style={{ color: "#FF4B6E" }}>{daysLeft}</span>
-          {" "}day{daysLeft !== 1 ? "s" : ""} to go
+    <div className="flex-1 flex items-center gap-3 py-4">
+      <TrendingUp className="w-5 h-5 text-muted-foreground/40 flex-shrink-0" />
+      <p className="text-sm text-muted-foreground leading-snug">
+        {nextMonth} report drops in{" "}
+        <span className="font-semibold" style={{ color: "#FF4B6E" }}>
+          {daysLeft} day{daysLeft !== 1 ? "s" : ""}
         </span>
-      </div>
-      <p className="text-[11px] text-muted-foreground/50 max-w-[220px] leading-relaxed">
-        Includes top rising artists, country trends, and upcoming events.
+        {" "}— top artists, country trends &amp; more
       </p>
     </div>
   )

@@ -38,6 +38,8 @@
 
 **빌드 주의**: `next.config.mjs` 에 `ignoreBuildErrors: true`, `images.unoptimized: true` — 출시 전 strict 전환 필요.
 
+**아이콘**: UI 요소에는 `lucide-react` 컴포넌트만 사용. 유니코드 이모지(📊, 🎯, 🔥 등)는 JSX 렌더링 영역 어디에도 사용 금지. 단, JS 문자열 템플릿·코드 주석·SNS 공유 텍스트 등 React 렌더링 불가 영역은 예외.
+
 ---
 
 ## 3. 구독 플랜

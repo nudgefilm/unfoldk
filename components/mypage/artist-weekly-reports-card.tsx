@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Music, TrendingUp, TrendingDown, ExternalLink } from "lucide-react"
-import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts"
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer, Tooltip } from "recharts"
 
 interface TopCountry {
   country_code: string
@@ -139,6 +139,67 @@ export function ArtistWeeklyReportsCard() {
           </Link>
         </div>
       )}
+
+      {/* 아티스트 비교 막대그래프 — 리포트 있는 아티스트 2명 이상일 때만 */}
+      {!loading && artists.length > 0 && (() => {
+        const chartData = artists
+          .filter((a) => a.report !== null)
+          .map((a) => ({
+            name: a.name.length > 13 ? a.name.slice(0, 13) + "…" : a.name,
+            change: a.report!.listener_change,
+          }))
+        if (chartData.length < 2) return null
+        return (
+          <div className="mb-5">
+            <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wide mb-2">
+              Listener change this week
+            </p>
+            <div style={{ height: chartData.length * 30 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  layout="vertical"
+                  data={chartData}
+                  margin={{ left: 0, right: 12, top: 0, bottom: 0 }}
+                >
+                  <XAxis type="number" hide />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={90}
+                    tick={{ fontSize: 10, fill: "#888" }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null
+                      const v = payload[0].value as number
+                      return (
+                        <div
+                          className="text-[10px] px-1.5 py-1 rounded"
+                          style={{
+                            background: "rgba(20,20,24,0.95)",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            color: "#ccc",
+                          }}
+                        >
+                          {v >= 0 ? "+" : ""}{v.toLocaleString()} listeners
+                        </div>
+                      )
+                    }}
+                  />
+                  <Bar dataKey="change" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+                    {chartData.map((d, i) => (
+                      <Cell key={i} fill={d.change >= 0 ? "#4ade80" : "#f87171"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-3 border-t border-white/[0.08]" />
+          </div>
+        )
+      })()}
 
       {/* 아티스트 리포트 목록 */}
       {!loading && artists.length > 0 && (
