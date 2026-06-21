@@ -9,7 +9,7 @@
 // 사이드바 프로필도 기존 mock("Mia T.") → 실제 로그인 유저 데이터로 표시.
 // className·style 은 v0 디자인 그대로 유지하되 데이터만 실 데이터로 교체.
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { FooterSection } from "@/components/footer-section"
@@ -52,14 +52,41 @@ const sidebarLinks = [
   { icon: Settings, label: "Settings", href: "/mypage/settings" },
 ]
 
-// ⚠️ Billing History 는 Paddle API 동기화 미구현 — v0 mock 유지 (spec: "현재처럼 표시")
-const billingHistory = [
-  { date: "May 7, 2026", description: "Hallyu Pass", amount: "$9.00", status: "Paid" },
-  { date: "Apr 7, 2026", description: "Hallyu Pass", amount: "$9.00", status: "Paid" },
-  { date: "Mar 7, 2026", description: "Hallyu Pass", amount: "$9.00", status: "Paid" },
-]
-
 type PlanType = "free" | "pro" | "monthly" | "annual"
+
+interface BillingEntry {
+  id: string
+  date: string
+  description: string
+  amountCents: number
+  currency: string
+  status: string
+}
+
+function formatAmount(cents: number, currency: string): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    minimumFractionDigits: 2,
+  }).format(cents / 100)
+}
+
+function formatBillingDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  })
+}
+
+const STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
+  paid: { label: "Paid", color: "#22c55e" },
+  refunded: { label: "Refunded", color: "#f59e0b" },
+  partially_refunded: { label: "Partial Refund", color: "#f59e0b" },
+  pending: { label: "Pending", color: "#888888" },
+  void: { label: "Void", color: "#888888" },
+  draft: { label: "Draft", color: "#888888" },
+}
 
 export default function SubscriptionPage() {
   const [isLoaded, setIsLoaded] = useState(false)
@@ -71,6 +98,13 @@ export default function SubscriptionPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [userEmail, setUserEmail] = useState<string | undefined>()
   const [userId, setUserId] = useState<string | undefined>()
+  const [accessToken, setAccessToken] = useState<string | null>(null)
+
+  // Billing History
+  const [billingOrders, setBillingOrders] = useState<BillingEntry[] | null>(null)
+  const [billingLoading, setBillingLoading] = useState(false)
+  const [billingError, setBillingError] = useState<string | null>(null)
+  const [receiptLoading, setReceiptLoading] = useState<string | null>(null) // 로딩 중인 orderId
 
   // 인증 + 프로필 + plan_type 로드 — middleware 가 비로그인 가드 처리
   useEffect(() => {
@@ -93,6 +127,10 @@ export default function SubscriptionPage() {
       setUserInitial(name.charAt(0).toUpperCase() || "U")
       setUserAvatar(meta.avatar_url ?? null)
 
+      // 세션 액세스 토큰 저장 — Billing History API 인증에 사용
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (!cancelled) setAccessToken(sessionData.session?.access_token ?? null)
+
       // public.users 의 plan_type / plan_expires_at 조회
       const { data: profile } = await supabase
         .from("users")
@@ -114,6 +152,56 @@ export default function SubscriptionPage() {
       cancelled = true
     }
   }, [])
+
+  // Billing History — plan 로드 완료 + 유료 플랜 + 토큰 준비 시 fetch
+  useEffect(() => {
+    if (!isLoaded || !accessToken) return
+    const isPaidNow = planType === "pro" || planType === "monthly" || planType === "annual"
+    if (!isPaidNow) return
+
+    let cancelled = false
+    setBillingLoading(true)
+    setBillingError(null)
+
+    fetch("/api/polar/orders", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then((res) => {
+        if (!res.ok) return res.json().then((body) => Promise.reject(new Error(body.error ?? `HTTP ${res.status}`)))
+        return res.json()
+      })
+      .then((body: { orders: BillingEntry[] }) => {
+        if (!cancelled) setBillingOrders(body.orders)
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setBillingError(err.message)
+      })
+      .finally(() => {
+        if (!cancelled) setBillingLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [isLoaded, planType, accessToken])
+
+  const handleReceiptDownload = useCallback(async (orderId: string) => {
+    if (!accessToken) return
+    setReceiptLoading(orderId)
+    try {
+      const res = await fetch(`/api/polar/orders/receipt?orderId=${orderId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      const body = await res.json() as { url?: string; error?: string }
+      if (!res.ok || !body.url) {
+        alert(`Receipt not available: ${body.error ?? "unknown error"}`)
+        return
+      }
+      window.open(body.url, "_blank", "noopener,noreferrer")
+    } catch {
+      alert("Failed to load receipt. Please try again.")
+    } finally {
+      setReceiptLoading(null)
+    }
+  }, [accessToken])
 
   // 데이터 로드 전엔 본문 영역 비움 (사이드바 골격은 그대로 노출)
   const isPaid = planType === "pro" || planType === "monthly" || planType === "annual"
@@ -265,49 +353,71 @@ export default function SubscriptionPage() {
                 </div>
               </section>
 
-              {/* Section 2: Billing History (mock — Paddle API 동기화 미구현) */}
+              {/* Section 2: Billing History — Polar 실 데이터 */}
               <section className="mb-8">
                 <h2 className="text-lg font-semibold text-foreground mb-4">Billing History</h2>
                 <div className="bg-[#1a1a1a] border border-border/30 rounded-xl overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-border/30">
-                          <th className="text-left text-muted-foreground text-sm font-medium px-6 py-4">Date</th>
-                          <th className="text-left text-muted-foreground text-sm font-medium px-6 py-4">Description</th>
-                          <th className="text-left text-muted-foreground text-sm font-medium px-6 py-4">Amount</th>
-                          <th className="text-left text-muted-foreground text-sm font-medium px-6 py-4">Status</th>
-                          <th className="text-left text-muted-foreground text-sm font-medium px-6 py-4">Receipt</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {billingHistory.map((item, index) => (
-                          <tr
-                            key={index}
-                            className={index !== billingHistory.length - 1 ? "border-b border-border/30" : ""}
-                          >
-                            <td className="text-foreground text-sm px-6 py-4">{item.date}</td>
-                            <td className="text-foreground text-sm px-6 py-4">{item.description}</td>
-                            <td className="text-foreground text-sm px-6 py-4">{item.amount}</td>
-                            <td className="px-6 py-4">
-                              <span className="flex items-center gap-1 text-sm" style={{ color: "#22c55e" }}>
-                                {item.status} <Check className="w-4 h-4" />
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <button
-                                className="flex items-center gap-1 text-sm hover:underline"
-                                style={{ color: "#FF4B6E" }}
-                                onClick={() => setShowPaymentModal(true)}
-                              >
-                                <Download className="w-4 h-4" /> Download
-                              </button>
-                            </td>
+                  {billingLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : billingError ? (
+                    <div className="px-6 py-8 text-center">
+                      <p className="text-sm text-red-400 mb-1">Failed to load billing history.</p>
+                      <p className="text-xs text-muted-foreground">{billingError}</p>
+                    </div>
+                  ) : !billingOrders || billingOrders.length === 0 ? (
+                    <div className="px-6 py-8 text-center">
+                      <p className="text-sm text-muted-foreground">No billing history yet.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-border/30">
+                            <th className="text-left text-muted-foreground text-sm font-medium px-6 py-4">Date</th>
+                            <th className="text-left text-muted-foreground text-sm font-medium px-6 py-4">Description</th>
+                            <th className="text-left text-muted-foreground text-sm font-medium px-6 py-4">Amount</th>
+                            <th className="text-left text-muted-foreground text-sm font-medium px-6 py-4">Status</th>
+                            <th className="text-left text-muted-foreground text-sm font-medium px-6 py-4">Receipt</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {billingOrders.map((item, index) => {
+                            const statusInfo = STATUS_DISPLAY[item.status] ?? { label: item.status, color: "#888888" }
+                            const isDownloading = receiptLoading === item.id
+                            return (
+                              <tr
+                                key={item.id}
+                                className={index !== billingOrders.length - 1 ? "border-b border-border/30" : ""}
+                              >
+                                <td className="text-foreground text-sm px-6 py-4">{formatBillingDate(item.date)}</td>
+                                <td className="text-foreground text-sm px-6 py-4">{item.description}</td>
+                                <td className="text-foreground text-sm px-6 py-4">{formatAmount(item.amountCents, item.currency)}</td>
+                                <td className="px-6 py-4">
+                                  <span className="flex items-center gap-1 text-sm" style={{ color: statusInfo.color }}>
+                                    {statusInfo.label}
+                                    {item.status === "paid" && <Check className="w-4 h-4" />}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <button
+                                    className="flex items-center gap-1 text-sm hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+                                    style={{ color: "#FF4B6E" }}
+                                    onClick={() => handleReceiptDownload(item.id)}
+                                    disabled={isDownloading}
+                                  >
+                                    <Download className="w-4 h-4" />
+                                    {isDownloading ? "Loading…" : "Download"}
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </section>
 
