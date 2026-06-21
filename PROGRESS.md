@@ -4,6 +4,32 @@
 
 ---
 
+## 현재 상태 (2026-06-21 세션 73 기준)
+
+### Polar 결제 전체 라이프사이클 완성 + E2E 검증
+
+**완료 항목**
+
+- **PaymentComingSoonModal 완전 제거 → Polar Customer Portal 연동**
+  - `components/payment-coming-soon-modal.tsx` 삭제
+  - `app/api/polar/customer-portal/route.ts` 신규 (`customerSessions:write` 스코프 필요)
+    - Supabase JWT 검증 → `polar_customer_id` 조회 → `polar.customerSessions.create()` → `customerPortalUrl` 반환
+    - migration 0086 미적용 시 `POLAR_ID_UNAVAILABLE`, polar_customer_id 미설정 시 `POLAR_ID_NOT_SET` 에러
+  - `app/mypage/subscription/page.tsx`: 5개 버튼(Cancel subscription / Change payment method / Switch to Monthly / Switch to Annual / Cancel Note 버튼) 모두 `handlePortal` 연결
+    - `portalLoading / portalError` 상태 추가, 버튼 disabled + "Opening…" 표시
+
+- **Polar 결제 전체 라이프사이클 E2E 검증 완료**
+  - 가입 → 체크아웃(Polar 호스팅) → 웹훅 반영(`plan_type='monthly'`, `subscription_status='active'`) → 취소 → 접근 유지(만료일까지) → 자동 downgrade(만료 시 예정)
+  - 세션 71→72→73 하루 작업으로 완성:
+    Paddle KYB 무응답 → Polar 대체 결정 / Polar 체크아웃·웹훅 구현 / DB 버그 3건 수정 / Footer 결제사 분리 / Billing History 실데이터화($0 영수증 없음 처리 포함) / Customer Portal 연동
+
+**다음 세션**
+- 마케팅 진입 가능 상태 — 결제 연동 전체 완료
+- Polar 만료 시 자동 downgrade cron 구현 (구독 만료 → `plan_type='free'` 자동 전환)
+- `app/start/page.tsx` 주석 "Paddle webhook(subscription.activated)" → Polar 업데이트 (마이너)
+
+---
+
 ## 현재 상태 (2026-06-21 세션 72 기준)
 
 ### Billing History — Polar 실 주문 내역 연동
@@ -1078,8 +1104,7 @@ CREATE POLICY "kpop_albums_select_all" ON public.kpop_albums FOR SELECT TO anon,
 
 ## 블로커
 
-- Polar 결제 E2E 미완 — Vercel env var 추가 + Redeploy 후 실 결제 테스트 필요
 - top.gg 심사 대기
 - r/Korean 포스팅 승인 대기
 
-**Paddle KYB** — Hallyu Pass는 Polar로 대체 완료. kbeauty(Sourcing Sniper, Supplier Pro)는 여전히 Paddle 사용 중이므로 KYB 통과 후 프로덕션 전환은 kbeauty 한정으로 필요.
+**Paddle KYB** — Hallyu Pass는 Polar로 대체 완료(E2E 검증 2026-06-21). kbeauty(Sourcing Sniper, Supplier Pro)는 여전히 Paddle 사용 중이므로 KYB 통과 후 프로덕션 전환은 kbeauty 한정으로 필요.
