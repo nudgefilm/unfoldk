@@ -5,15 +5,14 @@ import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { StartModal } from "@/components/start-modal"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
-import { usePaddle } from "@/components/PaddleProvider"
-import { PADDLE_PRICE_IDS } from "@/lib/paddle/constants"
+import { usePolar } from "@/components/PolarProvider"
 
 export function PricingSection() {
   const [isAnnual, setIsAnnual] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [userEmail, setUserEmail] = useState<string | undefined>()
   const [userId, setUserId] = useState<string | undefined>()
-  const paddle = usePaddle()
+  const { openCheckout } = usePolar()
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
@@ -30,18 +29,9 @@ export function PricingSection() {
     return () => subscription.unsubscribe()
   }, [])
 
-  function openCheckout() {
-    if (!paddle) return
-    const priceId = isAnnual
-      ? PADDLE_PRICE_IDS.hallyu_pass_annual
-      : PADDLE_PRICE_IDS.hallyu_pass_monthly
-
-    paddle.Checkout.open({
-      items: [{ priceId, quantity: 1 }],
-      customer: userEmail ? { email: userEmail } : undefined,
-      customData: userId ? { userId } : undefined,
-      settings: { displayMode: "overlay", theme: "light" },
-    })
+  function handleCheckout() {
+    const plan = isAnnual ? "annual" : "monthly"
+    openCheckout(plan, { email: userEmail, userId })
   }
 
   const freeFeatures = [
@@ -218,9 +208,8 @@ export function PricingSection() {
             {isLoggedIn ? (
               <div className="self-stretch">
                 <Button
-                  onClick={openCheckout}
-                  disabled={!paddle}
-                  className="w-full px-5 py-2 rounded-[40px] flex justify-center items-center bg-white hover:bg-white/90 disabled:opacity-60"
+                  onClick={handleCheckout}
+                  className="w-full px-5 py-2 rounded-[40px] flex justify-center items-center bg-white hover:bg-white/90"
                 >
                   <span className="text-center text-sm font-medium leading-tight" style={{ color: "#FF4B6E" }}>
                     Join now

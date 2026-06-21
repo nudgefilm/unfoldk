@@ -24,9 +24,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
-import { PaymentComingSoonModal } from "@/components/payment-coming-soon-modal"
-import { usePaddle } from "@/components/PaddleProvider"
-import { PADDLE_PRICE_IDS } from "@/lib/paddle/constants"
+import { usePolar } from "@/components/PolarProvider"
 
 // useSearchParams() 는 Suspense boundary 안에서만 사용 가능 — Next.js 빌드 요구사항
 export default function StartPage() {
@@ -54,10 +52,9 @@ function StartPageInner() {
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
   const [authChecked, setAuthChecked] = useState(false)
-  const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [userEmail, setUserEmail] = useState<string | undefined>()
   const [userId, setUserId] = useState<string | undefined>()
-  const paddle = usePaddle()
+  const { openCheckout } = usePolar()
 
   // 진입 가드 — 비로그인이면 / 로
   useEffect(() => {
@@ -115,30 +112,10 @@ function StartPageInner() {
       return
     }
 
-    // 유료 플랜 — Paddle checkout 오버레이
-    const priceId = isAnnual ? PADDLE_PRICE_IDS.hallyu_pass_annual : PADDLE_PRICE_IDS.hallyu_pass_monthly
+    // 유료 플랜 — Polar 호스팅 체크아웃 페이지로 리다이렉트
+    // 결제 완료 후 Polar 가 /mypage/subscription 으로 복귀시킴
     setIsLoading(false)
-    if (paddle) {
-      paddle.Checkout.open({
-        items: [{ priceId, quantity: 1 }],
-        customer: userEmail ? { email: userEmail } : undefined,
-        customData: userId ? { userId } : undefined,
-        settings: { displayMode: "overlay", theme: "light" },
-      })
-      router.push(nextPath)
-      router.refresh()
-    } else {
-      // Paddle SDK 미로드 시 폴백
-      setShowPaymentModal(true)
-    }
-  }
-
-  const handlePaymentModalClose = (open: boolean) => {
-    setShowPaymentModal(open)
-    if (!open) {
-      router.push(nextPath)
-      router.refresh()
-    }
+    openCheckout(isAnnual ? "annual" : "monthly", { email: userEmail, userId })
   }
 
   // 인증 검사 전엔 빈 화면 (깜빡임 방지)
@@ -149,7 +126,6 @@ function StartPageInner() {
       className="min-h-screen flex flex-col items-center justify-center px-4 py-8"
       style={{ backgroundColor: "#0d0d0f" }}
     >
-      <PaymentComingSoonModal open={showPaymentModal} onOpenChange={handlePaymentModalClose} />
       {/* Radial Gradient Glow */}
       <div
         className="absolute inset-0 pointer-events-none"

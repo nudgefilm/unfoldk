@@ -38,8 +38,7 @@ import {
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { PaymentComingSoonModal } from "@/components/payment-coming-soon-modal"
-import { usePaddle } from "@/components/PaddleProvider"
-import { PADDLE_PRICE_IDS } from "@/lib/paddle/constants"
+import { usePolar } from "@/components/PolarProvider"
 
 const sidebarLinks = [
   { icon: Home, label: "Dashboard", href: "/mypage" },
@@ -72,7 +71,6 @@ export default function SubscriptionPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [userEmail, setUserEmail] = useState<string | undefined>()
   const [userId, setUserId] = useState<string | undefined>()
-  const paddle = usePaddle()
 
   // 인증 + 프로필 + plan_type 로드 — middleware 가 비로그인 가드 처리
   useEffect(() => {
@@ -206,7 +204,7 @@ export default function SubscriptionPage() {
             // ============================================
             // Free 유저 화면
             // ============================================
-            <FreeUserView paddle={paddle} userEmail={userEmail} userId={userId} />
+            <FreeUserView userEmail={userEmail} userId={userId} />
           ) : (
             // ============================================
             // 유료 유저 화면 (monthly / annual)
@@ -422,29 +420,18 @@ export default function SubscriptionPage() {
 // 페이드인 패턴은 부모와 동일, className·style 도 v0 톤 유지
 // ============================================
 interface FreeUserViewProps {
-  paddle: ReturnType<typeof usePaddle>
   userEmail: string | undefined
   userId: string | undefined
 }
 
-function FreeUserView({ paddle, userEmail, userId }: FreeUserViewProps) {
+function FreeUserView({ userEmail, userId }: FreeUserViewProps) {
   const router = useRouter()
+  const { openCheckout } = usePolar()
   // Redeem 모달 — 쿠폰 성공 시 닫고 페이지 refresh 로 plan_type 즉시 반영
   const [redeemOpen, setRedeemOpen] = useState(false)
-  const [showPaymentModal, setShowPaymentModal] = useState(false)
 
-  function openCheckout(annual: boolean) {
-    if (!paddle) {
-      setShowPaymentModal(true)
-      return
-    }
-    const priceId = annual ? PADDLE_PRICE_IDS.hallyu_pass_annual : PADDLE_PRICE_IDS.hallyu_pass_monthly
-    paddle.Checkout.open({
-      items: [{ priceId, quantity: 1 }],
-      customer: userEmail ? { email: userEmail } : undefined,
-      customData: userId ? { userId } : undefined,
-      settings: { displayMode: "overlay", theme: "light" },
-    })
+  function handleCheckout(annual: boolean) {
+    openCheckout(annual ? "annual" : "monthly", { email: userEmail, userId })
   }
   return (
     <>
@@ -484,7 +471,7 @@ function FreeUserView({ paddle, userEmail, userId }: FreeUserViewProps) {
             <Button
               className="w-full rounded-full font-medium text-white"
               style={{ backgroundColor: "#FF4B6E" }}
-              onClick={() => openCheckout(false)}
+              onClick={() => handleCheckout(false)}
             >
               Upgrade to Monthly — $9/mo
             </Button>
@@ -510,7 +497,7 @@ function FreeUserView({ paddle, userEmail, userId }: FreeUserViewProps) {
             <Button
               className="w-full rounded-full font-medium text-white"
               style={{ backgroundColor: "#FF4B6E" }}
-              onClick={() => openCheckout(true)}
+              onClick={() => handleCheckout(true)}
             >
               Upgrade to Annual — $6/mo
             </Button>
@@ -566,7 +553,6 @@ function FreeUserView({ paddle, userEmail, userId }: FreeUserViewProps) {
           </div>
         </div>
       </section>
-      <PaymentComingSoonModal open={showPaymentModal} onOpenChange={setShowPaymentModal} />
     </>
   )
 }
