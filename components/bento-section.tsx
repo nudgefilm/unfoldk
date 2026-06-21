@@ -5,8 +5,6 @@ import {
   Languages,
   UtensilsCrossed,
   Map,
-  Sparkles,
-  Flower2,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -140,18 +138,6 @@ export function BentoSection({ serviceStats }: { serviceStats?: ServiceStats }) 
       liveData: serviceStats && serviceStats.filmingSpotsCount > 0
         ? `${serviceStats.filmingSpotsCount.toLocaleString()} filming locations`
         : undefined,
-    },
-    {
-      icon: <Sparkles className="w-9 h-9 text-foreground/70" />,
-      title: "What's your K-drama type?",
-      description: "7 questions. Find out which K-drama character you really are.",
-      href: "/quiz",
-    },
-    {
-      icon: <Flower2 className="w-9 h-9 text-foreground/70" />,
-      title: "Get your Korean name",
-      description: "Discover your Korean name based on your vibe.",
-      href: "/name",
     },
   ]
 

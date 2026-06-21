@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { HallyuPassBanner } from "@/components/hallyu-pass-banner"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronLeft, ChevronRight, Calendar, X, Lock, Plus, Ticket, Play, RefreshCw } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Calendar, X, Lock, Plus, Ticket, Play, RefreshCw, CalendarDays } from "lucide-react"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
@@ -16,6 +16,7 @@ import { AuthGate } from "@/components/auth-gate"
 import { YoutubeVideoSection } from "@/components/shared/youtube-video-section"
 import { toast } from "sonner"
 import { Toaster } from "@/components/ui/sonner"
+import { ThisMonthHallyu, type ThisMonthHallyuData } from "@/components/home/this-month-hallyu"
 
 type EventType = "K-pop" | "K-drama" | "Concert" | "Fan Meet"
 
@@ -975,6 +976,13 @@ export default function HallyuCalendarPage() {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
   // K-pop 아티스트명 → /kpop/[id] 연결용 룩업 맵
   const [kpopArtistMap, setKpopArtistMap] = useState<Record<string, string>>({})
+  // This Month in Hallyu 섹션 (홈페이지에서 이동)
+  const [thisMonth, setThisMonth] = useState<ThisMonthHallyuData | null>(null)
+  // Countdown 섹션 (홈페이지 HallyuThisWeek에서 이동) — next 7 days 이벤트
+  const [countdownEvents, setCountdownEvents] = useState<Array<{
+    id: string; title: string; type: string; event_date: string;
+    artist_or_drama: string; venue_city: string | null
+  }>>([])
 
   // Featured 가로 스크롤 컨테이너 — PC 화살표 버튼이 한 번에 보이는 폭만큼 이동
   const featuredScrollRef = useRef<HTMLDivElement>(null)
@@ -1113,6 +1121,19 @@ export default function HallyuCalendarPage() {
       .finally(() => setEventsLoading(false))
     return () => ctrl.abort()
   }, [monthQuery])
+
+  // This Month in Hallyu + Countdown — 마운트 1회 fetch
+  useEffect(() => {
+    fetch("/api/calendar/this-month")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: ThisMonthHallyuData | null) => { if (d) setThisMonth(d) })
+      .catch(() => {})
+
+    fetch("/api/calendar/countdown")
+      .then((r) => (r.ok ? r.json() : { events: [] }))
+      .then((d: { events?: typeof countdownEvents }) => setCountdownEvents(d.events ?? []))
+      .catch(() => {})
+  }, [])
 
   // K-pop 이벤트 아티스트명 → kpop_artists.id 룩업 (events 변경 시 재실행)
   useEffect(() => {
@@ -1289,6 +1310,58 @@ export default function HallyuCalendarPage() {
             </Button>
           </div>
         </section>
+
+        {/* This Month in Hallyu (홈페이지에서 이동) */}
+        {thisMonth && (
+          <section className="mb-10">
+            <ThisMonthHallyu {...thisMonth} />
+          </section>
+        )}
+
+        {/* Countdown — next 7 days D-day 카운터 (홈페이지 HallyuThisWeek에서 이동) */}
+        {countdownEvents.length > 0 && (
+          <section className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <CalendarDays className="w-4 h-4" style={{ color: "#FF4B6E" }} />
+              <h2 className="text-lg font-bold text-foreground">Countdown</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {countdownEvents.slice(0, 4).map(ev => {
+                const now = new Date()
+                const target = new Date(ev.event_date)
+                const days = Math.max(0, Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+                const fmt = new Date(ev.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                return (
+                  <div key={ev.id} className="bg-[#141418] border border-border/30 rounded-2xl p-4 flex items-center gap-3">
+                    <div
+                      className="shrink-0 w-12 text-center rounded-lg py-1.5"
+                      style={{ backgroundColor: "rgba(255, 75, 110, 0.08)" }}
+                    >
+                      {days === 0 ? (
+                        <span className="text-xs font-bold" style={{ color: "#FF4B6E" }}>TODAY</span>
+                      ) : (
+                        <>
+                          <span className="block text-base font-bold leading-none" style={{ color: "#FF4B6E" }}>
+                            {days}
+                          </span>
+                          <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wide">days</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate leading-tight">
+                        {ev.artist_or_drama || ev.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground/50 mt-0.5">
+                        {fmt}{ev.venue_city ? ` · ${ev.venue_city}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         {/* This Week's Must-See Hallyu Events TOP 3 */}
         {thisWeekTop3.length > 0 && (

@@ -21,6 +21,8 @@ import { AuthGate } from "@/components/auth-gate"
 import { StartModal } from "@/components/start-modal"
 import { hasProAccess } from "@/lib/auth/plan"
 import { YoutubeVideoSection } from "@/components/shared/youtube-video-section"
+import { GlobalHallyuPulse, type RisingArtist, type CountryTopArtist, type TopDrama } from "@/components/home/global-hallyu-pulse"
+import { KpopTop30Chart, type Top30Artist } from "@/components/home/kpop-top30-chart"
 
 // ============================================
 // 숫자 포맷터 — 2_400_000_000 → "2.4B"
@@ -118,6 +120,13 @@ export default function KpopStatsPage() {
   const [isPro, setIsPro] = useState(false)
   const [showVoteModal, setShowVoteModal] = useState(false)
   const [isVoteModalHovered, setIsVoteModalHovered] = useState(false)
+
+  // Global Hallyu Pulse (홈페이지에서 이동 — rising artists, country No.1, top dramas)
+  const [globalPulseRising, setGlobalPulseRising] = useState<RisingArtist[]>([])
+  const [globalPulseCountry, setGlobalPulseCountry] = useState<CountryTopArtist[]>([])
+  const [globalPulseDramas, setGlobalPulseDramas] = useState<TopDrama[]>([])
+  // K-pop TOP 30 막대 차트 (홈페이지에서 이동)
+  const [top30, setTop30] = useState<Top30Artist[]>([])
 
   // 검색·More Artists 상태 — /api/kpop/artists 로 DB 기반 데이터 (Top 20 외 아티스트 노출용)
   // searchResults === null → 검색 비활성. null 이외이면 검색 결과 모드.
@@ -291,6 +300,26 @@ export default function KpopStatsPage() {
       .then((r) => (r.ok ? r.json() : { charts: [] }))
       .then((d: { charts?: typeof countryCharts }) => setCountryCharts(d.charts ?? []))
       .catch(() => setCountryCharts([]))
+  }, [])
+
+  // Global Hallyu Pulse 데이터 로드
+  useEffect(() => {
+    fetch("/api/kpop/global-pulse")
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((d: { risingArtists?: RisingArtist[]; countryTopArtists?: CountryTopArtist[]; topDramas?: TopDrama[] }) => {
+        setGlobalPulseRising(d.risingArtists ?? [])
+        setGlobalPulseCountry(d.countryTopArtists ?? [])
+        setGlobalPulseDramas(d.topDramas ?? [])
+      })
+      .catch(() => {})
+  }, [])
+
+  // K-pop TOP 30 막대 차트 데이터 로드
+  useEffect(() => {
+    fetch("/api/kpop/top30")
+      .then((r) => (r.ok ? r.json() : { artists: [] }))
+      .then((d: { artists?: Top30Artist[] }) => setTop30(d.artists ?? []))
+      .catch(() => setTop30([]))
   }, [])
 
   // 국가 풀네임 매핑 — ISO 3166-1 alpha-2 → 표시명 (40개 후보국 + 기타 전체 커버)
@@ -521,6 +550,16 @@ export default function KpopStatsPage() {
         {/* 검색 비활성 — 기본 모드 (Trending / Chart / More Artists / Spotlight / Comparison) */}
         {activeTab === "charts" && searchResults === null && (
         <>
+        {/* Global Hallyu Pulse — rising artists, country No.1, top dramas (홈페이지에서 이동) */}
+        {(globalPulseRising.length > 0 || globalPulseCountry.length > 0 || globalPulseDramas.length > 0) && (
+          <section className="mb-12">
+            <GlobalHallyuPulse
+              risingArtists={globalPulseRising}
+              countryTopArtists={globalPulseCountry}
+              topDramas={globalPulseDramas}
+            />
+          </section>
+        )}
         {/* UnfoldK 주간 K팝 리포트 */}
         {weeklyReport && (
           <section className="mb-10">
@@ -777,6 +816,13 @@ export default function KpopStatsPage() {
           </div>
 
         </section>
+
+        {/* K-pop TOP 30 막대 차트 (홈페이지에서 이동) */}
+        {top30.length > 0 && (
+          <section className="mb-12">
+            <KpopTop30Chart artists={top30} />
+          </section>
+        )}
 
         {/* More Artists — Top 20 외 아티스트. listeners 순으로 21명. CLAUDE.md §6 노출 원칙. */}
         {moreArtists.length > 0 && (

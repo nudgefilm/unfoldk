@@ -17,7 +17,7 @@ import { useSearchParams } from "next/navigation"
 import { FooterSection } from "@/components/footer-section"
 import { HallyuPassBanner } from "@/components/hallyu-pass-banner"
 import { Button } from "@/components/ui/button"
-import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight, X, Film, Bookmark, BookmarkCheck, UtensilsCrossed, MapPin, Calendar } from "lucide-react"
+import { Volume2, Check, RotateCcw, Lock, ChevronDown, ChevronLeft, ChevronRight, X, Film, Bookmark, BookmarkCheck, UtensilsCrossed, MapPin, Calendar, BookOpen } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -675,6 +675,37 @@ export function KoreanContent() {
             Learn Korean naturally through K-drama lines you already love.
           </p>
         </section>
+
+        {/* This Week's Expression — 홈페이지 HallyuThisWeek에서 이동. phrase 상태 재활용. */}
+        {phrase && !phraseLoading && (
+          <section className="mb-12">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-4">
+              <h2 className="text-xl font-bold text-foreground tracking-tight">
+                This Week&apos;s Expression
+              </h2>
+            </div>
+            <div className="bg-[#141418] border border-border/30 rounded-2xl p-5 max-w-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <BookOpen className="w-3.5 h-3.5" style={{ color: "#FF4B6E" }} />
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Featured Expression
+                </p>
+              </div>
+              <p className="text-2xl font-bold leading-tight mb-1" style={{ color: "#FF4B6E" }}>
+                {phrase.korean}
+              </p>
+              {phrase.romanization && (
+                <p className="text-sm text-muted-foreground/80 mb-1">{phrase.romanization}</p>
+              )}
+              <p className="text-sm font-medium text-foreground">{phrase.english}</p>
+              {phrase.dramaName && (
+                <p className="text-xs text-muted-foreground/50 mt-2">
+                  from <span className="italic">{phrase.dramaName}</span>
+                </p>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Learning Progress Dashboard — 로그인 유저 전용.
             packs.length === 0 일 땐 의미 없는 0/0 카드 노출 회피.

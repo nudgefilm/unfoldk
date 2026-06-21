@@ -172,6 +172,9 @@ export default function KfoodKitPage() {
   const [finderResult, setFinderResult] = useState<FinderResult | null>(null)
   const [finderError, setFinderError] = useState<string | null>(null)
 
+  // K-Food Spotlight — 홈페이지 HallyuThisWeek에서 이동. featured_week 기반 주간 레시피.
+  const [spotlightRecipe, setSpotlightRecipe] = useState<{ id: string; title_en: string | null; drama_title: string | null } | null>(null)
+
   // 주간 K푸드 챌린지 — /api/food/challenges. null = 로딩 또는 없음 (둘 다 섹션 미노출).
   interface ChallengeState {
     id: string
@@ -205,6 +208,12 @@ export default function KfoodKitPage() {
       const row = profile as { plan_type?: string; is_admin?: boolean; trial_ends_at?: string | null } | null
       setIsPro(hasProAccess({ planType: row?.plan_type, isAdmin: row?.is_admin, trialEndsAt: row?.trial_ends_at }))
     })
+
+    // K-Food Spotlight fetch (홈페이지에서 이동)
+    fetch("/api/food/spotlight")
+      .then((r) => (r.ok ? r.json() : { recipe: null }))
+      .then((d: { recipe?: typeof spotlightRecipe }) => setSpotlightRecipe(d.recipe ?? null))
+      .catch(() => {})
 
     // 주간 챌린지 fetch — 공개 GET. challenge null 이면 섹션 미노출.
     fetch("/api/food/challenges", { cache: "no-store" })
@@ -512,6 +521,34 @@ export default function KfoodKitPage() {
             />
           </div>
         </section>
+
+        {/* K-Food Spotlight — 홈페이지 HallyuThisWeek에서 이동. 주간 featured 레시피. */}
+        {spotlightRecipe && (
+          <section className="mb-10">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-4">
+              <h2 className="text-xl font-bold text-white tracking-tight">K-Food Spotlight</h2>
+              <span className="text-xs text-muted-foreground/60">This week&apos;s featured dish</span>
+            </div>
+            <div
+              className="bg-[#1a1a1a] border border-border/30 rounded-2xl p-5 flex items-center justify-between gap-4 cursor-pointer hover:border-primary/40 transition-colors"
+              onClick={() => setActiveRecipeId(spotlightRecipe.id)}
+            >
+              <div>
+                <p className="text-base font-bold text-white leading-tight mb-1">
+                  {spotlightRecipe.title_en ?? "Weekly Featured Recipe"}
+                </p>
+                {spotlightRecipe.drama_title && (
+                  <p className="text-xs text-muted-foreground/60">
+                    as seen in <span className="italic">{spotlightRecipe.drama_title}</span>
+                  </p>
+                )}
+              </div>
+              <span className="text-xs font-medium shrink-0" style={{ color: "#FF4B6E" }}>
+                View recipe →
+              </span>
+            </div>
+          </section>
+        )}
 
         {/* Weekly Challenge Banner — /api/food/challenges 실데이터. 챌린지 없으면 섹션 미노출. */}
         {challenge && (
