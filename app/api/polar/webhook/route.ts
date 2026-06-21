@@ -1,6 +1,6 @@
 import { Webhooks } from "@polar-sh/nextjs"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
-import { HALLYU_PASS_PRODUCT_ID_SET } from "@/lib/polar/constants"
+import { HALLYU_PASS_PRODUCT_ID_SET, POLAR_PRODUCT_IDS } from "@/lib/polar/constants"
 import type { Subscription } from "@polar-sh/sdk/models/components/subscription"
 
 // ── 유저 식별 ─────────────────────────────────────────────────────────────────
@@ -24,10 +24,12 @@ async function resolveUserId(
 }
 
 // ── Hallyu Pass 활성화 ────────────────────────────────────────────────────────
+// planType: users 테이블 check constraint 허용값 — 'monthly' | 'annual'
 async function activateHallyuPass(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
   sub: Subscription,
-  userId: string
+  userId: string,
+  planType: "monthly" | "annual"
 ) {
   const periodEnd =
     sub.currentPeriodEnd instanceof Date
@@ -37,14 +39,14 @@ async function activateHallyuPass(
   // 1단계: plan_type / subscription_status — 핵심 권한 컬럼 (반드시 성공해야 함)
   const { error: planError } = await supabase
     .from("users")
-    .update({ plan_type: "pro", subscription_status: "active", plan_expires_at: periodEnd })
+    .update({ plan_type: planType, subscription_status: "active", plan_expires_at: periodEnd })
     .eq("id", userId)
 
   if (planError) {
-    console.error("[polar/webhook] plan_type 업데이트 실패:", planError.message, { userId, subId: sub.id })
+    console.error("[polar/webhook] plan_type 업데이트 실패:", planError.message, { userId, subId: sub.id, planType })
     return
   }
-  console.info("[polar/webhook] plan_type=pro 반영 완료", { userId, subId: sub.id })
+  console.info(`[polar/webhook] plan_type=${planType} 반영 완료`, { userId, subId: sub.id })
 
   // 2단계: polar_* 컬럼 — migration 0086 적용 후 채워짐 (미적용 시 무시)
   const { error: polarError } = await supabase
@@ -97,7 +99,9 @@ export const POST = Webhooks({
       return
     }
 
-    await activateHallyuPass(supabase, data, userId)
+    // productId 로 월간/연간 구분 — users.plan_type check constraint: 'monthly'|'annual'
+    const planType = data.productId === POLAR_PRODUCT_IDS.annual ? "annual" : "monthly"
+    await activateHallyuPass(supabase, data, userId, planType)
   },
 
   // ── subscription.updated ───────────────────────────────────────────────────
