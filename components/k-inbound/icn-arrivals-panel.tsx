@@ -4,32 +4,6 @@ import { useEffect, useState, useCallback } from "react"
 import { PlaneLanding, RefreshCw } from "lucide-react"
 import type { ArrivalItem } from "@/app/api/k-inbound/arrivals/route"
 
-// IATA → 도시명
-const IATA_CITY: Record<string, string> = {
-  NRT: "Tokyo", HND: "Tokyo", KIX: "Osaka", FUK: "Fukuoka",
-  CTS: "Sapporo", OKA: "Okinawa", NGO: "Nagoya",
-  PEK: "Beijing", PKX: "Beijing", PVG: "Shanghai", SHA: "Shanghai",
-  CAN: "Guangzhou", CTU: "Chengdu", CKG: "Chongqing",
-  WUH: "Wuhan", XMN: "Xiamen", CSX: "Changsha", SZX: "Shenzhen",
-  HKG: "Hong Kong", MFM: "Macau", TPE: "Taipei", KHH: "Kaohsiung",
-  SIN: "Singapore",
-  BKK: "Bangkok", DMK: "Bangkok",
-  HAN: "Hanoi", SGN: "Ho Chi Minh", DAD: "Da Nang",
-  KUL: "Kuala Lumpur", CGK: "Jakarta", MNL: "Manila", CEB: "Cebu",
-  RGN: "Yangon", BKI: "Kota Kinabalu",
-  DEL: "Delhi", BOM: "Mumbai", MAA: "Chennai", CCU: "Kolkata",
-  CMB: "Colombo", DAC: "Dhaka", KTM: "Kathmandu",
-  DXB: "Dubai", AUH: "Abu Dhabi", DOH: "Doha",
-  RUH: "Riyadh", KWI: "Kuwait", TLV: "Tel Aviv",
-  LHR: "London", LGW: "London", CDG: "Paris", FRA: "Frankfurt",
-  MUC: "Munich", AMS: "Amsterdam", ZRH: "Zurich", VIE: "Vienna",
-  MAD: "Madrid", FCO: "Rome", IST: "Istanbul", ARN: "Stockholm",
-  JFK: "New York", LAX: "Los Angeles", ORD: "Chicago", ATL: "Atlanta",
-  SFO: "San Francisco", SEA: "Seattle", YVR: "Vancouver", YYZ: "Toronto",
-  SYD: "Sydney", MEL: "Melbourne", AKL: "Auckland",
-  SVO: "Moscow", ALA: "Almaty", TAS: "Tashkent",
-}
-
 // AeroDataBox .local: "2024-06-22 14:30+09:00" 또는 "2024-06-22T14:30:00+09:00"
 function toHHMM(isoLocal: string): string {
   const part = isoLocal.includes("T")
@@ -112,7 +86,6 @@ export function ICNArrivalsPanel({ onSelect }: Props) {
           </p>
         )}
         {arrivals.map((item) => {
-          const city    = IATA_CITY[item.origin] ?? item.origin
           const eta     = item.estimatedArrival ?? item.scheduledArrival
           const etaHHMM = eta ? toHHMM(eta) : "—"
 
@@ -123,7 +96,7 @@ export function ICNArrivalsPanel({ onSelect }: Props) {
               className="w-full px-3 py-1.5 hover:bg-[#4a9eff]/10 active:bg-[#4a9eff]/20 transition-colors border-b border-white/5 last:border-b-0 text-left"
             >
               <span className="text-[11px] font-mono text-[#94a3b8] truncate block">
-                {item.number}&nbsp;&nbsp;|&nbsp;&nbsp;{city}&nbsp;&nbsp;|&nbsp;&nbsp;{etaHHMM}
+                {item.number}&nbsp;&nbsp;|&nbsp;&nbsp;{item.originCity}&nbsp;&nbsp;|&nbsp;&nbsp;{etaHHMM}
               </span>
             </button>
           )
