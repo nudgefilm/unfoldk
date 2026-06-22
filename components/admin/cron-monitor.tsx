@@ -4,39 +4,34 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
-import { Play } from "lucide-react"
+import { Play, ChevronDown } from "lucide-react"
+import type { RouteSummary, CronLogRow, ServiceGroup } from "@/app/admin/cron/page"
 
-interface CronAction {
-  label: string                                      // 버튼 라벨
-  params?: Record<string, string>                    // route 에 붙일 query string
-}
-
-interface RouteSummary {
-  route: string                                      // API 식별자 (e.g. "ingest-curation-k")
-  displayName?: string                               // UI 표시명 (옵션 — 없으면 route 그대로)
-  lastExecutedAt: string | null
-  lastStatus: "success" | "failed" | null
-  metric: string
-  metricLabel: string
-  actions?: CronAction[]                             // 미지정 시 단일 "수동 실행" 버튼
-}
-
-interface CronLogRow {
-  id: string
-  route: string
-  status: "success" | "failed"
-  result_json: Record<string, unknown> | null
-  executed_at: string
-}
-
-export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; logs: CronLogRow[] }) {
+export function CronMonitor({
+  summaries,
+  logs,
+  groups,
+}: {
+  summaries: RouteSummary[]
+  logs: CronLogRow[]
+  groups: ServiceGroup[]
+}) {
   const router = useRouter()
   const { toast } = useToast()
-  // 동일 route 라도 actions 가 여러 개 있을 수 있어 key 는 `route|label` 조합
   const [runningKey, setRunningKey] = useState<string | null>(null)
   const [, startTransition] = useTransition()
+  // 기본 모두 열린 상태
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(groups.map((g) => [g.label, true]))
+  )
 
-  async function runManually(route: string, action?: CronAction) {
+  const summaryMap = Object.fromEntries(summaries.map((s) => [s.route, s]))
+
+  function toggleGroup(label: string) {
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }))
+  }
+
+  async function runManually(route: string, action?: { label: string; params?: Record<string, string> }) {
     const key = action ? `${route}|${action.label}` : route
     setRunningKey(key)
     try {
@@ -46,17 +41,6 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
         body: JSON.stringify({ route, params: action?.params }),
       })
       const json = await res.json().catch(() => ({}))
-
-      // 성공 판별 정책 (모든 cron 통일):
-      //   - HTTP 200 (json.ok=true) = 함수 정상 종료 → "실행 완료" 라벨
-      //     data-level 오류는 result.error 로 description 에 노출
-      //   - HTTP 非200 또는 admin 프록시 실패 = "실행 실패" 라벨
-      // 주의: HTTP 200 이지만 cron 함수 내부에서 result.error 가 set 된 경우,
-      //       제목은 "실행 완료" 유지 + description 에 오류 사유 노출 (DB 로그도 "failed" 기록됨).
-      // 성공 판별 정책 (모든 cron 통일):
-      //   - HTTP 200 (json.ok=true) = 함수 정상 종료 → "실행 완료" 라벨
-      //     data-level 오류는 result.error 로 description 에 노출
-      //   - HTTP 非200 또는 admin 프록시 실패 = "실행 실패" 라벨
       const httpFailed = !res.ok || !json.ok
       const dataLevelError = pickErrorString(json.result)
       const outerError = pickErrorString(json.error)
@@ -71,10 +55,7 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
       const summary = summarizeRunResult(route, json.result, json.elapsedMs)
       if (dataLevelError) {
         console.warn(`[admin/cron] ${route} data-level 오류:`, json.result)
-        toast({
-          title: "실행 완료 (데이터 오류)",
-          description: `${dataLevelError} · ${summary}`,
-        })
+        toast({ title: "실행 완료 (데이터 오류)", description: `${dataLevelError} · ${summary}` })
       } else {
         toast({ title: "실행 완료", description: summary })
       }
@@ -88,66 +69,97 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
   }
 
   return (
-    <div className="space-y-6">
-      {/* 요약 카드 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {summaries.map((s) => (
-          <div key={s.route} className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="text-foreground font-medium">{s.displayName ?? s.route}</h3>
-                <p className="text-muted-foreground text-xs mt-0.5">
-                  {s.lastExecutedAt
-                    ? `마지막: ${new Date(s.lastExecutedAt).toLocaleString("ko-KR")}`
-                    : "실행 기록 없음"}
-                </p>
-              </div>
-              {s.lastStatus && (
-                <span
-                  className="text-xs font-medium px-2 py-0.5 rounded-full"
-                  style={{
-                    backgroundColor:
-                      s.lastStatus === "success" ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
-                    color: s.lastStatus === "success" ? "#22c55e" : "#ef4444",
-                  }}
-                >
-                  {s.lastStatus}
-                </span>
-              )}
-            </div>
+    <div className="space-y-3">
+      {groups.map((group) => {
+        const isOpen = !!openGroups[group.label]
+        const groupSummaries = group.routes.map((r) => summaryMap[r]).filter(Boolean)
+        const allOk = groupSummaries.every((s) => s.lastStatus === "success")
+        const anyFailed = groupSummaries.some((s) => s.lastStatus === "failed")
+        const statusColor = anyFailed ? "#ef4444" : allOk && groupSummaries.length > 0 ? "#22c55e" : "#6b7280"
 
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="text-muted-foreground text-xs">{s.metricLabel}</p>
-                <p className="text-foreground text-2xl font-bold">{s.metric}</p>
+        return (
+          <div key={group.label} className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden">
+            {/* 아코디언 헤더 */}
+            <button
+              className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
+              onClick={() => toggleGroup(group.label)}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-foreground font-semibold">{group.label}</span>
+                <span className="text-muted-foreground text-xs">{groupSummaries.length}개 cron</span>
+                <span
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: statusColor }}
+                />
               </div>
-              <div className="flex flex-wrap gap-2 justify-end">
-                {(s.actions ?? [{ label: "수동 실행" }]).map((action) => {
-                  const key = `${s.route}|${action.label}`
-                  const isRunning = runningKey === key
-                  return (
-                    <Button
-                      key={key}
-                      size="sm"
-                      onClick={() => runManually(s.route, action)}
-                      disabled={runningKey !== null}
-                      className="rounded-full"
-                      style={{ backgroundColor: "#FF4B6E", color: "white" }}
-                    >
-                      <Play className="w-3 h-3 mr-1" />
-                      {isRunning ? "실행 중..." : action.label}
-                    </Button>
-                  )
-                })}
+              <ChevronDown
+                className="w-4 h-4 text-muted-foreground transition-transform duration-200"
+                style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+              />
+            </button>
+
+            {/* 아코디언 바디 */}
+            {isOpen && (
+              <div className="border-t border-[#2a2a2a] divide-y divide-[#2a2a2a]">
+                {groupSummaries.map((s) => (
+                  <div key={s.route} className="flex items-center justify-between gap-4 px-5 py-4">
+                    {/* 왼쪽: 이름 + 마지막 실행 */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-foreground text-sm font-medium">{s.displayName ?? s.route}</span>
+                        {s.lastStatus && (
+                          <span
+                            className="text-xs font-medium px-1.5 py-0.5 rounded-full flex-shrink-0"
+                            style={{
+                              backgroundColor:
+                                s.lastStatus === "success"
+                                  ? "rgba(34, 197, 94, 0.15)"
+                                  : "rgba(239, 68, 68, 0.15)",
+                              color: s.lastStatus === "success" ? "#22c55e" : "#ef4444",
+                            }}
+                          >
+                            {s.lastStatus}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground text-xs mt-0.5">
+                        {s.lastExecutedAt
+                          ? `${new Date(s.lastExecutedAt).toLocaleString("ko-KR")} · ${s.metricLabel}: ${s.metric}`
+                          : "실행 기록 없음"}
+                      </p>
+                    </div>
+
+                    {/* 오른쪽: 실행 버튼 */}
+                    <div className="flex flex-wrap gap-2 justify-end flex-shrink-0">
+                      {(s.actions ?? [{ label: "Run" }]).map((action) => {
+                        const key = `${s.route}|${action.label}`
+                        const isRunning = runningKey === key
+                        return (
+                          <Button
+                            key={key}
+                            size="sm"
+                            onClick={() => runManually(s.route, action)}
+                            disabled={runningKey !== null}
+                            className="rounded-full text-xs h-7 px-3"
+                            style={{ backgroundColor: "#FF4B6E", color: "white" }}
+                          >
+                            <Play className="w-3 h-3 mr-1" />
+                            {isRunning ? "실행 중..." : action.label}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
           </div>
-        ))}
-      </div>
+        )
+      })}
 
       {/* 최근 로그 */}
-      <section>
-        <h2 className="text-foreground text-lg font-semibold mb-3">최근 실행 로그 (20건)</h2>
+      <section className="pt-2">
+        <h2 className="text-foreground text-base font-semibold mb-3">최근 실행 로그 (20건)</h2>
         <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden">
           <table className="w-full">
             <thead>
@@ -168,7 +180,7 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
               )}
               {logs.map((log) => (
                 <tr key={log.id} className="border-b border-[#2a2a2a] last:border-b-0">
-                  <td className="text-muted-foreground text-sm px-4 py-3">
+                  <td className="text-muted-foreground text-sm px-4 py-3 whitespace-nowrap">
                     {new Date(log.executed_at).toLocaleString("ko-KR")}
                   </td>
                   <td className="text-foreground text-sm px-4 py-3">{log.route}</td>
@@ -197,8 +209,7 @@ export function CronMonitor({ summaries, logs }: { summaries: RouteSummary[]; lo
   )
 }
 
-// 수동 실행 응답 → 사용자에게 보여줄 한 줄 요약.
-// 라우트별로 result_json 핵심 필드를 추출. 형식 변경 시 신규 라우트 분기 추가.
+// 수동 실행 응답 → 사용자에게 보여줄 한 줄 요약
 function summarizeRunResult(route: string, result: unknown, elapsedMs: number): string {
   const time = `${elapsedMs}ms`
   if (typeof result !== "object" || result === null) return time
@@ -206,7 +217,6 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
   const r = result as Record<string, unknown>
 
   if (route === "ingest-tour-spots") {
-    // TourSpotsIngestResult — { total_upserted, total_translated, total_enriched, categories[], errors }
     const upserted = num(r.total_upserted)
     const translated = num(r.total_translated)
     const enriched = num(r.total_enriched)
@@ -221,7 +231,6 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
   }
 
   if (route === "ingest-filming-kpop") {
-    // CombinedResult — { filming, kpop, errors }
     const filming = r.filming as { spotsInserted?: number } | null | undefined
     const kpop = r.kpop as { spotsUpserted?: number; claude?: { upserted?: number } | null } | null | undefined
     const filmCount = filming && typeof filming === "object" ? num(filming.spotsInserted) : 0
@@ -233,18 +242,13 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
     return `촬영지 ${filmCount}건 · K팝 성지 ${kpopCount}건${claudePart}${errPart} · ${time}`
   }
 
-  if (route === "ingest-ticketmaster") {
-    return `수집 ${num(r.upserted)}건 · ${time}`
-  }
+  if (route === "ingest-ticketmaster") return `수집 ${num(r.upserted)}건 · ${time}`
 
   if (route === "ingest-tmdb-dramas") {
-    // DramaIngestResult — 메트릭만 반환. data-level 오류는 runManually 가 별도 처리.
     return `드라마 ${num(r.upserted)}건 (스캔 ${num(r.scanned)} · 캘린더 매핑 ${num(r.calendarLinked)}) · ${time}`
   }
 
   if (route === "ingest-kpop-stats") {
-    // KpopStatsIngestResult — upserted=오늘 stats row, YT/Last.fm 페치 수,
-    // 자동 채널 매핑, thumbnail backfill, K-pop 차트 rank 매핑 수.
     const errors = Array.isArray(r.errors) ? r.errors.length : 0
     const errPart = errors > 0 ? ` · errors ${errors}` : ""
     const mapped = num(r.channelsAutoMapped)
@@ -259,7 +263,6 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
   }
 
   if (route === "ingest-korean-phrases") {
-    // KoreanPhrasesIngestResult — generated/skipped/unknown_dramas/auto_added_dramas/errors.
     const errors = Array.isArray(r.errors) ? r.errors.length : 0
     const errPart = errors > 0 ? ` · errors ${errors}` : ""
     const autoAdded = num(r.auto_added_dramas)
@@ -268,27 +271,17 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
   }
 
   if (route === "ingest-food-recipes") {
-    // CombinedPayload — ingest + image backfill (3 phase) + title backfill + errors.
     const errors = Array.isArray(r.errors) ? r.errors.length : 0
     const errPart = errors > 0 ? ` · errors ${errors}` : ""
     const backfill = r.backfill as
-      | {
-          candidates?: unknown
-          phase1_updated?: unknown
-          phase2_updated?: unknown
-          phase3_updated?: unknown
-          unmatched?: unknown
-        }
+      | { candidates?: unknown; phase1_updated?: unknown; phase2_updated?: unknown; phase3_updated?: unknown; unmatched?: unknown }
       | null
       | undefined
     const backfillPart =
       backfill && typeof backfill === "object"
         ? ` · 이미지 mfds ${num(backfill.phase1_updated) + num(backfill.phase2_updated)} + unsplash ${num(backfill.phase3_updated)} (cand ${num(backfill.candidates)} · miss ${num(backfill.unmatched)})`
         : ""
-    const titleBackfill = r.title_backfill as
-      | { updated?: unknown; pending?: unknown }
-      | null
-      | undefined
+    const titleBackfill = r.title_backfill as { updated?: unknown; pending?: unknown } | null | undefined
     const titlePart =
       titleBackfill && typeof titleBackfill === "object"
         ? ` · 영문 ${num(titleBackfill.updated)}건 (pending ${num(titleBackfill.pending)})`
@@ -307,13 +300,25 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
   }
 
   if (route === "backfill-filming-descriptions") {
-    // FilmingDescriptionsBackfillResult — scanned/updated/apiErrors/errors.
     const errors = Array.isArray(r.errors) ? r.errors.length : 0
     const errPart = errors > 0 ? ` · errors ${errors}` : ""
     const apiErr = num(r.apiErrors)
     const apiErrPart = apiErr > 0 ? ` · api-err ${apiErr}` : ""
     return `backfill ${num(r.updated)}건 (스캔 ${num(r.scanned)})${apiErrPart}${errPart} · ${time}`
   }
+
+  if (route === "generate-artist-reports") return `리포트 ${num(r.saved)}건 · ${time}`
+  if (route === "generate-comeback-guides") return `가이드 ${num(r.saved)}건 · ${time}`
+  if (route === "generate-monthly-report") {
+    const month = (r.month as string | undefined) ?? "—"
+    return `월간 리포트 ${month} · ${time}`
+  }
+  if (route === "generate-weekly-routines") return `루틴 ${num(r.saved)}건 · ${time}`
+  if (route === "weekly-report") {
+    const wr = r as { duplicate?: boolean; week_start?: string }
+    return wr.duplicate ? `skip (이미 생성) · ${time}` : `주간 리포트 ${wr.week_start ?? "—"} · ${time}`
+  }
+  if (route === "kpop-weekly") return `완료 · ${time}`
 
   return `${route} · ${time}`
 }
@@ -322,17 +327,6 @@ function num(v: unknown): number {
   return typeof v === "number" ? v : 0
 }
 
-// 임의 형태의 에러 값을 사람이 읽을 수 있는 단일 문자열로 압축.
-//
-// 처리 케이스:
-//   - string                          → 그대로
-//   - Error                           → err.message
-//   - { error, details, hint, code }  → "error (code): details — hint" 조합 (PostgrestError 패턴)
-//   - { error }                       → recurse
-//   - 기타 object                     → JSON.stringify (실패 시 String(...) fallback)
-//   - null/undefined                  → null (호출부에서 fallback 처리)
-//
-// 절대 .toString() 직접 호출 금지 — 객체는 "[object Object]" 가 됨.
 function pickErrorString(value: unknown): string | null {
   if (value == null) return null
   if (typeof value === "string") return value
@@ -341,7 +335,6 @@ function pickErrorString(value: unknown): string | null {
 
   const obj = value as Record<string, unknown>
 
-  // 인제스트 결과: { error, details, hint, code }
   if (typeof obj.error === "string") {
     const parts = [obj.error]
     if (typeof obj.code === "string") parts[0] = `${obj.error} (${obj.code})`
@@ -350,7 +343,6 @@ function pickErrorString(value: unknown): string | null {
     return parts.join(" — ")
   }
 
-  // 중첩 { error: ... } 한 단계만 더 들여다봄
   if ("error" in obj) {
     const nested = pickErrorString(obj.error)
     if (nested) return nested

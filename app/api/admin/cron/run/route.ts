@@ -16,6 +16,10 @@ import { GET as sendReminders } from "@/app/api/cron/send-reminders/route"
 import { GET as backfillFilmingDescriptions } from "@/app/api/cron/backfill-filming-descriptions/route"
 import { GET as weeklyReport } from "@/app/api/cron/weekly-report/route"
 import { GET as kpopWeekly } from "@/app/api/cron/kpop-weekly/route"
+import { GET as generateArtistReports } from "@/app/api/cron/generate-artist-reports/route"
+import { GET as generateComebackGuides } from "@/app/api/cron/generate-comeback-guides/route"
+import { GET as generateMonthlyReport } from "@/app/api/cron/generate-monthly-report/route"
+import { GET as generateWeeklyRoutines } from "@/app/api/cron/generate-weekly-routines/route"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -41,6 +45,10 @@ const PostSchema = z.object({
     "backfill-filming-descriptions",
     "weekly-report",
     "kpop-weekly",
+    "generate-artist-reports",
+    "generate-comeback-guides",
+    "generate-monthly-report",
+    "generate-weekly-routines",
   ]),
   // 선택적 쿼리 파라미터 — cron 라우트가 옵션을 받을 때 (e.g. ingest-tour-spots?only_festivals=true)
   // 값은 모두 문자열로 직렬화. 키·값 길이는 64자 cap.
@@ -65,6 +73,10 @@ const CRON_HANDLERS: Record<RouteKey, (req: Request) => Promise<Response>> = {
   "backfill-filming-descriptions": backfillFilmingDescriptions,
   "weekly-report": weeklyReport,
   "kpop-weekly": kpopWeekly,
+  "generate-artist-reports": generateArtistReports,
+  "generate-comeback-guides": generateComebackGuides,
+  "generate-monthly-report": generateMonthlyReport,
+  "generate-weekly-routines": generateWeeklyRoutines,
 }
 
 export async function POST(request: Request) {
