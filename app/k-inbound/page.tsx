@@ -21,6 +21,7 @@ import { RouteProgressBar } from "@/components/k-inbound/route-progress-bar"
 import { FlightSearchBar } from "@/components/k-inbound/search-bar"
 import { FlightSuggestionsModal } from "@/components/k-inbound/flight-suggestions-modal"
 import { GlobalComms } from "@/components/k-inbound/global-comms"
+import { ICNArrivalsPanel } from "@/components/k-inbound/icn-arrivals-panel"
 import type { GlobeHandle } from "@/components/k-inbound/globe"
 import type { FlightData, FIDSSuggestion } from "@/app/api/k-inbound/flight/route"
 
@@ -172,6 +173,7 @@ export default function KInboundPage() {
       <div className="absolute top-2 right-2 bottom-16 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <FlightStatusPanel  flight={flight} />
         <LiveTelemetryPanel flight={flight} />
+        <ICNArrivalsPanel   onSelect={handleSearch} />
       </div>
 
       {/* 하단 경로 바 — 중앙 카드 */}
