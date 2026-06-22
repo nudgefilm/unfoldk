@@ -4,6 +4,40 @@
 
 ---
 
+## 현재 상태 (2026-06-22 세션 75 기준)
+
+### Cron 버그 수정 + 브라우저 번역 hydration 에러 방지
+
+**완료 항목**
+
+- **cron 4개 POST → GET 수정** (Vercel Cron은 GET 요청 전송)
+  - 원인: Vercel 로그에서 `GET /api/cron/generate-artist-reports → 405` 확인
+    → 4개 cron 라우트만 `POST`로 선언, 나머지 29개는 모두 `GET`
+  - `app/api/cron/generate-artist-reports/route.ts` — `artist_weekly_reports` 매주 월요일 01:00 UTC
+  - `app/api/cron/generate-comeback-guides/route.ts` — 매일 02:00 UTC
+  - `app/api/cron/generate-monthly-report/route.ts` — 매월 1일 02:00 UTC
+  - `app/api/cron/generate-weekly-routines/route.ts` — 매주 일요일 23:00 UTC
+  - **주의**: `artist_weekly_reports` 이번 주(2026-06-22) 데이터는 다음 자동 실행(2026-06-29)까지 공백.
+    즉시 필요 시 Vercel Dashboard → Functions → `generate-artist-reports` 수동 실행 필요
+
+- **브라우저 번역 hydration 에러 방지** (`components/translation-guard.tsx` 신규)
+  - 증상: Google 번역 등 활성 상태에서 SPA 라우팅 시 React DOM reconcile 실패 → 페이지 먹통
+  - 해결: `usePathname()` 구독 → 경로 변경 시 `translated-ltr`/`translated-rtl` 클래스 감지
+    → 번역 활성 상태에서만 `window.location.href = pathname` (full reload), 미활성 시 SPA 그대로
+  - 번역 자체는 허용 (`translate="no"` 미적용) — DOM 조작 충돌만 차단
+  - `app/layout.tsx`에 `<TranslationGuard />` 마운트
+
+- **Error Boundary 신규 생성**
+  - `app/error.tsx` — 페이지 단위 에러 경계, Refresh 버튼으로 `reset()` 재시도
+  - `app/global-error.tsx` — 루트 레이아웃 에러까지 잡는 최상위 경계 (자체 `<html>/<body>` 포함, inline 스타일)
+
+**다음 세션**
+- GA4 Realtime 리포트 PageView 확인 (Vercel Redeploy 후)
+- Polar 만료 시 자동 downgrade cron 구현
+- `artist_weekly_reports` 이번 주 데이터 필요 시 수동 실행
+
+---
+
 ## 현재 상태 (2026-06-22 세션 74 기준)
 
 ### 홈페이지 콜드 트래픽 최적화 + GA4 연동
