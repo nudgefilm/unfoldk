@@ -173,7 +173,7 @@ export default function KInboundPage() {
       <div className="absolute top-2 right-2 bottom-16 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <FlightStatusPanel  flight={flight} />
         <LiveTelemetryPanel flight={flight} />
-        <ICNArrivalsPanel   onSelect={(fn) => handleSearch(fn, true)} />
+        <ICNArrivalsPanel   onSelect={handleSearch} />
       </div>
 
       {/* 하단 경로 바 — 중앙 카드 */}

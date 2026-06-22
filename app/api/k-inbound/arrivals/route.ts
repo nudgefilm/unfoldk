@@ -84,7 +84,7 @@ async function fetchFromAeroDataBox(apiKey: string): Promise<ArrivalItem[]> {
         const bMs = new Date(b.estimatedArrival ?? b.scheduledArrival).getTime()
         return aMs - bMs
       })
-      .slice(0, 10)
+      .slice(0, 15)
   )
 }
 
