@@ -7,6 +7,7 @@ import { BentoSection, type ServiceStats } from "@/components/bento-section"
 import { FooterSection } from "@/components/footer-section"
 import { AnimatedSection } from "@/components/animated-section"
 import { UnauthorizedToast } from "@/components/unauthorized-toast"
+import { MaintenanceModal } from "@/components/maintenance-modal"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 
 export const revalidate = 3600
@@ -134,6 +135,7 @@ export default async function LandingPage() {
   return (
     <>
       <UnauthorizedToast />
+      <MaintenanceModal />
       <div className="min-h-screen bg-background relative overflow-hidden pb-0">
         <FloatingCalendarWidget />
         <div className="relative z-10">
