@@ -25,7 +25,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
-import { usePolar } from "@/components/PolarProvider"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 // useSearchParams() 는 Suspense boundary 안에서만 사용 가능 — Next.js 빌드 요구사항
 export default function StartPage() {
@@ -55,7 +55,7 @@ function StartPageInner() {
   const [authChecked, setAuthChecked] = useState(false)
   const [userEmail, setUserEmail] = useState<string | undefined>()
   const [userId, setUserId] = useState<string | undefined>()
-  const { openCheckout } = usePolar()
+  const [maintenanceOpen, setMaintenanceOpen] = useState(false)
 
   // 진입 가드 — 비로그인이면 / 로
   useEffect(() => {
@@ -115,10 +115,9 @@ function StartPageInner() {
       return
     }
 
-    // 유료 플랜 — Polar 호스팅 체크아웃 페이지로 리다이렉트
-    // 결제 완료 후 Polar 가 /mypage/subscription 으로 복귀시킴
+    // 유료 플랜 선택 시 결제 서비스 일시 중단 안내
     setIsLoading(false)
-    openCheckout(isAnnual ? "annual" : "monthly", { email: userEmail, userId })
+    setMaintenanceOpen(true)
   }
 
   // 인증 검사 전엔 빈 화면 (깜빡임 방지)
@@ -274,6 +273,31 @@ function StartPageInner() {
       <p className="text-muted-foreground text-xs mt-8 relative z-10">
         © 2026 UNFOLD LAB · unfoldk.com
       </p>
+
+      <Dialog open={maintenanceOpen} onOpenChange={setMaintenanceOpen}>
+        <DialogContent className="sm:max-w-[420px]" style={{ backgroundColor: "#141418" }}>
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Service Under Maintenance</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            We&apos;re currently pausing new subscriptions as we improve our services.
+            We&apos;ll notify you by email when we&apos;re back.
+            Questions?{" "}
+            <a href="mailto:support@unfoldk.com" className="underline" style={{ color: "#FF4B6E" }}>
+              support@unfoldk.com
+            </a>
+          </p>
+          <div className="flex justify-end mt-2">
+            <Button
+              onClick={() => { setMaintenanceOpen(false); router.push("/mypage"); router.refresh() }}
+              className="rounded-full font-medium text-white"
+              style={{ backgroundColor: "#FF4B6E" }}
+            >
+              Go to Dashboard
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

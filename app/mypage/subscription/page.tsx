@@ -37,7 +37,6 @@ import {
   Sparkles,
 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
-import { usePolar } from "@/components/PolarProvider"
 
 const sidebarLinks = [
   { icon: Home, label: "Dashboard", href: "/mypage" },
@@ -571,12 +570,12 @@ interface FreeUserViewProps {
 
 function FreeUserView({ userEmail, userId }: FreeUserViewProps) {
   const router = useRouter()
-  const { openCheckout } = usePolar()
   // Redeem 모달 — 쿠폰 성공 시 닫고 페이지 refresh 로 plan_type 즉시 반영
   const [redeemOpen, setRedeemOpen] = useState(false)
+  const [maintenanceOpen, setMaintenanceOpen] = useState(false)
 
-  function handleCheckout(annual: boolean) {
-    openCheckout(annual ? "annual" : "monthly", { email: userEmail, userId })
+  function handleCheckout(_annual: boolean) {
+    setMaintenanceOpen(true)
   }
   return (
     <>
@@ -698,6 +697,32 @@ function FreeUserView({ userEmail, userId }: FreeUserViewProps) {
           </div>
         </div>
       </section>
+
+      <Dialog open={maintenanceOpen} onOpenChange={setMaintenanceOpen}>
+        <DialogContent className="sm:max-w-[420px]" style={{ backgroundColor: "#141418" }}>
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Service Under Maintenance</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            We&apos;re currently pausing new subscriptions as we improve our services.
+            We&apos;ll notify you by email when we&apos;re back.
+            Questions?{" "}
+            <a href="mailto:support@unfoldk.com" className="underline" style={{ color: "#FF4B6E" }}>
+              support@unfoldk.com
+            </a>
+          </p>
+          <div className="flex justify-end mt-2">
+            <Button
+              onClick={() => setMaintenanceOpen(false)}
+              className="rounded-full font-medium text-white"
+              style={{ backgroundColor: "#FF4B6E" }}
+            >
+              Got it
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
+
