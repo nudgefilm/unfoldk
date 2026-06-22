@@ -98,7 +98,7 @@ function isCompleted(
   return count >= routineItems.length
 }
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   const auth = verifyCronAuth(request)
   if (!auth.ok) return NextResponse.json({ error: auth.reason }, { status: 401 })
 

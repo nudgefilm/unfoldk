@@ -70,7 +70,7 @@ Write the comeback streaming guide using the submit_guide tool.`
 
 // ─── Cron 핸들러 ──────────────────────────────────────────────────────────────
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   const auth = verifyCronAuth(request)
   if (!auth.ok) return NextResponse.json({ error: auth.reason }, { status: 401 })
 
