@@ -323,11 +323,29 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
 
         const elapsed  = now - flight.fetchedAt
         const total    = flight.elapsedMs + flight.remainingMs || 1
-        // noArc 모드: 항공기를 도착지(ICN) 직전에 고정, 진입 방향 계산 가능하게 0.99 사용
-        const ft       = noArcRef.current ? 0.99 : Math.min(flight.progressRatio + elapsed / total, 1)
-        const mainPos  = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, ft)
-        // noArc 모드에서는 1.0(도착지)을 next로 써서 최종 진입 방향 계산
-        const nextFt   = noArcRef.current ? 1.0 : Math.min(ft + 0.01, 0.99)
+
+        // ft/nextFt 계산: nextFt > ft 를 항상 보장해야 방향 벡터가 정방향
+        let ft: number, nextFt: number
+        if (noArcRef.current) {
+          // noArc 모드: ICN 직전 고정, 최종 진입 방향(0.99→1.0) 사용
+          ft     = 0.99
+          nextFt = 1.0
+        } else {
+          const rawFt = Math.min(flight.progressRatio + elapsed / total, 1)
+          if (rawFt >= 1.0) {
+            // 착륙 완료 — 0.99→1.0 진입 방향으로 고정 (역방향 방지)
+            ft     = 0.99
+            nextFt = 1.0
+          } else if (rawFt >= 0.95) {
+            // 착륙 임박 — nextFt를 1.0까지 허용 (0.99 clamp 제거)
+            ft     = rawFt
+            nextFt = Math.min(rawFt + 0.01, 1.0)
+          } else {
+            ft     = rawFt
+            nextFt = rawFt + 0.01
+          }
+        }
+        const mainPos     = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, ft)
         const mainNextPos = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, nextFt)
 
         mainMesh.position.copy(mainPos)
