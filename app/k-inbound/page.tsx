@@ -68,7 +68,7 @@ export default function KInboundPage() {
     })
   }, [])
 
-  const handleSearch = useCallback(async (flightNumber: string) => {
+  const handleSearch = useCallback(async (flightNumber: string, noArc = false) => {
     setSearching(true)
     setSearchError(null)
     try {
@@ -85,7 +85,7 @@ export default function KInboundPage() {
       if (!res.ok) { setSearchError("Service unavailable."); return }
       const { flight: f } = await res.json() as { flight: FlightData }
       setFlight(f)
-      globeRef.current?.setFlight(f) // 내부에서 현재 위치 계산 후 자동 flyTo
+      globeRef.current?.setFlight(f, noArc ? { noArc: true } : undefined)
     } catch {
       setSearchError("Network error. Please try again.")
     } finally {
@@ -173,7 +173,7 @@ export default function KInboundPage() {
       <div className="absolute top-2 right-2 bottom-16 z-10 w-[280px] hidden md:flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <FlightStatusPanel  flight={flight} />
         <LiveTelemetryPanel flight={flight} />
-        <ICNArrivalsPanel   onSelect={handleSearch} />
+        <ICNArrivalsPanel   onSelect={(fn) => handleSearch(fn, true)} />
       </div>
 
       {/* 하단 경로 바 — 중앙 카드 */}

@@ -17,7 +17,7 @@ import { getArcPoints, getPointOnArc, latLngToVec3, GLOBE_RADIUS } from "./route
 import type { FlightData } from "@/app/api/k-inbound/flight/route"
 
 export interface GlobeHandle {
-  setFlight: (flight: FlightData | null) => void
+  setFlight: (flight: FlightData | null, opts?: { noArc?: boolean }) => void
   flyTo: (lat: number, lng: number, duration?: number) => void
 }
 
@@ -101,26 +101,37 @@ function calcAircraftQuaternion(pos: THREE.Vector3, nextPos: THREE.Vector3): THR
 }
 
 const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ className }, ref) {
-  const mountRef  = useRef<HTMLDivElement>(null)
-  const flightRef = useRef<FlightData | null>(null)
-  const flyToRef  = useRef<((lat: number, lng: number, duration: number) => void) | null>(null)
+  const mountRef   = useRef<HTMLDivElement>(null)
+  const flightRef  = useRef<FlightData | null>(null)
+  const flyToRef   = useRef<((lat: number, lng: number, duration: number) => void) | null>(null)
+  // 항공편 전환 시 이전 arc 즉시 제거 플래그
+  const clearArcRef = useRef(false)
+  // noArc 모드: 경로선 없이 도착지(ICN)에 아이콘만 표시
+  const noArcRef    = useRef(false)
 
   useImperativeHandle(ref, () => ({
-    setFlight(f) {
-      flightRef.current = f
+    setFlight(f, opts) {
+      flightRef.current  = f
+      clearArcRef.current = true                // 이전 arc 잔상 즉시 제거
+      noArcRef.current   = opts?.noArc ?? false
       if (f && flyToRef.current) {
-        const elapsed = Date.now() - f.fetchedAt
-        const total   = f.elapsedMs + f.remainingMs || 1
-        const ft      = Math.min(f.progressRatio + elapsed / total, 1)
-        const pos     = getPointOnArc(
-          f.departure.lat, f.departure.lng,
-          f.arrival.lat,   f.arrival.lng,
-          ft,
-        )
-        const r   = pos.length()
-        const lat = 90 - Math.acos(Math.max(-1, Math.min(1, pos.y / r))) * (180 / Math.PI)
-        const lng = Math.atan2(pos.z, -pos.x) * (180 / Math.PI) - 180
-        flyToRef.current(lat, lng, 1500)
+        if (opts?.noArc) {
+          // noArc 모드: 도착지(ICN) 기준으로 카메라 이동
+          flyToRef.current(f.arrival.lat, f.arrival.lng, 1500)
+        } else {
+          const elapsed = Date.now() - f.fetchedAt
+          const total   = f.elapsedMs + f.remainingMs || 1
+          const ft      = Math.min(f.progressRatio + elapsed / total, 1)
+          const pos     = getPointOnArc(
+            f.departure.lat, f.departure.lng,
+            f.arrival.lat,   f.arrival.lng,
+            ft,
+          )
+          const r   = pos.length()
+          const lat = 90 - Math.acos(Math.max(-1, Math.min(1, pos.y / r))) * (180 / Math.PI)
+          const lng = Math.atan2(pos.z, -pos.x) * (180 / Math.PI) - 180
+          flyToRef.current(lat, lng, 1500)
+        }
       }
     },
     flyTo(lat, lng, duration = 1200) { flyToRef.current?.(lat, lng, duration) },
@@ -288,21 +299,36 @@ const KInboundGlobe = forwardRef<GlobeHandle, Props>(function KInboundGlobe({ cl
 
       // 실제 항공편
       if (flight) {
-        arcMat.opacity  = Math.min(arcMat.opacity + 0.02, 0.85)
-        mainMat.opacity = Math.min(mainMat.opacity + 0.02, 1)
-        if (!arcLine) {
-          const pts = getArcPoints(
-            flight.departure.lat, flight.departure.lng,
-            flight.arrival.lat,   flight.arrival.lng,
-          )
-          arcLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), arcMat)
-          scene.add(arcLine)
+        // 항공편 전환 시 이전 arc 즉시 제거 (잔상 방지)
+        if (clearArcRef.current) {
+          if (arcLine) { scene.remove(arcLine); arcLine = null }
+          arcMat.opacity = 0
+          clearArcRef.current = false
         }
-        const elapsed    = now - flight.fetchedAt
-        const total      = flight.elapsedMs + flight.remainingMs || 1
-        const ft         = Math.min(flight.progressRatio + elapsed / total, 1)
-        const mainPos    = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, ft)
-        const mainNextPos = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, Math.min(ft + 0.01, 0.99))
+
+        mainMat.opacity = Math.min(mainMat.opacity + 0.02, 1)
+
+        // noArc 모드(사이드바 arrivals 클릭): 경로선 생성·표시 생략
+        if (!noArcRef.current) {
+          arcMat.opacity = Math.min(arcMat.opacity + 0.02, 0.85)
+          if (!arcLine) {
+            const pts = getArcPoints(
+              flight.departure.lat, flight.departure.lng,
+              flight.arrival.lat,   flight.arrival.lng,
+            )
+            arcLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), arcMat)
+            scene.add(arcLine)
+          }
+        }
+
+        const elapsed  = now - flight.fetchedAt
+        const total    = flight.elapsedMs + flight.remainingMs || 1
+        // noArc 모드: 항공기를 도착지(ICN) 직전에 고정, 진입 방향 계산 가능하게 0.99 사용
+        const ft       = noArcRef.current ? 0.99 : Math.min(flight.progressRatio + elapsed / total, 1)
+        const mainPos  = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, ft)
+        // noArc 모드에서는 1.0(도착지)을 next로 써서 최종 진입 방향 계산
+        const nextFt   = noArcRef.current ? 1.0 : Math.min(ft + 0.01, 0.99)
+        const mainNextPos = getPointOnArc(flight.departure.lat, flight.departure.lng, flight.arrival.lat, flight.arrival.lng, nextFt)
 
         mainMesh.position.copy(mainPos)
         // AIRCRAFT_FORWARD(+X)를 진행방향으로 정렬하는 Quaternion 적용

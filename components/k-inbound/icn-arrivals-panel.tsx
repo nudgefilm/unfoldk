@@ -99,7 +99,7 @@ export function ICNArrivalsPanel({ onSelect }: Props) {
   return (
     <div className="bg-black/40 backdrop-blur-md border border-[#4a9eff]/20 rounded-xl overflow-hidden flex flex-col">
       {/* 헤더 */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#4a9eff]/10 flex-shrink-0">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[#4a9eff]/10 flex-shrink-0">
         <div className="flex items-center gap-1.5">
           <PlaneLanding className="w-3.5 h-3.5 text-[#4a9eff]" />
           <span className="text-[#4a9eff] text-[10px] font-bold tracking-widest uppercase">
@@ -120,7 +120,7 @@ export function ICNArrivalsPanel({ onSelect }: Props) {
       </div>
 
       {/* 리스트 */}
-      <div className="overflow-y-auto max-h-[280px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="overflow-y-auto max-h-[320px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* 로딩 */}
         {loading && arrivals.length === 0 && (
           <div className="flex items-center justify-center py-6">
@@ -141,7 +141,7 @@ export function ICNArrivalsPanel({ onSelect }: Props) {
         {/* 빈 상태 */}
         {!loading && !error && arrivals.length === 0 && (
           <p className="text-[#94a3b8]/50 text-[10px] text-center py-5 px-3">
-            No arrivals data for today.
+            No more arrivals today.
           </p>
         )}
 
@@ -158,7 +158,7 @@ export function ICNArrivalsPanel({ onSelect }: Props) {
             <button
               key={item.number}
               onClick={() => onSelect(item.number)}
-              className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-[#4a9eff]/10 active:bg-[#4a9eff]/20 transition-colors border-b border-white/5 last:border-b-0 text-left"
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#4a9eff]/10 active:bg-[#4a9eff]/20 transition-colors border-b border-white/5 last:border-b-0 text-left"
             >
               {/* 항공편명 */}
               <span

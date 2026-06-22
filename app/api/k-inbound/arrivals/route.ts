@@ -42,6 +42,8 @@ async function fetchFromAeroDataBox(apiKey: string): Promise<ArrivalItem[]> {
   const body = await res.json() as { arrivals?: unknown[] }
   if (!Array.isArray(body.arrivals)) return []
 
+  const now = Date.now()
+
   return (
     body.arrivals
       .map((f: unknown): ArrivalItem | null => {
@@ -56,6 +58,14 @@ async function fetchFromAeroDataBox(apiKey: string): Promise<ArrivalItem[]> {
           ((arr?.scheduledTime as Record<string, unknown> | undefined)?.local as string) ?? ""
         const estimatedArrival =
           ((arr?.estimatedTime as Record<string, unknown> | undefined)?.local as string) || undefined
+        const status = (fl.status as string) ?? "Unknown"
+
+        // 이미 착륙했거나 ETA가 현재 시각 이전인 편 제외
+        const isLanded = status === "Landed" || status === "Arrived"
+        if (isLanded) return null
+
+        const etaMs = new Date(estimatedArrival ?? scheduledArrival).getTime()
+        if (etaMs && etaMs < now) return null
 
         return {
           number:   (fl.number as string)                           ?? "",
@@ -64,21 +74,17 @@ async function fetchFromAeroDataBox(apiKey: string): Promise<ArrivalItem[]> {
           originName: (depAirport?.name as string)                  ?? "",
           scheduledArrival,
           estimatedArrival,
-          status:   (fl.status as string)                           ?? "Unknown",
+          status,
         }
       })
       .filter((item): item is ArrivalItem => item !== null && !!item.number && !!item.scheduledArrival)
-      // Landed/Arrived 는 맨 뒤, 나머지는 ETA 오름차순
+      // ETA 오름차순 정렬
       .sort((a, b) => {
-        const aLanded = a.status === "Landed" || a.status === "Arrived"
-        const bLanded = b.status === "Landed" || b.status === "Arrived"
-        if (aLanded && !bLanded) return 1
-        if (!aLanded && bLanded) return -1
         const aMs = new Date(a.estimatedArrival ?? a.scheduledArrival).getTime()
         const bMs = new Date(b.estimatedArrival ?? b.scheduledArrival).getTime()
         return aMs - bMs
       })
-      .slice(0, 15)
+      .slice(0, 10)
   )
 }
 
