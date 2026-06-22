@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { GoogleAnalytics } from '@next/third-parties/google'
 import Script from 'next/script'
 import { Header } from '@/components/header'
+import { TranslationGuard } from '@/components/translation-guard'
 import { PaddleProvider } from '@/components/PaddleProvider'
 import './globals.css'
 import 'flag-icons/css/flag-icons.min.css'
@@ -80,7 +81,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" translate="no" className="notranslate">
+    <html lang="en">
       <body className="font-sans antialiased bg-background pt-[72px]">
         <script
           type="application/ld+json"
@@ -92,6 +93,7 @@ export default function RootLayout({
         />
         {/* Header 단일 마운트 — 페이지 navigation 간 unmount 안 돼 인증/프로필
             state 영속, 깜빡임 0. /admin·/login 등은 Header 내부에서 pathname 가드로 null 반환. */}
+        <TranslationGuard />
         <Header />
         {/* PaddleProvider — kbeauty 상품(Sourcing Sniper, Supplier Pro) 결제에 필요.
             Hallyu Pass 는 Polar 로 이전 완료 (PolarProvider 별도, layout 마운트 불필요). */}
