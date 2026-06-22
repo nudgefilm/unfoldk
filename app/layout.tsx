@@ -80,7 +80,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" translate="no" className="notranslate">
       <body className="font-sans antialiased bg-background pt-[72px]">
         <script
           type="application/ld+json"
