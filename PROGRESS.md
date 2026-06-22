@@ -4,6 +4,53 @@
 
 ---
 
+## 현재 상태 (2026-06-22 세션 76 기준)
+
+### 어드민 Cron 아코디언 + K-Inbound 사이드바 + 버그 수정 3건
+
+**완료 항목**
+
+- **어드민 Cron 페이지 아코디언 구조 전면 개편** (`app/admin/cron/page.tsx` + `components/admin/cron-monitor.tsx`)
+  - 기존: 16개 버튼 평면 나열 → 수정: 7개 서비스 그룹 아코디언 (HallyuCalendar / KpopStats / KdramaMatch / HangeulGo / KfoodKit / Hallyu Pass / System)
+  - `ROUTES` 배열 + `SERVICE_GROUPS` 구조 분리, `CronLogRow` / `RouteSummary` / `ServiceGroup` 타입 export
+  - 그룹별 상태 점 표시 (green=최근 성공 / red=최근 실패 / gray=미실행), ChevronDown 회전 애니메이션
+  - 기존 flat 버튼 row → displayName + 마지막 실행 시각 + 지표 + Run 버튼 인라인 수평 배치
+
+- **어드민 수동 트리거 4개 누락 라우트 등록** (`app/api/admin/cron/run/route.ts`)
+  - `generate-artist-reports` / `generate-comeback-guides` / `generate-monthly-report` / `generate-weekly-routines` 4개 import + zod enum + CRON_HANDLERS 추가
+  - 이전: 어드민에서 버튼 클릭 시 404 반환
+
+- **Hallyu Routine 모달 X 버튼 동작 수정** (`components/mypage/routine-onboarding-modal.tsx`)
+  - 원인: `<Dialog open={open}>` — `onOpenChange` prop 없으면 shadcn Dialog X 버튼 이벤트 미처리
+  - 수정: `onOpenChange={(v) => { if (!v && isUpdate) onClose?.() }}` 추가, `isUpdate` 가드로 첫 설정 모달은 X 강제 차단 유지
+
+- **K-Inbound 우측 사이드바 'Arriving at ICN Today' 패널 신규** (`components/k-inbound/icn-arrivals-panel.tsx` + `app/api/k-inbound/arrivals/route.ts`)
+  - AeroDataBox FIDS API로 당일 ICN 도착 국제선 조회, 10분 모듈 캐시
+  - 필터: 국내선(KOREA_AIRPORTS) 제외 / Landed 제외 / ETA < 현재 시각 제외
+  - 정렬: ETA 오름차순, 최대 15편
+  - 표시 형식 한 줄: `편명  |  도시명  |  HH:MM`
+  - 클릭 시 해당 항공편 검색 + 출발지→ICN 궤적 arc 표시
+
+- **K-Inbound 도착편 도시명 해결 개선** (`app/api/k-inbound/arrivals/route.ts`)
+  - 우선순위: AeroDataBox `departure.airport.municipalityName` → IATA_CITY 폴백 맵(230개+ 공항) → IATA code 최종 fallback
+  - 일본 지방 소공항(AOJ·SDJ·AXT 등) / 중국 내륙(TAO·WUH·CSX 등) / 러시아(VVO·KHV) 포함
+  - `originCity` 필드를 서버에서 resolve → 클라이언트 IATA 맵 불필요(제거)
+
+- **K-Inbound 지구본 Arc 잔상 제거** (`components/k-inbound/globe.tsx`)
+  - 항공편 전환 시 이전 arc 즉시 제거: `clearArcRef` 플래그 → 다음 프레임에 `scene.remove(arcLine)` + `arcLine = null`
+
+- **K-Inbound 지구본 비행기 역방향 버그 수정** (`components/k-inbound/globe.tsx`)
+  - 원인: `nextFt = Math.min(ft + 0.01, 0.99)` — `ft = 1.0`이면 `nextFt = 0.99 < ft` → forward 벡터 역방향
+  - `ft = 1.0` (착륙 완료): `ft = 0.99, nextFt = 1.0` 고정 → 최종 진입 방향 유지
+  - `0.95 ≤ ft < 1.0` (착륙 임박): `nextFt = min(ft + 0.01, 1.0)` (clamp 상한 0.99 → 1.0)
+  - `ft < 0.95`: 기존 로직 유지
+
+**다음 세션**
+- GA4 Realtime 리포트 PageView 확인 (Vercel Redeploy 후)
+- Polar 만료 시 자동 downgrade cron 구현
+
+---
+
 ## 현재 상태 (2026-06-22 세션 75 기준)
 
 ### Cron 버그 수정 + 브라우저 번역 hydration 에러 방지
