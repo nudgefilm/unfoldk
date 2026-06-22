@@ -86,7 +86,7 @@ export function RoutineOnboardingModal({
   }
 
   return (
-    <Dialog open={open}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v && isUpdate) onClose?.() }}>
       <DialogContent
         className="max-w-md"
         style={{ backgroundColor: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)" }}
