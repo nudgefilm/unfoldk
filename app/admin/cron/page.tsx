@@ -44,9 +44,6 @@ const ROUTES = [
   "ingest-all",
   "ingest-ticketmaster",
   "send-reminders",
-  "ingest-kpop-stats",
-  "kpop-weekly",
-  "ingest-tmdb-dramas",
   "ingest-tour-spots",
   "ingest-filming-kpop",
   "backfill-filming-descriptions",
@@ -60,12 +57,9 @@ const ROUTES = [
 ] as const
 
 const DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
-  "ingest-all":                    "전체 이벤트 수집 (YouTube·TMDB·Last.fm)",
+  "ingest-all":                    "전체 이벤트 수집 (YouTube)",
   "ingest-ticketmaster":           "Ticketmaster 공연·이벤트 수집",
   "send-reminders":                "D-7·D-1·당일 이메일 알림 발송",
-  "ingest-kpop-stats":             "아티스트 통계 수집 (YouTube·Last.fm)",
-  "kpop-weekly":                   "주간 인사이트·국가차트 생성",
-  "ingest-tmdb-dramas":            "TMDB 드라마 수집",
   "ingest-tour-spots":             "TourAPI 관광지·맛집·축제 수집",
   "ingest-filming-kpop":           "촬영지 + K팝 성지 수집",
   "backfill-filming-descriptions": "촬영지 설명 backfill",
@@ -82,9 +76,6 @@ const METRIC_LABELS: Record<(typeof ROUTES)[number], string> = {
   "ingest-all":                    "수집 이벤트",
   "ingest-ticketmaster":           "수집 이벤트",
   "send-reminders":                "발송 수",
-  "ingest-kpop-stats":             "아티스트 갱신",
-  "kpop-weekly":                   "생성된 주차",
-  "ingest-tmdb-dramas":            "드라마 수집",
   "ingest-tour-spots":             "tour_spots 신규/변경",
   "ingest-filming-kpop":           "촬영지 + K팝 성지 신규",
   "backfill-filming-descriptions": "description 보충 수",
@@ -110,14 +101,6 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
   {
     label: "HallyuCalendar",
     routes: ["ingest-all", "ingest-ticketmaster", "send-reminders"],
-  },
-  {
-    label: "KpopStats",
-    routes: ["ingest-kpop-stats", "kpop-weekly"],
-  },
-  {
-    label: "KdramaMatch",
-    routes: ["ingest-tmdb-dramas"],
   },
   {
     label: "Curation K",

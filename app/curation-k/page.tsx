@@ -60,7 +60,6 @@ import {
   Bookmark,
   BookmarkCheck,
   MessageCircle,
-  Film,
   Calendar,
   TrendingUp,
   Loader2,
@@ -3172,18 +3171,15 @@ function SpotDetailDialog({
             <tab.Icon className="w-12 h-12 text-muted-foreground" />
           )}
 
-          {/* filming — "Featured in: <drama>" 클릭 가능한 배지 (→ /drama) */}
+          {/* filming — "Featured in: <drama>" 배지 */}
           {dramaBadge && (
-            <Link
-              href="/drama"
-              className="absolute top-3 left-3 z-30 text-[11px] font-medium px-2.5 py-1 rounded-full shadow inline-flex items-center gap-1 hover:opacity-90 transition-opacity"
+            <span
+              className="absolute top-3 left-3 z-30 text-[11px] font-medium px-2.5 py-1 rounded-full shadow inline-flex items-center gap-1"
               style={{ backgroundColor: `${tab.color}e0`, color: "#fff" }}
-              onClick={(e) => e.stopPropagation()}
-              title="Browse this drama on KdramaMatch"
             >
               <span className="opacity-80">Featured in:</span>
               <span className="font-semibold">{dramaBadge}</span>
-            </Link>
+            </span>
           )}
 
           {/* 북마크 — 항상 노출. 미로그인 클릭 시 로그인 이동 (onSaveToggle 내부 처리) */}
@@ -3374,12 +3370,6 @@ function SpotDetailDialog({
                     icon: <UtensilsCrossed className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
                     title: "Cook the food",
                     sub: "from this drama →",
-                  },
-                  {
-                    href: `/drama`,
-                    icon: <Film className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
-                    title: "Find K-dramas",
-                    sub: "UnfoldK picks →",
                   },
                   {
                     href: `/calendar`,
@@ -3739,12 +3729,6 @@ function KpopSpotDetailDialog({
                   icon: <Calendar className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
                   title: "Upcoming events",
                   sub: "check calendar →",
-                },
-                {
-                  href: "/drama",
-                  icon: <Film className="w-4 h-4 flex-shrink-0" style={{ color: "#FF4B6E" }} />,
-                  title: "Find K-dramas",
-                  sub: "UnfoldK picks →",
                 },
                 {
                   href: "/korean",

@@ -3,10 +3,17 @@
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
 import { searchUpcomingComebacks } from "@/lib/api/youtube"
-import { getTopKpopArtists } from "@/lib/api/lastfm"
 import { generateEventDescription } from "@/lib/claude/generate-event-description"
 
 const ARTIST_LIMIT = 15
+
+// Last.fm 제거 후 정적 아티스트 목록으로 대체 (kpop_artists 테이블도 3단계 DB 정리 시 삭제 예정)
+const STATIC_KPOP_ARTISTS: { name: string }[] = [
+  { name: "BTS" }, { name: "BLACKPINK" }, { name: "TWICE" }, { name: "aespa" },
+  { name: "IVE" }, { name: "SEVENTEEN" }, { name: "Stray Kids" }, { name: "NewJeans" },
+  { name: "LE SSERAFIM" }, { name: "EXO" }, { name: "NCT 127" }, { name: "ITZY" },
+  { name: "Red Velvet" }, { name: "MAMAMOO" }, { name: "GOT7" },
+]
 const RESULTS_PER_ARTIST = 3
 
 export interface YoutubeIngestResult {
@@ -49,18 +56,9 @@ export async function runYoutubeIngest(): Promise<YoutubeIngestResult> {
   }
   console.log("[ingest-youtube] YOUTUBE_API_KEY:", apiKeyStatus)
 
-  // Last.fm 시드 아티스트
-  const artists = await getTopKpopArtists(ARTIST_LIMIT)
-  console.log(`[ingest-youtube] Last.fm 시드 아티스트 ${artists.length}명`)
-  if (artists.length === 0) {
-    return {
-      source: "youtube",
-      apiKeyStatus,
-      artistsScanned: 0,
-      upserted: 0,
-      note: "Last.fm 아티스트 시드 비어있음",
-    }
-  }
+  // 정적 아티스트 목록으로 YouTube 컴백 검색
+  const artists = STATIC_KPOP_ARTISTS.slice(0, ARTIST_LIMIT)
+  console.log(`[ingest-youtube] 정적 아티스트 ${artists.length}명`)
 
   const allEvents: Array<{
     artistName: string

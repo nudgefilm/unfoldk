@@ -1,7 +1,5 @@
 import {
   CalendarDays,
-  Music2,
-  Clapperboard,
   Languages,
   UtensilsCrossed,
   Map,
@@ -10,8 +8,6 @@ import Link from "next/link"
 
 export interface ServiceStats {
   calendarEventsThisWeek: number
-  kpopTopArtist: string | null
-  dramasCount: number
   phrasesCount: number
   recipesCount: number
   filmingSpotsCount: number
@@ -92,24 +88,6 @@ export function BentoSection({ serviceStats }: { serviceStats?: ServiceStats }) 
       href: "/calendar",
       liveData: serviceStats && serviceStats.calendarEventsThisWeek > 0
         ? `${serviceStats.calendarEventsThisWeek} events this week`
-        : undefined,
-    },
-    {
-      icon: <Music2 className="w-9 h-9 text-foreground/70" />,
-      title: "KpopStats",
-      description: "Real-time charts for every K-pop artist, updated daily.",
-      href: "/kpop",
-      liveData: serviceStats?.kpopTopArtist
-        ? `#1 this week: ${serviceStats.kpopTopArtist}`
-        : undefined,
-    },
-    {
-      icon: <Clapperboard className="w-9 h-9 text-foreground/70" />,
-      title: "KdramaMatch",
-      description: "Find your next K-drama in 30 seconds.",
-      href: "/drama",
-      liveData: serviceStats && serviceStats.dramasCount > 0
-        ? `${serviceStats.dramasCount.toLocaleString()} K-dramas available`
         : undefined,
     },
     {

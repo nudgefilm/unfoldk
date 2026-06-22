@@ -75,46 +75,16 @@ async function fetchServiceStats(): Promise<ServiceStats | null> {
   const now = new Date().toISOString()
   const sevenDaysLater = new Date(Date.now() + 7 * 86400_000).toISOString()
 
-  const [eventsRes, dramasRes, phrasesRes, recipesRes, spotsRes, topArtistRes] = await Promise.allSettled([
+  const [eventsRes, phrasesRes, recipesRes, spotsRes] = await Promise.allSettled([
     admin.from("hallyu_calendar_events").select("id", { count: "exact", head: true })
       .gte("event_date", now).lte("event_date", sevenDaysLater),
-    admin.from("dramas").select("id", { count: "exact", head: true }),
     admin.from("korean_phrases").select("id", { count: "exact", head: true }),
     admin.from("food_recipes").select("id", { count: "exact", head: true }),
     admin.from("filming_spots").select("id", { count: "exact", head: true }).eq("status", "confirmed"),
-    // kpop 상위 1명 아티스트명 (BentoSection KpopStats 카드 liveData용)
-    admin.from("kpop_stats_daily")
-      .select("date")
-      .order("date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
   ])
-
-  let kpopTopArtist: string | null = null
-  if (topArtistRes.status === "fulfilled" && topArtistRes.value.data) {
-    const latestDate = (topArtistRes.value.data as { date: string }).date
-    const { data: top1 } = await admin
-      .from("kpop_stats_daily")
-      .select("artist_id")
-      .eq("date", latestDate)
-      .not("lastfm_listeners", "is", null)
-      .order("lastfm_listeners", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (top1) {
-      const { data: artist } = await admin
-        .from("kpop_artists")
-        .select("name")
-        .eq("id", (top1 as { artist_id: string }).artist_id)
-        .maybeSingle()
-      kpopTopArtist = (artist as { name?: string } | null)?.name ?? null
-    }
-  }
 
   return {
     calendarEventsThisWeek: eventsRes.status === "fulfilled" ? (eventsRes.value.count ?? 0) : 0,
-    kpopTopArtist,
-    dramasCount:      dramasRes.status === "fulfilled"  ? (dramasRes.value.count  ?? 0) : 0,
     phrasesCount:     phrasesRes.status === "fulfilled" ? (phrasesRes.value.count ?? 0) : 0,
     recipesCount:     recipesRes.status === "fulfilled" ? (recipesRes.value.count ?? 0) : 0,
     filmingSpotsCount: spotsRes.status === "fulfilled"  ? (spotsRes.value.count   ?? 0) : 0,

@@ -6,8 +6,6 @@ import { requireAdmin } from "@/lib/admin/auth"
 // 직접 호출 방식으로 전환 (2026-05-23).
 import { GET as ingestAll } from "@/app/api/cron/ingest-all/route"
 import { GET as ingestTicketmaster } from "@/app/api/cron/ingest-ticketmaster/route"
-import { GET as ingestKpopStats } from "@/app/api/cron/ingest-kpop-stats/route"
-import { GET as ingestTmdbDramas } from "@/app/api/cron/ingest-tmdb-dramas/route"
 import { GET as ingestTourSpots } from "@/app/api/cron/ingest-tour-spots/route"
 import { GET as ingestFilmingKpop } from "@/app/api/cron/ingest-filming-kpop/route"
 import { GET as ingestKoreanPhrases } from "@/app/api/cron/ingest-korean-phrases/route"
@@ -15,7 +13,6 @@ import { GET as ingestFoodRecipes } from "@/app/api/cron/ingest-food-recipes/rou
 import { GET as sendReminders } from "@/app/api/cron/send-reminders/route"
 import { GET as backfillFilmingDescriptions } from "@/app/api/cron/backfill-filming-descriptions/route"
 import { GET as weeklyReport } from "@/app/api/cron/weekly-report/route"
-import { GET as kpopWeekly } from "@/app/api/cron/kpop-weekly/route"
 import { GET as generateArtistReports } from "@/app/api/cron/generate-artist-reports/route"
 import { GET as generateComebackGuides } from "@/app/api/cron/generate-comeback-guides/route"
 import { GET as generateMonthlyReport } from "@/app/api/cron/generate-monthly-report/route"
@@ -35,8 +32,6 @@ const PostSchema = z.object({
   route: z.enum([
     "ingest-all",
     "ingest-ticketmaster",
-    "ingest-kpop-stats",
-    "ingest-tmdb-dramas",
     "ingest-tour-spots",
     "ingest-filming-kpop",
     "ingest-korean-phrases",
@@ -44,7 +39,6 @@ const PostSchema = z.object({
     "send-reminders",
     "backfill-filming-descriptions",
     "weekly-report",
-    "kpop-weekly",
     "generate-artist-reports",
     "generate-comeback-guides",
     "generate-monthly-report",
@@ -63,8 +57,6 @@ type RouteKey = z.infer<typeof PostSchema>["route"]
 const CRON_HANDLERS: Record<RouteKey, (req: Request) => Promise<Response>> = {
   "ingest-all": ingestAll,
   "ingest-ticketmaster": ingestTicketmaster,
-  "ingest-kpop-stats": ingestKpopStats,
-  "ingest-tmdb-dramas": ingestTmdbDramas,
   "ingest-tour-spots": ingestTourSpots,
   "ingest-filming-kpop": ingestFilmingKpop,
   "ingest-korean-phrases": ingestKoreanPhrases,
@@ -72,7 +64,6 @@ const CRON_HANDLERS: Record<RouteKey, (req: Request) => Promise<Response>> = {
   "send-reminders": sendReminders,
   "backfill-filming-descriptions": backfillFilmingDescriptions,
   "weekly-report": weeklyReport,
-  "kpop-weekly": kpopWeekly,
   "generate-artist-reports": generateArtistReports,
   "generate-comeback-guides": generateComebackGuides,
   "generate-monthly-report": generateMonthlyReport,

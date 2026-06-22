@@ -4,7 +4,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, ChevronDown, Calendar, Music, Film, Languages, UtensilsCrossed, Map, User, LogOut } from "lucide-react"
+import { Menu, ChevronDown, Calendar, Languages, UtensilsCrossed, Map, User, LogOut } from "lucide-react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
@@ -37,11 +37,9 @@ const services: Array<{
   phase: string
 }> = [
   { icon: Calendar, name: "HallyuCalendar", description: "Never miss a comeback or premiere", href: "/calendar", status: "live", phase: "M+0" },
-  { icon: Music, name: "KpopStats", description: "Global charts & streaming stats", href: "/kpop", status: "live", phase: "M+1" },
-  { icon: Film, name: "KdramaMatch", description: "UnfoldK drama recommendations", href: "/drama", status: "live", phase: "M+2" },
-  { icon: Languages, name: "HangeulGo", description: "Learn Korean from K-dramas", href: "/korean", status: "live", phase: "M+3" },
-  { icon: UtensilsCrossed, name: "KfoodKit", description: "Cook your favorite K-drama dishes", href: "/food", status: "live", phase: "M+4" },
-  { icon: Map, name: "Curation K", description: "Explore Korea like a Hallyu fan", href: "/curation-k", status: "live", phase: "M+5" },
+  { icon: Languages, name: "HangeulGo", description: "Learn Korean from K-dramas", href: "/korean", status: "live", phase: "M+1" },
+  { icon: UtensilsCrossed, name: "KfoodKit", description: "Cook your favorite K-drama dishes", href: "/food", status: "live", phase: "M+2" },
+  { icon: Map, name: "Curation K", description: "Explore Korea like a Hallyu fan", href: "/curation-k", status: "live", phase: "M+3" },
 ]
 
 // 서비스 목록 export — RoadmapModal 등 외부 컴포넌트 재사용

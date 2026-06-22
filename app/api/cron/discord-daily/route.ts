@@ -16,12 +16,10 @@ import {
   buildKpopChartEmbed,
 } from "@/lib/discord/embeds"
 import {
-  fetchAiringDramas,
   fetchDailyCurationSpot,
   fetchDailyFoodRecipe,
   fetchTodayKoreanPhrase,
   fetchTodaySchedule,
-  fetchTop10Chart,
 } from "@/lib/discord/data"
 import {
   listAllServerSettings,
@@ -110,16 +108,12 @@ async function postExtraWebhooks(
 }
 
 async function buildAllEmbeds(): Promise<Record<ChannelKey, DiscordEmbed>> {
-  const [schedule, charts, dramas] = await Promise.all([
-    fetchTodaySchedule(10),
-    fetchTop10Chart(),
-    fetchAiringDramas(5),
-  ])
+  const schedule = await fetchTodaySchedule(10)
   const phrase = fetchTodayKoreanPhrase()
   return {
     schedule: buildDailyScheduleEmbed(schedule),
-    charts: buildKpopChartEmbed(charts),
-    drama: buildDramaUpdatesEmbed(dramas),
+    charts: buildKpopChartEmbed(),
+    drama: buildDramaUpdatesEmbed(),
     korean: buildKoreanPhraseEmbed(phrase),
   }
 }

@@ -12,8 +12,7 @@ import {
   EARLY_ACCESS_NOTE,
   SERVICE_BLURBS,
 } from "@/lib/discord/templates"
-import type { ChartItem, CurationSpotItem, FoodRecipeItem, ScheduleItem } from "@/lib/discord/data"
-import type { TmdbTvShow } from "@/lib/api/tmdb"
+import type { CurationSpotItem, FoodRecipeItem, ScheduleItem } from "@/lib/discord/data"
 import type { KoreanPhrase } from "@/lib/discord/korean-phrases"
 
 const BRAND_COLOR = 0xff4b6e
@@ -108,16 +107,10 @@ export function buildDailyScheduleEmbed(items: ScheduleItem[]): DiscordEmbed {
   }
 }
 
-export function buildKpopChartEmbed(items: ChartItem[]): DiscordEmbed {
-  const lines = items.length
-    ? items.map(
-        (it) => `**#${it.rank}** ${it.name} — ${formatListenersM(it.lastfm_listeners)} listeners`
-      )
-    : ["_Chart data syncing — try again in a few hours._"]
-
+export function buildKpopChartEmbed(): DiscordEmbed {
   return {
-    title: "📊 This Week's K-pop Global Chart",
-    description: [divider(), ...lines, divider(), EARLY_ACCESS_NOTE].join("\n"),
+    title: "📊 K-pop Global Chart",
+    description: [divider(), "_Chart service is currently being rebuilt. Stay tuned!_", divider(), EARLY_ACCESS_NOTE].join("\n"),
     color: BRAND_COLOR,
     image: { url: CHANNEL_IMAGES.charts },
     footer: { text: FOOTER_TEXT },
@@ -125,19 +118,10 @@ export function buildKpopChartEmbed(items: ChartItem[]): DiscordEmbed {
   }
 }
 
-export function buildDramaUpdatesEmbed(items: TmdbTvShow[]): DiscordEmbed {
-  const lines = items.length
-    ? items.map((d) => {
-        const overview = filterOverview(d.overview)
-        // 설명 있으면 이탤릭으로, 없으면 설명 줄 자체 생략
-        const descLine = overview ? `\n   _${overview}_` : ""
-        return `🎬 **${d.name}** — ${d.first_air_date || "TBA"}${descLine}`
-      })
-    : ["_No dramas currently airing. Check back soon!_"]
-
+export function buildDramaUpdatesEmbed(): DiscordEmbed {
   return {
-    title: "🎬 Currently Airing K-Dramas",
-    description: [divider(), ...lines, divider(), EARLY_ACCESS_NOTE].join("\n"),
+    title: "🎬 K-Drama Updates",
+    description: [divider(), "_K-drama tracking is currently being rebuilt. Stay tuned!_", divider(), EARLY_ACCESS_NOTE].join("\n"),
     color: BRAND_COLOR,
     image: { url: CHANNEL_IMAGES.drama },
     footer: { text: FOOTER_TEXT },

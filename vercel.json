@@ -10,18 +10,6 @@
       "schedule": "0 4 * * *"
     },
     {
-      "path": "/api/cron/ingest-kpop-stats",
-      "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/cron/ingest-tmdb-dramas",
-      "schedule": "30 5 * * 1"
-    },
-    {
-      "path": "/api/cron/ingest-drama-items",
-      "schedule": "30 6 * * 1"
-    },
-    {
       "path": "/api/cron/ingest-ticketmaster",
       "schedule": "30 6 * * *"
     },
@@ -60,10 +48,6 @@
     {
       "path": "/api/cron/weekly-report",
       "schedule": "0 9 * * 1"
-    },
-    {
-      "path": "/api/cron/kpop-weekly",
-      "schedule": "0 5 * * 1"
     },
     {
       "path": "/api/cron/ingest-musicbrainz-releases",

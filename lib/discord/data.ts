@@ -9,7 +9,6 @@
 // 모든 외부 호출은 호출 측에서 try/catch — fallback 은 Embed 빌더 단에서 "no data" 메시지.
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin"
-import { fetchCurrentlyAiringKoreanDramas, type TmdbTvShow } from "@/lib/api/tmdb"
 import { getDailyKoreanPhrase, type KoreanPhrase } from "@/lib/discord/korean-phrases"
 
 export interface ScheduleItem {
@@ -17,13 +16,6 @@ export interface ScheduleItem {
   artist_or_drama: string
   event_date: string // ISO
   type: "comeback" | "drama" | "concert" | "fanmeet"
-}
-
-export interface ChartItem {
-  rank: number
-  name: string
-  lastfm_listeners: number | null
-  youtube_subscribers: number | null
 }
 
 // UTC 기준 [today 00:00, +1day) 윈도우
@@ -74,60 +66,6 @@ export async function fetchWeeklyComebacks(limit = 10): Promise<ScheduleItem[]> 
     return []
   }
   return (data ?? []) as ScheduleItem[]
-}
-
-export async function fetchTop10Chart(): Promise<ChartItem[]> {
-  const supabase = createSupabaseAdminClient()
-
-  // 최신 통계 날짜 — 어제/오늘 둘 다 가능 (cron 시점에 따라 변동)
-  const { data: latestRow, error: latestErr } = await supabase
-    .from("kpop_stats_daily")
-    .select("date")
-    .order("date", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (latestErr || !latestRow) {
-    console.error("[discord/data] fetchTop10Chart latest date:", latestErr?.message)
-    return []
-  }
-
-  const { data, error } = await supabase
-    .from("kpop_stats_daily")
-    .select("lastfm_listeners, youtube_subscribers, kpop_artists!inner(name)")
-    .eq("date", latestRow.date)
-    .not("lastfm_listeners", "is", null)
-    .order("lastfm_listeners", { ascending: false })
-    .limit(10)
-  if (error) {
-    console.error("[discord/data] fetchTop10Chart:", error.message)
-    return []
-  }
-
-  // Supabase join 결과 — kpop_artists 는 단일 객체 (!inner) 지만 타입이 array 로 추론될 수 있어 안전 접근
-  type Row = {
-    lastfm_listeners: number | null
-    youtube_subscribers: number | null
-    kpop_artists: { name: string } | { name: string }[]
-  }
-  const rows = (data ?? []) as Row[]
-  return rows.map((row, idx) => {
-    const artist = Array.isArray(row.kpop_artists) ? row.kpop_artists[0] : row.kpop_artists
-    return {
-      rank: idx + 1,
-      name: artist?.name ?? "Unknown",
-      lastfm_listeners: row.lastfm_listeners,
-      youtube_subscribers: row.youtube_subscribers,
-    }
-  })
-}
-
-export async function fetchAiringDramas(limit = 5): Promise<TmdbTvShow[]> {
-  try {
-    return await fetchCurrentlyAiringKoreanDramas(limit)
-  } catch (err) {
-    console.error("[discord/data] fetchAiringDramas:", err)
-    return []
-  }
 }
 
 export function fetchTodayKoreanPhrase(): KoreanPhrase {
