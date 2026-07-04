@@ -21,6 +21,21 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-07-05 외부 API 호출 크론 전면 정지 (비용 통제)
+
+- 결정 내용:
+  - `vercel.json` crons 21개 → 5개로 축소. 외부 API(Claude/YouTube/Ticketmaster/TourAPI/MusicBrainz/AeroDataBox 등)를 호출하는 크론 16개 스케줄 제거.
+  - 제거: `ingest-all`, `ingest-ticketmaster`, `generate-blog-post`, `ingest-tour-spots`, `ingest-curation-k`, `ingest-korean-phrases`, `ingest-food-recipes`, `backfill-filming-descriptions`, `weekly-report`, `ingest-musicbrainz-releases`, `translate-pipeline`, `collect-youtube`, `collect-hallyu-feed`, `generate-artist-reports`, `generate-comeback-guides`, `generate-monthly-report`, `/api/k-inbound/cron`(AeroDataBox, 별도 세션에서 선제 제거).
+  - 유지(외부 API 미호출 — DB 로직 또는 무료 Discord 웹훅만 사용): `send-reminders`, `discord-daily`, `trial-notifications`, `expire-trials`, `generate-weekly-routines`.
+  - `app/api/k-inbound/{flight,arrivals,cron}/route.ts`는 `AERODATABOX_BLOCKED = true` 상수로 호출 자체를 차단(어드민 수동 트리거로 다시 켜도 즉시 503).
+  - 라우트 파일 자체는 삭제하지 않음 — 어드민 Cron 페이지에서 수동 Run 버튼으로는 여전히 개별 실행 가능.
+- 이유:
+  - 결제 연동이 중단된 상태(Polar 체크아웃 점검 모달)에서 수익 없이 나가는 비용을 통제하기 위함.
+  - `generate-artist-reports`처럼 KpopStats 삭제 후에도 살아남아 stale 데이터로 Claude를 호출하는 낭비성 크론 발견 → 전체 재점검 계기.
+- 대안으로 고려했던 것:
+  - 크론 21개 전부 정지 — 트라이얼 만료(`expire-trials`) 등 구독 비즈니스 로직까지 멈추는 부작용 있어 기각, 외부 API 호출 여부 기준으로만 선별 정지.
+- 복원 방법: `vercel.json`에 제거된 크론 항목을 다시 추가하면 됨(이 커밋 이전 버전 git 이력 참고). K-Inbound는 `AERODATABOX_BLOCKED`를 `false`로.
+
 ## 2026-06-17 결제 수단 Lemon Squeezy → Paddle 전환 (현황 기록)
 
 - 결정 내용:

@@ -1,21 +1,26 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const LS_KEY = "unfoldk_maintenance_hidden_date"
 
-export function MaintenanceModal() {
+function MaintenanceModalInner() {
   const [open, setOpen] = useState(false)
+  const searchParams = useSearchParams()
+  // 어드민 권한 거부 리다이렉트(?toast=unauthorized) 시 안내 토스트를 덮지 않도록 모달 표시 안 함
+  const isUnauthorizedRedirect = searchParams.get("toast") === "unauthorized"
 
   useEffect(() => {
+    if (isUnauthorizedRedirect) return
     const hidden = localStorage.getItem(LS_KEY)
     const today = new Date().toISOString().slice(0, 10)
     if (hidden !== today) {
       setOpen(true)
     }
-  }, [])
+  }, [isUnauthorizedRedirect])
 
   function handleGotIt() {
     const today = new Date().toISOString().slice(0, 10)
@@ -81,5 +86,14 @@ export function MaintenanceModal() {
         </Button>
       </div>
     </div>
+  )
+}
+
+// useSearchParams() 는 Suspense boundary 안에서만 사용 가능 — Next.js 빌드 요구사항
+export function MaintenanceModal() {
+  return (
+    <Suspense fallback={null}>
+      <MaintenanceModalInner />
+    </Suspense>
   )
 }

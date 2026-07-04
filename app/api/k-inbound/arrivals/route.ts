@@ -166,7 +166,14 @@ async function fetchFromAeroDataBox(apiKey: string): Promise<ArrivalItem[]> {
   )
 }
 
+// 2026-07-05 AeroDataBox 비용/쿼터 이슈로 임시 차단 — 복원 시 이 상수만 false로
+const AERODATABOX_BLOCKED = true
+
 export async function GET() {
+  if (AERODATABOX_BLOCKED) {
+    return NextResponse.json({ error: "Service temporarily unavailable" }, { status: 503 })
+  }
+
   const apiKey = process.env.AERODATABOX_API_KEY
   if (!apiKey) return NextResponse.json({ error: "Service not configured" }, { status: 503 })
 

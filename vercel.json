@@ -6,52 +6,12 @@
   },
   "crons": [
     {
-      "path": "/api/cron/ingest-all",
-      "schedule": "0 4 * * *"
-    },
-    {
-      "path": "/api/cron/ingest-ticketmaster",
-      "schedule": "30 6 * * *"
-    },
-    {
       "path": "/api/cron/send-reminders",
       "schedule": "0 9 * * *"
     },
     {
-      "path": "/api/cron/generate-blog-post",
-      "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/cron/ingest-tour-spots?only_festivals=true",
-      "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/cron/ingest-curation-k",
-      "schedule": "0 4 * * 1"
-    },
-    {
       "path": "/api/cron/discord-daily",
       "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/ingest-korean-phrases",
-      "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/cron/ingest-food-recipes",
-      "schedule": "0 6 * * 1"
-    },
-    {
-      "path": "/api/cron/backfill-filming-descriptions",
-      "schedule": "30 4 * * *"
-    },
-    {
-      "path": "/api/cron/weekly-report",
-      "schedule": "0 9 * * 1"
-    },
-    {
-      "path": "/api/cron/ingest-musicbrainz-releases",
-      "schedule": "0 5 * * 2"
     },
     {
       "path": "/api/cron/trial-notifications",
@@ -62,36 +22,8 @@
       "schedule": "15 10 * * *"
     },
     {
-      "path": "/api/cron/translate-pipeline",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/cron/collect-youtube",
-      "schedule": "0 2 * * 1"
-    },
-    {
-      "path": "/api/cron/collect-hallyu-feed",
-      "schedule": "0 1 * * *"
-    },
-    {
-      "path": "/api/k-inbound/cron",
-      "schedule": "0 * * * *"
-    },
-    {
       "path": "/api/cron/generate-weekly-routines",
       "schedule": "0 23 * * 0"
-    },
-    {
-      "path": "/api/cron/generate-artist-reports",
-      "schedule": "0 1 * * 1"
-    },
-    {
-      "path": "/api/cron/generate-comeback-guides",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron/generate-monthly-report",
-      "schedule": "0 2 1 * *"
     }
   ]
 }
