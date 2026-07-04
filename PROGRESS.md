@@ -4,6 +4,69 @@
 
 ---
 
+## 현재 상태 (2026-06-23 세션 77 기준)
+
+### TMDB·Last.fm·KpopStats·KdramaMatch 전면 제거 완료 + 데이터 소스 조사
+
+**완료 항목**
+
+- **TMDB/Last.fm 코드 전면 제거 (Stage 1+2 완료)**
+  - `lib/discord/data.ts`: `fetchTop10Chart` / `fetchAiringDramas` 함수 제거 (TMDB+Last.fm 의존 제거)
+  - `lib/discord/embeds.ts`: `buildKpopChartEmbed(items)` / `buildDramaUpdatesEmbed(items)` → 인수 없는 정적 stub ("service being rebuilt" 메시지, DiscordEmbed 구조 유지)
+  - `lib/ingest/youtube.ts`: `getTopKpopArtists()` Last.fm 호출 → `STATIC_KPOP_ARTISTS` 15개 정적 배열 대체
+  - `app/api/admin/cron/run/route.ts`: `ingest-kpop-stats` / `kpop-weekly` / `ingest-tmdb-dramas` 3개 import·zod enum·CRON_HANDLERS 항목 제거
+  - `app/api/cron/discord-daily/route.ts`: `fetchAiringDramas` / `fetchTop10Chart` 제거, `buildAllEmbeds()` 간소화
+  - `app/admin/cron/page.tsx`: ROUTES / DISPLAY_NAMES / METRIC_LABELS / SERVICE_GROUPS에서 KpopStats·KdramaMatch 그룹 제거
+  - `app/admin/page.tsx`: `kpop_artists` / `kpop_stats_daily` / `dramas` 테이블 쿼리 제거, KpopStats·KdramaMatch 섹션 제거
+  - `app/curation-k/page.tsx`: 드라마 페이지 내부링크(`/drama`) 제거, `Film` 아이콘 import 제거
+
+- **디렉토리 삭제**
+  - `app/api/admin/kpop/` (전체 — [id]/refresh/route.ts, [id]/route.ts, route.ts)
+  - `app/api/admin/kpop-geo-refresh/route.ts`
+  - `app/api/curation-k/geo-artists/` (전체)
+  - `scripts/generate-drama-items.ts`
+
+- **환경변수 정리 (Stage 4 완료)**
+  - `.env.local` 에서 6개 키 제거: `TMDB_API_KEY`, `TMDB_READ_ACCESS_TOKEN`, `LASTFM_API_KEY`, `LASTFM_SHARED_SECRET`, `KOPIS_API_KEY`, `MYDRAMALIST_API_KEY`
+  - Vercel 대시보드 제거 목록: `TMDB_READ_ACCESS_TOKEN`, `LASTFM_API_KEY` (나머지 4개는 이전 세션 제거)
+  - 코드베이스 잔존 참조 없음 확인 (grep 검증 완료)
+
+- **HallyuCalendar 데이터 소스 전수 조사 (조사 결과만, 코드 변경 없음)**
+  - YouTube Data API (YouTube Data API v3 — `YOUTUBE_API_KEY`) — 컴백 영상·썸네일·라이브 수집 — 상업 허용 ✅
+  - Ticketmaster Discovery API v2 (`TICKETMASTER_API_KEY`) — 글로벌 공연 — 상업 허용 ✅
+  - MusicBrainz (무키) — 아티스트 MBID — CC0 공개도메인 ✅
+  - TourAPI 4.0 `TOUR_API_KEY` — 축제·행사·관광지 — 공공누리 1유형 ✅
+  - MAFRA (농림부, `MAFRA_API_KEY`) — 인증 식품 — 공공누리 ✅
+  - MFDS (식품의약처, `MFDS_API_KEY`) — 식품 인증 — 공공누리 ✅
+  - `source_api` 컬럼 값 종류: SQL 쿼리 실행 미완 (사용자 직접 확인 필요)
+
+- **AeroDataBox API 상업적 사용 허용 여부 조사 (조사 결과만, 코드 변경 없음)**
+  - 접근: RapidAPI 프록시 (`aerodatabox.p.rapidapi.com`), `AERODATABOX_API_KEY` 환경변수 (Vercel)
+  - 플랜 가격: BASIC 무료 600 units/월 / PRO $5.35 6,000 / ULTRA $32 60,000 / MEGA $160 600,000
+  - **현재 사용 플랜 확인 필요** — RapidAPI 계정 대시보드 직접 확인 요망
+    - K-Inbound cron 시간당 1회 기준 월 720+ units → BASIC(600 units/월) 초과 가능
+    - BASIC이면 호출 실패 발생 중일 수 있음 → PRO 이상 업그레이드 검토
+  - ToS 판정: **확인 필요** — SMB·SaaS 상업 마케팅으로 의도상 허용 가능성 높음, 단 ToS 5.2.i "publicly display to any third party" 조항이 구독자 표시 포함 여지로 법적 리스크 존재
+  - **권장**: AeroDataBox에 "SaaS 구독자 ICN 도착 정보 표시 허용 여부" 이메일 확인 (contact@aerodatabox.com)
+
+**사용자 액션 필요**
+- **Vercel 환경변수 제거**: `TMDB_READ_ACCESS_TOKEN`, `LASTFM_API_KEY` (Vercel 대시보드 → Project Settings → Environment Variables)
+- **AeroDataBox RapidAPI 플랜 확인**: RapidAPI 대시보드 → My Apps → AeroDataBox → 현재 구독 플랜 확인. BASIC이면 PRO($5.35/월)로 업그레이드
+- **HallyuCalendar source_api 확인** (옵션):
+  ```sql
+  SELECT DISTINCT source_api, COUNT(*) as cnt
+  FROM hallyu_calendar_events
+  GROUP BY source_api
+  ORDER BY cnt DESC;
+  ```
+
+**다음 세션**
+- GA4 Realtime 리포트 PageView 확인 (Vercel Redeploy 후)
+- Polar 만료 시 자동 downgrade cron 구현
+- AeroDataBox 플랜 확인 후 필요 시 업그레이드
+
+---
+
 ## 현재 상태 (2026-06-22 세션 76 기준)
 
 ### 어드민 Cron 아코디언 + K-Inbound 사이드바 + 버그 수정 3건
