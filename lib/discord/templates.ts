@@ -24,11 +24,11 @@ export const EARLY_ACCESS_NOTE = `
 // 6 서비스 short blurb — 봇 응답 시 단일 메시지 임베드.
 export const SERVICE_BLURBS = {
   calendar: `📅 **HallyuCalendar** — Never miss a comeback, premiere, concert, or fan meet.
-Live YouTube + TMDB + Ticketmaster ingestion. Free + Hallyu Pass tiers.
+Live TMDB + Ticketmaster ingestion. Free + Hallyu Pass tiers.
 → unfoldk.com/calendar`,
 
   kpop: `🎵 **KpopStats** — Global K-pop charts that move.
-YouTube subscribers + weekly growth · Last.fm monthly listeners · trending Top.
+Last.fm monthly listeners · trending Top.
 → unfoldk.com/kpop`,
 
   drama: `🎬 **KdramaMatch** — AI-powered K-drama recommendations.

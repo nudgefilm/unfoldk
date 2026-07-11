@@ -41,7 +41,6 @@ export interface ServiceGroup {
 //   4. components/admin/cron-monitor.tsx (summarizeRunResult)
 
 const ROUTES = [
-  "ingest-all",
   "ingest-ticketmaster",
   "send-reminders",
   "ingest-tour-spots",
@@ -57,7 +56,6 @@ const ROUTES = [
 ] as const
 
 const DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
-  "ingest-all":                    "전체 이벤트 수집 (YouTube)",
   "ingest-ticketmaster":           "Ticketmaster 공연·이벤트 수집",
   "send-reminders":                "D-7·D-1·당일 이메일 알림 발송",
   "ingest-tour-spots":             "TourAPI 관광지·맛집·축제 수집",
@@ -73,7 +71,6 @@ const DISPLAY_NAMES: Record<(typeof ROUTES)[number], string> = {
 }
 
 const METRIC_LABELS: Record<(typeof ROUTES)[number], string> = {
-  "ingest-all":                    "수집 이벤트",
   "ingest-ticketmaster":           "수집 이벤트",
   "send-reminders":                "발송 수",
   "ingest-tour-spots":             "tour_spots 신규/변경",
@@ -100,7 +97,7 @@ const ROUTE_ACTIONS: Partial<Record<(typeof ROUTES)[number], CronAction[]>> = {
 export const SERVICE_GROUPS: ServiceGroup[] = [
   {
     label: "HallyuCalendar",
-    routes: ["ingest-all", "ingest-ticketmaster", "send-reminders"],
+    routes: ["ingest-ticketmaster", "send-reminders"],
   },
   {
     label: "Curation K",
@@ -174,17 +171,7 @@ async function load(): Promise<LoadResult> {
     const r = (data.result_json ?? {}) as Record<string, unknown>
     let metric = "—"
 
-    if (route === "ingest-all") {
-      const direct = typeof r.total_upserted === "number" ? r.total_upserted : null
-      const total =
-        direct ??
-        Object.values(r).reduce<number>((acc, v) => {
-          if (typeof v !== "object" || v === null) return acc
-          const u = (v as { upserted?: unknown }).upserted
-          return acc + (typeof u === "number" ? u : 0)
-        }, 0)
-      metric = total.toLocaleString()
-    } else if (route === "ingest-ticketmaster") {
+    if (route === "ingest-ticketmaster") {
       metric = ((r.upserted as number | undefined) ?? 0).toLocaleString()
     } else if (route === "ingest-tour-spots") {
       metric = ((r.total_upserted as number | undefined) ?? 0).toLocaleString()

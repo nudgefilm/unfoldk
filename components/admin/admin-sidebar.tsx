@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { LayoutDashboard, Users, CalendarDays, Megaphone, Activity, Flag, UtensilsCrossed, ImageIcon, BookOpen, Video, Newspaper, MessageSquare } from "lucide-react"
+import { LayoutDashboard, Users, CalendarDays, Megaphone, Activity, Flag, UtensilsCrossed, ImageIcon, BookOpen, Newspaper, MessageSquare } from "lucide-react"
 
 // 어드민 사이드바 — 활성 라우트 표시는 클라이언트 컴포넌트로 분리
 const links = [
@@ -12,7 +12,6 @@ const links = [
   { href: "/admin/events", label: "이벤트 관리", icon: CalendarDays },
   { href: "/admin/fan-events", label: "팬 행사 신청", icon: Megaphone },
   { href: "/admin/reports", label: "Reports", icon: Flag },
-  { href: "/admin/videos", label: "YouTube 영상", icon: Video },
   { href: "/admin/hallyu-feed", label: "Hallyu Feed", icon: Newspaper, exact: true },
   { href: "/admin/hallyu-feed/community", label: "커뮤니티 관리", icon: MessageSquare },
   { href: "/admin/food", label: "KfoodKit", icon: UtensilsCrossed, exact: true },
@@ -24,7 +23,6 @@ const links = [
 export function AdminSidebar() {
   const pathname = usePathname()
   const [imageReviewCount, setImageReviewCount] = useState<number | null>(null)
-  const [videoPendingCount, setVideoPendingCount] = useState<number | null>(null)
   const [newsCount, setNewsCount] = useState<number | null>(null)
   const [communityReportCount, setCommunityReportCount] = useState<number | null>(null)
 
@@ -53,15 +51,6 @@ export function AdminSidebar() {
       .then((json: unknown) => {
         if (json && typeof json === "object" && "total" in json && typeof (json as { total: unknown }).total === "number") {
           setImageReviewCount((json as { total: number }).total)
-        }
-      })
-      .catch(() => {})
-
-    fetch("/api/admin/videos?count_only=true")
-      .then((r) => r.json())
-      .then((json: unknown) => {
-        if (json && typeof json === "object" && "total" in json && typeof (json as { total: unknown }).total === "number") {
-          setVideoPendingCount((json as { total: number }).total)
         }
       })
       .catch(() => {})
@@ -103,11 +92,6 @@ export function AdminSidebar() {
               {link.href === "/admin/food/images" && imageReviewCount !== null && imageReviewCount > 0 && (
                 <span className="ml-auto text-[10px] font-medium bg-[#FF4B6E] text-white rounded-full px-1.5 py-0.5 leading-none min-w-[18px] text-center">
                   {imageReviewCount > 99 ? "99+" : imageReviewCount}
-                </span>
-              )}
-              {link.href === "/admin/videos" && videoPendingCount !== null && videoPendingCount > 0 && (
-                <span className="ml-auto text-[10px] font-medium bg-[#FF4B6E] text-white rounded-full px-1.5 py-0.5 leading-none min-w-[18px] text-center">
-                  {videoPendingCount > 99 ? "99+" : videoPendingCount}
                 </span>
               )}
               {link.href === "/admin/hallyu-feed/community" && communityReportCount !== null && communityReportCount > 0 && (

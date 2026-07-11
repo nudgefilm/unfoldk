@@ -21,6 +21,45 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-07-11 YouTube Data API 연동 전체 제거
+
+- 결정 내용:
+  - **YouTube Data API v3 완전 제거** — 코드·환경변수·이미지 도메인·어드민 UI 전부 정리. `youtube_videos` 테이블 데이터/스키마는 삭제하지 않고 그대로 둠(요청 범위 외 — 향후 필요 시 별도 정리).
+  - 삭제한 파일 11개:
+    - `lib/api/youtube.ts` (googleapis 래퍼 — getChannelStats/searchChannelByName/searchUpcomingComebacks)
+    - `lib/ingest/youtube.ts` (`runYoutubeIngest` — HallyuCalendar 컴백 이벤트 수집)
+    - `app/api/cron/ingest-all/route.ts` — YouTube 제거 후 남는 로직이 없어 라우트 자체 삭제(주석에도 "TMDB, Last.fm, KpopStats 제거됨"으로 이미 YouTube 단독 라우트였음)
+    - `app/api/cron/ingest-youtube/route.ts` (`runYoutubeIngest` 전용 cron)
+    - `app/api/cron/collect-youtube/route.ts` (영상 큐레이션 주간 수집)
+    - `app/api/youtube/collect/route.ts` (영상 큐레이션 어드민 수동 수집)
+    - `app/api/admin/videos/route.ts`, `app/api/admin/videos/[id]/route.ts` (어드민 영상 승인/거절)
+    - `app/api/videos/route.ts` (공개 영상 조회 API)
+    - `components/shared/youtube-video-section.tsx` (영상 섹션 컴포넌트)
+    - `app/admin/videos/page.tsx` (어드민 영상 관리 페이지 — 사이드바 메뉴·API 삭제로 접근 불가능해져 함께 삭제)
+  - 코드 수정:
+    - `app/calendar/page.tsx`, `app/curation-k/page.tsx` — `YoutubeVideoSection` import/렌더링 제거 + `/api/videos` 카운트 조회용 `hasVideos` state/useEffect/"Watch related videos" 링크 제거 (삭제된 API를 호출하던 잔여 코드, 방치하면 404)
+    - `components/admin/admin-sidebar.tsx` — "YouTube 영상" 메뉴, `Video` 아이콘 import, pending count fetch/badge 제거
+    - `app/api/admin/cron/run/route.ts`, `app/admin/cron/page.tsx`, `components/admin/cron-monitor.tsx` — `ingest-all` 등록(import·zod enum·CRON_HANDLERS·ROUTES·DISPLAY_NAMES·METRIC_LABELS·SERVICE_GROUPS·결과 요약 분기) 전부 제거
+    - `next.config.mjs` — `img.youtube.com`, `yt3.googleusercontent.com` remotePattern 제거
+    - `.env.local` — `YOUTUBE_API_KEY` 삭제, 제거 이력 주석으로 대체
+    - `package.json` — `googleapis` 의존성 제거 + `pnpm install`로 lockfile 동기화
+    - `lib/discord/templates.ts` — Discord 봇 서비스 blurb에서 "Live YouTube +" / "YouTube subscribers + weekly growth ·" 문구 제거
+    - `app/privacy/page.tsx` — 개인정보처리방침 "제3자 제공" 목록에서 "YouTube Data API v3" 제거 (한/영 둘 다) — 실제로 더 이상 데이터 처리하지 않는 벤더를 법적 문서에 남기지 않기 위함
+  - **범위에서 제외한 것 (의도적으로 그대로 둠)**:
+    - `supabase/migrations/0080_youtube_videos.sql` 및 `youtube_videos` 테이블 — 요청대로 데이터·스키마 삭제 안 함
+    - `components/kpop/artist-trend-chart.tsx`, `components/admin/kpop-artists-manager.tsx` — 세션 77 KpopStats 제거 때부터 이미 고아 상태(어디서도 import 안 됨)였던 컴포넌트. YouTube 전용이 아니라 KpopStats 잔재라 이번 범위 밖으로 두고 발견 사실만 기록.
+    - `components/admin/cron-monitor.tsx`의 `route === "ingest-kpop-stats"` 분기(`r.youtubeFetched` 참조) — 같은 이유로 세션 77 잔재, 이번엔 손대지 않음.
+    - `app/admin/cron/page.tsx`의 `ingest-kpop-stats`/`ingest-tmdb-dramas` 타입 비교 관련 기존 TS2367 에러 2건 — 이번 변경으로 생긴 게 아니라 세션 77부터 있던 사전 존재 이슈로 확인(`next.config.mjs`의 `ignoreBuildErrors: true`로 빌드는 막히지 않음). 별도 정리 필요.
+    - `app/about/page.tsx` KpopStats 카드 설명, `public/llms.txt`의 KpopStats 문구 — "YouTube subscribers" 등 이미 존재하지 않는 KpopStats 서비스 자체를 설명하는 마케팅 카피라 오늘 작업 범위 밖으로 둠.
+- 이유:
+  - HallyuCalendar 컴백 이벤트 수집(`ingest-all`/`ingest-youtube`)과 영상 큐레이션(`collect-youtube`/`/admin/videos`) 두 갈래 모두 YouTube Data API 의존이었고, 서비스 중지 결정(2026-07-08) 이후 비용·유지보수 대상이 되는 외부 API 연동을 근본적으로 제거하는 작업의 연장선.
+  - `app/kpop/[id]/page.tsx`, `app/drama/page.tsx` 등 원 요청에 언급된 일부 파일은 세션 77에서 KpopStats·KdramaMatch 서비스 자체가 이미 삭제되어 존재하지 않음을 확인 — 실제 남아있던 것은 `app/calendar/page.tsx`·`app/curation-k/page.tsx` 2곳뿐이었음.
+- 대안으로 고려했던 것:
+  - `app/api/cron/ingest-all/route.ts`를 빈 셸로 남기는 방안 — YouTube 제거 후 아무 로직도 남지 않아(이미 TMDB/Last.fm/KpopStats는 세션 77에 제거됨) 라우트 자체를 삭제하는 쪽이 더 정확하다고 판단, 관련 어드민 cron 등록 4곳도 함께 정리.
+- 사용자 액션 필요:
+  - **Vercel 대시보드에서 `YOUTUBE_API_KEY` 환경변수 제거** (Project Settings → Environment Variables) — `.env.local`은 이미 정리했으나 Vercel 운영 환경 값은 별도 삭제 필요.
+  - (옵션) 과거 YouTube 컴백 수집으로 쌓인 `hallyu_calendar_events` 행(`source_api='youtube'`) 정리 여부 검토 — `img.youtube.com` remotePattern을 제거했으므로 해당 행의 `thumbnail_url`은 next/image에서 더 이상 로드되지 않음(과거 KOPIS 제거 때와 동일 패턴, SQL: `DELETE FROM hallyu_calendar_events WHERE source_api='youtube'`). 원치 않으면 remotePattern을 유지해도 됨 — 사용자 판단 필요.
+
 ## 2026-07-08 서비스 중지 결정 — 남은 크론 전체 정지 + 결제 키 제거
 
 - 결정 내용:

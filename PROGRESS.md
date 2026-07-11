@@ -4,6 +4,34 @@
 
 ---
 
+## 현재 상태 (2026-07-11 세션 78 기준)
+
+### YouTube Data API 연동 전체 제거
+
+**완료 항목**
+
+- **YouTube Data API v3 완전 제거** — 상세 내역은 DECISIONS.md "2026-07-11 YouTube Data API 연동 전체 제거" 참조. 요약:
+  - 파일 11개 삭제: `lib/api/youtube.ts`, `lib/ingest/youtube.ts`, `app/api/cron/ingest-all|ingest-youtube|collect-youtube/route.ts`, `app/api/youtube/collect/route.ts`, `app/api/admin/videos/route.ts`+`[id]/route.ts`, `app/api/videos/route.ts`, `components/shared/youtube-video-section.tsx`, `app/admin/videos/page.tsx`
+  - `app/calendar/page.tsx` / `app/curation-k/page.tsx`: `YoutubeVideoSection` 렌더링 + `/api/videos` 카운트 조회 잔여 로직(`hasVideos`) 제거
+  - `components/admin/admin-sidebar.tsx`: "YouTube 영상" 메뉴 제거
+  - `app/api/admin/cron/run/route.ts` / `app/admin/cron/page.tsx` / `components/admin/cron-monitor.tsx`: `ingest-all` 등록 전부 제거
+  - `next.config.mjs`: YouTube 이미지 remotePattern 2개 제거 / `.env.local`: `YOUTUBE_API_KEY` 삭제 / `package.json`: `googleapis` 제거 + `pnpm install`
+  - `lib/discord/templates.ts`, `app/privacy/page.tsx`: YouTube 언급 텍스트 정리
+  - **범위 외로 남긴 것**: `youtube_videos` 테이블(데이터·스키마 유지, 요청대로 삭제 안 함), `components/kpop/artist-trend-chart.tsx` / `components/admin/kpop-artists-manager.tsx` / `cron-monitor.tsx`의 `ingest-kpop-stats` 분기(세션 77 KpopStats 제거 때부터의 고아 코드 — YouTube 전용이 아니라 이번 범위 밖), `app/admin/cron/page.tsx`의 `ingest-kpop-stats`/`ingest-tmdb-dramas` 관련 기존 TS2367 타입 에러 2건(세션 77부터 있던 사전 존재 이슈, 이번에 발생한 게 아님)
+- **원 요청 대비 확인된 차이**: 요청에 포함된 `app/kpop/[id]/page.tsx`, `app/drama/page.tsx`는 세션 77에서 KpopStats·KdramaMatch 서비스 자체가 이미 삭제되어 존재하지 않았음. `lib/ingest/kpop-stats.ts`도 같은 이유로 미존재 — 해당 항목들은 스킵.
+
+**사용자 액션 필요**
+- **Vercel 대시보드 환경변수 제거**: `YOUTUBE_API_KEY` (Project Settings → Environment Variables)
+- **(옵션) DB 정리 검토**: `hallyu_calendar_events` 중 `source_api='youtube'` 행의 썸네일은 `img.youtube.com` remotePattern 제거로 더 이상 next/image에서 로드되지 않음. 삭제하려면 `DELETE FROM hallyu_calendar_events WHERE source_api='youtube'` (과거 KOPIS 정리와 동일 패턴) — 원치 않으면 그대로 둬도 무방.
+
+**다음 세션**
+- GA4 Realtime 리포트 PageView 확인 (Vercel Redeploy 후)
+- Polar 만료 시 자동 downgrade cron 구현
+- AeroDataBox 플랜 확인 후 필요 시 업그레이드
+- (발견됨, 미처리) `components/kpop/artist-trend-chart.tsx`·`components/admin/kpop-artists-manager.tsx` 등 KpopStats 고아 컴포넌트 정리 여부 결정 필요
+
+---
+
 ## 현재 상태 (2026-06-23 세션 77 기준)
 
 ### TMDB·Last.fm·KpopStats·KdramaMatch 전면 제거 완료 + 데이터 소스 조사

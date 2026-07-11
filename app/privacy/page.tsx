@@ -39,7 +39,7 @@ const content = {
         list: [
           "Google OAuth (authentication)",
           "Stripe (payment processing — stripe.com/privacy)",
-          "YouTube Data API v3, TMDB API, Last.fm API (content data)",
+          "TMDB API, Last.fm API (content data)",
           "Resend (transactional email) · Supabase (database hosting)"
         ]
       },
@@ -129,7 +129,7 @@ const content = {
         list: [
           "Google OAuth (인증)",
           "Stripe (결제 처리 — stripe.com/privacy)",
-          "YouTube Data API v3, TMDB API, Last.fm API (콘텐츠 데이터)",
+          "TMDB API, Last.fm API (콘텐츠 데이터)",
           "Resend (이메일 발송) · Supabase (데이터베이스 호스팅)"
         ]
       },

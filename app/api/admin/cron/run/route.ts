@@ -4,7 +4,6 @@ import { requireAdmin } from "@/lib/admin/auth"
 // 각 cron route handler 직접 import — Vercel 내부 HTTP fetch 차단 우회.
 // 같은 프로젝트 내 함수끼리 외부 URL로 fetch하면 응답을 못 받는 경우가 있어
 // 직접 호출 방식으로 전환 (2026-05-23).
-import { GET as ingestAll } from "@/app/api/cron/ingest-all/route"
 import { GET as ingestTicketmaster } from "@/app/api/cron/ingest-ticketmaster/route"
 import { GET as ingestTourSpots } from "@/app/api/cron/ingest-tour-spots/route"
 import { GET as ingestFilmingKpop } from "@/app/api/cron/ingest-filming-kpop/route"
@@ -30,7 +29,6 @@ export const maxDuration = 300
 
 const PostSchema = z.object({
   route: z.enum([
-    "ingest-all",
     "ingest-ticketmaster",
     "ingest-tour-spots",
     "ingest-filming-kpop",
@@ -55,7 +53,6 @@ type RouteKey = z.infer<typeof PostSchema>["route"]
 
 // route → handler 매핑. zod enum 과 반드시 동기화.
 const CRON_HANDLERS: Record<RouteKey, (req: Request) => Promise<Response>> = {
-  "ingest-all": ingestAll,
   "ingest-ticketmaster": ingestTicketmaster,
   "ingest-tour-spots": ingestTourSpots,
   "ingest-filming-kpop": ingestFilmingKpop,

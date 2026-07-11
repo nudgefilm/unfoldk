@@ -60,7 +60,6 @@
     "fast-xml-parser": "^5.8.0",
     "flag-icons": "^7.5.0",
     "framer-motion": "latest",
-    "googleapis": "^171.4.0",
     "gray-matter": "^4.0.3",
     "html2canvas": "^1.4.1",
     "input-otp": "1.4.1",

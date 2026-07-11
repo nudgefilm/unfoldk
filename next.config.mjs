@@ -28,20 +28,10 @@ const nextConfig = {
         protocol: "https",
         hostname: "image.tmdb.org",
       },
-      // YouTube 채널 썸네일 — KpopStats 아티스트 프로필
-      {
-        protocol: "https",
-        hostname: "yt3.googleusercontent.com",
-      },
       // Ticketmaster 이벤트 썸네일 — HallyuCalendar Featured 카드
       {
         protocol: "https",
         hostname: "s1.ticketm.net",
-      },
-      // YouTube 영상 썸네일 (img.youtube.com/vi/{videoId}/...) — YouTube 컴백 이벤트
-      {
-        protocol: "https",
-        hostname: "img.youtube.com",
       },
     ],
   },

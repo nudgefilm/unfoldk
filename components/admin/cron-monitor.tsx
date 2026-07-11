@@ -289,11 +289,6 @@ function summarizeRunResult(route: string, result: unknown, elapsedMs: number): 
     return `레시피 ${num(r.upserted)}건 (페치 ${num(r.fetched)} · skip ${num(r.skipped)})${backfillPart}${titlePart}${errPart} · ${time}`
   }
 
-  if (route === "ingest-all") {
-    const total = typeof r.total_upserted === "number" ? r.total_upserted : null
-    return total !== null ? `수집 ${total.toLocaleString()}건 · ${time}` : `${route} · ${time}`
-  }
-
   if (route === "send-reminders") {
     const summary = r.summary as { sent?: unknown } | undefined
     return `발송 ${num(summary?.sent)}건 · ${time}`

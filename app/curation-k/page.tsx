@@ -72,7 +72,6 @@ import {
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 import { hasProAccess } from "@/lib/auth/plan"
 import { AuthGate } from "@/components/auth-gate"
-import { YoutubeVideoSection } from "@/components/shared/youtube-video-section"
 
 // ─── 지도 인프라 ─────────────────────────────────────────────
 const LNG_MIN = 124.3
@@ -2442,15 +2441,6 @@ export default function CurationKPage() {
           </div>
         </div>
 
-        {/* Korea Travel Videos — published 영상 없으면 자동 미노출 */}
-        <div className="max-w-[1320px] mx-auto px-6">
-          <YoutubeVideoSection
-            service="curation"
-            title="Korea Travel Videos"
-            id="curation-videos"
-          />
-        </div>
-
       </main>
 
       {/* ─── 핀 모달 (cluster list / pin detail) ─────────────────
@@ -3066,16 +3056,6 @@ function SpotDetailDialog({
     setImageIndex(0)
   }, [spot?.id])
 
-  // 이 스팟의 published YouTube 영상 존재 여부 — 메인 페이지 #curation-videos 링크 표시 판단
-  const [hasVideos, setHasVideos] = useState(false)
-  useEffect(() => {
-    if (!spot?.id) { setHasVideos(false); return }
-    fetch(`/api/videos?service=curation&ref_id=${spot.id}&count_only=true`)
-      .then((r) => (r.ok ? r.json() : { count: 0 }))
-      .then((b: { count: number }) => setHasVideos((b.count ?? 0) > 0))
-      .catch(() => setHasVideos(false))
-  }, [spot?.id])
-
   // ─── Nearby Places — festivals 탭 제외 + GPS 있을 때 모든 탭에 노출 ──
   // GPS 없거나 결과 0건이면 섹션 자체 렌더 안 함 (graceful).
   const [nearbyData, setNearbyData] = useState<NearbyPlacesResponse | null>(null)
@@ -3401,20 +3381,6 @@ function SpotDetailDialog({
               data={nearbyData}
               loading={nearbyLoading}
             />
-          )}
-
-          {/* 이 스팟 관련 영상이 있으면 메인 페이지 영상 섹션으로 안내 */}
-          {spot && hasVideos && (
-            <div className="mt-4 pt-4 border-t border-border/20">
-              <a
-                href="#curation-videos"
-                onClick={onClose}
-                className="text-sm font-medium hover:underline"
-                style={{ color: "#FF4B6E" }}
-              >
-                ▶ Watch related videos
-              </a>
-            </div>
           )}
         </div>
       </DialogContent>

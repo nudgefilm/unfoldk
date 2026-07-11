@@ -112,12 +112,9 @@ Hallyu Pass   $72/년     Pro + 33% 할인 ($6/월)
 - 신규 사용자 노출 카피 작성 시 자가 점검: "이 문장의 주체가 누구인가?" → UnfoldK 가 아니면 재작성.
 - 검증: 사용자 노출 파일 (`app/**/*.tsx` 의 JSX 텍스트, `components/**/*.tsx` 의 JSX 텍스트, `emails/**`) 에서 `\b(AI|Claude|Anthropic|Haiku|Sonnet|GPT|OpenAI|ChatGPT)\b` grep 시 주석·내부 변수만 남아야 함.
 
-### YouTube 채널 자동 매핑 원칙
-- 검색 쿼리: `${artistName} official` 기본 적용 (`lib/api/youtube.ts:searchChannelByName`)
-- 검색 결과 1위 채널 `subscriberCount` 10만 이상 검증 후 매핑 (`channels.list` 1 unit 추가)
-- 채널명과 아티스트명 유사도 낮으면 NULL 유지 (오매핑 > NULL)
-- 어드민 수동 확인은 NULL 상태 아티스트 예외 케이스만
-- BTS·BLACKPINK 등 대형 아티스트는 채널ID 하드코딩 우선 (migration `0019_fix_bts_blackpink_channel.sql` 패턴)
+### YouTube 채널 자동 매핑 원칙 (2026-07-11 폐기 — YouTube Data API 전체 제거)
+- 과거 `lib/api/youtube.ts:searchChannelByName` 구현 원칙이었으나, KpopStats 서비스 자체 제거(세션 77) 이후 호출부가 없던 채로 남아있다가 2026-07-11 YouTube Data API 완전 제거로 코드도 삭제됨. 상세는 DECISIONS.md 2026-07-11 항목 참조.
+- 유사 기능(아티스트 공식 채널 자동 매핑) 재도입 시 참고할 과거 원칙: `${artistName} official` 검색 → 결과 1위 채널 `subscriberCount` 10만 이상 검증 → 채널명·아티스트명 유사도 낮으면 NULL 유지(오매핑 > NULL) → 대형 아티스트는 채널ID 하드코딩 우선(과거 `0019_fix_bts_blackpink_channel.sql` 패턴).
 
 ### KpopStats 아티스트 노출 원칙
 - Top 20 차트 외 아티스트도 검색·탐색 가능해야 함
@@ -585,6 +582,7 @@ Phase 3 — 한국 현지 연계:
 
 ```
 ❌ YouTube API 를 tubewatch.kr 와 같은 GCP 프로젝트 → 쿼터 초과 시 양쪽 중단
+   (2026-07-11 YouTube Data API 전체 제거로 현재 코드베이스에 해당 없음 — 재도입 시에도 별도 프로젝트 원칙 유지)
 ❌ Spotify API → 2025.05 부터 법인 전용. Last.fm 대체
 ❌ TossPayments → 해외 유저 경험 불량. Paddle 확정 (KYB 심사 중, 2026-06-17 제출)
 ❌ KOPIS API 재가동 → 국내 공연만 제공, 글로벌 유저 대상 서비스 부적합 (2026-05-16 폐기)
@@ -623,11 +621,11 @@ Phase 3 — 한국 현지 연계:
    공식 채널 미스 빈발 (팬 채널·라벨·동명이인). BTS·BLACKPINK 초기 매핑 미스
    → migration 0019_fix_bts_blackpink_channel.sql 로 정정한 전례.
    대량 시드 후 어드민에서 채널 확인·정정 필수.
+   (2026-07-11 KpopStats·YouTube API 모두 제거되어 현재 코드 없음 — 유사 기능 재도입 시 참고)
 
 ❌ YouTube search.list 대량 호출 (신규 아티스트 N명 매핑) → 일일 quota 초과
    search.list = 100 units/명. 250명 = 25,000 units > 10,000 daily.
-   lib/ingest/kpop-stats.ts MAX_CHANNEL_MAPPING_PER_RUN=50 cap 으로 분할 처리
-   (5일 자동 완결). cap 변경 시 quota 영향 재계산 필수.
+   (2026-07-11 YouTube API 전체 제거로 현재 코드 없음 — lib/ingest/kpop-stats.ts 도 이미 삭제됨)
 
 ❌ Header / 공통 chrome 페이지마다 import → unmount/remount 반복 + 인증 fetch
    반복 + 깜빡임. root layout 단일 마운트 + usePathname 가드 (HIDE_HEADER_PREFIXES).
