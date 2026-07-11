@@ -21,6 +21,24 @@
 
 <!-- 새로운 결정은 이 아래에 최신순(위 → 아래)으로 추가 -->
 
+## 2026-07-08 서비스 중지 결정 — 남은 크론 전체 정지 + 결제 키 제거
+
+- 결정 내용:
+  - **서비스 중지 예정 확정** (기존 결제 유저 없음 — 확인 완료).
+  - `vercel.json` 남은 크론 5개(`send-reminders`, `discord-daily`, `trial-notifications`, `expire-trials`, `generate-weekly-routines`) 전부 제거 → `"crons": []`.
+  - `.env.local` — `LEMONSQUEEZY_*` 6개 키(API_KEY/STORE_ID/WEBHOOK_SECRET/VARIANT_ID_MONTHLY/VARIANT_ID_ANNUAL) + `NEXT_PUBLIC_LMS_MONTHLY_URL`/`NEXT_PUBLIC_LMS_ANNUAL_URL` 삭제.
+  - `.env.local` — `POLAR_*` 5개 키(ACCESS_TOKEN/WEBHOOK_SECRET/PRODUCT_ID_MONTHLY/PRODUCT_ID_ANNUAL/ORG_SLUG) 삭제.
+  - `PADDLE_*` 키는 유지 — 현재 `sandbox` 환경(`NEXT_PUBLIC_PADDLE_ENVIRONMENT=sandbox`)이라 실과금 없음, kbeauty 라우트 코드가 여전히 참조.
+- 이유:
+  - 서비스 종료로 신규 결제·구독 로직 자체가 불필요. 기존 결제 유저가 없어 웹훅 유지 없이 즉시 전면 차단 가능.
+  - 남은 5개 크론은 전부 무료(Resend 무료 티어 / Discord 무료 웹훅 / DB 로직)였지만, 종료 서비스에 자동 발송·자동 포스팅이 의미 없어 함께 정지.
+- 대안으로 고려했던 것:
+  - 크론만 유지하고 결제 키만 제거 — 서비스 자체가 끝나는데 리마인더·트라이얼 알림을 계속 보낼 이유가 없어 기각.
+- 참고:
+  - Polar는 이 커밋 시점까지 실제로 Hallyu Pass 결제를 처리하던 라이브 시스템이었음(세션 73, 2026-06-21 E2E 검증). 재개 시 Polar 재연동은 신규 계정 발급부터 다시 필요.
+  - LemonSqueezy 라우트 코드(`app/api/lemonsqueezy/*`, `lib/lemonsqueezy.ts`)는 삭제하지 않음 — env 키만 제거되어 호출 시 에러 발생(서비스 중지 상태이므로 무해).
+  - **코드 차단은 API "호출"만 막을 뿐, 벤더 플랫폼에 이미 걸려있는 유료 구독 자체는 취소되지 않음** — AeroDataBox(RapidAPI) 유료 티어, ElevenLabs, Vercel/Supabase 유료 플랜 등은 각 대시보드에서 별도 확인·해지 필요.
+
 ## 2026-07-05 외부 API 호출 크론 전면 정지 (비용 통제)
 
 - 결정 내용:

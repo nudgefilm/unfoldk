@@ -4,26 +4,5 @@
     "app/api/cron/collect-hallyu-feed/route.ts": { "maxDuration": 300 },
     "app/api/admin/hallyu-feed/route.ts": { "maxDuration": 300 }
   },
-  "crons": [
-    {
-      "path": "/api/cron/send-reminders",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/discord-daily",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/trial-notifications",
-      "schedule": "15 9 * * *"
-    },
-    {
-      "path": "/api/cron/expire-trials",
-      "schedule": "15 10 * * *"
-    },
-    {
-      "path": "/api/cron/generate-weekly-routines",
-      "schedule": "0 23 * * 0"
-    }
-  ]
+  "crons": []
 }
